@@ -15,6 +15,7 @@ export class TestPresentationTerminal implements PresentationTerminalPort {
   readonly enhancedKeyboard = false;
   readonly kittyProtocolActive = false;
   readonly writes: string[] = [];
+  readonly titles: string[] = [];
   readonly programStatuses: ProgramStatus[] = [];
   active = false;
   #input: ((data: string) => void) | undefined;
@@ -31,7 +32,7 @@ export class TestPresentationTerminal implements PresentationTerminalPort {
   clearLine(): void { this.write("\x1b[K"); }
   clearFromCursor(): void { this.write("\x1b[J"); }
   clearScreen(): void { this.write("\x1b[2J\x1b[H"); }
-  setTitle(): void {}
+  setTitle(title: string): void { this.titles.push(title); }
   setProgress(): void {}
   setProgramStatus(status: ProgramStatus): void { this.programStatuses.push(status); }
 }

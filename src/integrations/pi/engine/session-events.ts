@@ -100,15 +100,15 @@ export class PiSessionEvents {
 
   /** Apply one pinned Pi session event; image assets no block references any more are released afterwards. */
   handle(event: unknown): void {
-    try { this.#applyPiEvent(event); }
-    finally { this.#projection.assets.discardUnowned(); }
+    try {
+      if (!isRecord(event) || typeof event.type !== "string") return;
+      // Invariant: usage moves at message and lifecycle boundaries, not with stream chunks.
+      if (event.type !== "message_update" && event.type !== "tool_execution_update") this.#ports.usageInvalidated();
+      this.#applyPiEvent(event);
+    } finally { this.#projection.assets.discardUnowned(); }
   }
 
-  #applyPiEvent(event: unknown): void {
-    if (!isRecord(event) || typeof event.type !== "string") return;
-    // Invariant: usage moves at message and lifecycle boundaries, not with stream chunks, so the
-    // two streaming event kinds keep the memo and everything else drops it.
-    if (event.type !== "message_update" && event.type !== "tool_execution_update") this.#ports.usageInvalidated();
+  #applyPiEvent(event: Record<string, unknown>): void {
     switch (event.type) {
       case "agent_start":
         this.#agentRunActive = true;
@@ -245,6 +245,9 @@ export class PiSessionEvents {
         this.#ports.compactionEnded();
         this.#endWorkState("compaction");
         if (event.reason === "manual") this.#ports.deliverQueuedAfterCompaction();
+        return;
+      case "session_info_changed":
+        this.#ports.emitView();
         return;
       case "thinking_level_changed":
         this.#ports.thinkingLevelChanged(readThinkingLevel(event.level));

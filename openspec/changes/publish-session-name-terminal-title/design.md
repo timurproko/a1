@@ -68,6 +68,23 @@ No data migration or dependency changes. After approval, implement in the same d
 
 Rollback through a normal corrective change can remove automatic publication and event handling without rewriting saved sessions. Existing extension title calls remain independent.
 
-## Approval Boundary
+## Implementation Notes
 
-The single-agent adaptation and explicit control-character normalization policy are part of this proposal for review. No implementation, tests, canonical-spec synchronization, or finalization is authorized by creating this plan.
+The maintainer approved this plan and explicitly requested implementation in the same interaction. The approved behavior and PR Implementation outcomes remain unchanged.
+
+The existing class-size ratchet prohibits growing the presenter. Its private title synchronization therefore lives in a small same-owner `SessionTerminalPresentation` collaborator alongside the existing terminal-progress synchronization. The presenter retains lifecycle and attachment authority and invokes the collaborator at exactly the planned boundaries. Moving progress into the collaborator replaces the existing progress-enabled field rather than adding another presenter field; the presenter's method count drops from 55 to 54 without changing progress behavior. This is internal decomposition, not a new contract or product capability.
+
+The event handler's existing record validation and usage invalidation move into `handle()` inside its existing cleanup guard. The long event switch consequently shrinks from 149 to 148 lines while gaining metadata-event handling. The size baseline is lowered, not relaxed. The startup baseline is repinned to the exact required initial-render graph: 198 modules and 1,754,501 normalized source bytes, an increase of one small presentation module and 1,891 bytes. No optional module, new dependency, or expensive startup work is added.
+
+Tests are concentrated in the new `session-shell-titles.test.ts` suite rather than spreading the cohesive title contract across existing large shell suites. Engine routing and authoritative projection tests stay in their existing owner suites.
+
+## Focused Validation
+
+- Build and typecheck pass in the task worktree.
+- 105 tests pass across the engine event/adapter suites and shell title, lifecycle, and host suites, covering title behavior plus the unchanged terminal-progress lifecycle.
+- Architecture boundaries and the reduced size ratchet pass; strict OpenSpec change validation passes.
+- Required exact-head CI remains workflow-owned after completion. No physical terminal-host result is asserted.
+
+## Known Gaps
+
+No known implementation gaps. Host-specific sidebar formatting is outside the standard-title contract; physical Herdr observation remains optional maintainer validation and is not claimed by automated tests.
