@@ -13,6 +13,36 @@ function extensionUi(session: Session): OwnedUiExtensionUiPort {
 }
 
 describe("session terminal titles", () => {
+  it("publishes the full automatic name immediately while animating only footer presentation", async () => {
+    const { engine, adapter, terminal, shell } = await titleFixture();
+    const entries: Array<Record<string, unknown>> = [];
+    let sequence = 0;
+    Object.assign(engine.session.sessionManager, {
+      getSessionFile: () => "D:/naming-session.jsonl",
+      getEntries: () => entries,
+      appendCustomEntry: (customType: string, data: unknown) => { const id = `custom-${++sequence}`; entries.push({ type: "custom", id, customType, data }); return id; },
+    });
+    const rename = engine.session.setSessionName.bind(engine.session);
+    vi.spyOn(engine.session, "setSessionName").mockImplementation(name => {
+      rename(name); entries.push({ type: "session_info", id: `name-${++sequence}`, name });
+      engine.session.emit({ type: "session_info_changed", name });
+    });
+    shell.root.render(120);
+    const footer = shell.root.footer as Required<Pick<typeof shell.root.footer, "setNameReveal">>;
+    const frames = vi.spyOn(footer, "setNameReveal");
+    try {
+      expect(adapter.naming.apply(adapter.naming.state()!, "generated-name", "context")).toBe(true);
+      await adapter.flushEvents();
+      expect(terminal.titles).toEqual(["a1", "generated-name"]);
+      expect(frames.mock.calls.some(([frame]) => frame?.from === "" && frame.elapsed >= 0)).toBe(true);
+      const frameCount = frames.mock.calls.length;
+      shell.root.render(120);
+      expect(frames.mock.calls).toHaveLength(frameCount);
+      await shell.submit("/name Manual Name"); await adapter.flushEvents();
+      expect(terminal.titles).toEqual(["a1", "generated-name", "manual name"]);
+      expect(frames.mock.calls.at(-1)?.[0]).toBeNull();
+    } finally { await shell.dispose(); }
+  });
   it.each([
     [undefined, "a1"],
     ["home dir settings", "home dir settings"],

@@ -1,23 +1,35 @@
 import type { OwnedUiSessionViewModel, OwnedUiShellProgramStatusReporter } from "../../contracts/owned-ui/index.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import type { OwnedUiPresenterTerminal } from "./shell-host.js";
+import { SessionNameReveal } from "./session-name-reveal.js";
 
 interface SessionTerminalPresentationPorts {
   terminal(): OwnedUiPresenterTerminal;
   programStatus(): OwnedUiShellProgramStatusReporter;
   titleEnabled(): boolean;
+  binding(): number;
+  nameFrame(frame: { readonly from: string; readonly elapsed: number } | null): boolean;
 }
 
 /** Session-derived terminal state, published only through the presenter's guarded handle. */
 export class SessionTerminalPresentation {
   readonly #ports: SessionTerminalPresentationPorts;
   progressEnabled = false;
+  readonly nameReveal: SessionNameReveal;
   // Invariant: extension titles never change this memo, so unrelated views leave them alone.
   #lastCoreTitle: string | undefined;
 
-  constructor(ports: SessionTerminalPresentationPorts) { this.#ports = ports; }
+  constructor(ports: SessionTerminalPresentationPorts) {
+    this.#ports = ports;
+    this.nameReveal = new SessionNameReveal({
+      active: () => ports.titleEnabled() && ports.terminal().running && ports.terminal().attached,
+      frame: frame => ports.nameFrame(frame),
+      requestRender: () => ports.terminal().requestRender(),
+    });
+  }
 
   syncTitle(view: OwnedUiSessionViewModel, force = false): void {
+    this.nameReveal.update(view, this.#ports.binding());
     const terminal = this.#ports.terminal();
     if (!this.#ports.titleEnabled() || !terminal.running || !terminal.attached) return;
     const title = view.status.footer?.sessionName?.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/gu, " ").trim()

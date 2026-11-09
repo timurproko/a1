@@ -1,5 +1,5 @@
 import type { AgentSettingsPort } from "../contracts/agent-engine/index.js";
-import type { OwnedUiPromptSuggestionGeneratorPort, UiAccentColor } from "../contracts/owned-ui/index.js";
+import type { OwnedUiPromptSuggestionGeneratorPort, OwnedUiSessionNamingPort, UiAccentColor } from "../contracts/owned-ui/index.js";
 import type { PiEngineSessionRequest } from "../integrations/pi/engine/host.js";
 import type { PiSessionPresenterBackend } from "../integrations/pi/session-presenters/index.js";
 
@@ -10,6 +10,7 @@ import type { PiSessionPresenterBackend } from "../integrations/pi/session-prese
  */
 export interface ComposedSessionBackend extends PiSessionPresenterBackend, OwnedUiPromptSuggestionGeneratorPort {
   settingsPort(): AgentSettingsPort | null;
+  readonly naming?: OwnedUiSessionNamingPort;
 }
 
 /** The process-level engine host as composition drives it: sessions, the live accent, and disposal. */

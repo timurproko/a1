@@ -38,6 +38,7 @@ import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
 import { SessionRuntimeRegistry } from "./session-runtime-registry.js";
+import { bindAutomaticSessionNaming } from "./session-naming.js";
 import { deferStartupReleaseUpdateObservation, readPackageVersion, StartupReleaseNote } from "./startup-route.js";
 import { createOwnedSettingsManager, watchSharedSettings } from "./owned-settings.js";
 
@@ -129,6 +130,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     await host.dispose();
     throw error;
   }
+  const naming = bindAutomaticSessionNaming(backend, bareSettings, bare);
   const releaseNote = await StartupReleaseNote.load({
     productMode,
     configDir: productPaths.configDir,
@@ -171,7 +173,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const suggestionDiagnostics = bareSettings !== null && diagnosticDestination?.trim()
     ? await import("../features/prompt-suggestions/diagnostics.js").then(module => new module.SuggestionDiagnosticCapture({ enabled: true, destination: diagnosticDestination })) : null;
   const barePorts = bareSettings === null ? null : bareShellPorts(bareSettings, backend, suggestionDiagnostics);
-  const promptHistory = createPromptHistoryConfiguration(settings, backend, bare);
+  const promptHistory = await createPromptHistoryConfiguration(settings, backend, bare);
   const clipboardDestination = options.clipboardDiagnosticsPath ?? process.env[PRODUCT_IDENTITY.environment.clipboardDiagnostics];
   const clipboardDiagnostics = bareSettings !== null && clipboardDestination?.trim()
     ? new ClipboardDiagnosticCapture(clipboardDestination) : null;
@@ -180,6 +182,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   // Invariant: one release order for a failed construction and for dispose. The shared spares outlive every
   // shell and stop only after the last one is disposed; the host outlives the application and is released last.
   const releaseShared = async (): Promise<void> => {
+    naming.dispose();
     clipboardServices?.dispose();
     unsubscribeAccent();
     await sessionRuntimes.dispose();
@@ -211,10 +214,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       } }),
       ...(barePorts === null ? {} : { suggestions: barePorts.suggestions, promptImages: barePorts.promptImages, skills: barePorts.skills }),
       shared: { keybindings: keybindingsHost, ...(clipboardServices === null ? {} : { clipboard: clipboardServices }) },
-      ...(promptHistory === null ? {} : { history: {
-        ...promptHistory,
-        editor: await import("../integrations/pi/components/history-editor-loader.js").then(module => module.loadHistoryEditor()),
-      } }),
+      ...(promptHistory === null ? {} : { history: promptHistory }),
     };
     // Invariant: one terminal host owns the process terminal; the session presenter reaches it only through
     // the host and paints once attached.
@@ -252,6 +252,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     flush: () => backend.session.flushEvents(),
     waitUntilStopped: () => presenter.waitUntilStopped(),
     dispose: async () => {
+      naming.dispose();
       releaseUpdates.stop();
       try {
         await terminalHost.dispose();
@@ -312,7 +313,7 @@ function bareShellPorts(
   };
 }
 
-function createPromptHistoryConfiguration(settings: OwnedSettingsManager | null, backend: ComposedSessionBackend, bare: boolean) {
+async function createPromptHistoryConfiguration(settings: OwnedSettingsManager | null, backend: ComposedSessionBackend, bare: boolean) {
   const limit = settings?.value("promptHistoryMaxItems") ?? 100;
   const scope = settings?.value("promptHistoryScope") ?? "unique";
   const enabled = settings !== null && bare && settings.value("promptHistoryEnabled");
@@ -329,6 +330,7 @@ function createPromptHistoryConfiguration(settings: OwnedSettingsManager | null,
   };
   return {
     limit, scope,
+    editor: await import("../integrations/pi/components/history-editor-loader.js").then(module => module.loadHistoryEditor()),
     ...(sessionId === null ? {} : { sessionId }),
     forScope,
     onScopeChange: (listener: (scope: "unique" | "shared") => void) => settings.onChange(() => listener(settings.value("promptHistoryScope"))),

@@ -232,10 +232,11 @@ export interface PiSessionViewSource {
   readonly engine: PiEngineRuntime;
   readonly transcript: readonly OwnedUiTranscriptBlock[];
   readonly activeCommandIds: readonly string[];
+  readonly nameReveal?: { readonly id: string; readonly from: string } | undefined;
 }
 
 /** The owned UI session view model, copied so a published view never aliases adapter state. */
-export function projectSessionView({ sessionId, state, engine, transcript, activeCommandIds }: PiSessionViewSource): OwnedUiSessionViewModel {
+export function projectSessionView({ sessionId, state, engine, transcript, activeCommandIds, nameReveal }: PiSessionViewSource): OwnedUiSessionViewModel {
   const routed = engine.session?.routedModel;
   const routedModel = routed === undefined ? null : readModel(routed.model);
   return {
@@ -253,6 +254,8 @@ export function projectSessionView({ sessionId, state, engine, transcript, activ
       footer: {
         branch: engine.repository.branch,
         repositoryPath: engine.repository.cwd,
+        repositoryRevision: engine.repository.revision,
+        ...(nameReveal === undefined ? {} : { sessionNameReveal: nameReveal }),
         pullRequest: engine.repository.pullRequest,
         sessionName: engine.session?.sessionManager?.getSessionName() ?? null,
         availableProviderCount: new Set(engine.runtime?.services.modelRuntime.getAvailableSnapshot?.().map(model => model.provider).filter(provider => provider !== undefined) ?? []).size,

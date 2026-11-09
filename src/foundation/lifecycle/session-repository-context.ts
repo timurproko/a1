@@ -63,6 +63,7 @@ interface SessionRepositoryRecord {
   readonly sessionFile: string;
   readonly startupRoot: string;
   readonly startupCommonDir: string;
+  readonly revision?: string;
   readonly worktreeRoot: string;
   readonly worktreeCommonDir: string;
   readonly worktreeGitDir: string;
@@ -198,9 +199,12 @@ export async function setSessionRepositoryContext(
     if (status === "busy") throw contextError("worktree is active in another session", "worktree-active-in-another-session");
     if (status === "unverifiable") throw contextError("worktree ownership cannot be verified", "worktree-owner-unverifiable");
     const prior = await readContextRecord(header, options);
+    const unchanged = prior !== null && samePath(prior.worktreeGitDir, selected.gitDir)
+      && await validateContextRecord(header, prior, options.signal).then(() => true, () => false);
+    const revision = unchanged ? prior.revision ?? randomUUID() : randomUUID();
     await writeClaim(header, selected, owner, processIdentityOf(runtime), options);
     try {
-      await writeContextRecord(header, startup, selected, options);
+      await writeContextRecord(header, startup, selected, revision, options);
     } catch (error) {
       if (status !== "current") await removeMatchingClaim(selected, owner, options);
       throw error;
@@ -220,7 +224,7 @@ export async function clearSessionRepositoryContext(
 ): Promise<void> {
   const header = await readSessionHeader(identity);
   if (options.runtimeId === undefined) {
-    await rm(contextRecordPath(header, options), { force: true });
+    await withClaimLock(options, async () => { await rm(contextRecordPath(header, options), { force: true }); });
     return;
   }
   const owner = { runtimeId: requireRuntimeId(options), agentId: requireAgentId(options) };
@@ -246,6 +250,62 @@ export async function readSessionRepositoryContext(
   if (record === null) return null;
   const selected = await validateContextRecord(header, record, options.signal).catch(() => null);
   return selected === null ? null : { cwd: selected.root, branch: requireBranch(selected) };
+}
+
+/** A verified naming context. Revision changes on explicit association transitions, not heartbeats. */
+export interface SessionRepositoryObservation {
+  readonly cwd: string;
+  readonly branch: string | null;
+  readonly revision: string;
+}
+
+/**
+ * Observe and synchronously consume a context under the existing mutation gate. Missing records
+ * mean unlinked; malformed, inaccessible, or invalid associations throw instead of inventing exits.
+ * The callback must not perform asynchronous work; provider I/O never holds this gate.
+ */
+export async function withSessionRepositoryObservation<T>(
+  identity: SessionRepositoryIdentity,
+  consume: (context: SessionRepositoryObservation) => T,
+  options: SessionRepositoryContextOptions = {},
+): Promise<T> {
+  const header = await readSessionHeader(identity);
+  return await withClaimLock(options, async () => {
+    let record: SessionRepositoryRecord | null = null;
+    try {
+      const path = contextRecordPath(header, options);
+      const metadata = await lstat(path);
+      if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > MAX_RECORD_BYTES) throw new Error("invalid repository context");
+      const value: unknown = JSON.parse(await readFile(path, { encoding: "utf8", signal: options.signal }));
+      if (!isContextRecord(value)) throw new Error("invalid repository context");
+      record = value;
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+    }
+    let context: SessionRepositoryObservation;
+    if (record !== null) {
+      const selected = await validateContextRecord(header, record, options.signal);
+      const revision = record.revision ?? randomUUID();
+      if (record.revision === undefined) await atomicWrite(contextRecordPath(header, options), { ...record, revision });
+      context = { cwd: selected.root, branch: selected.branch, revision };
+    } else {
+      let cwd = await realpath(header.cwd);
+      let branch: string | null;
+      try {
+        const selected = await readGitWorktreeIdentity(cwd, false, options.signal);
+        cwd = selected.root;
+        const result = await executeGit(["branch", "--show-current"], cwd, 4_096, options.signal);
+        branch = result.stdout.trim() || null;
+      }
+      catch (error) {
+        if (!(error instanceof Error && "stderr" in error && String(error.stderr).includes("not a git repository"))) throw error;
+        branch = null;
+      }
+      context = { cwd, branch, revision: "unlinked" };
+    }
+    options.signal?.throwIfAborted();
+    return consume(context);
+  });
 }
 
 /** List same-repository worktrees without acquiring, releasing, or repairing a claim. */
@@ -358,10 +418,12 @@ async function writeContextRecord(
   header: SessionHeader,
   startup: GitWorktreeIdentity,
   selected: GitWorktreeIdentity,
+  revision: string,
   options: SessionRepositoryContextOptions,
 ): Promise<void> {
   const record: SessionRepositoryRecord = {
     schema: CONTEXT_SCHEMA,
+    revision,
     sessionId: header.id,
     sessionFile: header.file,
     startupRoot: startup.root,
@@ -723,6 +785,7 @@ function validPath(value: unknown): value is string {
 
 function isContextRecord(value: unknown): value is SessionRepositoryRecord {
   return isRecord(value) && value.schema === CONTEXT_SCHEMA && validSessionId(value.sessionId)
+    && (value.revision === undefined || validSessionId(value.revision))
     && validPath(value.sessionFile) && validPath(value.startupRoot) && validPath(value.startupCommonDir)
     && validPath(value.worktreeRoot) && validPath(value.worktreeCommonDir) && validPath(value.worktreeGitDir)
     && typeof value.updatedAt === "string";

@@ -592,7 +592,7 @@ describe("pinned Pi command and input workflows", () => {
     runtime.modelRefreshResult = new Promise(resolve => { finish = resolve; });
     runtime.modelRefreshModels = [{ provider: "openai", id: "gpt-6", name: "GPT-6" }];
     const published: unknown[] = [];
-    adapter.setWorkflowInteractionHost({ prompt: async () => null, notify() {}, publish: message => published.push(message) });
+    adapter.workflows.setWorkflowInteractionHost({ prompt: async () => null, notify() {}, publish: message => published.push(message) });
     const pending = adapter.executeWorkflow({ command: "model", argument: "openai/gpt-6" });
     expect(published).toEqual([{ kind: "status", message: "Refreshing model catalogs…" }]);
     await adapter.dispose();
@@ -760,7 +760,7 @@ describe("pinned Pi command and input workflows", () => {
     const { adapter, runtime } = await fixture();
     runtime.loginPrompt = true;
     const prompts: string[] = [];
-    adapter.setWorkflowInteractionHost({
+    adapter.workflows.setWorkflowInteractionHost({
       prompt: async request => { prompts.push(`${request.type}:${request.message}`); return "credential"; },
       notify() {},
     });
@@ -771,7 +771,7 @@ describe("pinned Pi command and input workflows", () => {
     runtime.loginSelect = true;
     const lifecycle: string[] = [];
     const notifications: unknown[] = [];
-    adapter.setWorkflowInteractionHost({
+    adapter.workflows.setWorkflowInteractionHost({
       startLogin: request => lifecycle.push(`start:${request.providerName}:${request.authType}`),
       prompt: async request => {
         expect(request).toMatchObject({
@@ -791,7 +791,7 @@ describe("pinned Pi command and input workflows", () => {
     expect(lifecycle).toEqual(["start:OpenAI Codex:oauth", "finish"]);
     expect(notifications).toEqual([{ type: "auth_url", url: "https://example.test/auth", instructions: "Continue in browser" }]);
 
-    adapter.setWorkflowInteractionHost({ prompt: async () => null, notify() {} });
+    adapter.workflows.setWorkflowInteractionHost({ prompt: async () => null, notify() {} });
     runtime.loginSelect = false;
     runtime.loginPrompt = true;
     await expect(adapter.executeWorkflow({ command: "login", argument: "api_key:openai" })).resolves.toMatchObject({ outcome: "cancelled", messageKind: "silent" });
@@ -800,7 +800,7 @@ describe("pinned Pi command and input workflows", () => {
   it("maps Anthropic copy-code login into the owned manual-code prompt", async () => {
     const { adapter, runtime } = await fixture();
     runtime.loginManualCode = true;
-    adapter.setWorkflowInteractionHost({
+    adapter.workflows.setWorkflowInteractionHost({
       prompt: async request => {
         expect(request).toMatchObject({ type: "manual-code", message: "Paste the Anthropic authorization code" });
         return "copied-code";
@@ -848,7 +848,7 @@ describe("pinned Pi command and input workflows", () => {
     ]);
 
     const warnings: unknown[] = [];
-    adapter.setWorkflowInteractionHost({
+    adapter.workflows.setWorkflowInteractionHost({
       prompt: async () => "credential",
       notify() {},
       publish: message => warnings.push(message),
@@ -881,7 +881,7 @@ describe("pinned Pi command and input workflows", () => {
     let resolveRefresh: ((value: unknown) => void) | undefined;
     runtime.modelRefreshResult = new Promise(resolve => { resolveRefresh = resolve; });
     const published: unknown[] = [];
-    adapter.setWorkflowInteractionHost({
+    adapter.workflows.setWorkflowInteractionHost({
       prompt: async () => "credential",
       notify() {},
       publish: message => published.push(message),
