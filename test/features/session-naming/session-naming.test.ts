@@ -4,12 +4,20 @@ import type { OwnedUiEvent, OwnedUiSessionBackend, OwnedUiSessionNameState, Owne
 
 const controllers: SessionNamingController[] = [];
 afterEach(() => { controllers.splice(0).forEach(controller => controller.dispose()); vi.useRealTimers(); });
-const settle = async () => { for (let index = 0; index < 20; index++) await Promise.resolve(); };
+const settle = async () => {
+  for (let index = 0; index < 20; index++) await Promise.resolve();
+  await vi.dynamicImportSettled();
+  for (let index = 0; index < 20; index++) await Promise.resolve();
+};
 
-function fixture(initial?: Partial<OwnedUiSessionNameState>) {
+type NameFormat = "kebab" | "sentence" | "title";
+
+function fixture(initial?: Partial<OwnedUiSessionNameState>, initialFormat: NameFormat = "kebab") {
   let listener: (event: OwnedUiEvent) => void = () => {};
   let binding = 1;
   let enabled = true;
+  let format = initialFormat;
+  let beforeContext: (() => Promise<void>) | undefined;
   let context = { cwd: "/repo/task", branch: "feature/task" as string | null, revision: "first" };
   let state: OwnedUiSessionNameState = { sessionFile: "/session.jsonl", binding, name: null, nameEntryId: null, source: "unnamed", completedContext: null, ...initial };
   const blocks: Array<{ id: string; kind: string; text: string }> = [{ id: "old", kind: "user", text: "Old unrelated task" }];
@@ -24,8 +32,8 @@ function fixture(initial?: Partial<OwnedUiSessionNameState>) {
     state = { ...state, name, source: "auto", nameEntryId: `name-${apply.mock.calls.length}`, completedContext: key };
     return true;
   });
-  const controller = new SessionNamingController({ backend, naming: { state: () => state, complete, apply }, enabled: () => enabled,
-    withContext: async consume => consume(context),
+  const controller = new SessionNamingController({ backend, naming: { state: () => state, complete, apply }, enabled: () => enabled, format: () => format,
+    withContext: async consume => { await beforeContext?.(); return consume(context); },
   });
   controllers.push(controller);
   const emit = (event: object) => listener(event as OwnedUiEvent);
@@ -35,11 +43,86 @@ function fixture(initial?: Partial<OwnedUiSessionNameState>) {
     context(revision: string, notify = true) { context = { ...context, revision }; if (notify) emit({ type: "session-view", view: view() }); },
     rename(name = "my-task") { state = { ...state, name, nameEntryId: "manual", source: "user" }; },
     disable() { enabled = false; controller.settingsChanged(); },
+    setFormat(next: NameFormat) { format = next; controller.settingsChanged(); },
+    delayContext(wait: Promise<void>) { beforeContext = () => wait; },
     rebind() { binding++; state = { ...state, binding, sessionFile: "/other.jsonl" }; emit({ type: "session-view", view: view() }); },
   };
 }
 
 describe("automatic session naming", () => {
+  it.each([
+    ["kebab", "fix-api-cache", "lowercase hyphenated"],
+    ["sentence", "Fix API cache", "sentence case"],
+    ["title", "Fix API Cache", "title case"],
+  ] as const)("formats provider names as %s with matching generation instructions", async (format, expected, instructions) => {
+    const f = fixture(undefined, format);
+    f.complete.mockResolvedValue('  "fix_API-Cache"  ');
+    f.start(); f.prompt(); await settle();
+    expect(f.state.name).toBe(expected);
+    expect(f.complete.mock.calls[0]?.[0].prompt).toContain(instructions);
+    expect(f.complete).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["sentence", "Fix GitHub API"], ["title", "Fix GitHub API"],
+    ["kebab", "fix-github-api"],
+  ] as const)("preserves technical spelling in %s names", async (format, expected) => {
+    const f = fixture(undefined, format); f.complete.mockResolvedValue("fix GitHub API");
+    f.start(); f.prompt(); await settle(); expect(f.state.name).toBe(expected);
+  });
+
+  it.each([
+    ["kebab", "fix-typescript"], ["sentence", "Fix TypeScript"], ["title", "Fix TypeScript"],
+  ] as const)("bounds %s names at a whole word", async (format, expected) => {
+    const f = fixture(undefined, format); f.complete.mockResolvedValue("fix TypeScript errors");
+    f.start(); f.prompt(); await settle(); expect(f.state.name).toBe(expected); expect(f.state.name!.length).toBeLessThanOrEqual(16);
+  });
+
+  it.each(["kebab", "sentence", "title"] as const)("bounds an oversized single word in %s", async format => {
+    const f = fixture(undefined, format); f.complete.mockResolvedValue("abcdefghijklmnopqrs");
+    f.start(); f.prompt(); await settle(); expect(f.state.name).toHaveLength(16);
+    expect(f.state.name).toBe(format === "kebab" ? "abcdefghijklmnop" : "Abcdefghijklmnop");
+  });
+
+  it.each([
+    ["kebab", "fix-api-cache", "new-task"], ["sentence", "Fix API cache", "New task"], ["title", "Fix API Cache", "New Task"],
+  ] as const)("formats prompt and empty-word fallback as %s", async (format, expected, empty) => {
+    const f = fixture(undefined, format); f.complete.mockResolvedValue("!!!");
+    f.start(); f.prompt("fix API cache later"); await settle();
+    expect(f.state.name).toBe(expected); expect(f.complete).toHaveBeenCalledTimes(2);
+    const missing = fixture(undefined, format); missing.complete.mockResolvedValue("");
+    missing.start(); missing.prompt("???"); await settle(); expect(missing.state.name).toBe(empty);
+  });
+
+  it.each([false, true])("uses the latest format for a pending result, with delayed apply %s", async delayed => {
+    const f = fixture(); let answer!: (name: string) => void;
+    f.complete.mockImplementation(() => new Promise(resolve => { answer = resolve; }));
+    f.start(); f.prompt(); await settle();
+    let release!: () => void;
+    if (delayed) { f.delayContext(new Promise(resolve => { release = resolve; })); answer("fix API cache"); await settle(); }
+    f.setFormat("title");
+    if (delayed) release(); else answer("fix API cache");
+    await settle(); expect(f.state.name).toBe("Fix API Cache"); expect(f.complete).toHaveBeenCalledOnce();
+  });
+
+  it("uses the latest format for fallback after a pending provider failure", async () => {
+    const f = fixture(); let answer!: (name: string) => void;
+    f.complete.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; })).mockResolvedValue("");
+    f.start(); f.prompt("fix API cache"); await settle();
+    f.setFormat("sentence"); answer(""); await settle();
+    expect(f.state.name).toBe("Fix API cache"); expect(f.complete).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps completed names on format changes and uses the choice at the next context regeneration", async () => {
+    const f = fixture(); f.start(); f.prompt(); await settle();
+    f.setFormat("sentence"); await settle(); expect(f.state.name).toBe("fix-cache"); expect(f.complete).toHaveBeenCalledOnce();
+    f.start(); f.prompt("Follow up"); await settle(); expect(f.complete).toHaveBeenCalledOnce();
+    f.context("next"); f.start(); f.prompt("Fix cache again"); await settle();
+    expect(f.state.name).toBe("Fix cache"); expect(f.complete).toHaveBeenCalledTimes(2);
+    f.rename("My Custom Name"); f.setFormat("title"); f.context("another"); f.start(); f.prompt(); await settle();
+    expect(f.state.name).toBe("My Custom Name"); expect(f.complete).toHaveBeenCalledTimes(2);
+  });
+
   it("waits for the run's projected prompt and names while the run is still active", async () => {
     const f = fixture(); f.start(); await settle(); expect(f.complete).not.toHaveBeenCalled();
     f.prompt(); await settle();
