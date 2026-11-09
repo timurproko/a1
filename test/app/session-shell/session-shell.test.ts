@@ -634,7 +634,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       expect(frame).toContain(marker);
       expect(frame).not.toContain(note);
       expect(frame).not.toContain("Image attached");
-      expect(frame).toContain("Image hidden: image/png");
+      expect(frame).not.toContain("Image hidden:");
     } finally { await shell.dispose(); }
   });
 

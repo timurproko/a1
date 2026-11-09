@@ -615,7 +615,7 @@ describe("Pi shell public component adapters", () => {
     expect(bareText).toContain("inspect");
     expect(bareText).toContain(marker);
     expect(bareText).not.toContain(note);
-    expect(bareText).toContain("Image hidden: image/png");
+    expect(bareText).not.toContain("Image hidden:");
   });
 
   it("moves every fitting prompt-chip family intact to a submitted-prompt continuation row", () => {
@@ -691,7 +691,7 @@ describe("Pi shell public component adapters", () => {
     expect(source.text).toBe(chip);
   });
 
-  it("omits unsupported transcript images without spacers while preserving hidden and unavailable diagnostics", () => {
+  it("omits unsupported and hidden transcript images without spacers while preserving unavailable diagnostics", () => {
     const capabilities = getCapabilities();
     const imageBlock = {
       ...block("user", "image prompt"),
@@ -710,7 +710,7 @@ describe("Pi shell public component adapters", () => {
       expect(stripTerminalSequences(component.render(80).join("\n"))).not.toContain("[Image:");
 
       component.setImagePresentation(false, 40);
-      expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("Image hidden: image/png");
+      expect(component.render(80)).toEqual(baseline.render(80));
 
       setCapabilities({ ...capabilities, images: "kitty" });
       const unavailable = createPiShellTranscriptComponent(
@@ -723,7 +723,7 @@ describe("Pi shell public component adapters", () => {
     }
   });
 
-  it("omits unsupported tool image indicators while preserving text and explicit hiding", () => {
+  it("omits unsupported and hidden tool image indicators while preserving text", () => {
     const capabilities = getCapabilities();
     const toolBlock: OwnedUiTranscriptBlock = {
       ...block("tool-result", "ordinary result", {
@@ -743,10 +743,43 @@ describe("Pi shell public component adapters", () => {
       expect(visible).not.toContain("[Image:");
 
       component.setImagePresentation(false, 40);
-      expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("[Image: [image/png]");
+      expect(stripTerminalSequences(component.render(80).join("\n"))).toBe(visible);
     } finally {
       setCapabilities(capabilities);
     }
+  });
+
+  it.each([null, "kitty", "iterm2"] as const)("omits hidden user images at capability %s and restores retained images on demand", protocol => {
+    const capabilities = getCapabilities();
+    const composer = { layout: submittedPromptLayout, compose: composeSubmittedPromptRows };
+    const data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    const reference = { assetId: "image-1", mimeType: "image/png", byteLength: 68, source: "user" as const };
+    const resolve = vi.fn(() => ({ type: "image" as const, mimeType: "image/png", data }));
+    try {
+      setCapabilities({ ...capabilities, images: protocol });
+      for (const text of ["", "inspect [📷 screenshot-0123456789]"]) {
+        const source = block("user", text);
+        const baseline = createPiShellTranscriptComponent(source, process.cwd(), undefined, composer);
+        const component = createPiShellTranscriptComponent({ ...source, imageReferences: [reference, { ...reference, assetId: "image-2" }] },
+          process.cwd(), undefined, composer, 1, false, "off", false, 40, { resolve });
+        // Attachment ownership resolves once at mount even when presentation is hidden.
+        resolve.mockClear();
+        for (const width of [40, 80, 192]) expect(component.render(width)).toEqual(baseline.render(width));
+        expect(resolve).not.toHaveBeenCalled();
+        component.update({ ...source, revision: source.revision + 1, imageReferences: [reference] });
+        expect(component.render(80)).toEqual(baseline.render(80));
+        component.setImagePresentation(true, 40);
+        if (protocol === null) expect(component.render(80)).toEqual(baseline.render(80));
+        else {
+          expect(component.render(80).join("\n")).toContain(protocol === "kitty" ? "\u001b_G" : "\u001b]1337;File=");
+        }
+        component.setImagePresentation(false, 40);
+        expect(component.render(80)).toEqual(baseline.render(80));
+        expect(source.text).toBe(text);
+        component.dispose?.(); baseline.dispose?.();
+        resolve.mockClear();
+      }
+    } finally { setCapabilities(capabilities); }
   });
 
   it("rebuilds finalized and streaming assistant presentation for thinking and Mermaid modes", () => {

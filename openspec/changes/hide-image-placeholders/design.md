@@ -21,4 +21,13 @@ Use focused owner-level tests, typecheck, and strict OpenSpec validation during 
 
 ## Known gaps
 
-None identified in the proposed scope. Actual terminal-host observation is optional and does not block implementation completion. This change does not remove image metadata written deliberately by users or custom tool renderers.
+None after implementation review. Actual terminal-host observation is optional and does not block implementation completion. This change does not remove image metadata written deliberately by users or custom tool renderers.
+
+## Implementation evidence
+
+- New user and tool presentation assertions reproduced the redundant image rows before the production change at unsupported, Kitty, and iTerm capabilities.
+- Non-tool attachment composition now returns the underlying text component when hidden; the tool fallback returns only sanitized original text. No session or model-facing content is changed.
+- Focused tests cover multiple images, image-only content, live updates and visibility restoration, retained tool bytes, original custom-renderer inputs and deliberate text, screenshot chips, and enabled resolution/conversion diagnostics.
+- `npm run build` and `npm run typecheck` passed. The five focused files (`shell-components`, `tool-shell-parity`, `session-shell`, `transcript-content-retention`, and `transcript-image-conversion`) passed all 163 tests.
+- Strict validation of `hide-image-placeholders`, the pinned source ledger provenance check, and whitespace checks passed. The source ledger and its canonical provenance header document the intentional hidden-image presentation deviation.
+- Current `origin/develop` is already contained in this branch; no merge is needed. Required exact-head CI remains the post-readiness authority.
