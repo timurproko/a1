@@ -17,6 +17,10 @@
 - Startup graph: 204 eager source files and 1,777,743 normalized bytes, beneath the unchanged 205-file / 1,779,560-byte ceilings. A focused regression assertion keeps the naming generation helper out of the eager graph.
 - `openspec validate session-name-formats --strict` and `git diff --check`: passed.
 
+## CI delivery-record repair
+
+Development validation run `42624671301` passed the core/affected-unit and rendering lanes but failed finalized delivery validation with `delivery-artifact-missing`. The archived change lacked the required `.openspec.yaml` metadata because the initial plan was created without it. Added the standard `spec-driven` metadata with the original creation date in this same archived delivery; no product code, test assertion, or required gate changes. The re-finalization dry run succeeds and changes only the acceptance manifest's content digests. All 11 focused finalization tests pass. Trusted automation will re-finalize the archive digest and bind the repaired head before renewed exact-head CI.
+
 ## Known gaps
 
 No known implementation gaps within the approved scope. Interactive appearance has not been manually assessed; optional maintainer validation does not block completion. Existing names are intentionally not reformatted, and no manual regeneration command or additional format is introduced.
