@@ -17,7 +17,7 @@ import type { ProcessIdentity } from "../../src/foundation/lifecycle/model.js";
 
 type RepositoryContextReader = (sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<unknown>;
 
-const observed = vi.hoisted(() => ({ readers: [] as Array<RepositoryContextReader | undefined>, autoName: true }));
+const observed = vi.hoisted(() => ({ readers: [] as Array<RepositoryContextReader | undefined>, autoName: true, nameFormat: "kebab" as "kebab" | "sentence" | "title" }));
 // Rationale: run the real composition, registry, and lifecycle store without provider, terminal, or user-file effects.
 vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async importOriginal => ({
   ...await importOriginal<object>(), applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {} }));
@@ -28,7 +28,7 @@ vi.mock("../../src/ui/settings/manager.js", () => ({
   OwnedSettingsManager: class {
     get file() { return "synthetic-agent-settings.json"; }
     refresh() { return false; }
-    value(key: string) { return key === "sessionAutoName" ? observed.autoName : key === "promptHistoryEnabled" ? false : key === "accentColor" ? "purple" : undefined; }
+    value(key: string) { return key === "sessionAutoName" ? observed.autoName : key === "sessionNameFormat" ? observed.nameFormat : key === "promptHistoryEnabled" ? false : key === "accentColor" ? "purple" : undefined; }
     onChange() { return () => undefined; }
   },
 }));
@@ -62,6 +62,7 @@ beforeEach(async () => {
 afterEach(async () => {
   observed.readers = [];
   observed.autoName = true;
+  observed.nameFormat = "kebab";
   vi.unstubAllEnvs();
   await rm(root, { recursive: true, force: true });
 });
@@ -117,7 +118,10 @@ describe("session runtime composition wiring", () => {
     };
   }
 
-  it("names the first prompt and regenerates from the next prompt after unseen same-path re-entry", async () => {
+  it.each([
+    ["kebab", "fix-cache"], ["sentence", "Fix cache"], ["title", "Fix Cache"],
+  ] as const)("uses the %s setting for first naming and regeneration after unseen same-path re-entry", async (format, expected) => {
+    observed.nameFormat = format;
     const file = await sessionFile(sessionId);
     const backend = namingBackend(file);
     const composed = await compose({}, backend.extra);
@@ -129,11 +133,14 @@ describe("session runtime composition wiring", () => {
       await setSessionRepositoryContext(identity, worktree, { runtimeId });
       backend.prompt("Fix the cache");
       await vi.waitFor(() => expect(backend.apply).toHaveBeenCalledTimes(1), { timeout: 10_000 });
+      expect(backend.apply.mock.calls[0]?.[1]).toBe(expected);
+      observed.nameFormat = "title";
       await clearSessionRepositoryContext(identity, { runtimeId });
       await setSessionRepositoryContext(identity, worktree, { runtimeId });
       expect(backend.complete).toHaveBeenCalledOnce();
       backend.prompt("Add a search box");
       await vi.waitFor(() => expect(backend.apply).toHaveBeenCalledTimes(2), { timeout: 10_000 });
+      expect(backend.apply.mock.calls[1]?.[1]).toBe("Fix Cache");
       expect(backend.complete.mock.calls[1]).toEqual([expect.objectContaining({ prompt: expect.stringContaining("Add a search box") })]);
     } finally { await composed.application.dispose(); }
   });

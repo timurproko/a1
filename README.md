@@ -67,7 +67,7 @@ a1 --session <id>
 
 When a session exits, A1 prints the `a1 --session <id>` command that resumes it; a custom session store is included in the printed command. Closing the terminal ends the agent, as it does for Pi.
 
-Bare A1 automatically names unnamed sessions from the first prompt and regenerates automatic names on the next prompt after a worktree-context change. Manual `/name` renames are preserved. Names appear after footer stats, with a secondary-accent reveal for automatic changes. Disable **Automatic session name** in Agent settings; see [session names](docs/features/session-naming.md) for details.
+Bare A1 automatically names unnamed sessions from the first prompt and regenerates automatic names on the next prompt after a worktree-context change. Manual `/name` renames are preserved. Names appear after footer stats, with a secondary-accent reveal for automatic changes. Agent settings offers **Session name format** with Kebab case (default), Sentence case, and Title Case for future generated names, or **Automatic session name** to disable naming; see [session names](docs/features/session-naming.md) for details.
 
 Show all commands:
 

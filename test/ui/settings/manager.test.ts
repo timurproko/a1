@@ -100,6 +100,33 @@ describe("owned settings manager", () => {
     expect(manager.value("promptImageLimit")).toBe(8);
   });
 
+  it.each(["sentence", "title"] as const)("persists the live %s naming format and removes the default override", async format => {
+    const target = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    expect(target.value("sessionNameFormat")).toBe("kebab");
+    const seen: string[] = [];
+    target.onChange(manager => seen.push(manager.value("sessionNameFormat")));
+    expect(await target.change("a1", "sessionNameFormat", format)).toMatchObject({
+      status: "applied", application: "live", storedValue: format, effectiveValue: format,
+    });
+    expect(seen).toEqual([format]);
+    expect(JSON.parse(readFileSync(target.file, "utf8"))).toEqual({ [PRODUCT_IDENTITY.commandName]: { sessionNameFormat: format } });
+    const restarted = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    expect(restarted.value("sessionNameFormat")).toBe(format);
+    expect((await restarted.change("a1", "sessionNameFormat", "snake")).status).toBe("failed");
+    expect(restarted.value("sessionNameFormat")).toBe(format);
+    await restarted.change("a1", "sessionNameFormat", "kebab");
+    expect(JSON.parse(readFileSync(target.file, "utf8"))[PRODUCT_IDENTITY.commandName]?.sessionNameFormat).toBeUndefined();
+    expect(new OwnedSettingsManager({ configDir: root, profileId: "a1" }).value("sessionNameFormat")).toBe("kebab");
+  });
+
+  it("resolves an invalid stored naming format to kebab without rejecting other settings", () => {
+    writeFileSync(path.join(root, "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { sessionNameFormat: "snake", sessionAutoName: false } }));
+    const target = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    expect(target.value("sessionNameFormat")).toBe("kebab");
+    expect(target.value("sessionAutoName")).toBe(false);
+    expect(target.resolution.notices).not.toHaveLength(0);
+  });
+
   it("repairs harmless leading noise before resolving and writing settings", async () => {
     const file = path.join(root, "settings.json");
     const namespace = PRODUCT_IDENTITY.commandName;
