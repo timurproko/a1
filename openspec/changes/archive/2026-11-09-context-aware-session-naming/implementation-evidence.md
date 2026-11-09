@@ -26,6 +26,12 @@
 - The size ratchet remains unchanged. Naming lives on the engine's existing port bundle, reveal lifecycle belongs to the existing terminal-presentation collaborator, and history-editor construction now belongs to its existing configuration helper. Tests use the existing workflow-host port instead of an unused adapter forwarding method.
 - The synchronized footer's canonical provenance header, exact source hash, and approved `owned-session-name-reveal` deviation are recorded in the Pi source ledger.
 
+## CI classification repair
+
+Development validation run `42606181972` stopped in change classification before any product tests ran: the new feature test lacked a coarse validation owner. Added the production and test paths to the existing UI/rendering owner and retained the feature test in that owner's bounded critical floor, including unavailable-graph/conservative selection. No required checks, coverage assertions, or validation lanes were removed.
+
+The exact CI classifier invocation now succeeds locally against the finalized PR diff with the repair included and selects the session-naming test. Typecheck and five directly affected test files passed (62 tests), covering ownership, impact classification, refinements, suite policy, and session naming. Trusted automation will re-finalize this repair and renew exact-head CI.
+
 ## Known gaps
 
 No known implementation gaps within the approved scope. Interactive appearance has not been manually assessed; optional maintainer validation does not block implementation completion. Semantic topic changes without a confirmed worktree/branch transition, manual regeneration commands, and terminal-title animation remain intentionally out of scope.
