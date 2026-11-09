@@ -762,7 +762,7 @@ describe("Pi shell public component adapters", () => {
         const baseline = createPiShellTranscriptComponent(source, process.cwd(), undefined, composer);
         const component = createPiShellTranscriptComponent({ ...source, imageReferences: [reference, { ...reference, assetId: "image-2" }] },
           process.cwd(), undefined, composer, 1, false, "off", false, 40, { resolve });
-        // Attachment ownership resolves once at mount even when presentation is hidden.
+        // Invariant: attachment ownership resolves once at mount even when presentation is hidden.
         resolve.mockClear();
         for (const width of [40, 80, 192]) expect(component.render(width)).toEqual(baseline.render(width));
         expect(resolve).not.toHaveBeenCalled();
