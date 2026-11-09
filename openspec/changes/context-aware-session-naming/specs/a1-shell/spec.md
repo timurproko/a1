@@ -94,6 +94,21 @@ Automatic naming SHALL use the active session model through a separate tool-free
 - **THEN** its completion SHALL be aborted where supported and late output SHALL be ignored
 - **AND** no fallback or automatic rename SHALL be applied for that cancelled request
 
+### Requirement: Bare A1 places the session name after stats rather than the path
+
+Bare A1 SHALL display the current session name immediately after stats/context text on the second footer row, separated by ` • ` and before the flexible gap and right-aligned model/thinking text. This SHALL apply to automatic, manual, and resumed names. The path row SHALL contain only path, branch, and optional PR link, with no session-name suffix. An unnamed session SHALL add neither a name nor its separator. At narrow widths the name SHALL be clipped or omitted before reducing existing stats or displacing the model, without a dangling separator. The first row's path/PR policy and the comparison profile's existing placement SHALL remain unchanged.
+
+#### Scenario: Show a named session beside its stats
+- **WHEN** bare A1 renders an automatic, manual, or resumed session name
+- **THEN** that name SHALL follow the stats/context text on the second footer row
+- **AND** it SHALL NOT appear after the path or PR link on the first row
+- **AND** model/thinking text SHALL remain right-aligned
+
+#### Scenario: Space is insufficient for the name
+- **WHEN** stats and model leave too little room for the full name
+- **THEN** the name SHALL be clipped to the remaining display width or omitted with its separator
+- **AND** name placement or animation SHALL NOT displace existing stats/model content or add a footer row
+
 ### Requirement: Automatically changed status-bar names reveal in the secondary accent
 
 Bare A1 SHALL reveal the status-bar session-name segment when a successful automatic generation or regeneration changes its visible name, including a deterministic fallback. The truecolor transition SHALL reproduce the later pre-pivot tab behavior: a 600 ms tonal shimmer over the previous name, a 45 ms per-grapheme reveal of the new name, and a 300 ms fade to ordinary dim footer text. Colored phases SHALL use the configured accent's live derived secondary-heading color, not a primary-accent sweep, fixed color table, or rainbow. In non-truecolor mode the transition SHALL use a plain typewriter reveal without color-sweep phases or generated truecolor escapes. Animation SHALL remain ephemeral footer presentation; the authoritative name, terminal title, and selector labels SHALL receive the complete name immediately.
@@ -115,7 +130,7 @@ Bare A1 SHALL reveal the status-bar session-name segment when a successful autom
 
 ### Requirement: Name reveal is width-safe and bound to a single automatic apply
 
-Bare A1 SHALL identify automatic name applications within the current session binding so only one changed application starts a reveal. Duplicate notifications, unrelated redraws, unchanged generated names, and initial/resumed named-session presentation SHALL NOT replay it. Frames SHALL clip and measure graphemes before styling, reserve the wider clipped endpoint width during the transition, obey the existing footer path/PR truncation policy, and leave other footer segments unchanged. Animation scheduling SHALL exist only for an active transition on an active presenter. Manual rename, session replacement, presenter deactivation, and disposal SHALL cancel old animation; a newer automatic name SHALL supersede it. The comparison profile SHALL receive no name-reveal behavior.
+Bare A1 SHALL identify automatic name applications within the current session binding so only one changed application starts a reveal. Duplicate notifications, unrelated redraws, unchanged generated names, and initial/resumed named-session presentation SHALL NOT replay it. Frames SHALL clip and measure graphemes before styling, reserve the wider clipped endpoint width during the transition, obey the stats row's remaining name budget and stats/model priority, and leave other footer segments unchanged. Animation scheduling SHALL exist only for an active transition on an active presenter. Manual rename, session replacement, presenter deactivation, and disposal SHALL cancel old animation; a newer automatic name SHALL supersede it. The comparison profile SHALL receive no name-reveal behavior.
 
 #### Scenario: Repeated views do not restart a reveal
 - **WHEN** duplicate automatic-name metadata or unrelated transcript, status, usage, or PR updates arrive during a reveal
@@ -128,7 +143,7 @@ Bare A1 SHALL identify automatic name applications within the current session bi
 #### Scenario: Resize around wide or combining text
 - **WHEN** the terminal width changes during a reveal with wide or combining graphemes
 - **THEN** frames SHALL recalculate clipping and stable endpoint width without splitting graphemes or restarting phase
-- **AND** footer rows SHALL remain within terminal width and retain existing PR/path priority
+- **AND** footer rows SHALL remain within terminal width, preserve stats/model priority, and retain the independent first-row PR/path policy
 
 #### Scenario: Manual rename interrupts animation
 - **WHEN** a manual rename occurs during automatic name animation

@@ -17,5 +17,5 @@
 
 - [ ] 3.1 Add deterministic grapheme-safe name-transition frames matching the former secondary-accent shimmer, typewriter reveal, and fade-to-dim timing, with width-stable and palette behavior.
 - [ ] 3.2 Carry binding-scoped automatic-apply identity/source to footer presentation and wire presenter-owned animation scheduling for changed first-generation and regenerated names only.
-- [ ] 3.3 Adapt footer name rendering to the live secondary-accent theme without changing terminal-title publication, PR/path layout, or comparison mode.
-- [ ] 3.4 Add focused frame, footer, and presenter tests for phase timing, live accents, no duplicate/resume/same-name replay, Unicode/clipping, replacement/cancellation, and scheduler cleanup.
+- [ ] 3.3 Move bare-A1 names from the path row to after stats/context text before the right-aligned model, with name-first clipping, and adapt reveals to the live secondary-accent theme without changing terminal-title publication or comparison mode.
+- [ ] 3.4 Add focused frame, footer, and presenter tests for phase timing, live accents, stats-row placement for all name sources, no path-row duplication, stats/model priority, no duplicate/resume/same-name replay, Unicode/clipping, replacement/cancellation, and scheduler cleanup.

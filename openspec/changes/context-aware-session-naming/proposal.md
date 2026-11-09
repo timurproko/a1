@@ -11,6 +11,7 @@ The single-agent pivot removed prompt-driven naming with the resident-tab bridge
 - After a context change, keep the existing name until the next user prompt begins a run; regenerate from that prompt and current repository context, not the session's first-ever prompt.
 - Persist automatic-name provenance and completed naming context across restart/resume; preserve manual and unknown-provenance names and reject stale asynchronous results.
 - Add an enabled-by-default bare-A1 `sessionAutoName` setting. Leave the `a1 pi` comparison profile unchanged and reuse existing footer, selector, and terminal-title publication.
+- Place the bare-A1 session name after the stats/context text on the second footer row, before the right-aligned model, instead of after the path/PR on the first row. Apply this placement to automatic, manual, and resumed names; clip the name first when space is limited.
 - Reveal each changed automatically generated or regenerated status-bar session name using the former tab animation's secondary-accent shimmer, typewriter reveal, and fade to dim. Keep manual renames immediate and terminal-title updates unanimated.
 
 ## Capabilities
