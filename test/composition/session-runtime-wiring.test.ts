@@ -107,7 +107,7 @@ describe("session runtime composition wiring", () => {
     expect(await runtimeRecords()).toEqual([expect.objectContaining({
       runtimeId, agentId: "primary", sessionId, sessionFile: file, pid: process.pid, startIdentity: PID_LIVENESS_IDENTITY,
     })]);
-    // Native inventory succeeds for the registered runtime instead of reporting it unavailable.
+    // Invariant: native inventory succeeds for the registered runtime instead of reporting it unavailable.
     await expect(listSessionRepositoryWorktrees({ sessionId, sessionFile: file }, { runtimeId })).resolves.toBeInstanceOf(Array);
     await composed.application.dispose();
     expect(await runtimeRecords()).toEqual([]);
@@ -135,7 +135,7 @@ describe("session runtime composition wiring", () => {
     await execFileAsync("git", ["-C", primary, "worktree", "add", "-b", "fix/example", worktree]);
     const otherIdentity = { sessionId: "other-session", sessionFile: await sessionFile("other-session") };
     const otherRuntime = { runtimeId: "runtime-other", options: { runtimeId: "runtime-other" } };
-    // The other runtime is this live test process, so the production liveness probe proves it is active.
+    // Rationale: the other runtime is this live test process, so the production liveness probe proves it is active.
     await registerSessionRepositoryRuntime(otherIdentity, otherRuntime.runtimeId, { pid: process.pid, startIdentity: PID_LIVENESS_IDENTITY });
     await setSessionRepositoryContext(otherIdentity, worktree, otherRuntime.options);
 
