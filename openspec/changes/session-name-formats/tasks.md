@@ -1,7 +1,7 @@
 ## 1. Format setting and presentation
 
-- [ ] 1.1 Declare the live Agent format setting with exactly kebab, sentence, and title choices and kebab default; expose friendly labels through the existing choice menu.
-- [ ] 1.2 Add settings declaration, presentation, validation, and persistence tests for the new choice.
+- [x] 1.1 Declare the live Agent format setting with exactly kebab, sentence, and title choices and kebab default; expose friendly labels through the existing choice menu.
+- [x] 1.2 Add settings declaration, presentation, validation, and persistence tests for the new choice.
 
 ## 2. Automatic naming behavior
 

@@ -943,9 +943,14 @@ function rangeOf(entry: OwnedUiSettingsEntry): NumericRange {
   return { minimum: entry.minimum, maximum: entry.maximum, values: numericValues(entry.choices) };
 }
 
-/** Booleans read as yes and no. */
-function displaySettingValue(_entry: OwnedUiSettingsEntry, value: OwnedUiSettingValue): string {
+/** Scalar choices use their readable presentation without changing stored values. */
+function displaySettingValue(entry: OwnedUiSettingsEntry, value: OwnedUiSettingValue): string {
   if (typeof value === "boolean") return value ? "yes" : "no";
+  if (entry.backend === "a1" && entry.id === "sessionNameFormat") {
+    if (value === "kebab") return "Kebab case";
+    if (value === "sentence") return "Sentence case";
+    if (value === "title") return "Title Case";
+  }
   return String(value);
 }
 

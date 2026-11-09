@@ -133,6 +133,15 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     defaultValue: true,
     allowedValues: Object.freeze([true, false] as const),
   }),
+  sessionNameFormat: Object.freeze({
+    id: "sessionNameFormat",
+    label: "Session name format",
+    section: AGENT_SECTION,
+    description: "Format for future automatic names: fix-api-cache, Fix API cache, or Fix API Cache. Existing and manual names stay unchanged.",
+    application: "live",
+    defaultValue: "kebab",
+    allowedValues: Object.freeze(["kebab", "sentence", "title"] as const),
+  }),
   promptSuggestions: Object.freeze({
     id: "promptSuggestions",
     label: "Prompt suggestions",
