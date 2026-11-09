@@ -11,6 +11,7 @@ The single-agent pivot removed prompt-driven naming with the resident-tab bridge
 - After a context change, keep the existing name until the next user prompt begins a run; regenerate from that prompt and current repository context, not the session's first-ever prompt.
 - Persist automatic-name provenance and completed naming context across restart/resume; preserve manual and unknown-provenance names and reject stale asynchronous results.
 - Add an enabled-by-default bare-A1 `sessionAutoName` setting. Leave the `a1 pi` comparison profile unchanged and reuse existing footer, selector, and terminal-title publication.
+- Reveal each changed automatically generated or regenerated status-bar session name using the former tab animation's secondary-accent shimmer, typewriter reveal, and fade to dim. Keep manual renames immediate and terminal-title updates unanimated.
 
 ## Capabilities
 
@@ -20,7 +21,7 @@ None.
 
 ### Modified Capabilities
 
-- `a1-shell`: Prompt-driven session naming, context-aware regeneration, persistent ownership, and bounded background generation.
+- `a1-shell`: Prompt-driven session naming, context-aware regeneration, persistent ownership, bounded background generation, and secondary-accent status-bar name reveals.
 
 ## Impact
 
@@ -28,7 +29,8 @@ None.
 - Composition wiring, owned settings, and narrow naming/context ports in `src/contracts/owned-ui/`.
 - Pi engine naming completion and conditional metadata application, separate from contextual prompt suggestions.
 - Lifecycle worktree-association revision persistence and validated observation, without changing claim authority or tool cwd.
-- Focused feature, lifecycle, adapter, settings, and composition tests; no restored resident-tab/native dependencies.
+- Status-bar name transition frames in the neutral UI layer, presenter-owned animation lifecycle, and Pi footer/theme adaptation using the live secondary-accent projection.
+- Focused feature, lifecycle, adapter, settings, composition, and animation/rendering tests; no restored resident-tab/native dependencies.
 
 ## Approval
 

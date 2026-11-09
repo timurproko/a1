@@ -9,6 +9,7 @@ The pre-pivot reference is `9f0307c0^`; `d78c5c9c` (#781) corrected the original
 - `PiEngineAdapter.generateResidentTabName` delegated to `PiPromptSuggestions.completeInstruction`. That helper used the active model, transformed conversation and system prompt, an appended naming instruction, and no tools. It rejected errors, truncation, and tool calls without adding a conversation turn.
 - The bridge applied through the name workflow and tagged registry updates automatic. It rechecked default-name ownership after generation, but its process-local attempt flag and default-name string checks cannot support persistent context-aware regeneration.
 - The pivot removed this path. Current `PiPromptSuggestions` serves contextual editor suggestions only; it is not a general naming API.
+- The later pre-pivot `native/terminal-host/src/roles/strip.rs` replaced the original rainbow with `tab_secondary_accent`, matching the theme's `secondaryHeading` projection. Its deterministic frames use a 600 ms tonal shimmer over the old name, a 45 ms per-grapheme typewriter reveal, then a 300 ms fade to settled gray. Active frames reserve the wider clipped endpoint width. Without truecolor it uses a plain typewriter reveal only.
 
 ## Current integration points
 
@@ -17,7 +18,8 @@ The pre-pivot reference is `9f0307c0^`; `d78c5c9c` (#781) corrected the original
 - `src/integrations/pi/engine/repository-metadata.ts` observes linked repository context on a five-second poll. Its current public selection contains cwd and branch only; neither identifies an unseen exit/re-entry.
 - `src/foundation/lifecycle/session-repository-context.ts` owns durable association, atomic worktree claims, link, and unlink. Its context record has `updatedAt`, but that timestamp is not a semantic revision and must not be used as one.
 - `src/composition/session-runtime-registry.ts` adapts lifecycle association reads into the engine. `sessionBindingGeneration` and the current session file already provide rebinding guards.
-- `src/app/session-shell/session-terminal-presentation.ts` already publishes authoritative name changes as terminal titles. No second title writer or animation is needed.
+- `src/app/session-shell/session-terminal-presentation.ts` already publishes authoritative name changes as terminal titles. No second title writer or terminal-title animation is needed.
+- `src/integrations/pi/components/upstream/components/session-footer.ts` renders the status-bar name in the path row; `shell-footer-status.ts` adapts it to the neutral footer port. `src/integrations/pi/components/upstream/theme/theme.ts` already derives the live secondary-heading color from the configured accent. Footer name frames must be styled separately instead of being flattened into the enclosing dim path text.
 
 ## Decisions
 
@@ -25,7 +27,7 @@ The pre-pivot reference is `9f0307c0^`; `d78c5c9c` (#781) corrected the original
 
 Introduce a small `session-naming` feature with explicit owner registration, a public entry, and mirrored tests. Keep policy independent of Pi. Composition connects semantic events, settings, validated repository context, and narrow naming ports. Pi-only model completion, session-entry access, and name application remain under the engine adapter owner. Lifecycle remains unaware of naming.
 
-Enable only for bare A1, controlled by `sessionAutoName` (default true). Setting disablement cancels outstanding work. Existing title/footer/selector consumers receive the persisted authoritative name through normal metadata events. Do not restore the retired tab setting, registry, native animation, or default `agent N` identity rules.
+Enable only for bare A1, controlled by `sessionAutoName` (default true). Setting disablement cancels outstanding work. Existing title/footer/selector consumers receive the persisted authoritative name through normal metadata events. Do not restore the retired tab setting, registry, native runtime, or default `agent N` identity rules. Port the name-reveal behavior into the current status-bar presentation without restoring native dependencies.
 
 ### 2. Persist a semantic association revision
 
@@ -59,12 +61,25 @@ Keep the old 16-character lowercase hyphenated format, deterministic fallback, 4
 
 Run at most one request chain at a time, abort on context/session change, disablement, and disposal, and ignore late responses even if the provider does not honor cancellation. Naming never blocks the main prompt, changes its busy state, emits an agent message, or reports an agent failure. Recheck the active session/model at request boundaries.
 
+### 6. Reveal automatic status-bar name changes in the secondary accent
+
+Animate only the status-bar session-name segment after a successful automatic apply changes its visible name, both for first generation and context-driven regeneration. A deterministic neutral frame helper under `src/ui/components/` supplies grapheme-safe phase and width behavior; the session presenter owns the short-lived clock and render requests, while the Pi footer adapter supplies theme styling and terminal-width measurement through existing ports. Extend the footer presentation contract narrowly as needed; do not introduce a free-running timer inside rendering or a second session-name authority.
+
+Port the later tab behavior: 600 ms tonal secondary-accent shimmer over the previous name, reveal the new name at 45 ms per grapheme using that same color family, then blend to the footer's ordinary dim text over 300 ms. With no previous name, the old-name phase is empty; the first name still receives its colored reveal. Use the active theme's derived secondary-heading color (currently projected to `mdHeading`), not the primary accent, fixed RGB copies, or the earlier rainbow. Resolve the live theme during frames so an accent change updates colors without restarting time. In palette/non-truecolor mode preserve the plain typewriter and stable width, without generated truecolor escapes or a color sweep.
+
+Carry an explicit binding-scoped automatic-apply identity/source with the authoritative name presentation. Exactly one changed automatic apply starts a reveal; duplicate metadata/view updates and unrelated streaming, usage, PR, or status changes must not restart it. A deterministic fallback name also counts as an automatic apply. Regeneration producing the same visible name updates completed context but does not start a cosmetic replay. Initial/resumed names are painted settled, not replayed from persisted provenance.
+
+Clip and measure endpoint text before styling; reserve the greater old/new endpoint display width for the transition, respecting the current footer name budget and existing path/PR truncation policy. Keep separators, PR hyperlinks, usage/model rows, and layout unaffected by frame styling. Resize recalculates clipping without resetting phase. Completion returns ordinary dim rendering and releases animation scheduling. A newer automatic name replaces the previous transition; manual rename, session replacement, presenter deactivation, or disposal cancels the old transition. Reactivation paints the current authoritative name without replay. Manual renames remain immediate.
+
+Terminal OSC titles and session-selector labels always use the complete persisted name immediately; animation is ephemeral footer presentation only, never persisted partial names or a series of metadata changes. No animation runs in `a1 pi`.
+
 ## Validation plan
 
 - Feature tests: normalization, retries/budgets/deadlines/fallback, cancellation without fallback, one request per context, delayed projection, latest-prompt selection, and coalesced transitions.
 - Lifecycle tests: idempotent relink, different-worktree switch, clear/re-enter same path between reads, legacy revision stability, heartbeat stability, failed links, and unavailable reads without fake transitions.
 - Adapter tests: bounded tool-free isolated completion, metadata persistence/reload, unknown-provenance preservation, same-text manual rename ownership, conditional application, and stale context/session rejection.
 - Composition tests: first-prompt timing, next-prompt regeneration after exit/re-entry, no naming for comparison/disabled mode, resume behavior, cancellation/disposal, and existing authoritative view/title propagation without a second title channel.
+- UI frame/footer/presenter tests: secondary-accent phase boundaries and live color changes, first-generation and regeneration reveals, fallback reveal, no same-name or resume replay, duplicate event stability, grapheme/width safety, narrow terminals/PR truncation, palette fallback, resize, superseding/manual changes, and clock cleanup on completion/deactivation/disposal. Assert terminal titles never receive partial animated text.
 - Before pushing implementation, run typecheck, only directly affected test files, and strict OpenSpec validation. CI after readiness remains validation authority.
 
 ## Trade-offs and scope boundaries
@@ -72,7 +87,7 @@ Run at most one request chain at a time, abort on context/session change, disabl
 - Next-prompt regeneration intentionally avoids replacing a meaningful task name with a branch-only guess during cleanup. Immediate rename on worktree entry is an alternative requiring approval instead of this policy.
 - The old maximum second budget can be expensive on reasoning models; this proposal preserves its compatibility rather than silently choosing a cheaper provider or an insufficient output ceiling.
 - Automatic names from pre-pivot sessions cannot be reliably distinguished from manual names. Preserve them unless future explicit takeover UX is separately approved.
-- Topic changes with no worktree/branch transition do not rename an already named session in this scope. Semantic topic detection, naming animations, and a manual regeneration command are excluded.
+- Topic changes with no worktree/branch transition do not rename an already named session in this scope. Semantic topic detection, terminal-title animations, and a manual regeneration command are excluded. The automatic status-bar name reveal is included.
 
 ## Delivery
 

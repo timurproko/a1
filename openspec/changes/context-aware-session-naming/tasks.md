@@ -12,3 +12,10 @@
 - [ ] 2.3 Persist completed naming contexts and regenerate from the next user prompt after a confirmed worktree/branch transition, including unseen same-path exit/re-entry.
 - [ ] 2.4 Add focused lifecycle, feature, adapter, and composition tests for revision stability, missed intermediate transitions, stale result rejection, resume, and next-prompt selection.
 - [ ] 2.5 Update maintained behavior documentation and reconcile implementation gaps with this approved scope before readiness.
+
+## 3. Secondary-accent status-bar name reveal
+
+- [ ] 3.1 Add deterministic grapheme-safe name-transition frames matching the former secondary-accent shimmer, typewriter reveal, and fade-to-dim timing, with width-stable and palette behavior.
+- [ ] 3.2 Carry binding-scoped automatic-apply identity/source to footer presentation and wire presenter-owned animation scheduling for changed first-generation and regenerated names only.
+- [ ] 3.3 Adapt footer name rendering to the live secondary-accent theme without changing terminal-title publication, PR/path layout, or comparison mode.
+- [ ] 3.4 Add focused frame, footer, and presenter tests for phase timing, live accents, no duplicate/resume/same-name replay, Unicode/clipping, replacement/cancellation, and scheduler cleanup.

@@ -93,3 +93,48 @@ Automatic naming SHALL use the active session model through a separate tool-free
 - **WHEN** a naming request is invalidated or the application is disposed
 - **THEN** its completion SHALL be aborted where supported and late output SHALL be ignored
 - **AND** no fallback or automatic rename SHALL be applied for that cancelled request
+
+### Requirement: Automatically changed status-bar names reveal in the secondary accent
+
+Bare A1 SHALL reveal the status-bar session-name segment when a successful automatic generation or regeneration changes its visible name, including a deterministic fallback. The truecolor transition SHALL reproduce the later pre-pivot tab behavior: a 600 ms tonal shimmer over the previous name, a 45 ms per-grapheme reveal of the new name, and a 300 ms fade to ordinary dim footer text. Colored phases SHALL use the configured accent's live derived secondary-heading color, not a primary-accent sweep, fixed color table, or rainbow. In non-truecolor mode the transition SHALL use a plain typewriter reveal without color-sweep phases or generated truecolor escapes. Animation SHALL remain ephemeral footer presentation; the authoritative name, terminal title, and selector labels SHALL receive the complete name immediately.
+
+#### Scenario: Generate the first name
+- **WHEN** automatic naming successfully changes an unnamed session to a named session
+- **THEN** the status-bar name SHALL reveal using the secondary-accent transition with an empty previous-name segment
+- **AND** the full name SHALL be persisted and published independently of animation frames
+
+#### Scenario: Regenerate after a task-context change
+- **WHEN** eligible regeneration changes an existing automatic name
+- **THEN** the status bar SHALL shimmer over its previous name, reveal the new name, and fade to ordinary dim text
+- **AND** the terminal title SHALL update directly to the complete new name without intermediate frame text
+
+#### Scenario: Change accent during a reveal
+- **WHEN** the configured accent changes while a name reveal is active
+- **THEN** subsequent colored frames SHALL use its live derived secondary-heading color
+- **AND** elapsed animation time SHALL NOT restart
+
+### Requirement: Name reveal is width-safe and bound to a single automatic apply
+
+Bare A1 SHALL identify automatic name applications within the current session binding so only one changed application starts a reveal. Duplicate notifications, unrelated redraws, unchanged generated names, and initial/resumed named-session presentation SHALL NOT replay it. Frames SHALL clip and measure graphemes before styling, reserve the wider clipped endpoint width during the transition, obey the existing footer path/PR truncation policy, and leave other footer segments unchanged. Animation scheduling SHALL exist only for an active transition on an active presenter. Manual rename, session replacement, presenter deactivation, and disposal SHALL cancel old animation; a newer automatic name SHALL supersede it. The comparison profile SHALL receive no name-reveal behavior.
+
+#### Scenario: Repeated views do not restart a reveal
+- **WHEN** duplicate automatic-name metadata or unrelated transcript, status, usage, or PR updates arrive during a reveal
+- **THEN** the original transition SHALL continue from its existing elapsed time without restarting
+
+#### Scenario: Resume or regenerate the same visible name
+- **WHEN** a named session resumes or regeneration produces the same visible name
+- **THEN** the name SHALL remain settled without replaying the reveal
+
+#### Scenario: Resize around wide or combining text
+- **WHEN** the terminal width changes during a reveal with wide or combining graphemes
+- **THEN** frames SHALL recalculate clipping and stable endpoint width without splitting graphemes or restarting phase
+- **AND** footer rows SHALL remain within terminal width and retain existing PR/path priority
+
+#### Scenario: Manual rename interrupts animation
+- **WHEN** a manual rename occurs during automatic name animation
+- **THEN** the full manual name SHALL appear immediately and cancel the automatic reveal
+
+#### Scenario: Finish or deactivate the presenter
+- **WHEN** a reveal finishes or its presenter is deactivated, rebound, or disposed
+- **THEN** the animation scheduler SHALL stop requesting frames for that transition
+- **AND** later presenter activation SHALL show the current authoritative name without replay
