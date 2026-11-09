@@ -448,15 +448,15 @@ describe("ReferenceScreenApp scrolling", () => {
   it("lights the rail on hover, follows a thumb drag, and pages on a track press", () => {
     const { app: target } = app(numbered(70), { scrollbarAppearance: "always" });
     const initial = railCells(target);
-    expect(initial.filter(cell => cell === "│").length).toBeGreaterThan(0);
-    const thumbRow = initial.indexOf("│");
+    expect(initial.filter(cell => cell === "┃").length).toBeGreaterThan(0);
+    const thumbRow = initial.indexOf("┃");
     expect(thumbRow).toBe(0);
 
-    // Invariant: hovering the thumb thickens it; motion elsewhere is not consumed but repaints the rail.
+    // Invariant: hover keeps the selected glyph; motion elsewhere is not consumed but repaints the rail.
     expect(target.onMouse?.({ kind: "motion", button: 0, row: TOP + 1 + thumbRow, column: RAIL_COLUMN }, HOST)).toEqual({ consumed: true });
     expect(railCells(target)[thumbRow]).toBe("┃");
     expect(target.onMouse?.({ kind: "motion", button: 0, row: 3, column: 5 }, HOST)).toEqual({ consumed: false, render: true });
-    expect(railCells(target)[thumbRow]).toBe("│");
+    expect(railCells(target)[thumbRow]).toBe("┃");
 
     // Invariant: a press below the thumb pages toward the pointer.
     target.onMouse?.({ kind: "press", button: 0, row: TOP + BODY, column: RAIL_COLUMN }, HOST);
@@ -484,15 +484,15 @@ describe("ReferenceScreenApp scrolling", () => {
     expect(target.render(RECT, host).slice(TOP, TOP + BODY).every(line => line.charAt(RAIL_COLUMN - 1) === " ")).toBe(true);
     target.onMouse?.({ kind: "wheel-down", button: 0, row: 3, column: 10 }, host);
     const cells = () => target.render(RECT, host).slice(TOP, TOP + BODY).map(line => line.charAt(RAIL_COLUMN - 1));
-    expect(cells()).toContain("│");
+    expect(cells()).toContain("┃");
     vi.advanceTimersByTime(800);
-    expect(cells()).toContain("│");
+    expect(cells()).toContain("┃");
     expect(requestRender).not.toHaveBeenCalled();
     vi.advanceTimersByTime(200);
     expect(requestRender).toHaveBeenCalledTimes(1);
     expect(cells().every(cell => cell === " ")).toBe(true);
     target.onInput?.(END, host);
-    expect(cells()).toContain("│");
+    expect(cells()).toContain("┃");
     target.onClose?.(host);
     vi.advanceTimersByTime(2000);
     expect(requestRender).toHaveBeenCalledTimes(1);
@@ -500,11 +500,11 @@ describe("ReferenceScreenApp scrolling", () => {
 
   it("draws the configured rail style under always and no rail under hidden", () => {
     const { app: thick } = app(numbered(40), { scrollbarAppearance: "always", scrollbarStyle: "thick" });
-    expect(railCells(thick)).toContain("┃");
-    expect(railCells(thick)).not.toContain("│");
+    expect(railCells(thick)).toContain("▐");
+    expect(railCells(thick)).not.toContain("┃");
     const { app: hidden } = app(numbered(40), { scrollbarAppearance: "hidden" });
     const lines = screen(hidden);
-    expect(lines.join("\n")).not.toMatch(/[│┃]/);
+    expect(lines.join("\n")).not.toMatch(/[│┃▐]/);
     // Invariant: the former rail column is document space; pressing it pages nothing.
     hidden.onMouse?.({ kind: "press", button: 0, row: TOP + BODY, column: RAIL_COLUMN }, HOST);
     expect(body(hidden)[0]).toBe("Reference");

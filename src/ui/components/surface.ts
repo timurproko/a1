@@ -27,7 +27,7 @@ export function withScrollbarRail(
 ): readonly string[] {
   const inset = options.topInset ?? 0;
   const presentation = options.presentation
-    ?? { visible: geometry !== null, reservesSpace: true, trackGlyph: "│", thumbGlyph: "│" };
+    ?? { visible: geometry !== null, reservesSpace: true, trackGlyph: "┃", thumbGlyph: "┃" };
   if (!presentation.reservesSpace) return lines;
   const drawn = presentation.visible && geometry !== null;
   return lines.map((line, offset) => {

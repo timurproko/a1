@@ -18,10 +18,10 @@ describe("transcript viewport", () => {
     const frame = viewport.compose({ documentRows: rows(10), dockRows: ["editor", "footer"], promptAnchors: [], width: 30, height: 6, now: 100 });
 
     expect(frame.rows).toHaveLength(6);
-    expect(stripAnsi(frame.rows[0] ?? "")).not.toContain("│");
-    expect(stripAnsi(frame.rows[1] ?? "")).toContain("│");
+    expect(stripAnsi(frame.rows[0] ?? "")).not.toContain("┃");
+    expect(stripAnsi(frame.rows[1] ?? "")).toContain("┃");
     expect(frame.hits.rail).toMatchObject({ rowStart: 2, trackHeight: 3 });
-    expect(stripAnsi(frame.rows[3] ?? "")).toMatch(/[│┃]$/u);
+    expect(stripAnsi(frame.rows[3] ?? "")).toMatch(/┃$/u);
     expect(frame.rows.slice(-2).map(row => row.trimEnd())).toEqual(["editor", "footer"]);
   });
 
@@ -1521,8 +1521,8 @@ describe("transcript viewport", () => {
     const thumbRow = selected.rows[3] ?? "";
     expect(selectionEnds).toContain(10);
     expect(viewport.selectedText()).toBe("row 7\nrow 8\nrow 9");
-    expect(stripAnsi(thumbRow).at(-1)).toBe("│");
-    expect(thumbRow).toContain("\u001b[32m│");
+    expect(stripAnsi(thumbRow).at(-1)).toBe("┃");
+    expect(thumbRow).toContain("\u001b[32m┃");
   });
 
   it("reuses stable visible rows and bounds one-row multiline selection damage at 192x54", () => {
@@ -1600,14 +1600,14 @@ describe("transcript viewport", () => {
 
     const idle = viewport.compose({ documentRows: rows(10), dockRows: ["dock"], promptAnchors: [], width: 20, height: 5, now: 100 });
     expect(idle.contentWidth).toBe(19);
-    expect(idle.rows.every(row => !stripAnsi(row).includes("┃"))).toBe(true);
+    expect(idle.rows.every(row => !stripAnsi(row).includes("▐"))).toBe(true);
 
     viewport.noteScrollActivity(100, 50);
     const active = viewport.compose({ documentRows: rows(10), dockRows: ["dock"], promptAnchors: [], width: 20, height: 5, now: 120 });
-    expect(active.rows.some(row => stripAnsi(row).includes("┃"))).toBe(true);
+    expect(active.rows.some(row => stripAnsi(row).includes("▐"))).toBe(true);
     const expired = viewport.compose({ documentRows: rows(10), dockRows: ["dock"], promptAnchors: [], width: 20, height: 5, now: 151 });
     expect(expired.contentWidth).toBe(19);
-    expect(expired.rows.every(row => !stripAnsi(row).includes("┃"))).toBe(true);
+    expect(expired.rows.every(row => !stripAnsi(row).includes("▐"))).toBe(true);
 
     viewport.setConfig({ scrollbarAppearance: "hidden", scrollbarStyle: "thin" });
     const hidden = viewport.compose({ documentRows: rows(10), dockRows: ["dock"], promptAnchors: [], width: 20, height: 5, now: 152 });

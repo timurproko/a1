@@ -79,7 +79,7 @@ export function evaluateRenderingBudgets(matrix: RenderingMatrixResult): Renderi
     // Invariant: the final transcript cell is presentation-only scrollbar chrome.
     // Ignore its rail glyph when joining wrapped source rows for semantic freshness.
     const settledText = final?.cellFrame.rows
-      .map(row => row.replace(/[│┃]$/u, ""))
+      .map(row => row.replace(/[│┃▐]$/u, ""))
       .join(" ").replace(/\s+/gu, " ");
     if (final === undefined || !final.name.endsWith("-settled")
       || !settledText?.includes(FINAL_VISIBLE_MARKERS[matrix.workloadId]!)) {

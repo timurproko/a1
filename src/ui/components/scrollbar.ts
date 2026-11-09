@@ -49,8 +49,8 @@ export interface ScrollbarPresentationInput {
 export interface ScrollbarPresentation {
   readonly visible: boolean;
   readonly reservesSpace: boolean;
-  readonly trackGlyph: "│" | "┃";
-  readonly thumbGlyph: "│" | "┃";
+  readonly trackGlyph: "┃" | "▐";
+  readonly thumbGlyph: "┃" | "▐";
 }
 
 /** Pure appearance decision; activity time is supplied so tests own the clock. */
@@ -68,8 +68,8 @@ export function scrollbarPresentation(input: ScrollbarPresentationInput): Scroll
   return {
     visible,
     reservesSpace,
-    trackGlyph: thick ? "┃" : "│",
-    thumbGlyph: thick || input.hovered || input.dragging ? "┃" : "│",
+    trackGlyph: thick ? "▐" : "┃",
+    thumbGlyph: thick ? "▐" : "┃",
   };
 }
 

@@ -268,8 +268,15 @@ function railCells(target: SettingsApp): string[] {
     .slice(0, RAIL_CONTENT_HEIGHT)
     .map(line => {
       const cell = line.length >= RAIL_COLUMN ? line.charAt(RAIL_COLUMN - 1) : " ";
-      return cell === "│" || cell === "┃" ? cell : " ";
+      return cell === "┃" || cell === "▐" ? cell : " ";
     });
+}
+
+/** Thumb position comes from its accent role, not a hover-only glyph. */
+function railThumbRow(target: SettingsApp): number {
+  const theme: UiTheme = { ...NAMING_THEME, fg: (token, text) => token === "accent" ? `${ESC}[35m${text}${ESC}[39m` : text };
+  return target.render(RAIL_RECT, { ...HOST, theme }).slice(0, RAIL_CONTENT_HEIGHT)
+    .findIndex(line => line.includes(`${ESC}[35m┃${ESC}[39m`));
 }
 
 async function app(
@@ -518,8 +525,8 @@ describe("the settings screen", () => {
     await session.load();
     expect(session.value("promptSuggestions")).toBe(false);
     // Rationale: the owned Agent rows overflow the test frame, so the rail follows each row.
-    expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*no\s*│?$/);
-    expect(find(target, "Skills").trimStart()).toMatch(/^\s*Skills\s+collapse\s*│?$/);
+    expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*no\s*┃?$/);
+    expect(find(target, "Skills").trimStart()).toMatch(/^\s*Skills\s+collapse\s*┃?$/);
     expect(writes).toEqual([]);
 
     for (const query of ["Agent", "Prompt suggestions"]) {
@@ -1142,7 +1149,7 @@ describe("the settings screen", () => {
     const searchRow = lines.findIndex(line => line.includes("Search settings"));
     expect(searchRow).toBeGreaterThanOrEqual(2);
     expect(lines[searchRow - 2]).toContain("Prompt image limit");
-    expect(lines[searchRow - 2]?.endsWith("┃")).toBe(true);
+    expect(lines[searchRow - 2]?.endsWith("▐")).toBe(true);
     expect([...visited].sort()).toEqual([
       "History limit", "Output padding", "Persistent history", "Prompt image limit", "Prompt suggestions", "Skills", "Thinking level",
     ]);
@@ -1173,7 +1180,7 @@ describe("the settings screen", () => {
     const lines = target.render({ width: 80, height: 13 }, HOST).map(line => stripTerminalSequences(line).trimEnd());
     expect(lines[0]).toBe("─".repeat(80));
     expect(lines[1]).toContain(" Settings");
-    expect(lines[2]?.replace(/[│┃]$/u, "").trimEnd()).toBe("");
+    expect(lines[2]?.replace(/[┃▐]$/u, "").trimEnd()).toBe("");
     expect(lines[3]).toContain("Generic");
     expect(lines[4]?.trimStart()).toMatch(/^→\s+Update/);
   });
@@ -1633,8 +1640,8 @@ describe("the input row and status line behind the screen", () => {
 
     target.onMouse?.({ kind: "motion", button: 0, row: railEventRow(INITIAL_RAIL_SCREEN_ROW), column: RAIL_COLUMN }, HOST);
     const revealed = railCells(target);
-    expect(revealed).toContain("│");
     expect(revealed).toContain("┃");
+    expect(revealed).not.toContain("▐");
     // Invariant: the rail is not a row: pointing at it lights nothing in the list.
     expect(railScreen(target).some(line => line.includes("❯"))).toBe(false);
 
@@ -1653,25 +1660,25 @@ describe("the input row and status line behind the screen", () => {
         .map(line => line.replace(STYLE, ""))
         .map(line => {
           const cell = line.length >= RAIL_COLUMN ? line.charAt(RAIL_COLUMN - 1) : " ";
-          return cell === "│" || cell === "┃" ? cell : " ";
+          return cell === "┃" || cell === "▐" ? cell : " ";
         });
       expect(cells().every(cell => cell === " ")).toBe(true);
 
       target.onMouse?.({ kind: "wheel-down", button: 0, row: 3, column: 40 }, host);
       const lit = cells();
-      expect(lit).toContain("│");
-      expect(lit).not.toContain("┃");
+      expect(lit).toContain("┃");
+      expect(lit).not.toContain("▐");
 
       // Invariant: the rail stays lit for the shared linger, then one repaint takes it away.
       vi.advanceTimersByTime(800);
-      expect(cells()).toContain("│");
+      expect(cells()).toContain("┃");
       expect(requestRender).not.toHaveBeenCalled();
       vi.advanceTimersByTime(200);
       expect(requestRender).toHaveBeenCalledTimes(1);
       expect(cells().every(cell => cell === " ")).toBe(true);
 
       target.onInput?.(CTRL_END, host);
-      expect(cells()).toContain("│");
+      expect(cells()).toContain("┃");
       target.onClose?.(host);
       vi.advanceTimersByTime(2000);
       expect(requestRender).toHaveBeenCalledTimes(1);
@@ -1683,22 +1690,22 @@ describe("the input row and status line behind the screen", () => {
   it("draws the rail whenever the list overflows under always, in the configured style", async () => {
     const thin = await app(false, undefined, RAIL_SETTINGS, { scrollbarAppearance: "always" });
     const thinCells = railCells(thin.app);
-    expect(thinCells[INITIAL_RAIL_SCREEN_ROW]).toBe("│");
-    expect(thinCells).toContain("│");
-    expect(thinCells).not.toContain("┃");
+    expect(thinCells[INITIAL_RAIL_SCREEN_ROW]).toBe("┃");
+    expect(thinCells).toContain("┃");
+    expect(thinCells).not.toContain("▐");
 
     const thick = await app(false, undefined, RAIL_SETTINGS, { scrollbarAppearance: "always", scrollbarStyle: "thick" });
     const thickCells = railCells(thick.app);
-    expect(thickCells).toContain("┃");
-    expect(thickCells).not.toContain("│");
+    expect(thickCells).toContain("▐");
+    expect(thickCells).not.toContain("┃");
   });
 
   it("draws no rail and gives the rows its columns under hidden", async () => {
     const { app: target } = await app(false, undefined, RAIL_SETTINGS, { scrollbarAppearance: "hidden" });
     const lines = target.render(RAIL_RECT, HOST).map(line => line.replace(STYLE, ""));
-    expect(lines.join("\n")).not.toMatch(/[│┃]/);
+    expect(lines.join("\n")).not.toMatch(/[│┃▐]/);
     target.onMouse?.({ kind: "motion", button: 0, row: railEventRow(INITIAL_RAIL_SCREEN_ROW), column: RAIL_COLUMN }, HOST);
-    expect(target.render(RAIL_RECT, HOST).map(line => line.replace(STYLE, "")).join("\n")).not.toMatch(/[│┃]/);
+    expect(target.render(RAIL_RECT, HOST).map(line => line.replace(STYLE, "")).join("\n")).not.toMatch(/[│┃▐]/);
 
     // Invariant: the former rail column is ordinary list space; pressing it pages nothing.
     const before = screen(target);
@@ -1722,24 +1729,24 @@ describe("the input row and status line behind the screen", () => {
     target.onInput?.(`${ESC}[C`, HOST);
     expect(change).toHaveBeenCalledWith("a1", "scrollbarAppearance", "always");
     expect(session.value("scrollbarAppearance")).toBe("auto");
-    expect(railCells(target)).toContain("│");
+    expect(railCells(target)).toContain("┃");
 
     target.onInput?.(`${ESC}[C`, HOST);
     expect(change).toHaveBeenCalledWith("a1", "scrollbarAppearance", "hidden");
-    expect(target.render(RAIL_RECT, HOST).join("\n")).not.toMatch(/[│┃]/);
+    expect(target.render(RAIL_RECT, HOST).join("\n")).not.toMatch(/[│┃▐]/);
   });
 
   it("scrolls the list by dragging the thumb and pages from the track", async () => {
     const { app: target } = await app(false, undefined, RAIL_SETTINGS, { scrollbarAppearance: "always" });
     const visible = () => railScreen(target).join("\n");
-    // Rationale: the rows without the rail, whose thumb changes glyph as the drag ends.
+    // Rationale: compare source rows independently of the rail's presentation.
     const content = () => railScreen(target).map(line => line.slice(0, RAIL_COLUMN - 2)).join("\n");
     const arrow = () => railScreen(target).find(line => line.trimStart().startsWith("→"));
     expect(visible()).toContain("Scrollbar mode");
     expect(arrow()).toContain("Scrollbar mode");
 
     // Invariant: the thumb starts after the list's one-row sticky-header inset.
-    const initialThumb = railCells(target).indexOf("│");
+    const initialThumb = railThumbRow(target);
     expect(initialThumb).toBeGreaterThanOrEqual(1);
     target.onMouse?.({ kind: "press", button: 0, row: railEventRow(initialThumb), column: RAIL_COLUMN }, HOST);
     target.onMouse?.({ kind: "motion", button: 0, row: RAIL_LAST_EVENT_ROW, column: RAIL_COLUMN }, HOST);
@@ -1750,13 +1757,14 @@ describe("the input row and status line behind the screen", () => {
     target.onMouse?.({ kind: "release", button: 0, row: RAIL_LAST_EVENT_ROW, column: RAIL_COLUMN }, HOST);
     target.onMouse?.({ kind: "motion", button: 0, row: railEventRow(1), column: 40 }, HOST);
     expect(content()).toBe(dragged);
-    expect(railCells(target)).not.toContain("┃");
+    expect(railCells(target)).toContain("┃");
+    expect(railCells(target)).not.toContain("▐");
     // Invariant: the selection stays where it was, off screen for now.
     expect(arrow()).toBeUndefined();
 
-    // Rationale: pointing at the rail thickens the thumb, which says where to grab it for the way back up.
+    // Rationale: the accent role identifies the thumb without changing its style on hover.
     target.onMouse?.({ kind: "motion", button: 0, row: RAIL_LAST_EVENT_ROW, column: RAIL_COLUMN }, HOST);
-    const thumbRow = railCells(target).indexOf("┃");
+    const thumbRow = railThumbRow(target);
     expect(thumbRow).toBeGreaterThan(1);
     target.onMouse?.({ kind: "press", button: 0, row: railEventRow(thumbRow), column: RAIL_COLUMN }, HOST);
     target.onMouse?.({ kind: "motion", button: 0, row: railEventRow(1), column: RAIL_COLUMN }, HOST);
