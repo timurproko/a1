@@ -142,6 +142,9 @@ export interface OwnedUiUsageView {
 export interface OwnedUiFooterView {
   readonly branch: string | null;
   readonly repositoryPath?: string | null;
+  readonly repositoryRevision?: string | null;
+  /** Ephemeral automatic-apply identity; absent when loading a saved or manually named session. */
+  readonly sessionNameReveal?: { readonly id: string; readonly from: string };
   readonly pullRequest?: { readonly number: number; readonly url: string } | null;
   readonly sessionName: string | null;
   readonly availableProviderCount: number;

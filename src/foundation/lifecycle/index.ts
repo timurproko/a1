@@ -14,11 +14,13 @@ export {
   registerSessionRepositoryRuntime,
   releaseSessionRepositoryRuntime,
   setSessionRepositoryContext,
+  withSessionRepositoryObservation,
 } from "./session-repository-context.js";
 export type {
   SessionRepositoryContext,
   SessionRepositoryContextOptions,
   SessionRepositoryIdentity,
+  SessionRepositoryObservation,
   SessionWorktreeInventoryEntry,
   SessionWorktreeStatus,
 } from "./session-repository-context.js";

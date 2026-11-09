@@ -1,26 +1,55 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
- * Modifications: Owned UI/routing; A1 level color, linked PRs, dim ellipsis and model priority; Pi
- * unchanged.
+ * Modifications: Owned UI/routing; A1 level color, linked PRs, dim ellipsis, model priority, and
+ * secondary-accent name reveals after stats; Pi unchanged.
  * Deviations: owned-status-level-color, owned-pull-request-badge, owned-footer-ellipsis,
- * owned-footer-model-priority.
+ * owned-footer-model-priority, owned-session-name-reveal.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { hyperlink, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import type { OwnedUiSessionViewModel } from "../../../../../contracts/owned-ui/index.js";
 import { piTheme } from "../../theme.js";
+import { sessionNameFrame } from "../../../../../ui/components/session-name-frame.js";
 
 export class SessionFooter implements Component {
   private readonly getView: () => OwnedUiSessionViewModel;
   private readonly cwd: string;
   private readonly profile: "pi" | "a1";
   private readonly show: () => boolean;
+  #reveal: { readonly from: string; readonly elapsed: number } | null = null;
+  #nameBudget = Number.MAX_SAFE_INTEGER;
   constructor(getView: () => OwnedUiSessionViewModel, cwd: string, profile: "pi" | "a1" = "pi", show: () => boolean = () => true) {
     this.getView = getView; this.cwd = cwd; this.profile = profile; this.show = show;
   }
   invalidate(): void {}
-  dispose(): void {}
+  dispose(): void { this.#reveal = null; }
+
+  setNameReveal(frame: { readonly from: string; readonly elapsed: number } | null): boolean {
+    this.#reveal = this.profile === "a1" ? frame : null;
+    if (this.#reveal && this.#nameFrame(this.getView().status.footer?.sessionName ?? "", this.#nameBudget).done) this.#reveal = null;
+    return this.#reveal !== null;
+  }
+
+  #nameFrame(name: string, width: number): { readonly text: string; readonly done: boolean } {
+    const theme = piTheme();
+    const secondary = rgb(theme.getFgAnsi("mdHeading"));
+    const settled = rgb(theme.getFgAnsi("dim"));
+    if (!this.#reveal) return { text: theme.fg("dim", truncateToWidth(name, width, "…")), done: true };
+    return sessionNameFrame({
+      ...this.#reveal, to: name, width,
+      truecolor: theme.getColorMode() === "truecolor" && secondary !== null && settled !== null,
+      measure: visibleWidth, clip: (text, columns) => truncateToWidth(text, columns, "…"),
+      dim: text => theme.fg("dim", text),
+      paint: (text, brightness, progress) => {
+        const channels = secondary!.map((value, index) => {
+          const bright = value + (235 - value) * brightness;
+          return Math.round(bright + (settled![index]! - bright) * progress);
+        });
+        return `\u001b[38;2;${channels.join(";")}m${text}\u001b[39m`;
+      },
+    });
+  }
 
   render(width: number): string[] {
     const view = this.getView();
@@ -45,12 +74,11 @@ export class SessionFooter implements Component {
     const pullRequest = this.profile === "a1" ? view.status.footer?.pullRequest : null;
     let pathRow: string;
     if (pullRequest == null) {
-      pathRow = theme.fg("dim", sessionName ? `${pwd} • ${sessionName}` : pwd);
+      pathRow = theme.fg("dim", this.profile === "pi" && sessionName ? `${pwd} • ${sessionName}` : pwd);
     } else {
       const badge = theme.fg("dim", " ")
         + hyperlink(theme.fg("mdLink", `#${pullRequest.number}`), pullRequest.url);
-      const sessionSuffix = sessionName ? theme.fg("dim", ` • ${sessionName}`) : "";
-      const full = theme.fg("dim", pwd) + badge + sessionSuffix;
+      const full = theme.fg("dim", pwd) + badge;
       if (visibleWidth(full) <= width) pathRow = full;
       else if (visibleWidth(badge) <= width) {
         pathRow = truncateToWidth(theme.fg("dim", pwd), width - visibleWidth(badge), dimEllipsis) + badge;
@@ -103,6 +131,11 @@ export class SessionFooter implements Component {
       leftWidth = visibleWidth(left);
     }
     const rightWidth = visibleWidth(right);
+    this.#nameBudget = Math.max(0, width - leftWidth - rightWidth - 2 - 3);
+    if (this.profile === "a1" && sessionName && this.#nameBudget > 0) {
+      left += theme.fg("dim", " • ") + this.#nameFrame(sessionName, this.#nameBudget).text;
+      leftWidth = visibleWidth(left);
+    }
     let line: string;
     if (this.profile === "a1" && leftWidth === 0) {
       line = " ".repeat(Math.max(0, width - rightWidth)) + right;
@@ -127,6 +160,11 @@ export class SessionFooter implements Component {
     }
     return lines;
   }
+}
+
+function rgb(ansi: string): number[] | null {
+  const match = /\u001b\[38;2;(\d+);(\d+);(\d+)m/u.exec(ansi);
+  return match ? match.slice(1).map(Number) : null;
 }
 
 function sanitize(text: string): string { return text.replace(/[\r\n\t]/g, " ").replace(/ +/g, " ").trim(); }

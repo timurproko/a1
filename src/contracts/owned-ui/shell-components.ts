@@ -96,6 +96,8 @@ export interface OwnedUiShellAutocompleteCommand {
 
 export interface OwnedUiShellViewComponentPort extends OwnedUiShellComponentPort {
   update(view: OwnedUiSessionViewModel): void;
+  /** Footer-only ephemeral frame; returns whether its clipped name still needs animation. */
+  setNameReveal?(frame: { readonly from: string; readonly elapsed: number } | null): boolean;
 }
 
 export type OwnedUiShellStatusPlacement = "live" | "dock" | "hidden";

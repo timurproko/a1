@@ -17,6 +17,7 @@ src/
     owned-ui/                      owned screens, settings application, diagnostics, and runtime lifecycle
     prompt-history/                profile-isolated prompt retention and bounded SQLite worker lifecycle
     prompt-suggestions/            opt-in bounded metadata capture and local diagnostic snapshots
+    session-naming/                prompt-driven naming policy, bounded generation, and context-aware regeneration
   contracts/
     agent-engine/                  dependency-free agent settings and package contracts
     owned-ui/                      dependency-free owned-session and extension UI contracts

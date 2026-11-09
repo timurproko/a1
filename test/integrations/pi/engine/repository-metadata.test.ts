@@ -28,6 +28,24 @@ function poller(branchReader: (cwd: string) => Promise<string | null>) {
 }
 
 describe("RepositoryMetadataPoller", () => {
+  it("publishes same-path association revisions and retains verified context on observation failure", async () => {
+    let revision = "first";
+    let unavailable = false;
+    const changed = vi.fn();
+    const instance = new RepositoryMetadataPoller({
+      repositoryContextReader: async () => { if (unavailable) throw new Error("busy"); return { cwd: "D:/task", branch: "feature/task", revision }; },
+      pullRequestProbe: async () => null, repositoryContextPollMs: 60_000,
+    }, { bindingGeneration: () => 1, sessionIdentity: () => ({ sessionId: "session", sessionFile: "/session.jsonl" }),
+      fallbackCwd: () => "D:/primary", disposed: () => false, changed });
+    onTestFinished(() => instance.dispose());
+    instance.start(); await vi.waitFor(() => expect(instance.revision).toBe("first"));
+    revision = "reentered"; instance.refresh();
+    await vi.waitFor(() => expect(instance.revision).toBe("reentered"));
+    expect(changed).toHaveBeenCalledTimes(2);
+    unavailable = true; instance.refresh(); await new Promise(resolve => setImmediate(resolve));
+    expect(instance.cwd).toBe("D:/task"); expect(instance.revision).toBe("reentered");
+    expect(changed).toHaveBeenCalledTimes(2);
+  });
   it("drops a probe that was still running when a new session was bound", async () => {
     const first = Promise.withResolvers<string | null>();
     const reader = vi.fn<(cwd: string) => Promise<string | null>>()

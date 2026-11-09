@@ -23,6 +23,7 @@ export interface PiSessionEventPorts {
   thinkingLevelChanged(level: OwnedUiThinkingLevel): void;
   /** Usage moved at a message or lifecycle boundary; the memoized usage view is stale. */
   usageInvalidated(): void;
+  nameChanged?(): void;
   compactionStarted(): void;
   compactionEnded(): void;
   deliverQueuedAfterCompaction(): void;
@@ -104,6 +105,7 @@ export class PiSessionEvents {
       if (!isRecord(event) || typeof event.type !== "string") return;
       // Invariant: usage moves at message and lifecycle boundaries, not with stream chunks.
       if (event.type !== "message_update" && event.type !== "tool_execution_update") this.#ports.usageInvalidated();
+      if (event.type === "session_info_changed") this.#ports.nameChanged?.();
       this.#applyPiEvent(event);
     } finally { this.#projection.assets.discardUnowned(); }
   }

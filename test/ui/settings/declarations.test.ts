@@ -39,6 +39,7 @@ describe("owned UI setting declarations", () => {
       "promptHistoryEnabled",
       "promptHistoryScope",
       "promptHistoryMaxItems",
+      "sessionAutoName",
       "promptSuggestions",
       "skillsPresentation",
       "promptImageLimit",
@@ -78,6 +79,9 @@ describe("owned UI setting declarations", () => {
       application: "live",
       defaultValue: 8,
       allowedValues: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "sessionAutoName")).toMatchObject({
+      section: { id: "agent", title: "Agent" }, application: "live", defaultValue: true, allowedValues: [true, false],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptSuggestions")).toMatchObject({
       label: "Prompt suggestions",

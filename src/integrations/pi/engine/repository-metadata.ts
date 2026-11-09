@@ -12,6 +12,7 @@ const GIT_BRANCH_MAX_BUFFER_BYTES = 4 * 1024;
 interface PiRepositoryContextSelection {
   readonly cwd: string;
   readonly branch: string;
+  readonly revision?: string;
 }
 export type PiRepositoryContextReader = (sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<PiRepositoryContextSelection | null>;
 type PiGitBranchReader = (cwd: string, signal: AbortSignal) => Promise<string | null>;
@@ -49,7 +50,7 @@ export class RepositoryMetadataPoller {
   readonly #contextReader: PiRepositoryContextReader;
   readonly #branchReader: PiGitBranchReader;
   #cwd: string;
-  #branch: string | null = null;
+  #selection: { branch: string | null; revision: string | null } = { branch: null, revision: null };
   #pullRequest: PiPullRequestIdentity | null = null;
   #timer: ReturnType<typeof setTimeout> | undefined;
   #abort: AbortController | undefined;
@@ -73,8 +74,10 @@ export class RepositoryMetadataPoller {
   }
 
   get branch(): string | null {
-    return this.#branch;
+    return this.#selection.branch;
   }
+
+  get revision(): string | null { return this.#selection.revision; }
 
   get pullRequest(): PiPullRequestIdentity | null {
     return this.#pullRequest;
@@ -110,7 +113,7 @@ export class RepositoryMetadataPoller {
     this.#timer = undefined;
     this.#abort?.abort();
     this.#cwd = this.#ports.fallbackCwd();
-    this.#branch = null;
+    this.#selection = { branch: null, revision: null };
     this.#pullRequest = null;
     this.#lastPullRequestProbeAt = null;
   }
@@ -138,11 +141,7 @@ export class RepositoryMetadataPoller {
     const { sessionId, sessionFile } = this.#ports.sessionIdentity();
     try {
       if (typeof sessionId === "string" && sessionId.length > 0 && typeof sessionFile === "string" && sessionFile.length > 0) {
-        try {
-          associatedContext = await this.#contextReader(sessionId, sessionFile, controller.signal);
-        } catch {
-          associatedContext = null;
-        }
+        associatedContext = await this.#contextReader(sessionId, sessionFile, controller.signal);
       }
       const nextCwd = associatedContext?.cwd ?? this.#ports.fallbackCwd();
       let nextBranch: string | null = associatedContext?.branch ?? null;
@@ -153,7 +152,8 @@ export class RepositoryMetadataPoller {
           nextBranch = null;
         }
       }
-      const metadataChanged = nextCwd !== this.#cwd || nextBranch !== this.#branch;
+      const nextRevision = associatedContext?.revision ?? null;
+      const metadataChanged = nextCwd !== this.#cwd || nextBranch !== this.#selection.branch || nextRevision !== this.#selection.revision;
       const remoteDue = metadataChanged || this.#lastPullRequestProbeAt === null
         || Date.now() - this.#lastPullRequestProbeAt >= this.#pullRequestRefreshMs;
       if (remoteDue) {
@@ -166,10 +166,10 @@ export class RepositoryMetadataPoller {
           nextPullRequest = null;
         }
         if (!this.#current(controller, generation)) return;
-        this.#apply(nextCwd, nextBranch, nextPullRequest);
+        this.#apply(nextCwd, nextBranch, nextPullRequest, nextRevision);
       }
     } catch {
-      if (this.#current(controller, generation)) this.#apply(this.#ports.fallbackCwd(), null, null);
+      // Invariant: unverifiable context is not evidence of an exit; retain the last verified selection.
     } finally {
       if (this.#abort === controller) this.#abort = undefined;
     }
@@ -181,10 +181,10 @@ export class RepositoryMetadataPoller {
     this.#timer.unref?.();
   }
 
-  #apply(cwd: string, branch: string | null, pullRequest: PiPullRequestIdentity | null): void {
-    const changed = cwd !== this.#cwd || branch !== this.#branch || !samePullRequest(this.#pullRequest, pullRequest);
+  #apply(cwd: string, branch: string | null, pullRequest: PiPullRequestIdentity | null, revision: string | null): void {
+    const changed = cwd !== this.#cwd || branch !== this.#selection.branch || revision !== this.#selection.revision || !samePullRequest(this.#pullRequest, pullRequest);
     this.#cwd = cwd;
-    this.#branch = branch;
+    this.#selection = { branch, revision };
     this.#pullRequest = pullRequest;
     this.#lastPullRequestProbeAt = Date.now();
     if (changed) this.#ports.changed();

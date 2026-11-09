@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const context = vi.hoisted(() => ({
-  activate: vi.fn(async (..._args: unknown[]) => ({ repositoryPath: "/repo" })),
+  activate: vi.fn(async (..._args: unknown[]) => ({ cwd: "/repo", branch: "develop" })),
+  observe: vi.fn(async (_identity: unknown, consume: (value: { cwd: string; branch: string; revision: string }) => unknown) => consume({ cwd: "/repo", branch: "develop", revision: "revision-one" })),
   register: vi.fn(async (..._args: unknown[]) => {}),
   release: vi.fn(async (..._args: unknown[]) => {}),
 }));
 vi.mock("../../src/foundation/lifecycle/session-repository-context.js", () => ({
   activateSessionRepositoryContext: context.activate,
+  withSessionRepositoryObservation: context.observe,
   registerSessionRepositoryRuntime: context.register,
   releaseSessionRepositoryRuntime: context.release,
 }));
@@ -34,7 +36,7 @@ describe("SessionRuntimeRegistry", () => {
     const inspect = vi.fn(async () => owner);
     const registry = new SessionRuntimeRegistry({ runtimeId: "runtime-1", inspectProcess: inspect, refreshMs: 1_000 });
     const signal = new AbortController().signal;
-    expect(await registry.readerFor(undefined)("s1", "/s1.jsonl", signal)).toEqual({ repositoryPath: "/repo" });
+    expect(await registry.readerFor(undefined)("s1", "/s1.jsonl", signal)).toEqual({ cwd: "/repo", branch: "develop", revision: "revision-one" });
     await registry.readerFor("agent-2")("s2", "/s2.jsonl", signal);
     expect(context.activate.mock.calls.map(call => call[3])).toEqual([
       expect.not.objectContaining({ agentId: expect.anything() }),

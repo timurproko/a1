@@ -11,7 +11,7 @@ import {
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
     expect(Object.keys(PROJECT_OWNERS)).toEqual([
-      "product-identity", "cli", "composition", "session-shell", "launch", "owned-ui", "prompt-suggestions", "prompt-history", "terminal-cleanup", "launch-context", "session-writer-lock", "startup", "lifecycle", "release", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-presenters",
+      "product-identity", "cli", "composition", "session-shell", "launch", "owned-ui", "session-naming", "prompt-suggestions", "prompt-history", "terminal-cleanup", "launch-context", "session-writer-lock", "startup", "lifecycle", "release", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-presenters",
     ]);
     for (const owner of Object.values(PROJECT_OWNERS)) {
       if (owner.id === "product-identity") {
@@ -25,6 +25,20 @@ describe("project structure ownership policy", () => {
       expect(testOwnerForPath(`${owner.testRoot}/contract.test.ts`)).toBe(owner.id);
     }
     expect(testOwnerForPath("test/repository-governance/policy.test.ts")).toBe("repository-governance");
+  });
+
+  it("keeps session naming neutral behind its feature entry and rejects Pi dependencies", () => {
+    expect(PROJECT_OWNERS["session-naming"]).toMatchObject({
+      layer: "feature", sourceRoot: "src/features/session-naming", publicEntry: "src/features/session-naming/index.ts",
+      testRoot: "test/features/session-naming", mayImport: ["owned-ui-contracts"],
+    });
+    expect(inspectProjectStructureImports({
+      "src/composition/session-naming.ts": "import { SessionNamingController } from '../features/session-naming/index.js';",
+      "src/features/session-naming/controller.ts": "import type { OwnedUiSessionNamingPort } from '../../contracts/owned-ui/index.js';",
+    })).toEqual([]);
+    expect(inspectPiFeatureBoundaryImports({
+      "src/features/session-naming/controller.ts": "import { ModelRuntime } from '@earendil-works/pi-coding-agent';",
+    })).toHaveLength(1);
   });
 
   it("keeps suggestion capture neutral and wired only through composition", () => {

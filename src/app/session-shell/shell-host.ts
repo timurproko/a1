@@ -238,7 +238,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
 
   /** Forgets a presenter whose construction failed before it could be attached or released. */
   disconnect(presenter: OwnedUiHostedPresenter): void {
-    if (this.#active === presenter) this.#active = null;
+    if (this.#active === presenter) { presenter.setFocused(false); this.#active = null; }
     this.#forget(presenter);
   }
 

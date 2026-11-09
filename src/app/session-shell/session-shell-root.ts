@@ -237,7 +237,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   readonly #themeUnsubscribe: () => void;
   #view: OwnedUiSessionViewModel;
   readonly #status: OwnedUiShellStatusPort;
-  readonly #footer: OwnedUiShellViewComponentPort;
+  readonly footer: OwnedUiShellViewComponentPort;
   readonly #queued: OwnedUiShellQueuedInputPort;
   readonly #extensionRenderers: OwnedUiTranscriptRendererPort;
   readonly #imageAssets: OwnedUiShellImageAssetResolver | undefined;
@@ -301,7 +301,12 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
       frame: progressStatusFrame,
     }, handlers);
     this.#status.setProgressPresentation(this.#customViewport ? "custom-viewport" : "pinned");
-    this.#footer = handlers.components.chrome.footer(this.#extensions.withStatuses(view), cwd, this.#customViewport ? "a1" : "pi", () => this.#footerLevel);
+    const footer = handlers.components.chrome.footer(this.#extensions.withStatuses(view), cwd, this.#customViewport ? "a1" : "pi", () => this.#footerLevel);
+    this.footer = { ...footer, setNameReveal: frame => {
+      const active = footer.setNameReveal?.(frame) ?? false;
+      this.#invalidateChrome();
+      return active && this.#extensions.footer === null;
+    } };
     this.editor = createShellEditor({
       handlers, theme: handlers.presentation.theme, components: handlers.components,
       customViewport: this.#customViewport,
@@ -506,7 +511,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
       this.#syncWorkingOverride();
     }
     this.#status.update(view);
-    this.#footer.update(this.#extensions.withStatuses(view));
+    this.footer.update(this.#extensions.withStatuses(view));
     this.#queued.update(view.editor.queuedSubmissions);
     this.transcript.sync(view.transcript);
     this.editor.setSubmitEnabled(view.lifecycle !== "stopping" && view.lifecycle !== "stopped" && view.lifecycle !== "failed");
@@ -629,7 +634,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
       status: layoutPort(width => this.#renderStatus(width), () => this.#status.invalidate()),
       editor: layoutPort(width => this.#input.surface.render(width), () => this.#input.surface.invalidate(), data => this.#input.surface.handleInput?.(data)),
       belowWidgets: layoutPort(width => this.#extensions.renderWidgets("belowEditor", width), () => this.#extensions.invalidate()),
-      footer: layoutPort(width => this.#renderFooter(width), () => (this.#extensions.footer ?? this.#footer).invalidate()),
+      footer: layoutPort(width => this.#renderFooter(width), () => (this.#extensions.footer ?? this.footer).invalidate()),
     };
   }
 
@@ -667,7 +672,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
 
   setExtensionStatus(key: string, text: string | undefined): void {
     this.#extensions.setStatus(key, text);
-    this.#footer.update(this.#extensions.withStatuses(this.#view));
+    this.footer.update(this.#extensions.withStatuses(this.#view));
     this.invalidate();
   }
 
@@ -716,7 +721,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   resetExtensionUi(): void {
     this.#extensions.reset();
     this.#syncWorkingOverride();
-    this.#footer.update(this.#extensions.withStatuses(this.#view));
+    this.footer.update(this.#extensions.withStatuses(this.#view));
     // Invariant: an extension renderer may have drawn transcript blocks that are now unrendered by it.
     this.transcript.invalidate("extension-renderers");
     this.invalidate();
@@ -781,7 +786,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     if (!this.#input.usesEditor) this.#input.surface.invalidate();
     this.#extensions.invalidate();
     this.#status.invalidate();
-    this.#footer.invalidate();
+    this.footer.invalidate();
     this.#queued.invalidate();
   }
 
@@ -802,7 +807,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     this.#extensions.dispose();
     this.editor.dispose?.();
     this.#status.dispose?.();
-    this.#footer.dispose?.();
+    this.footer.dispose?.();
     this.#queued.dispose?.();
   }
 
@@ -816,7 +821,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   }
 
   #renderFooter(width: number): readonly string[] {
-    const footer = this.#extensions.footer ?? this.#footer;
+    const footer = this.#extensions.footer ?? this.footer;
     if (!this.#customViewport) return footer.render(width);
     width = Math.max(0, width - 2);
     return footer.render(width).map(row => ` ${this.#componentRuntime.components.text.truncateToWidth(row, width)}`);

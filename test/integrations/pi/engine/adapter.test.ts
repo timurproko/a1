@@ -234,6 +234,71 @@ function command(type: OwnedUiCommand["type"], correlationId: string, extra: Par
   return { type, correlationId, sessionId: "owned-1", ...extra } as OwnedUiCommand;
 }
 
+describe("Pi session naming", () => {
+  async function namingFixture() {
+    const session = new FakeSession("naming"); session.name = undefined;
+    const entries: Array<Record<string, unknown>> = [];
+    let sequence = 0;
+    Object.assign(session.sessionManager, {
+      getSessionFile: () => "D:/session.jsonl", getSessionId: () => "naming",
+      getEntries: () => entries,
+      appendCustomEntry: (customType: string, data: unknown) => { const id = `custom-${++sequence}`; entries.push({ type: "custom", id, customType, data }); return id; },
+    });
+    const rename = (name: string) => {
+      session.name = name; entries.push({ type: "session_info", id: `name-${++sequence}`, name });
+      session.emit({ type: "session_info_changed", name });
+    };
+    Object.assign(session, { setSessionName: rename });
+    const runtime = new FakeRuntime(session);
+    const { adapter } = await adapterWithRuntime(runtime);
+    return { adapter, runtime, session, entries, rename };
+  }
+
+  it("uses isolated bounded tool-free requests rather than old conversation context", async () => {
+    const { adapter, runtime, session } = await namingFixture();
+    session.setMessages([{ role: "user", content: "unrelated old task" }]);
+    runtime.suggestionResponse = { content: [{ type: "text", text: "fix-cache" }], stopReason: "stop" };
+    expect(await adapter.naming.complete({ prompt: "current task", maxTokens: 4096, signal: new AbortController().signal })).toBe("fix-cache");
+    expect(runtime.suggestionCalls[0]).toMatchObject({
+      context: { tools: [], messages: [{ role: "user", content: "current task" }] }, options: { maxTokens: 4096 },
+    });
+    expect(session.messages).toHaveLength(1);
+    runtime.suggestionResponse = { content: [{ type: "toolCall", name: "bash" }], stopReason: "stop" };
+    expect(await adapter.naming.complete({ prompt: "task", maxTokens: 4096, signal: new AbortController().signal })).toBeNull();
+    await adapter.dispose();
+  });
+
+  it("persists non-conversation provenance and guards same-text manual ownership", async () => {
+    const { adapter, entries, rename } = await namingFixture();
+    const expected = adapter.naming.state()!;
+    expect(adapter.naming.apply(expected, "fix-cache", "context-one")).toBe(true);
+    expect(adapter.naming.state()).toMatchObject({ source: "auto", completedContext: "context-one" });
+    expect(entries.at(-1)).toMatchObject({ type: "custom", customType: "a1-session-naming-v1" });
+    expect(adapter.view().status.footer?.sessionNameReveal).toMatchObject({ from: "" });
+    const automatic = adapter.naming.state()!;
+    rename("fix-cache");
+    expect(adapter.naming.state()).toMatchObject({ source: "user", completedContext: null });
+    expect(adapter.naming.apply(automatic, "other-task", "context-two")).toBe(false);
+    expect(adapter.view().status.footer?.sessionNameReveal).toBeUndefined();
+    await adapter.dispose();
+  });
+
+  it("recognizes persisted provenance without replay and preserves legacy or partial-write names", async () => {
+    const { adapter, entries, session, rename } = await namingFixture();
+    rename("legacy-name"); expect(adapter.naming.state()?.source).toBe("user");
+    session.name = undefined; entries.length = 0;
+    expect(adapter.naming.apply(adapter.naming.state()!, "fix-cache", "context-one")).toBe(true);
+    const second = await adapterWithRuntime(new FakeRuntime(session));
+    expect(second.adapter.naming.state()).toMatchObject({ source: "auto", completedContext: "context-one" });
+    expect(second.adapter.view().status.footer?.sessionNameReveal).toBeUndefined();
+    expect(second.adapter.naming.apply({ ...second.adapter.naming.state()!, binding: 99 }, "stale", "context-two")).toBe(false);
+    Object.assign(session.sessionManager, { appendCustomEntry: () => { throw new Error("disk full"); } });
+    expect(second.adapter.naming.apply(second.adapter.naming.state()!, "partial-name", "context-two")).toBe(false);
+    expect(second.adapter.naming.state()?.source).toBe("user");
+    await second.adapter.dispose(); await adapter.dispose();
+  });
+});
+
 describe("Pi engine adapter", () => {
   it("constructs a runtime, owns session rebinding, exposes startup diagnostics, and shuts down", async () => {
     const runtime = new FakeRuntime(new FakeSession("pi-session-1"));

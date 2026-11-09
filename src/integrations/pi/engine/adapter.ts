@@ -35,6 +35,7 @@ import { PiCommandDispatch, performEngineCommand, type AdapterCommandResult, typ
 import { PiEventDelivery, type PiEmittedEvent } from "./event-delivery.js";
 import { PiExtensionUiBinding } from "./extension-ui-binding.js";
 import { PiPromptSuggestions } from "./prompt-suggestions.js";
+import { PiSessionNaming } from "./session-naming.js";
 import { PiResourceCatalog } from "./resource-catalog.js";
 import { PiEngineRuntime, type PiEnginePackageUpdateProbe, type PiEngineRuntimeFactory, type PiRepositoryContextReader } from "./session-runtime.js";
 import { detachedEngineHostPorts, type PiEngineHostSessionPorts } from "./host-ports.js";
@@ -149,6 +150,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     },
     thinkingLevelChanged: level => { this.#state.thinkingLevel = level; },
     usageInvalidated: () => { this.#state.invalidateUsage(); },
+    nameChanged: () => this.naming.nameChanged(),
     compactionStarted: () => { this.#engine.compactionStarted(); },
     compactionEnded: () => { this.#engine.compactionEnded(); },
     deliverQueuedAfterCompaction: () => { this.#engine.deliverQueuedAfterCompaction(); },
@@ -159,7 +161,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     emitView: () => { this.#emitView(); },
   });
   #disposed = false;
-  readonly #ports: PiEngineAdapterPorts;
+  readonly #ports: PiEngineAdapterPorts & { readonly naming: PiSessionNaming };
   constructor(options: PiEngineAdapterOptions) {
     if (typeof options.sessionId !== "string" || options.sessionId.length === 0) throw new TypeError("engine session id is required");
     this.#agentDir = options.agentDir ?? getAgentDir();
@@ -271,9 +273,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
   /** The Pi objects behind pinned selectors and renderers, for the session presenters owner only. */
   presentationSource(): PiSessionPresentationSource { return this.#ports.presentation; }
 
-  setWorkflowInteractionHost(interaction: PiWorkflowInteractionHost): void {
-    this.#workflowInteraction = interaction;
-  }
+  get naming(): PiSessionNaming { return this.#ports.naming; }
 
   // Rationale: the startup check's newer release becomes pinned Pi's `Update Available` notice; it arrives
   // whenever the check resolves, so a late result is appended like Pi's own fire-and-forget version check.
@@ -355,6 +355,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
       engine: this.#engine,
       transcript: this.#projection.snapshot(),
       activeCommandIds: this.#commands.activeCommandIds,
+      nameReveal: this.naming.reveal,
     });
   }
 
@@ -392,8 +393,15 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
   }
 
   // Invariant: every port member delegates at call time, so ports built once follow session replacement.
-  #createPorts(): PiEngineAdapterPorts {
-    return createEnginePorts({
+  #createPorts(): PiEngineAdapterPorts & { readonly naming: PiSessionNaming } {
+    const naming = new PiSessionNaming({
+      session: () => this.#engine.session,
+      runtime: () => this.#engine.runtime,
+      binding: () => this.#engine.bindingGeneration,
+      unavailable: () => this.#disposed || this.#delivery.overloaded || this.#admissionStopped,
+      changed: () => this.#emitView(),
+    });
+    return { ...createEnginePorts({
       sessionId: this.#sessionId,
       agentDir: this.#agentDir,
       engine: this.#engine,
@@ -414,11 +422,11 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
       disposed: () => this.#disposed,
       executeWorkflow: request => this.executeWorkflow(request),
       clearQueuedWorkflows: () => this.clearQueuedWorkflows(),
-      setWorkflowInteractionHost: interaction => { this.setWorkflowInteractionHost(interaction); },
+      setWorkflowInteractionHost: interaction => { this.#workflowInteraction = interaction; },
       announceReleaseUpdate: release => { this.#announceReleaseUpdate(release); },
       resolveTranscriptImage: assetId => this.#projection.assets.resolve(assetId),
       extensionRunner: () => this.#requireWorkflowSession().extensionRunner,
-    });
+    }), naming };
   }
 
   #commandContext(): EngineCommandContext {
@@ -451,6 +459,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
 
   // Invariant: the runtime already advanced the generation and subscribed; this rebuilds what the view derives from a session.
   #sessionReplaced(session: PiSessionApi): void {
+    this.naming.reset();
     this.#delivery.discardObsolete(this.#engine.generation);
     this.#commands.reset();
     this.#state.replaceSession();

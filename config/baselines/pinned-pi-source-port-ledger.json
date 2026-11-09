@@ -1890,9 +1890,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Owned UI/routing; A1 level color, linked PRs, dim ellipsis and model priority; Pi unchanged.",
+      "modifications": "Owned UI/routing; A1 level color, linked PRs, dim ellipsis, model priority, and secondary-accent name reveals after stats; Pi unchanged.",
       "upgradeStrategy": "three-way",
-      "localSha256": "a8208ea9abea618d37ca8ec791154b8d8743fbca6c62e3251b41e227f30519da",
+      "localSha256": "82db243d74c8260b9cc1cf5a931b8a7295b11f063f31158040eebf356662281a",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1916,6 +1916,12 @@
           "id": "owned-footer-model-priority",
           "reason": "Approved improve-tab-overflow-menu preserves the A1 model name before clipping the lower-priority usage summary and optional level, route, or provider text.",
           "upstreamBehavior": "The pinned comparison footer and wide A1 layout are unchanged; only narrow A1 layout prioritizes model identity.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        },
+        {
+          "id": "owned-session-name-reveal",
+          "reason": "Approved context-aware-session-naming places bare-A1 session names after stats and animates changed automatic names with the configured secondary-accent shimmer, reveal, and fade to dim.",
+          "upstreamBehavior": "The comparison footer retains its path-row name. Bare A1 preserves path/PR and stats/model priority, clips the name first, and never animates authoritative terminal-title text.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         }
       ],

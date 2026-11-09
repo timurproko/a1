@@ -128,6 +128,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     terminal: () => this.#terminal,
     programStatus: () => this.#programStatus,
     titleEnabled: () => this.#customViewport && this.#started && !this.#disposed,
+    binding: () => this.backend.identity.sessionBindingGeneration,
+    nameFrame: frame => this.root.footer.setNameReveal?.(frame) ?? false,
   });
   readonly #programStatus: OwnedUiShellProgramStatusReporter;
   #fullscreenExitOutput: "transcript" | "resume-hint" = "transcript";
@@ -351,6 +353,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
 
   setFocused(focused: boolean): void {
     this.root.setFocused(focused);
+    if (!focused) this.#terminalPresentation.nameReveal.stop();
   }
 
   inputCoordinationSurface(): TerminalInputSurfaceKind {
@@ -371,6 +374,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   }
 
   activated(): void {
+    this.#terminalPresentation.nameReveal.stop();
     const view = this.view();
     this.#terminalPresentation.syncProgress(view);
     this.#terminalPresentation.syncTitle(view, true);
@@ -737,6 +741,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   release(terminal: { readonly mode: "regular" | "fullscreen"; readonly columns: number }): OwnedUiPresenterRelease {
     if (this.#released !== undefined) return { exitText: "", failures: [], settle: async () => [] };
     this.#disposed = true;
+    this.#terminalPresentation.nameReveal.stop();
     const failures: unknown[] = [];
     const attempt = (action: () => void) => { try { action(); } catch (error) { failures.push(error); } };
     // Invariant: events stop first, so nothing re-enters the view during history close, outro, or restoration.

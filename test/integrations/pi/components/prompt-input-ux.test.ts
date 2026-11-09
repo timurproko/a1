@@ -235,7 +235,9 @@ describe("owned shared input and status presentation", () => {
     };
     const ownedRow = createPiShellFooter(footerState, "/WORK", "a1").render(120)[0]!;
     const plain = stripTerminalSequences(ownedRow);
-    expect(plain).toBe("/DELIVERY/WORKTREE/WITH/A/LONG/PATH (feature/show-pr-id-status-bar) #540 • footer-test");
+    expect(plain).toBe("/DELIVERY/WORKTREE/WITH/A/LONG/PATH (feature/show-pr-id-status-bar) #540");
+    const statsRow = stripTerminalSequences(createPiShellFooter(footerState, "/WORK", "a1").render(120)[1]!);
+    expect(statsRow).toMatch(/0\.0%\/0 • footer-test\s+\(PROVIDER\) MODEL • medium$/);
     const linkColumn = plain.indexOf("#540");
     expect(hyperlinkTargetAtColumn(ownedRow, linkColumn - 1)).toBeUndefined();
     expect(hyperlinkTargetAtColumn(ownedRow, linkColumn)).toBe("https://github.com/timurproko/a1/pull/540");
@@ -256,6 +258,46 @@ describe("owned shared input and status presentation", () => {
     expect(hyperlinkTargetAtColumn(truncated, truncatedLink - 1)).toBeUndefined();
     expect(hyperlinkTargetAtColumn(truncated, truncatedLink)).toBe("https://github.com/timurproko/a1/pull/540");
     expect(hyperlinkTargetAtColumn(truncated, truncatedLink + 3)).toBe("https://github.com/timurproko/a1/pull/540");
+  });
+
+  it("reveals only the stats-row name using live secondary-accent tones and leaves stats/model stable", () => {
+    applyPiTheme("dark", false, "truecolor"); setPiAccentColor("blue");
+    const base = view();
+    const state = { ...base, status: { ...base.status, footer: { ...base.status.footer!, sessionName: "new-name" } } };
+    const footer = createPiShellFooter(state, "/WORK", "a1");
+    const plain = stripTerminalSequences(footer.render(100)[1]!);
+    expect(footer.setNameReveal?.({ from: "old-name", elapsed: 600 })).toBe(true);
+    const first = footer.render(100)[1]!;
+    expect(stripTerminalSequences(first)).toContain(" • n");
+    const secondary = cellStyle(piTheme().fg("mdHeading", "n"), "n").foreground.split(";").map(Number);
+    expect(cellStyle(first, "n").foreground).toBe(secondary.map(value => Math.round((value + 235) / 2)).join(";"));
+    expect(cellStyle(first, "n")).not.toEqual(cellStyle(piTheme().fg("accent", "n"), "n"));
+    setPiAccentColor("pink");
+    expect(cellStyle(footer.render(100)[1]!, "n")).not.toEqual(cellStyle(first, "n"));
+    expect(stripTerminalSequences(first).indexOf("MODEL")).toBe(plain.indexOf("MODEL"));
+    expect(footer.setNameReveal?.({ from: "old-name", elapsed: 2000 })).toBe(false);
+    expect(stripTerminalSequences(footer.render(100)[1]!)).toBe(plain);
+    for (const width of [1, 12, 20, 30, 80]) {
+      const named = footer.render(width);
+      const unnamed = createPiShellFooter(base, "/WORK", "a1").render(width);
+      expect(named.every(row => visibleWidth(row) <= width)).toBe(true);
+      if (width <= 20) expect(named).toEqual(unnamed);
+    }
+    footer.dispose?.();
+  });
+
+  it("uses plain palette reveals and leaves comparison names on the path row", () => {
+    applyPiTheme("dark", false, "256color");
+    const base = view();
+    const state = { ...base, status: { ...base.status, footer: { ...base.status.footer!, sessionName: "new-name" } } };
+    const footer = createPiShellFooter(state, "/WORK", "a1"); footer.render(100);
+    expect(footer.setNameReveal?.({ from: "longer-old-name", elapsed: 0 })).toBe(true);
+    const row = footer.render(100)[1]!;
+    expect(stripTerminalSequences(row)).toContain(" • n");
+    expect(row).not.toContain("\u001b[38;2;");
+    const pinned = createPiShellFooter(state, "/WORK", "pi");
+    expect(pinned.setNameReveal?.({ from: "old", elapsed: 0 })).toBe(false);
+    expect(stripTerminalSequences(pinned.render(100)[0]!)).toBe("/WORK • new-name");
   });
 
   it.each(["dark", "light"] as const)("uses a dim single-cell marker for narrow A1 footer usage in %s", themeName => {

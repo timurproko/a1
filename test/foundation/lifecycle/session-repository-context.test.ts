@@ -21,6 +21,7 @@ import {
   registerSessionRepositoryRuntime,
   releaseSessionRepositoryRuntime,
   setSessionRepositoryContext,
+  withSessionRepositoryObservation,
 } from "../../../src/foundation/lifecycle/session-repository-context.js";
 import type { ProcessIdentity } from "../../../src/foundation/lifecycle/model.js";
 
@@ -76,6 +77,57 @@ async function register(
     inspectProcess: fixture.inspectProcess,
   });
 }
+
+describe("semantic association revisions", () => {
+  it("retains revisions across activation and relink but changes them after an unseen exit/re-entry", async () => {
+    const f = await repositoryFixture();
+    const options = runtimeOptions(f, f.firstRuntime);
+    await register(f, f.identity, f.firstRuntime);
+    await setSessionRepositoryContext(f.identity, f.worktree, options);
+    const observe = () => withSessionRepositoryObservation(f.identity, value => value, options);
+    const first = await observe();
+    await activateSessionRepositoryContext(f.identity, f.firstRuntime.runtimeId, f.firstRuntime.process, options);
+    await register(f, f.identity, f.firstRuntime);
+    await setSessionRepositoryContext(f.identity, f.worktree, options);
+    expect(await observe()).toEqual(first);
+    await clearSessionRepositoryContext(f.identity, options);
+    await setSessionRepositoryContext(f.identity, f.worktree, options);
+    expect(await observe()).toMatchObject({ cwd: first.cwd, branch: first.branch });
+    expect((await observe()).revision).not.toBe(first.revision);
+    await setSessionRepositoryContext(f.identity, f.secondWorktree, options);
+    expect((await observe()).revision).not.toBe(first.revision);
+  }, 15_000);
+
+  it("establishes stable legacy revisions and rejects malformed observations instead of reporting an exit", async () => {
+    const f = await repositoryFixture(); const options = runtimeOptions(f, f.firstRuntime);
+    await register(f, f.identity, f.firstRuntime);
+    await setSessionRepositoryContext(f.identity, f.worktree, options);
+    const directory = join(f.dataDir, "session-repositories");
+    const [name] = await readdir(directory);
+    const path = join(directory, name!);
+    const legacy = JSON.parse(await readFile(path, "utf8")); delete legacy.revision;
+    await writeFile(path, JSON.stringify(legacy));
+    const first = await withSessionRepositoryObservation(f.identity, value => value, options);
+    expect(await withSessionRepositoryObservation(f.identity, value => value, options)).toEqual(first);
+    await writeFile(path, "broken");
+    await expect(withSessionRepositoryObservation(f.identity, () => true, options)).rejects.toThrow();
+  });
+
+  it("serializes synchronous consumers with association mutations and reports confirmed absence", async () => {
+    const f = await repositoryFixture(); const options = runtimeOptions(f, f.firstRuntime);
+    await register(f, f.identity, f.firstRuntime);
+    expect(await withSessionRepositoryObservation(f.identity, value => value, options)).toMatchObject({ revision: "unlinked", branch: "develop" });
+    await setSessionRepositoryContext(f.identity, f.worktree, options);
+    let mutation: Promise<void> | undefined;
+    const before = await withSessionRepositoryObservation(f.identity, value => {
+      mutation = clearSessionRepositoryContext(f.identity, options);
+      return value.revision;
+    }, options);
+    await mutation;
+    expect(before).not.toBe("unlinked");
+    expect(await withSessionRepositoryObservation(f.identity, value => value.revision, options)).toBe("unlinked");
+  });
+});
 
 describe("session repository context and live worktree claims", () => {
   it("persists context while keeping concurrent runtime claims exclusive", async () => {
