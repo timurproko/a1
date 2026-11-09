@@ -94,7 +94,7 @@ async function assertCurrentGrid(f: ReturnType<typeof fixture>): Promise<void> {
     expect(actual, `child row ${row}`).toBe(stripAnsi(f.composed()[row] ?? "").padEnd(f.terminal.columns));
     if (/Jump to bottom|new messages? \(Ctrl/u.test(actual)) controls++;
     for (let column = 0; column < f.terminal.columns; column++) {
-      if (!/[│┃]/u.test(f.terminal.screen.buffer.active.getLine(row)!.getCell(column)!.getChars())) continue;
+      if (!/[┃▐]/u.test(f.terminal.screen.buffer.active.getLine(row)!.getCell(column)!.getChars())) continue;
       expect(column).toBe(f.terminal.columns - 1);
       expect(row).toBeGreaterThan(transcript.rowStart - 1);
       expect(row).toBeLessThan(transcript.rowEnd);

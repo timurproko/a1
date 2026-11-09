@@ -66,7 +66,7 @@ style.
 ### Requirement: One scrollbar serves every scrollable surface
 A1 SHALL provide one scrollbar with declared geometry derived from content length, viewport height, scroll position, and track height. Each scrollable surface SHALL identify its own rail so two surfaces cannot share activity, hover, or drag state. The scrollbar SHALL support pointer hover, thumb drag, and track paging. `auto` and `always` SHALL reserve the final rail cell even while content fits so later visibility does not reflow content; `hidden` SHALL reserve no rail cell.
 
-For overflowing content, the shared scrollbar SHALL accept an appearance of `auto`, `always`, or `hidden` and a style of `thin` or `thick`. Its thumb SHALL remain at least two rows tall whenever the track has two or more rows, SHALL remain bounded to shorter tracks, and SHALL retain proportional sizing when that produces a larger thumb. `always` SHALL draw the rail whenever content overflows. `auto` SHALL draw it while its pointer zone is active, while its thumb is being dragged, and for a bounded linger after that rail scrolls; it SHALL keep the same rail column reserved while temporarily invisible. `hidden` SHALL draw no rail, reserve no rail column, and expose no interactive thumb or track. The track SHALL remain a connected dim `│` hairline. The selected style SHALL change the thumb from the accent `│` used by `thin` to the centered accent `┃` used by `thick`, without changing geometry or hit targets. A pointed-at or dragged thin thumb MAY temporarily use `┃` as its interaction emphasis. Track, thumb, hover, and drag emphasis SHALL use declared theme roles rather than literal terminal colors.
+For overflowing content, the shared scrollbar SHALL accept an appearance of `auto`, `always`, or `hidden` and a style of `thin` or `thick`. Its thumb SHALL remain at least two rows tall whenever the track has two or more rows, SHALL remain bounded to shorter tracks, and SHALL retain proportional sizing when that produces a larger thumb. `always` SHALL draw the rail whenever content overflows. `auto` SHALL draw it while its pointer zone is active, while its thumb is being dragged, and for a bounded linger after that rail scrolls; it SHALL keep the same rail column reserved while temporarily invisible. `hidden` SHALL draw no rail, reserve no rail column, and expose no interactive thumb or track. Thin SHALL use `┃` for both track and thumb; thick SHALL use `▐` for both. Both glyphs SHALL occupy one terminal column without changing geometry or hit targets. The track SHALL use the dim theme role and the thumb SHALL use the accent theme role. Hover and drag SHALL retain the selected style's glyph rather than substitute the other style. Track, thumb, hover, and drag emphasis SHALL use declared theme roles rather than literal terminal colors. A shared rail drawn without an explicit presentation SHALL use the thin glyphs.
 
 The shared scrollbar SHALL accept a speed of `normal`, `fast`, or `high`. Normal SHALL map one wheel event to three lines, fast to six lines, and high to nine lines. Appearance and style SHALL NOT change that selected wheel distance.
 
@@ -107,8 +107,13 @@ The shared scrollbar SHALL accept a speed of `normal`, `fast`, or `high`. Normal
 
 #### Scenario: Select thin or thick style
 - **WHEN** the scrollbar style changes between `thin` and `thick`
-- **THEN** the thumb SHALL use `│` for thin or `┃` for thick while the track remains `│`
+- **THEN** both track and thumb SHALL use `┃` for thin or `▐` for thick, with dim track and accent thumb theme roles
 - **AND** thumb geometry, scroll position, track paging, and pointer hit regions SHALL remain unchanged
+
+#### Scenario: Hover or drag either style
+- **WHEN** a thin or thick rail is hovered or its thumb is dragged
+- **THEN** the rail SHALL retain its selected glyph and accent thumb over a dim track
+- **AND** automatic visibility SHALL follow the existing hover and drag policy
 
 #### Scenario: Drag the thumb
 - **WHEN** the pointer presses the thumb and moves
