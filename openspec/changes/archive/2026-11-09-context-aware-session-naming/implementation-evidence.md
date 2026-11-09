@@ -32,6 +32,12 @@ Development validation run `42606181972` stopped in change classification before
 
 The exact CI classifier invocation now succeeds locally against the finalized PR diff with the repair included and selects the session-naming test. Typecheck and five directly affected test files passed (62 tests), covering ownership, impact classification, refinements, suite policy, and session naming. Trusted automation will re-finalize this repair and renew exact-head CI.
 
+## CI architecture-contract repair
+
+Development validation run `42607210793` reached the product/governance tests and found one stale architecture-owner enumeration: it expected the pre-feature owner list without `session-naming` (1,558 tests passed, one failed, seven skipped in that job). Updated the exact expected list without loosening its equality assertion and added an explicit feature-entry/dependency test that allows only the neutral naming port and rejects Pi package imports.
+
+Typecheck, all architecture gates, and three directly affected test files passed locally (58 tests). No production behavior or required CI checks changed; the repair retains the existing finalized delivery for trusted re-finalization.
+
 ## Known gaps
 
 No known implementation gaps within the approved scope. Interactive appearance has not been manually assessed; optional maintainer validation does not block implementation completion. Semantic topic changes without a confirmed worktree/branch transition, manual regeneration commands, and terminal-title animation remain intentionally out of scope.
