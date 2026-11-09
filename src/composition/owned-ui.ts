@@ -7,6 +7,7 @@ import { resolveProductPaths } from "../foundation/lifecycle/paths.js";
 import type { AvailableRelease, StartupReleaseCheckOptions } from "../foundation/release/latest-release.js";
 import { MAX_CLIPBOARD_TEXT_BYTES } from "../contracts/owned-ui/index.js";
 import type { ProcessIdentity } from "../foundation/lifecycle/model.js";
+import { inspectLiveProcess } from "../foundation/lifecycle/process-liveness.js";
 import type { SessionSelection } from "../foundation/lifecycle/session-selection.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes, setPiAccentColor, setPiPackageBorderProjectionEnabled } from "../integrations/pi/components/upstream/theme/theme.js";
 import { createPiEngineHost, type PiEngineHostOptions } from "../integrations/pi/engine/host.js";
@@ -66,6 +67,7 @@ export interface OwnedUiCompositionOptions {
   readonly releaseNotes?: ReleaseNoteCatalog;
   /** Startup release-availability seam; defaults to the throttled registry check. */
   readonly checkForNewerRelease?: (options: StartupReleaseCheckOptions) => Promise<AvailableRelease | null>;
+  /** Process liveness seam; defaults to the production inspector. */
   readonly inspectProcess?: (pid: number) => Promise<ProcessIdentity | null>;
 }
 
@@ -84,7 +86,8 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const productMode = options.productMode ?? "bare", bare = productMode === "bare";
   const sessionRuntimes = new SessionRuntimeRegistry({
     runtimeId: bare ? process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] : undefined,
-    inspectProcess: options.inspectProcess,
+    // Invariant: production callers omit the inspector; without one the registry never registers or retries.
+    inspectProcess: options.inspectProcess ?? inspectLiveProcess,
   });
   const productPaths = resolveProductPaths();
   // Rationale: the manager reads the engine's settings port lazily, after the session exists.
