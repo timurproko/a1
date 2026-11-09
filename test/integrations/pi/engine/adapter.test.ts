@@ -43,8 +43,9 @@ class FakeSession {
   };
   contextUsage: { tokens: number | null; contextWindow: number; percent: number | null } | undefined;
   branchEntries: readonly unknown[] | undefined;
+  name: string | undefined = "adapter-test";
   readonly sessionManager = {
-    getSessionName: () => "adapter-test",
+    getSessionName: () => this.name,
     getEntries: () => this.messages.map(message => ({ type: "message", message })),
     getBranch: () => this.branchEntries ?? this.messages.map(message => ({ type: "message", message })),
   };
@@ -297,6 +298,24 @@ describe("Pi engine adapter", () => {
       { name: "mcp-auth", description: "Authenticate with an MCP server", source: "extension" },
     ]);
     await adapter.dispose();
+  });
+
+  it("publishes changed and cleared authoritative names rather than the metadata event payload", async () => {
+    const session = new FakeSession("pi-session-1");
+    const { adapter, events } = await adapterWithRuntime(new FakeRuntime(session));
+    try {
+      await adapter.flushEvents();
+      for (const name of ["normalized name", undefined]) {
+        events.length = 0;
+        session.name = name;
+        session.emit({ type: "session_info_changed", name: "untrusted payload" });
+        await adapter.flushEvents();
+        const views = events.filter(event => event.type === "session-view");
+        expect(views).toHaveLength(1);
+        expect(views[0]?.view.status.footer?.sessionName).toBe(name ?? null);
+        expect(adapter.view().status.footer?.sessionName).toBe(name ?? null);
+      }
+    } finally { await adapter.dispose(); }
   });
 
   it("maps public session usage and footer state without placeholder statistics", async () => {

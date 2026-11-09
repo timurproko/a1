@@ -33,6 +33,12 @@ function harness(overrides: Partial<PiSessionEventPorts> = {}) {
 const assistant = (text: string, extra: Record<string, unknown> = {}) => ({ role: "assistant", content: [{ type: "text", text }], timestamp: 1_000, usage: { input: 1 }, ...extra });
 
 describe("PiSessionEvents", () => {
+  it("publishes an authoritative view when public session metadata changes", () => {
+    const { events, calls } = harness();
+    events.handle({ type: "session_info_changed", name: "renamed" });
+    expect(calls).toEqual(["usage", "view"]);
+  });
+
   it("counts runs and completed assistant responses and emits the semantic run events around work states", () => {
     const { events, calls, emitted, state, types } = harness();
     events.handle({ type: "agent_start" });
