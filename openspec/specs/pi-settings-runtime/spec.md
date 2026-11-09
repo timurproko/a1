@@ -82,7 +82,7 @@ A1 SHALL apply `showImages`, `imageWidthCells`, `showHardwareCursor`, `editorPad
 - **THEN** the next corresponding input action SHALL use the new value
 
 ### Requirement: Renderable image content survives the owned transcript boundary
-A1 SHALL preserve validated image attachments from user messages and tool results until presentation without embedding unbounded base64 data in the size-limited owned session view. When `showImages` is enabled and the terminal advertises a protocol supported by the pinned image renderer, the transcript SHALL render the image at `imageWidthCells`, subject to available width. When `showImages` is enabled and no supported protocol exists, the transcript SHALL omit the automatic textual attachment fallback from the content area while preserving the attachment in authoritative session and model-facing content. Explicitly hidden images and actual resolution or conversion failures SHALL retain their bounded textual diagnostics.
+A1 SHALL preserve validated image attachments from user messages and tool results until presentation without embedding unbounded base64 data in the size-limited owned session view. When `showImages` is enabled and the terminal advertises a protocol supported by the pinned image renderer, the transcript SHALL render the image at `imageWidthCells`, subject to available width. When `showImages` is enabled and no supported protocol exists, the transcript SHALL omit the automatic textual attachment fallback from the content area while preserving the attachment in authoritative session and model-facing content. When `showImages` is disabled, existing and subsequent user and tool-result attachments SHALL emit neither inline images nor automatic textual attachment placeholders nor image-only spacers. Ordinary text, submitted screenshot chips, authoritative attachment metadata and bytes, stored content, and model-facing content SHALL remain unchanged. Actual resolution or conversion failures while image rendering is enabled SHALL retain their bounded textual diagnostics.
 
 #### Scenario: Render an image in a supported terminal
 - **WHEN** a user or tool-result image reaches the transcript while image display is enabled and the terminal supports a recognized image protocol
@@ -96,7 +96,13 @@ A1 SHALL preserve validated image attachments from user messages and tool result
 
 #### Scenario: Hide images
 - **WHEN** `showImages` is disabled
-- **THEN** existing and subsequent attachments SHALL use the bounded textual hidden-image fallback rather than emitting an inline-image protocol
+- **THEN** existing and subsequent user and tool-result attachments SHALL emit neither inline images nor automatic hidden-image or attachment metadata blocks
+- **AND** omitted attachments SHALL NOT leave image-only spacers or empty fallback regions
+- **AND** ordinary text, submitted screenshot chips, and authoritative session and model-facing attachment content SHALL remain unchanged
+
+#### Scenario: Re-enable images
+- **WHEN** `showImages` is enabled again in a terminal supporting a recognized image protocol
+- **THEN** retained existing and subsequent attachments SHALL render using the selected image width without requiring resubmission
 
 #### Scenario: Present a large image
 - **WHEN** an attachment exceeds the owned transcript payload limit

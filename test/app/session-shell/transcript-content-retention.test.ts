@@ -282,7 +282,7 @@ describe("transcript content retention across renderer boundaries", () => {
     expect(textRows(shell.root.render(80))).toContain("RENDERER_FALLBACK_RESULT");
   });
 
-  it("uses pinned inline PNG presentation and hidden-image fallback without duplicating the image", async () => {
+  it("uses pinned inline PNG presentation and hides images without duplicating the image or adding a fallback", async () => {
     const { emit, shell } = await fixture();
     setCapabilities({ ...getCapabilities(), images: "kitty" });
     const data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -293,8 +293,30 @@ describe("transcript content retention across renderer boundaries", () => {
     const rows = component.render(80).join("\n");
     expect(rows.match(/\u001b_Ga=T/g)).toHaveLength(1);
     component.setImagePresentation(false, 80);
-    expect(textRows(component.render(80))).toMatch(/\[Image/);
+    expect(textRows(component.render(80))).not.toMatch(/\[Image/);
     expect(component.render(80).join("\n")).not.toContain("\u001b_Ga=T");
+  });
+
+  it("keeps original images and extension-rendered text when automatic images are hidden", async () => {
+    const content = [{ type: "text", text: "[Image hidden: deliberate tool text]" },
+      { type: "image", mimeType: "image/png", data: "AQID" }];
+    const rendered: unknown[] = [];
+    const { emit, backend, shell } = await fixture({ renderers: new Map([["custom-image", {
+      renderCall: () => new Text("CUSTOM_IMAGE_CALL", 0, 0),
+      renderResult: (result: { content: typeof content }) => {
+        rendered.push(result.content);
+        return new Text(result.content[0]!.text!, 0, 0);
+      },
+    }]]) });
+    shell.root.setImagePresentation(false, 80);
+    await emit({ type: "message_end", message: assistantCall("custom", "custom-image", {}) },
+      { type: "message_end", message: { role: "toolResult", timestamp: 25, toolCallId: "custom", toolName: "custom-image", isError: false, content } });
+    expect(rendered.at(-1)).toEqual(content);
+    const rows = textRows(shell.root.transcript.component("tool-custom")!.render(80));
+    expect(rows).toContain(content[0]!.text);
+    expect(rows).not.toContain("[Image: [image/png]");
+    const block = backend.view().transcript.find(block => block.id === "tool-custom")!;
+    expect(backend.extensions.resolveTranscriptImage(block.imageReferences![0]!.assetId)).toMatchObject(content[1]!);
   });
 
   it("shows an oversized-details fallback without losing the result or outcome", async () => {

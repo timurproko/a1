@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-03T08:36:51.118Z",
+  "recordedAt": "2026-11-09T11:40:57.233Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "f9a26365568127461c47a07a37dcb42c140a3ac5",
@@ -2796,9 +2796,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tool-execution.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Retain pinned shell/public renderers. Own image conversion; replace private APIs with public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut hints. Restore the enclosing default-shell background after nested renderer resets. Omit non-actionable image fallback rows when the terminal has no image protocol. See docs/architecture/tool-image-presentation.md.",
+      "modifications": "Retain pinned shell/public renderers. Own image conversion; replace private APIs with public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut hints. Restore the enclosing default-shell background after nested renderer resets. Omit non-actionable image fallback rows when images are hidden or the terminal has no image protocol. See docs/architecture/tool-image-presentation.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "e121f3051c140d878856541a77e3e2e3cec1ec1902efa28009dac5515b9e5268",
+      "localSha256": "bbbfd48e48d6e33ec0c4ae3dfd3da87ac95a56bd4d2aba6fe42376070b87df9b",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
@@ -2827,8 +2827,14 @@
         {
           "id": "unsupported-image-fallback-omission",
           "reason": "User-approved transcript cleanup: an image metadata placeholder provides no actionable preview when the active terminal cannot render inline images.",
-          "upstreamBehavior": "The explicit a1 pi comparison and extension-owned image components keep pinned fallback behavior; bare A1 omits only enabled user and tool transcript attachment fallbacks when terminal image capability is unavailable, while preserving hidden-image and actual failure diagnostics.",
+          "upstreamBehavior": "The explicit a1 pi comparison and extension-owned image components keep pinned fallback behavior; bare A1 omits only enabled user and tool transcript attachment fallbacks when terminal image capability is unavailable, while preserving actual failure diagnostics when image rendering is enabled.",
           "acceptanceTest": "test/integrations/pi/components/shell-components.test.ts"
+        },
+        {
+          "id": "hidden-image-fallback-omission",
+          "reason": "User-approved hide-image-placeholders change: disabling image display should not replace attachments with redundant image metadata blocks or image-only spacers.",
+          "upstreamBehavior": "The explicit a1 pi comparison retains pinned hidden-image indicators; bare A1 omits automatic hidden user and tool attachment presentation while preserving screenshot chips, ordinary text, original renderer inputs, and retained attachment bytes for re-enabling display.",
+          "acceptanceTest": "test/app/session-shell/transcript-image-conversion.test.ts"
         }
       ],
       "behaviorCategories": [

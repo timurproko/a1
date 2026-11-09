@@ -98,7 +98,7 @@ describe("transcript image conversion lifetime", () => {
     });
   });
 
-  it.each([null, "iterm2"] as const)("uses the owned unsupported fallback policy for capability %s and matches pinned hidden images", async protocol => {
+  it.each([null, "iterm2"] as const)("uses the owned unsupported and hidden fallback policy for capability %s", async protocol => {
     const value = await fixture();
     setCapabilities({ ...getCapabilities(), images: protocol });
     const content = [image(255, "image/jpeg")];
@@ -114,8 +114,39 @@ describe("transcript image conversion lifetime", () => {
       } else expect(mounted.render(width)).toEqual(reference.render(width));
     }
     mounted.setImagePresentation(false, 80); reference.setShowImages(false);
-    expect(mounted.render(80)).toEqual(reference.render(80));
-    expect(mounted.render(80).map(stripAnsi).join("\n")).toContain("image/jpeg");
+    expect(reference.render(80).map(stripAnsi).join("\n")).toContain("image/jpeg");
+    expect(mounted.render(80).map(stripAnsi).join("\n")).not.toContain("image/jpeg");
+  });
+
+  it.each([null, "kitty", "iterm2"] as const)("hides existing and subsequent tool images without gaps at capability %s", async protocol => {
+    const value = await fixture();
+    setCapabilities({ ...getCapabilities(), images: protocol });
+    const first = image(255, "image/png"), second = image(0, "image/png");
+    const text = { type: "text" as const, text: "ORDINARY_TOOL_RESULT" };
+    const send = (content: (typeof first | typeof text)[]) => value.emit({
+      type: "tool_execution_update", toolCallId: "image", toolName: "unknown", partialResult: { content },
+    });
+    await send([text]);
+    const mounted = value.shell.root.transcript.component("tool-image")!;
+    const baseline = [40, 80, 192].map(width => mounted.render(width));
+    await send([text, first, second]);
+    value.shell.root.setImagePresentation(false, 80);
+    for (const [index, width] of [40, 80, 192].entries()) expect(mounted.render(width)).toEqual(baseline[index]);
+    await send([text, second]);
+    expect(mounted.render(80)).toEqual(baseline[1]);
+    const block = value.backend.view().transcript.find(block => block.id === "tool-image")!;
+    expect(value.backend.extensions.resolveTranscriptImage(block.imageReferences![0]!.assetId)).toMatchObject(second);
+    value.shell.root.setImagePresentation(true, 80);
+    const visible = mounted.render(80).join("\n");
+    if (protocol === "kitty") expect(kittyData(mounted.render(80))).toEqual([second.data]);
+    else if (protocol === "iterm2") expect(visible).toContain("\u001b]1337;File=");
+    else expect(mounted.render(80)).toEqual(baseline[1]);
+    value.shell.root.setImagePresentation(false, 80);
+    await send([]);
+    const empty = mounted.render(80);
+    await send([first, second]);
+    expect(mounted.render(80)).toEqual(empty);
+    expect(mounted.render(80).join("\n")).not.toContain("\u001b_G");
   });
 
   it.each([[40, 54], [80, 60], [192, 54]])("publishes converted image bytes through the real scheduler at unchanged semantic revision at %s x %s", async (width, height) => {
