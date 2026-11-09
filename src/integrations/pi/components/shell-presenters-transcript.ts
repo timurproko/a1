@@ -158,17 +158,15 @@ function withTranscriptImages(
   // Compatibility: Pi owns tool images and renderer state, including references introduced after the call header.
   if (component instanceof ToolExecutionComponent) return component;
   const references = block.imageReferences ?? [];
-  if (references.length === 0) return component;
+  if (!showImages || references.length === 0) return component;
   const container = new Container();
   container.addChild(component);
   const imageProtocolUnavailable = getCapabilities().images === null;
   for (const reference of references) {
-    if (showImages && imageProtocolUnavailable) continue;
+    if (imageProtocolUnavailable) continue;
     container.addChild(new Spacer(1));
     const asset = assets?.resolve(reference.assetId) ?? null;
-    if (!showImages) {
-      container.addChild(new Text(piTheme().fg("muted", `[Image hidden: ${reference.mimeType}, ${reference.byteLength} bytes]`), 1, 0));
-    } else if (asset === null) {
+    if (asset === null) {
       container.addChild(new Text(piTheme().fg("warning", `[Image unavailable: ${reference.mimeType}]`), 1, 0));
     } else {
       container.addChild(new Image(asset.data, asset.mimeType, {
