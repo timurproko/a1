@@ -136,6 +136,30 @@ Bare A1 SHALL use accent-bold Title Case headings without trailing colons, accen
 - **WHEN** the user scrolls a document, uses a paging or section-jump shortcut, or interacts with comparison-profile or extension-authored content
 - **THEN** the internal choice-list wraparound policy SHALL NOT alter that behavior
 
+### Requirement: All provider login states share the live-themed dialog template
+
+Every bare-A1 provider login state SHALL use the active theme's accent-bold title, muted description immediately beneath it, one blank row before an accent `>` input when present, shared one-cell inset, and standard rules/footer. This SHALL cover prompt/API-key/manual-code, browser/device, info/details, waiting/progress, and submitted states without provider exceptions. Auth effects, source text, links, input results, cancellation, and comparison presentation SHALL remain unchanged.
+
+#### Scenario: Ask for a provider credential or manual code
+- **WHEN** any provider requests an API key, credential prompt, or manual callback code
+- **THEN** its muted prompt description SHALL immediately follow the live accent-bold heading, with one blank row before the accent-colored input chevron
+- **AND** title, description, input, and footer SHALL share the same one-cell left inset without package-default color overrides or nested padding
+- **AND** placeholders and prior authentication context SHALL remain readable without changing input results, including blank optional answers
+
+#### Scenario: Present non-input login states
+- **WHEN** login presents browser instructions, device codes, informational links, details, waiting, progress, submitted values, or nested return states
+- **THEN** the same shared title, description, spacing, border, and footer roles SHALL apply without provider-specific exceptions
+- **AND** URL links/copy, device-confirm actions, visible status and errors, source text, cancellation, and completion behavior SHALL retain their meaning
+
+#### Scenario: Honor the live theme throughout login
+- **WHEN** the active accent, appearance, or terminal color mode changes while a login state is visible
+- **THEN** the title, chevron, description, rules, links, and shortcut footer SHALL resolve through the current semantic theme roles on the next render
+- **AND** no literal green or pinned-package accent SHALL override the configured theme
+
+#### Scenario: Keep comparison login unchanged
+- **WHEN** a provider login runs in the comparison profile
+- **THEN** its pinned presentation and existing authentication interactions SHALL remain unchanged
+
 ### Requirement: Bare-A1 sign-in selectors use standard dialog styling
 
 Bare A1's sign-in method and provider selectors SHALL use accent-bold Title Case headings without trailing colons. Selected rows SHALL use the shared item-bounded selected background, an accent arrow, normal primary text, muted metadata, and no selection-induced bold, matching Skills. Authentication behavior, search, status indicators, cancellation, and the `a1 pi` comparison presentation SHALL remain unchanged. Up/Down SHALL follow the internal choice-list wraparound policy.

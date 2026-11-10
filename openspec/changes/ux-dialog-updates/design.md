@@ -77,6 +77,14 @@ Add focused boundary, filtered/empty/single-choice, profile-isolation, nested au
 
 The maintainer requested left alignment of the Session Info values shown at different columns in the supplied report screenshot. Render report data as semantic label/value rows sharing one value column across identity, message, token, warming, and cost groups. Preserve nested label indentation, all calculations and status details, and complete file paths. Compute alignment from the rows actually present, and reduce optional alignment padding on constrained widths before wrapping any content; an impossible narrow rectangle must preserve complete source content rather than force a column that leaves no value space. Add explicit alignment and long-path/narrow-layout assertions.
 
+## Approved Refinement: One Template for All Login States
+
+The maintainer clarified that styling must cover the login forms themselves, not just provider/method lists. The supplied Xiaomi API-key form still had a package-purple heading, a double-inset prompt below a blank gap, and an unthemed input chevron. Thinking Level is the required template: live accent-bold title, muted description on the next row, a blank row, accent `>` input, shared one-cell inset, and standard rules/footer.
+
+Apply one shared login renderer to every provider and every state: API-key/prompt/placeholder, manual code, browser URL/instructions, device code, details/info/links, waiting, progress, submitted values, nested return, cancel, and completion. Preserve source text, hyperlink targets, URL-copy and device-confirm actions, prompt results including blank optional answers, error/cancel semantics, and comparison presentation. All roles resolve from the active theme at render time; never use provider-specific branches or literal green. Keep URLs/control text safe and preserve best-effort shell-free browser launching.
+
+Use a deferred attributed owned login presenter with the same behavioral contract as the pinned component if public presentation slots cannot provide the consistent layout. Retain the pinned component for comparison. Add theme-role and geometry assertions across all state transitions and multiple synthetic provider names, plus interaction tests for prompt/cancel, device actions, URL-copy, nested restoration, and live theme changes.
+
 ## Implementation Evidence
 
 - Session Info uses a bounded input-route adapter with component-local pointer routing and shared reference rendering. Escape and Ctrl+C close even before its deferred document resolves. Semantic identity/group rows share a left-aligned value column, reduce optional padding on narrow frames, and retain complete wrapped paths and values.
@@ -91,4 +99,4 @@ None for the described Session Info, sign-in, and project-trust updates. Additio
 
 ## Known Gaps
 
-None identified in the approved implemented scope.
+The newly approved shared login-template refinement is in progress; no known intended behavior exclusions.
