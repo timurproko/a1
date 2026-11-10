@@ -10,6 +10,8 @@ PR #900 assigned Ctrl+P to Apps, assigned Ctrl+M to model selection, and moved t
 
 Assign bare A1's `app.model.cycleForward` default to `ctrl+m` and remove the default from `app.model.select`. Keep the existing engine cycle workflow, effective binding resolution, and user overrides. Do not invent a replacement selection chord or alter backward cycling. Help must derive Ctrl+M as cycling, Ctrl+P as Launcher, and `/models` as the unbound selector's command fallback.
 
+Historical verification against `8c5a4d03` (the parent of PR #900) confirms that Ctrl+P dispatched `onModelCycle` to `cycleModelWorkflow("forward")`, which delegated to `session.cycleModel`. The pinned AgentSession chooses all available models when its session scope is empty; otherwise it uses only scoped entries present in the available-model snapshot, preserving scope order. Ctrl+M must use this same delegation, wraparound, per-model thinking behavior, and zero/one-eligible-model no-op rather than construct a new pool or fall back outside a nonempty scope. Add explicit regression cases for both pools, including clearing a scope back to all available models.
+
 The existing keybinding boundary must continue treating raw carriage return as Enter. Distinguishable Ctrl+M encodings cycle exactly once without opening Models; an ambiguous legacy encoding submits or accepts as Enter. Do not alter the comparison profile.
 
 ### Restore the pre-Apps Models dock integration
@@ -20,7 +22,7 @@ Retain the selector's search, all/scoped filter, scope editing and saving, order
 
 ### Rename presentation, not identity
 
-Use `Launcher` for the modal title and `Launch Agent, Settings, or Changelog.` as its description. Align user-facing shortcut help, loading/unavailable messages, and close guidance. Keep stable internal application IDs, the existing neutral routes, and internal action identifiers where renaming would be gratuitous. Ctrl+P remains available from Agent, Settings, and Changelog.
+Use `Launcher` for the modal title and omit its description/subtitle entirely, without reserving a blank description row. Align user-facing shortcut help, loading/unavailable messages, and close guidance. Keep stable internal application IDs, the existing neutral routes, and internal action identifiers where renaming would be gratuitous. Ctrl+P remains available from Agent, Settings, and Changelog.
 
 ## Non-goals
 

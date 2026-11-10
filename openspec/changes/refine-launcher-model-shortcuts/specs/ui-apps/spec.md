@@ -2,14 +2,14 @@
 
 ### Requirement: Apps provides searchable switching among owned applications
 
-Bare A1 SHALL provide a centered searchable dialog titled `Launcher` containing Agent, Settings, and Changelog, with the single-sentence description `Launch Agent, Settings, or Changelog.` The dialog SHALL use the shared compact floating selector presentation with a title, search input, active-row highlight, and declared navigation, open, and close guidance. User-facing shortcut help, loading, unavailable, and close labels SHALL call it Launcher rather than Apps. Stable internal identities MAY retain their existing names. Search SHALL filter application names case-insensitively. Up and Down SHALL navigate matching choices; Enter SHALL open the selected match; an empty result SHALL open nothing. Esc SHALL close the launcher without changing applications.
+Bare A1 SHALL provide a centered searchable dialog titled `Launcher` containing Agent, Settings, and Changelog, with no description, subtitle, or reserved description row. The dialog SHALL use the shared compact floating selector presentation with a title, search input, active-row highlight, and declared navigation, open, and close guidance. User-facing shortcut help, loading, unavailable, and close labels SHALL call it Launcher rather than Apps. Stable internal identities MAY retain their existing names. Search SHALL filter application names case-insensitively. Up and Down SHALL navigate matching choices; Enter SHALL open the selected match; an empty result SHALL open nothing. Esc SHALL close the launcher without changing applications.
 
 The launcher SHALL be reachable from Agent, Settings, and Changelog through its effective declared shortcut. Selecting Agent SHALL restore the existing Agent session rather than create a session or process. Selecting Settings or Changelog SHALL open the existing full-screen application through its neutral route. Selecting the already active application SHALL NOT duplicate or reset it. Switching SHALL preserve the Agent prompt, attachments, queue, and active engine work; canceling SHALL restore the originating application and focus. At most one destination application SHALL receive input after a switch.
 
 #### Scenario: Present the launcher
 
 - **WHEN** the reader opens the application launcher
-- **THEN** its title SHALL be `Launcher` and its description SHALL be `Launch Agent, Settings, or Changelog.`
+- **THEN** its title SHALL be `Launcher` with no description, subtitle, or reserved description row
 - **AND** its user-facing help and lifecycle messages SHALL use Launcher rather than Apps
 
 #### Scenario: Find and open an application

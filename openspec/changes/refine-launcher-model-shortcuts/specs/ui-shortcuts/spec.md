@@ -22,6 +22,29 @@ These defaults SHALL be declared in the A1 profile's keybinding data and SHALL p
 - **WHEN** the default bare-A1 agent input receives distinguishable Ctrl+M
 - **THEN** the existing forward model-cycle action SHALL run exactly once
 - **AND** no model selector or floating modal SHALL open and the draft SHALL remain unchanged
+- **AND** the existing cycle workflow SHALL use all available models when the session scope is empty, or only available scoped models in scope order when it is nonempty
+
+#### Scenario: Cycle with no scope
+
+- **WHEN** Ctrl+M cycles with an empty session scope
+- **THEN** it SHALL advance through all available models with existing wraparound behavior
+
+#### Scenario: Cycle within scope
+
+- **WHEN** Ctrl+M cycles with a nonempty session scope
+- **THEN** it SHALL advance only through available scoped models in scope order with existing wraparound behavior
+- **AND** it SHALL NOT select an available model outside that scope
+
+#### Scenario: Clear the scope
+
+- **WHEN** the session scope is cleared and Ctrl+M cycles again
+- **THEN** it SHALL use all available models rather than retain the previous restricted pool
+
+#### Scenario: Keep a small eligible pool unchanged
+
+- **WHEN** the effective cycling pool contains at most one eligible model
+- **THEN** the existing no-op behavior SHALL remain intact
+- **AND** a nonempty scope SHALL NOT fall back to selecting an out-of-scope model
 
 #### Scenario: Open model selection by command
 

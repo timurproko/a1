@@ -6,9 +6,9 @@ The Apps delivery changed both the model shortcut action and the selector placem
 
 ## What Changes
 
-- Bind bare A1's default Ctrl+M to the existing next-model cycle action, with no selector or floating overlay opened by that action. Leave model selection without a replacement default shortcut and retain `/models` and explicit user selection bindings.
+- Bind bare A1's default Ctrl+M to the existing next-model cycle action, with no selector or floating overlay opened by that action. Preserve its pre-Apps pools: cycle all available models when the session scope is empty, or only available models in the session scope when it is nonempty. Leave model selection without a replacement default shortcut and retain `/models` and explicit user selection bindings.
 - Restore the unified Models selector to its pre-Apps, in-place input-dock presentation and styling rather than a centered floating modal. Retain model search, selection, scope toggling, ordering, saving, and normal transcript interaction.
-- Rename the user-facing Apps modal to Launcher and use the single explanatory sentence `Launch Agent, Settings, or Changelog.` beneath its title. Update corresponding help, loading, error, and close labels while keeping Ctrl+P, destinations, and switching behavior intact.
+- Rename the user-facing Apps modal to Launcher with no description beneath its self-explanatory title. Update corresponding help, loading, error, and close labels while keeping Ctrl+P, destinations, and switching behavior intact.
 - Keep ordinary Enter unchanged in legacy terminals where Ctrl+M cannot be distinguished from carriage return. Preserve custom keybindings, comparison-profile behavior, and quiet successful model switches with visible warnings and failures.
 
 ## Capabilities
@@ -16,7 +16,7 @@ The Apps delivery changed both the model shortcut action and the selector placem
 ### Modified Capabilities
 
 - `ui-shortcuts`: Ctrl+M cycles models directly, Ctrl+P opens Launcher, and effective help separates cycling from explicit model selection.
-- `ui-apps`: Launcher naming and description replace Apps presentation without changing application identity or lifecycle.
+- `ui-apps`: Launcher naming and removal of the subtitle replace Apps presentation without changing application identity or lifecycle.
 - `ui-components`: Unified Models returns to in-place presentation; Launcher and nested Settings selectors retain shared floating-modal contrast.
 
 ## Impact
