@@ -22,11 +22,11 @@
 - [x] 4.1 Suppress bare-A1 successful in-session model-switch notices without changing model/thinking state, persistence, or comparison-profile output.
 - [x] 4.2 Add focused tests covering successful picker/direct/cycling changes, status-bar updates, cancellation, and visible warnings/failures.
 
-## Footer PR separator
+## 5. Footer PR separator
 
-- [x] P.1 Add the requested `path (branch) • #900` footer separator and focused rendering, hyperlink-boundary, absent-PR, and constrained-width tests.
+- [x] 5.1 Add the requested `path (branch) • #900` footer separator and focused rendering, hyperlink-boundary, absent-PR, and constrained-width tests.
 
-## 5. Pre-ready delivery
+## 6. Pre-ready delivery
 
-- [x] 5.1 Run typecheck, affected test files, and strict OpenSpec validation; record implementation evidence and explicit known-gap disposition.
-- [ ] 5.2 Finish detailed bookkeeping and plain acceptance outcomes, reconcile and push current origin/develop, and check the intended final delivery body before completing the last PR outcome.
+- [x] 6.1 Run typecheck, affected test files, and strict OpenSpec validation; record implementation evidence and explicit known-gap disposition.
+- [x] 6.2 Finish detailed bookkeeping and plain acceptance outcomes, reconcile and push current origin/develop, and check the intended final delivery body before completing the last PR outcome.
