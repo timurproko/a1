@@ -5,7 +5,7 @@ A long persisted session cannot resume because an authoritative UI snapshot exce
 ## What Changes
 
 - Separate delivery accounting for authoritative transcript state from genuinely accumulated pending event payload, keeping finite resource bounds, event ordering, generation isolation, and asset lifetimes.
-- Keep large-session startup and informational update notices outside exceptional overload recovery; neither may abort or replace the session merely because its accumulated transcript exceeds the queue budget.
+- Keep large-session startup, model selection, and informational update notices outside exceptional overload recovery; none may abort or replace the session merely because its accumulated transcript exceeds the queue budget.
 - Add isolated regression fixtures for large persisted sessions and update observation, including subsequent interaction and the normal exit/resume command lifecycle.
 
 ## Capabilities
