@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
  * packages/coding-agent/src/modes/interactive/components/tree-selector.ts.
  * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
  * preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode
@@ -17,6 +17,7 @@
 import {
 	type Component,
 	Container,
+	CURSOR_MARKER,
 	type Focusable,
 	Input,
 	type Keybinding,
@@ -1185,10 +1186,21 @@ class TreeList implements Component {
 	}
 }
 
+<<<<<<< a1
 class TreeSearchInput implements Component, Focusable {
 	private readonly treeList: TreeList;
 	private input = new Input();
 	private renderedQuery = "";
+||||||| pi 1.5.0
+/** Component that displays the current search query */
+class SearchLine implements Component {
+	private treeList: TreeList;
+=======
+/** Component that displays the current search query */
+class SearchLine implements Component, Focusable {
+	focused = false;
+	private treeList: TreeList;
+>>>>>>> pi 1.5.1
 
 	constructor(treeList: TreeList) {
 		this.treeList = treeList;
@@ -1207,13 +1219,30 @@ class TreeSearchInput implements Component, Focusable {
 	}
 
 	render(width: number): string[] {
+		if (width <= 0) return [""];
+
 		const query = this.treeList.getSearchQuery();
+<<<<<<< a1
 		if (query !== this.renderedQuery) {
 			this.input = Object.assign(new Input(), { focused: this.input.focused });
 			this.input.handleInput(query);
 			this.renderedQuery = query;
 		}
 		return renderPiModalSearchInput(this.input, width);
+||||||| pi 1.5.0
+		if (query) {
+			return [truncateToWidth(`  ${theme.fg("muted", "Type to search:")} ${theme.fg("accent", query)}`, width)];
+		}
+		return [truncateToWidth(`  ${theme.fg("muted", "Type to search:")}`, width)];
+=======
+		const line = query
+			? `  ${theme.fg("muted", "Type to search:")} ${theme.fg("accent", query)}`
+			: `  ${theme.fg("muted", "Type to search:")} `;
+		if (!this.focused) return [truncateToWidth(line, width)];
+
+		const content = truncateToWidth(line, Math.max(0, width - 1));
+		return [`${content}${CURSOR_MARKER}\x1b[7m \x1b[27m`];
+>>>>>>> pi 1.5.1
 	}
 }
 
@@ -1386,6 +1415,7 @@ class LabelInput implements Component, Focusable {
  */
 export class TreeSelectorComponent extends Container implements Focusable {
 	private treeList: TreeList;
+<<<<<<< a1
 	private readonly searchInput: TreeSearchInput;
 	private readonly treeFilter: TreeFilter;
 	private readonly titleText: Text;
@@ -1394,19 +1424,35 @@ export class TreeSelectorComponent extends Container implements Focusable {
 	private readonly labelInputContainer = new Container();
 	private readonly footerContainer = new Container();
 	private readonly treeHelp: TreeHelp;
+||||||| pi 1.5.0
+=======
+	private searchLine: SearchLine;
+>>>>>>> pi 1.5.1
 	private labelInput: LabelInput | null = null;
 	private onLabelChangeCallback: ((entryId: string, label: string | undefined) => void) | undefined;
 	public onCopy?: (text: string | undefined) => void;
 
-	// Focusable implementation - propagate to labelInput when active for IME cursor positioning
+	// Focusable implementation - propagate to the active input for IME cursor positioning
 	private _focused = false;
 	get focused(): boolean {
 		return this._focused;
 	}
 	set focused(value: boolean) {
 		this._focused = value;
+<<<<<<< a1
 		this.searchInput.focused = value && this.labelInput === null;
 		if (this.labelInput) this.labelInput.focused = value;
+||||||| pi 1.5.0
+		// Propagate to labelInput when it's active
+		if (this.labelInput) {
+			this.labelInput.focused = value;
+		}
+=======
+		this.searchLine.focused = value && this.labelInput === null;
+		if (this.labelInput) {
+			this.labelInput.focused = value;
+		}
+>>>>>>> pi 1.5.1
 	}
 
 	constructor(
@@ -1429,6 +1475,7 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		this.treeList.onCancel = onCancel;
 		this.treeList.onCopy = (text) => this.onCopy?.(text);
 		this.treeList.onLabelEdit = (entryId, currentLabel) => this.showLabelInput(entryId, currentLabel);
+<<<<<<< a1
 		this.searchInput = new TreeSearchInput(this.treeList);
 		this.treeFilter = new TreeFilter(this.treeList);
 		this.treeHelp = new TreeHelp(this.treeList);
@@ -1437,6 +1484,36 @@ export class TreeSelectorComponent extends Container implements Focusable {
 
 		const header = addPiModalHeader(this, new DynamicBorder(paintPiBorder), this.titleText);
 		this.addChild(this.searchInputContainer);
+||||||| pi 1.5.0
+
+		this.treeContainer = new Container();
+		this.treeContainer.addChild(this.treeList);
+
+		this.labelInputContainer = new Container();
+
+		this.addChild(new Spacer(1));
+		this.addChild(new DynamicBorder());
+		this.addChild(new Text(theme.bold("  Session Tree"), 1, 0));
+		this.addChild(new TreeHelp());
+		this.addChild(new SearchLine(this.treeList));
+		this.addChild(new DynamicBorder());
+		this.addChild(new Spacer(1));
+=======
+		this.searchLine = new SearchLine(this.treeList);
+
+		this.treeContainer = new Container();
+		this.treeContainer.addChild(this.treeList);
+
+		this.labelInputContainer = new Container();
+
+		this.addChild(new Spacer(1));
+		this.addChild(new DynamicBorder());
+		this.addChild(new Text(theme.bold("  Session Tree"), 1, 0));
+		this.addChild(new TreeHelp());
+		this.addChild(this.searchLine);
+		this.addChild(new DynamicBorder());
+		this.addChild(new Spacer(1));
+>>>>>>> pi 1.5.1
 		this.addChild(this.treeContainer);
 		this.addChild(this.labelInputContainer);
 		this.addChild(this.footerContainer);
@@ -1475,9 +1552,17 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		};
 		this.labelInput.onCancel = () => this.hideLabelInput();
 
+<<<<<<< a1
 		// Focus only the active editor.
 		this.searchInput.focused = false;
 		this.labelInput.focused = this._focused;
+||||||| pi 1.5.0
+		// Propagate current focused state to the new labelInput
+		this.labelInput.focused = this._focused;
+=======
+		// Propagate current focused state
+		this.focused = this._focused;
+>>>>>>> pi 1.5.1
 
 		this.titleText.setText(theme.fg("accent", theme.bold("Label")));
 		this.searchInputContainer.clear();
@@ -1489,7 +1574,12 @@ export class TreeSelectorComponent extends Container implements Focusable {
 
 	private hideLabelInput(): void {
 		this.labelInput = null;
+<<<<<<< a1
 		this.searchInput.focused = this._focused;
+||||||| pi 1.5.0
+=======
+		this.focused = this._focused;
+>>>>>>> pi 1.5.1
 		this.labelInputContainer.clear();
 		this.restoreTreeContent();
 	}

@@ -5,18 +5,18 @@
   "recordedAt": "2026-08-16T18:24:43.909Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
-    "commit": "f9a26365568127461c47a07a37dcb42c140a3ac5",
+    "commit": "dd30101cfc5b0609411dd80b6f93adbc14db14cf",
     "license": "MIT",
     "packages": [
       {
         "name": "@earendil-works/pi-coding-agent",
-        "version": "1.5.0",
-        "integrity": "sha512-xNDZ5kqowO6Z03FS2gwAkPEGk1ssxVcYKQ6qZId84mFEvwACvvyc2l0vAMOS+c5zvxLRMLBE9r4y44IGYkMJaQ=="
+        "version": "1.5.1",
+        "integrity": "sha512-rdu4pRvpQba2ep83nqHaN8L1pvY1OQ3i/2FucogA/eyRxwoUXMUXdk1Z9JnZFJR+9ck9Gs1ajuSb9m7Hz7ejYw=="
       },
       {
         "name": "@earendil-works/pi-tui",
-        "version": "1.5.0",
-        "integrity": "sha512-56KqrDVeLF18k+syppVbT35Ai1opbM44ot+sL7O3K40CaWwXCiwOpqEFugDBAILtAhseZh6uYIuYxPPOJHLFAA=="
+        "version": "1.5.1",
+        "integrity": "sha512-UZkaMYLuJrk2anJhZf06dNYdLWL8toqWNL807fhAorc8Lzy5vkxWNq/pC1f0CIM2EVdlctuRibWuIQGKYOgx+A=="
       }
     ]
   },
@@ -26,8 +26,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
       "sourceMap": "modes/interactive/interactive-mode.js.map",
-      "lines": 7212,
-      "sha256": "ee4ba8aeee85b772aee57b342356da3030eed3b2c32656fa9c0927e6a81fbab0"
+      "lines": 7270,
+      "sha256": "6f38dac5378b585c924c1bd80bb325716910141f40ec7e7173f4f04657d9083d"
     },
     {
       "id": "commands",
@@ -43,7 +43,7 @@
       "path": "packages/coding-agent/src/core/keybindings.ts",
       "sourceMap": "core/keybindings.js.map",
       "lines": 360,
-      "sha256": "6ddb9730a831e02bc2b32a9650e9b2029379cc37ccf6cdbf9b5bb47f91de321f"
+      "sha256": "4f63f9ce75c44b8c57e13edd63ad61bc835c67947d5931168abde393fe11aed3"
     },
     {
       "id": "tui-keybindings",
@@ -98,8 +98,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/components/model-selector.ts",
       "sourceMap": "modes/interactive/components/model-selector.js.map",
-      "lines": 434,
-      "sha256": "cf276628534cd5df90fdf084e8262b0e1d3a6bf5fcb3a5cb9e18ab6fcbc7fc01"
+      "lines": 440,
+      "sha256": "65249d4561e829a2bbb786e7c28ec703cbc808cc475fee1f078b0caa454ef643"
     },
     {
       "id": "session-selector",
@@ -114,8 +114,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/components/tree-selector.ts",
       "sourceMap": "modes/interactive/components/tree-selector.js.map",
-      "lines": 1430,
-      "sha256": "052a2b48101f076895d192d150f9eb74cfa95f9cf9e89aee57e3e98442ed8c69"
+      "lines": 1440,
+      "sha256": "7507041bb00d4bfef309bb14eb6cb14cffe400116285d02bec0d2a08ad111b5f"
     },
     {
       "id": "clipboard",
@@ -201,8 +201,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          974,
-          1286
+          985,
+          1297
         ],
         "symbol": "init and run",
         "anchors": [
@@ -224,8 +224,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          490,
-          519
+          494,
+          525
         ],
         "symbol": "InteractiveMode state fields",
         "anchors": [
@@ -247,8 +247,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          657,
-          665
+          670,
+          678
         ],
         "symbol": "constructor editor setup",
         "anchors": [
@@ -270,8 +270,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3128,
-          3197
+          3184,
+          3253
         ],
         "symbol": "setupKeyHandlers",
         "anchors": [
@@ -361,8 +361,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3260,
-          3459
+          3316,
+          3515
         ],
         "symbol": "setupEditorSubmitHandler",
         "anchors": [
@@ -384,8 +384,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3260,
-          3459
+          3316,
+          3515
         ],
         "symbol": "setupEditorSubmitHandler",
         "anchors": [
@@ -407,8 +407,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          7089,
-          7180
+          7145,
+          7238
         ],
         "symbol": "handleBashCommand",
         "anchors": [
@@ -430,8 +430,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4971,
-          5003
+          5053,
+          5085
         ],
         "symbol": "disposeActiveSelector and showSelector",
         "anchors": [
@@ -453,8 +453,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5007,
-          5245
+          5089,
+          5327
         ],
         "symbol": "showSettingsSelector",
         "anchors": [
@@ -476,8 +476,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5810,
-          5888
+          5892,
+          5970
         ],
         "symbol": "showSessionSelector and handleResumeSession",
         "anchors": [
@@ -499,8 +499,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5602,
-          5808
+          5684,
+          5890
         ],
         "symbol": "showUserMessageSelector, handleCloneCommand, showTreeSelector",
         "anchors": [
@@ -522,8 +522,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          6627,
-          6796
+          6683,
+          6852
         ],
         "symbol": "session utility command handlers",
         "anchors": [
@@ -546,8 +546,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5324,
-          5529
+          5406,
+          5611
         ],
         "symbol": "model handlers and selectors",
         "anchors": [
@@ -569,8 +569,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4623,
-          4690
+          4703,
+          4770
         ],
         "symbol": "cycleThinkingLevel and toggleThinkingBlockVisibility",
         "anchors": [
@@ -592,8 +592,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3461,
-          3865
+          3517,
+          3924
         ],
         "symbol": "subscribeToAgent and handleEvent",
         "anchors": [
@@ -638,8 +638,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3612,
-          3689
+          3668,
+          3745
         ],
         "symbol": "handleEvent tool and message cases",
         "anchors": [
@@ -707,8 +707,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3204,
-          3232
+          3260,
+          3288
         ],
         "symbol": "clipboard input handlers",
         "anchors": [
@@ -753,8 +753,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          2219,
-          2233
+          2240,
+          2254
         ],
         "symbol": "handleFatalRuntimeError",
         "anchors": [
@@ -775,8 +775,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4387,
-          4474
+          4467,
+          4554
         ],
         "symbol": "shutdown, emergencyTerminalExit, uncaughtCrash, signal handlers, suspend",
         "anchors": [
@@ -798,8 +798,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          7192,
-          7210
+          7250,
+          7268
         ],
         "symbol": "stop",
         "anchors": [

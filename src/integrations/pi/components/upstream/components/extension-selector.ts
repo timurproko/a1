@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
  * packages/coding-agent/src/modes/interactive/components/extension-selector.ts.
  * Modifications: Mechanical port: remap public imports, use ECMAScript private fields, and route the
  * bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded
@@ -66,6 +66,7 @@ export class ExtensionSelectorComponent extends Container {
     this.#updateList();
   }
 
+<<<<<<< a1
   #updateList(): void {
     this.#listContainer.clear();
     const theme = piTheme();
@@ -76,6 +77,43 @@ export class ExtensionSelectorComponent extends Container {
         : `  ${theme.fg("text", option)}`, 0, 0));
     }
   }
+||||||| pi 1.5.0
+	private updateList(): void {
+		this.listContainer.clear();
+		for (let i = 0; i < this.options.length; i++) {
+			const isSelected = i === this.selectedIndex;
+			const text = isSelected
+				? theme.fg("accent", "→ ") + theme.fg("accent", this.options[i])
+				: `  ${theme.fg("text", this.options[i])}`;
+			this.listContainer.addChild(new Text(text, 1, 0));
+		}
+	}
+=======
+	private updateList(): void {
+		this.listContainer.clear();
+
+		const maxVisible = 10;
+		// Center the window on the selection, then clamp it to the list boundaries.
+		const startIndex = Math.max(
+			0,
+			Math.min(this.selectedIndex - Math.floor(maxVisible / 2), this.options.length - maxVisible),
+		);
+		const endIndex = Math.min(startIndex + maxVisible, this.options.length);
+
+		for (let i = startIndex; i < endIndex; i++) {
+			const isSelected = i === this.selectedIndex;
+			const text = isSelected
+				? theme.fg("accent", "→ ") + theme.fg("accent", this.options[i])
+				: `  ${theme.fg("text", this.options[i])}`;
+			this.listContainer.addChild(new Text(text, 1, 0));
+		}
+
+		if (startIndex > 0 || endIndex < this.options.length) {
+			const scrollInfo = theme.fg("muted", `  (${this.selectedIndex + 1}/${this.options.length})`);
+			this.listContainer.addChild(new Text(scrollInfo, 0, 0));
+		}
+	}
+>>>>>>> pi 1.5.1
 
   handleInput(keyData: string): void {
     const keys = getKeybindings();

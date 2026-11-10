@@ -3,7 +3,7 @@
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -39,7 +39,7 @@
         {
           "name": "AgentSession",
           "kind": "class",
-          "hash": "4ac55b2bd2e06bfcba19dddf483dd42821223e4a9739432688f3af4addbbed58",
+          "hash": "e6c68193d54a32a577fa11d70e8bb4365315f060ad90ff80ca56e6d04cd6c9a5",
           "consumers": [
             "src/integrations/pi/engine/adapter.ts",
             "src/integrations/pi/engine/compaction-progress.ts",
@@ -50,6 +50,7 @@
             "src/integrations/pi/engine/resource-catalog.ts",
             "src/integrations/pi/engine/runtime-integration.ts",
             "src/integrations/pi/engine/session-integration.ts",
+            "src/integrations/pi/engine/session-naming.ts",
             "src/integrations/pi/engine/session-runtime.ts",
             "src/integrations/pi/engine/settings-port.ts",
             "src/integrations/pi/engine/view-state.ts",
@@ -85,6 +86,7 @@
             "src/integrations/pi/engine/provider-authentication.ts",
             "src/integrations/pi/engine/resource-catalog.ts",
             "src/integrations/pi/engine/runtime-integration.ts",
+            "src/integrations/pi/engine/session-naming.ts",
             "src/integrations/pi/engine/session-runtime.ts",
             "src/integrations/pi/engine/settings-port.ts",
             "src/integrations/pi/engine/view-state.ts",
@@ -304,7 +306,7 @@
         {
           "name": "BranchSummaryMessageComponent",
           "kind": "class",
-          "hash": "7e994adae89d95ff4f6c8779250138c909b5e40eb257c6c48d66f5bb52a8d415",
+          "hash": "411a05e43ed935cf7d6e08374ede0e489489fa3a708632e78f74976b26ce7d8e",
           "consumers": []
         },
         {
@@ -340,7 +342,7 @@
         {
           "name": "CacheWarmingDecision",
           "kind": "interface",
-          "hash": "08e8b9a83b48e49358bb9066cf8bdf506372f9fbaef28632fa3604ee04980200",
+          "hash": "1e366f43b2fdf7e595d6874aab834d2f3fdcb6c916eb63f370cafddcf5f30936",
           "consumers": []
         },
         {
@@ -442,7 +444,7 @@
         {
           "name": "CompactionSummaryMessageComponent",
           "kind": "class",
-          "hash": "bbf46218758dd072e2bbf8f958c165f8dd42121ed61df3d2c508335481c6af74",
+          "hash": "209c83c9ff27616ccef1b0921461cc6159194ba03c5717c669f6435c3df97a55",
           "consumers": [
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/startup-public.ts"
@@ -831,7 +833,7 @@
         {
           "name": "CustomMessageComponent",
           "kind": "class",
-          "hash": "bd35063349f27a31c5078dfa65e063cfbdf3de3b7fba36d4da1a83e3f19a41ab",
+          "hash": "7c50ba11c91baf0acaa102d0ac3a981316951922bf52b4d8080ea79f0e07362c",
           "consumers": [
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/startup-public.ts"
@@ -882,7 +884,7 @@
         {
           "name": "DefaultPackageManager",
           "kind": "class",
-          "hash": "4d343f803eb1320ecdd597dc334bb34b71b1ea073d1fa413c229e196b87b522e",
+          "hash": "f7e41a6e92885c7f0cf887ac089bb8a5cbeb6d23b04f6b50bca3085ab8ef00fa",
           "consumers": [
             "src/integrations/pi/engine/package-integration.ts",
             "src/integrations/pi/engine/session-runtime.ts",
@@ -1028,7 +1030,7 @@
         {
           "name": "Extension",
           "kind": "interface",
-          "hash": "3af7f0020bc8e25731aea96beb45df1f1aa5126713028047b362063b65ad5a90",
+          "hash": "2d6c253f1b9d77da87670d249cc6cde8765ebaca787bba9e928ddb5e4f282fb0",
           "consumers": []
         },
         {
@@ -1040,7 +1042,7 @@
         {
           "name": "ExtensionAPI",
           "kind": "interface",
-          "hash": "c5d70f18b2dd12fba4a8ada21a2c51330c1deab279a8212d93986baef693efd6",
+          "hash": "4802461609253d68604a9edd9abbe27fdd2f42b4b3b6d6ef029ed59be14cb8f8",
           "consumers": [
             "src/integrations/pi/engine/windows-filesystem-hygiene.ts"
           ]
@@ -1391,7 +1393,7 @@
         {
           "name": "GrepOperations",
           "kind": "interface",
-          "hash": "68bdaa46160b961c41e76554b3fb85398dd3264cb1d3a334f101b288e0643647",
+          "hash": "fb411652d017dbb5ca510d7e85ce4f2b2c2d1477aa7ac1d3c752396a6d0ae7d1",
           "consumers": []
         },
         {
@@ -1476,7 +1478,7 @@
         {
           "name": "InteractiveMode",
           "kind": "class",
-          "hash": "3282b2b0a85d282820109a951801b3aa57375b11a13d2ad665ddebcb75b02070",
+          "hash": "59d36abbd7f8ca60142b460adf6b67e4adf7bdf161ff7caf9944ead52e5d0d39",
           "consumers": []
         },
         {
@@ -1681,9 +1683,15 @@
           "consumers": []
         },
         {
+          "name": "MarkdownMessageType",
+          "kind": "type",
+          "hash": "20c05e074f8542f04b8a555c847a87fafc6cdf5d0377239505c9025a403bab98",
+          "consumers": []
+        },
+        {
           "name": "MarkdownTransformContext",
           "kind": "interface",
-          "hash": "578ed32a8fdeaff47c3598ef09b83d6b9450d6ce9e51959d856f8a29e5698ae7",
+          "hash": "2e72881a2f1e03f5203a601a4d433ab57438b24bbb9309b6d02ee67295f0bfe4",
           "consumers": []
         },
         {
@@ -1693,6 +1701,18 @@
           "consumers": [
             "src/integrations/pi/components/upstream/components/mermaid.ts"
           ]
+        },
+        {
+          "name": "MarkdownTransformerOptions",
+          "kind": "interface",
+          "hash": "b31eccf0fea1eab20d5c186dc825acbf975a7369ddf8e5f1c9c9cd7f74e7c5f9",
+          "consumers": []
+        },
+        {
+          "name": "MarkdownTransformerRegistration",
+          "kind": "interface",
+          "hash": "8c3b11e40de48e23f493bf1346decec5287dc214cbb915ef8e75250f4d4a711d",
+          "consumers": []
         },
         {
           "name": "McpExposure",
@@ -1817,7 +1837,7 @@
         {
           "name": "ModelRuntime",
           "kind": "class",
-          "hash": "1ee488c4a039273e7ae67193a6cbf8a1a8a5173248f398eaf633b72351cf31b7",
+          "hash": "c6aad14aaecfb9ed0641fc83135bb511909d2545ed2859dad658863cd6584b23",
           "consumers": [
             "src/integrations/pi/engine/conformance.ts",
             "src/integrations/pi/engine/package-integration.ts",
@@ -1872,7 +1892,7 @@
         {
           "name": "OAuthSelectorComponent",
           "kind": "class",
-          "hash": "38ac47525b89cd3fe8c64a404ed6cf62eafe9bdf29232de188631098cb21cbb9",
+          "hash": "32d0fdfaf4dba63548c909654e25f50d4eb3530a02de7dd86bea26da4be16797",
           "consumers": [
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/startup-public.ts"
@@ -1998,7 +2018,7 @@
         {
           "name": "ProgressEvent",
           "kind": "interface",
-          "hash": "9163df8987de474b74184bde509b1af96f3006aafdc608e150957b0ac02a92ff",
+          "hash": "649613aacbe54293e30368f030a053b2a1f210ff6933d3fedb51a118c643e9bf",
           "consumers": []
         },
         {
@@ -2121,7 +2141,7 @@
         {
           "name": "ReadOperations",
           "kind": "interface",
-          "hash": "21f6de34b51572038e28b33ab741621f6dcec7f4ae7f0a8a2326465b3676e6bc",
+          "hash": "69407ec8a716557d07a5d09e5f589faf39a25e7f2468fc94fd549054675aac30",
           "consumers": []
         },
         {
@@ -2609,7 +2629,7 @@
         {
           "name": "SkillInvocationMessageComponent",
           "kind": "class",
-          "hash": "ddb91f1a9da74191ec2d4e3e195e3482850db9cd2cda084195cf856f2bc5481e",
+          "hash": "d821638b2f4c876f0f608ca1ad9791b576283bb09dd963c22fefc6f323c370ca",
           "consumers": []
         },
         {
@@ -2849,7 +2869,7 @@
         {
           "name": "TreeSelectorComponent",
           "kind": "class",
-          "hash": "1c23b0cfc1e30f1dacd375f47b7005c512e662c8f0ddd683f0d3182ad050be72",
+          "hash": "afb1a7555dd7fa459e007b6310c011bf93b1644b684c0da44e105f6c40b9c3e1",
           "consumers": []
         },
         {
@@ -3053,7 +3073,7 @@
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -3239,6 +3259,7 @@
           "consumers": [
             "src/integrations/pi/components/owned-editor-ux.ts",
             "src/integrations/pi/components/upstream/components/owned-editor.ts",
+            "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
         },
@@ -3403,9 +3424,7 @@
           "name": "getImageDimensions",
           "kind": "function",
           "hash": "c11605ec4b8b0955a92a7081bab53a2df434e995ee678e1da45a02b45b8bd947",
-          "consumers": [
-            "src/integrations/pi/components/upstream/components/tool-execution.ts"
-          ]
+          "consumers": []
         },
         {
           "name": "getJpegDimensions",
@@ -3507,9 +3526,7 @@
           "name": "imageFallback",
           "kind": "function",
           "hash": "b0076d86318145ede8c633e088becf6a3dcec69925a27309f8d941e64f2e3239",
-          "consumers": [
-            "src/integrations/pi/components/upstream/components/tool-execution.ts"
-          ]
+          "consumers": []
         },
         {
           "name": "ImageOptions",

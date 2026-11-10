@@ -1,21 +1,37 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
  * packages/coding-agent/src/modes/interactive/components/mermaid.ts.
  * Modifications: Mechanical pinned source port with private imports remapped to public package-root
  * types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.
  * Deviations: none.
  */
+<<<<<<< a1
 import { Marked, type Token } from "@earendil-works/pi-tui";
 import { type MermaidArt, render, type Span } from "grok-mermaid";
 import type { MarkdownTransformer, Theme } from "@earendil-works/pi-coding-agent";
 
 export type MermaidRenderingMode = "off" | "final" | "streaming";
+||||||| pi 1.5.0
+import { Marked, type Token } from "@earendil-works/pi-tui";
+import { type MermaidArt, render, type Span } from "grok-mermaid";
+import type { MarkdownTransformer } from "../../../core/extensions/types.ts";
+import type { MermaidRenderingMode } from "../../../core/settings-manager.ts";
+import type { Theme } from "../theme/theme.ts";
+=======
+import { getCapabilities, Marked, type Token } from "@earendil-works/pi-tui";
+import { type AnsiTheme, type MermaidArt, render, toAnsi } from "lovely-mermaid";
+import type { MarkdownTransformer } from "../../../core/extensions/types.ts";
+import type { MermaidRenderingMode } from "../../../core/settings-manager.ts";
+import type { Theme, ThemeColor } from "../theme/theme.ts";
+>>>>>>> pi 1.5.1
 
 const markdownParser = new Marked();
 
+type MermaidTheme = Pick<Theme, "fg" | "getFgAnsi">;
+
 interface MermaidTransformerOptions {
 	getMode: () => MermaidRenderingMode;
-	theme?: Theme;
+	theme?: MermaidTheme;
 }
 
 function isMermaid(token: Token): token is Token & { type: "code"; text: string; lang?: string } {
@@ -42,34 +58,39 @@ function codeSpan(line: string): string {
 	return `${fence}${padding}${content}${padding}${fence}`;
 }
 
-function styleSpan(span: Span, theme: Theme): string {
-	switch (span.cls) {
-		case "border":
-			return theme.fg("borderMuted", span.text);
-		case "text":
-			return theme.fg("text", span.text);
-		case "edge":
-			return theme.fg("accent", span.text);
-		case "edgeLabel":
-			return theme.fg("muted", span.text);
-		case "title":
-			return theme.fg("accent", theme.bold(span.text));
-		case "none":
-			return span.text;
-	}
-}
-
-function themedLines(art: MermaidArt, theme: Theme): string[] {
-	return art.styled.map((row) => row.map((span) => styleSpan(span, theme)).join(""));
+function themedLines(art: MermaidArt, theme: MermaidTheme): string[] {
+	const foreground = (color: ThemeColor) => theme.getFgAnsi(color).slice(2, -1);
+	const ansiTheme: AnsiTheme = {
+		border: foreground("borderMuted"),
+		text: foreground("text"),
+		edge: foreground("accent"),
+		edgeLabel: foreground("text"),
+		title: `1;${foreground("accent")}`,
+	};
+	const linkLabels = getCapabilities().hyperlinks;
+	const displayArt: MermaidArt = {
+		...art,
+		// Only osc 8 the text, not the whole box.
+		styled: art.styled.map((row) =>
+			row.map((span) => {
+				if (span.href === undefined || (linkLabels && span.role === "text")) return span;
+				const unlinked = { ...span };
+				delete unlinked.href;
+				return unlinked;
+			}),
+		),
+	};
+	return toAnsi(displayArt, ansiTheme);
 }
 
 /** Create a transformer that replaces top-level Mermaid code blocks with Unicode terminal diagrams. */
 export function createMermaidMarkdownTransformer(options: MermaidTransformerOptions): MarkdownTransformer {
 	return (markdown, context) => {
 		const mode = options.getMode();
+		// Diagrams render in user and assistant text and in model-written summaries, not in thinking or other surfaces.
 		if (
 			mode === "off" ||
-			context.messageType === "assistant-thinking" ||
+			(context.messageType !== "user" && context.messageType !== "assistant" && context.messageType !== "summary") ||
 			(context.isStreaming && mode !== "streaming")
 		) {
 			return markdown;

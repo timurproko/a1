@@ -1,7 +1,7 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "1.5.0"
+    "version": "1.5.1"
   },
   "changelogSince": "0.84.2",
   "rows": [
@@ -2862,6 +2862,60 @@
       "since": "1.5.0",
       "disposition": "pinned",
       "note": "A1 reads Pi's pinned model catalog and drives model selection and thinking-level changes through Pi's public runtime, so the 1.5.0 GPT-6.1 Terra definitions are available unchanged."
+    },
+    {
+      "id": "changelog:1.5.1:anthropic-message-threads",
+      "kind": "changelog",
+      "feature": "Anthropic message threads",
+      "version": "1.5.1",
+      "summary": "requests send only new messages while the server continues the conversation, with full-request fallback when earlier context changes.",
+      "since": "1.5.1",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.5.1:github-copilot-classifiers",
+      "kind": "changelog",
+      "feature": "GitHub Copilot classifiers",
+      "version": "1.5.1",
+      "summary": "call Microsoft-Decision-1 through codemode `models.classify()` for typed decisions and probabilities.",
+      "since": "1.5.1",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.5.1:idle-prompt-cache-warming",
+      "kind": "changelog",
+      "feature": "Idle prompt cache warming",
+      "version": "1.5.1",
+      "summary": "eligible caches now stay warm for up to 30 minutes between runs when a refresh is expected to pay for itself.",
+      "since": "1.5.1",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.5.1:package-update-summaries",
+      "kind": "changelog",
+      "feature": "Package update summaries",
+      "version": "1.5.1",
+      "summary": "`pi update --extensions` reports each package's npm version or git commit change and distinguishes unchanged, skipped, and warned updates.",
+      "since": "1.5.1",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.5.1:richer-mermaid-diagrams",
+      "kind": "changelog",
+      "feature": "Richer Mermaid diagrams",
+      "version": "1.5.1",
+      "summary": "pie charts, author-defined styles, clickable labels on supported terminals, and diagrams in expanded branch and compaction summaries.",
+      "since": "1.5.1",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.5.1:shell-login-and-logout",
+      "kind": "changelog",
+      "feature": "Shell login and logout",
+      "version": "1.5.1",
+      "summary": "use `pi auth login <provider>` and `pi auth logout <provider>` without starting a session, with API-key and no-browser sign-in options.",
+      "since": "1.5.1",
+      "disposition": "pending"
     }
   ]
 }
