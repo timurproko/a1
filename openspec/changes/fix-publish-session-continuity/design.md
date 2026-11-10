@@ -1,3 +1,7 @@
+## Extended analysis and approval boundary
+
+See [the incident audit](analysis.md) for the broader analysis requested after the initial proposal. It adds reproduced shared-snapshot overcounting, delayed-recovery failure, operation-outcome inconsistency, writer ownership/disposal hazards, and the separate age-based release-retention gap. Its recommended ownership-ledger and recovery architecture supersedes the earlier open-ended design direction below. Additional writer, diagnostics, recovery, and release-lifetime outcomes remain proposed scope refinements, not approved implementation. The original two PR checklist items have not been rewritten or checked.
+
 ## Context and investigation
 
 Recent local fatal records from release `0.2.7-dev.1275` identify `adapter.js:253`, which throws `EngineDeliveryError` from `flushEvents`, not a session-selection or parsing exception. The affected persisted session remains readable with the installed pin's `SessionManager.open(...).buildSessionContext()`.
