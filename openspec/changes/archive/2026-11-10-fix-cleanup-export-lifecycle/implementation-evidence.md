@@ -19,6 +19,11 @@
 - The complete committed-change naming audit inspected 25 files with zero violations. The additional CLI-authority and deferred-budget cases passed in the final focused cleanup rerun.
 - Required exact-head CI remains the post-ready authority. Local checks and private fixtures do not claim live cleanup of another worktree, manual acceptance, or successful renewed remote validation.
 
+## Reported CI repair
+
+- Development validation run `42835291943` at finalized head `7280d17d05869bfe9b7d7e092691205936dda78f` reported one failing exact-map comparison: the provider-default mirror predated the integrated Pi 1.5.1 pin. The release/resume lane was cancelled, not successful.
+- Synchronized all changed defaults and the newly present individual China Qwen provider to that exact installed pin. Kept the independent SDK comparison unchanged and strengthened the login fixture to require the current pinned Anthropic model even when the previous model is available first. The four affected workflow suites passed 58 tests; typecheck, architecture/startup, session-writer, identity/package, and pinned-port provenance checks passed. Renewed remote validation remains required.
+
 ## Known gaps
 
 None. Genuine local work, active/current or unverifiable processes, permission failures, linked storage entries, and conflicting/unverified partial copies intentionally retain data rather than bypass safety. Only integrated tooling and separately confirmed candidate-scoped operations may act on live completed worktrees.

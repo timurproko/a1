@@ -29,3 +29,8 @@
 - [x] 5.1 Update cleanup runbook/agent guidance and implementation evidence with explicit known-gap disposition.
 - [x] 5.2 Run bounded affected tests, typecheck, strict OpenSpec validation, and applicable architecture/documentation/provenance checks.
 - [x] 5.3 Add plain acceptance outcomes, reconcile/push current origin/develop, and complete the final delivered PR outcome for trusted readiness.
+
+## 6. Reported CI repair
+
+- [x] 6.1 Synchronize the provider-default mirror, including the individual China Qwen provider, with the integrated Pi 1.5.1 pin.
+- [x] 6.2 Retain the independent exact-map comparison and strengthen login selection with the previous Anthropic model preceding the current pinned default.

@@ -54,7 +54,8 @@ class FakeRuntime {
   readonly configured = new Set<string>(["openai"]);
   models = [
     { provider: "openai", id: "gpt-5", name: "GPT-5" },
-    { provider: "anthropic", id: "claude-opus-4-8", name: "Opus" },
+    { provider: "anthropic", id: "claude-opus-4-8", name: "Previous Opus" },
+    { provider: "anthropic", id: "claude-opus-5-5", name: "Opus" },
   ];
   readonly settings = new Map<string, unknown>([["TreeFilterMode", "labeled-only"], ["BranchSummarySkipPrompt", true]]);
   readonly services = {
@@ -234,8 +235,8 @@ describe("PiWorkflowRunner", () => {
     const result = await runner.executeWorkflow({ command: "login", argument: "anthropic" });
     expect(runtime.calls).toEqual(["login:anthropic:api_key"]);
     expect(state.loginEvents).toEqual(["start:anthropic:api_key", "notify:auth_url", "finish"]);
-    expect(result).toMatchObject({ command: "login", outcome: "completed", message: expect.stringContaining("Saved API key for Anthropic. Selected claude-opus-4-8.") });
-    expect(state.activeModel).toEqual({ providerId: "anthropic", modelId: "claude-opus-4-8", displayName: "Opus" });
+    expect(result).toMatchObject({ command: "login", outcome: "completed", message: expect.stringContaining("Saved API key for Anthropic. Selected claude-opus-5-5.") });
+    expect(state.activeModel).toEqual({ providerId: "anthropic", modelId: "claude-opus-5-5", displayName: "Opus" });
     expect(state.reconciled).toBe(1);
     expect(session.calls).toContain("setModel");
   });
