@@ -50,6 +50,7 @@
             "src/integrations/pi/engine/resource-catalog.ts",
             "src/integrations/pi/engine/runtime-integration.ts",
             "src/integrations/pi/engine/session-integration.ts",
+            "src/integrations/pi/engine/session-naming.ts",
             "src/integrations/pi/engine/session-runtime.ts",
             "src/integrations/pi/engine/settings-port.ts",
             "src/integrations/pi/engine/view-state.ts",
@@ -85,6 +86,7 @@
             "src/integrations/pi/engine/provider-authentication.ts",
             "src/integrations/pi/engine/resource-catalog.ts",
             "src/integrations/pi/engine/runtime-integration.ts",
+            "src/integrations/pi/engine/session-naming.ts",
             "src/integrations/pi/engine/session-runtime.ts",
             "src/integrations/pi/engine/settings-port.ts",
             "src/integrations/pi/engine/view-state.ts",
@@ -3403,9 +3405,7 @@
           "name": "getImageDimensions",
           "kind": "function",
           "hash": "c11605ec4b8b0955a92a7081bab53a2df434e995ee678e1da45a02b45b8bd947",
-          "consumers": [
-            "src/integrations/pi/components/upstream/components/tool-execution.ts"
-          ]
+          "consumers": []
         },
         {
           "name": "getJpegDimensions",
@@ -3507,9 +3507,7 @@
           "name": "imageFallback",
           "kind": "function",
           "hash": "b0076d86318145ede8c633e088becf6a3dcec69925a27309f8d941e64f2e3239",
-          "consumers": [
-            "src/integrations/pi/components/upstream/components/tool-execution.ts"
-          ]
+          "consumers": []
         },
         {
           "name": "ImageOptions",
