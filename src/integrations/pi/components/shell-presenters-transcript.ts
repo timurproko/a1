@@ -264,7 +264,9 @@ function transcriptComponent(
         summary: block.text,
         tokensBefore: numericPayload(block, "tokensBefore"),
         timestamp: numericPayload(block, "timestamp") || 0,
-      }, getPiMarkdownTheme());
+      }, getPiMarkdownTheme(), outputPad, [
+        createMermaidMarkdownTransformer({ getMode: () => mermaidRenderingMode, theme: piTheme() }),
+      ], block.id);
       component.setExpanded(expanded);
       return component;
     }

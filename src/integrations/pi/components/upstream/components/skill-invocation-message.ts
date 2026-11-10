@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
  * packages/coding-agent/src/modes/interactive/components/skill-invocation-message.ts.
  * Modifications: Mechanical port uses A1's public pi-tui instance, owned theme boundary, and
  * root-instance keybinding registry because the public coding-agent component closes over a second
@@ -7,6 +7,7 @@
  * Deviations: none.
  */
 import { Box, Container, getKeybindings, Markdown, MouseRegion, Text, type MarkdownTheme } from "@earendil-works/pi-tui";
+import type { MarkdownTransformer } from "@earendil-works/pi-coding-agent";
 import { piTheme } from "../theme/theme.js";
 
 export interface SkillInvocationBlock {
@@ -19,14 +20,24 @@ export class SkillInvocationMessageComponent extends Box {
 
   private readonly skillBlock: SkillInvocationBlock;
   private readonly markdownTheme: MarkdownTheme;
+  private readonly markdownTransformers: readonly MarkdownTransformer[];
+  private readonly messageId: string | undefined;
+  private readonly timestamp: string | undefined;
+
   constructor(
     skillBlock: SkillInvocationBlock,
     markdownTheme: MarkdownTheme,
     outputPad = 1,
+    markdownTransformers: readonly MarkdownTransformer[] = [],
+    messageId?: string,
+    timestamp?: string,
   ) {
     super(outputPad, 1, text => piTheme().bg("customMessageBg", text));
     this.skillBlock = skillBlock;
     this.markdownTheme = markdownTheme;
+    this.markdownTransformers = markdownTransformers;
+    this.messageId = messageId;
+    this.timestamp = timestamp;
     this.#updateDisplay();
   }
 
@@ -51,8 +62,24 @@ export class SkillInvocationMessageComponent extends Box {
       const label = piTheme().fg("customMessageLabel", "\x1b[1m[skill]\x1b[22m");
       content.addChild(new Text(label, 0, 0));
       const header = `**${this.skillBlock.name}**\n\n`;
-      content.addChild(new Markdown(header + this.skillBlock.content, 0, 0, this.markdownTheme, {
+      content.addChild(new Markdown(this.skillBlock.content, 0, 0, this.markdownTheme, {
         color: text => piTheme().fg("customMessageText", text),
+      }, {
+        transform: (markdown, availableWidth) => {
+          // Transformers see only skill content, not Pi's header; failed transforms leave it intact.
+          let transformed = markdown;
+          for (const transformer of this.markdownTransformers) {
+            try {
+              const next = transformer(transformed, {
+                messageType: "custom", isStreaming: false, availableWidth,
+                ...(this.messageId === undefined ? {} : { messageId: this.messageId }),
+                ...(this.timestamp === undefined ? {} : { timestamp: this.timestamp }),
+              });
+              if (typeof next === "string") transformed = next;
+            } catch { /* Preserve the current Markdown and continue with the next transformer. */ }
+          }
+          return header + transformed;
+        },
       }));
     } else {
       const expandKey = getKeybindings().getKeys("app.tools.expand")[0] ?? "";

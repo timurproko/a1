@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
  * packages/coding-agent/src/modes/interactive/components/extension-selector.ts.
  * Modifications: Mechanical port: remap public imports, use ECMAScript private fields, and route the
  * bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded
@@ -69,11 +69,18 @@ export class ExtensionSelectorComponent extends Container {
   #updateList(): void {
     this.#listContainer.clear();
     const theme = piTheme();
-    for (let index = 0; index < this.#options.length; index += 1) {
+    const maxVisible = 10;
+    // Center the window on the selection, then clamp it to the list boundaries.
+    const startIndex = Math.max(0, Math.min(this.#selectedIndex - Math.floor(maxVisible / 2), this.#options.length - maxVisible));
+    const endIndex = Math.min(startIndex + maxVisible, this.#options.length);
+    for (let index = startIndex; index < endIndex; index += 1) {
       const option = this.#options[index]!;
       this.#listContainer.addChild(new Text(index === this.#selectedIndex
         ? theme.fg("accent", "→ ") + theme.fg("accent", option)
         : `  ${theme.fg("text", option)}`, 0, 0));
+    }
+    if (startIndex > 0 || endIndex < this.#options.length) {
+      this.#listContainer.addChild(new Text(theme.fg("muted", `  (${this.#selectedIndex + 1}/${this.#options.length})`), 0, 0));
     }
   }
 

@@ -70,7 +70,7 @@ export async function buildEventFrameParityResult(options: EventFrameCaptureOpti
   return clock.run(async () => {
     const previousTheme = piTheme();
     try {
-      return await withPiParityColorMode(EVENT_FRAME_PARITY_COLOR_MODE, () => captureEventFrames(options, clock), { hyperlinks: true });
+      return await withPiParityColorMode(EVENT_FRAME_PARITY_COLOR_MODE, () => captureEventFrames(options, clock), { hyperlinks: true, images: null });
     } finally {
       applyPiTheme(previousTheme.name ?? "dark", false, previousTheme.getColorMode());
       applyPiThemeInstance(previousTheme);
