@@ -41,8 +41,8 @@ export class PendingEngineDelivery {
 
   private readonly retain: ((event: OwnedUiEvent) => () => void) | undefined;
   private readonly current: (() => unknown) | undefined;
-  private readonly externalBytes: (() => number) | undefined;
-  constructor(retain?: (event: OwnedUiEvent) => () => void, current?: () => unknown, externalBytes?: () => number) {
+  private readonly externalBytes: ((excluding?: OwnedUiEvent) => number) | undefined;
+  constructor(retain?: (event: OwnedUiEvent) => () => void, current?: () => unknown, externalBytes?: (excluding?: OwnedUiEvent) => number) {
     this.retain = retain; this.current = current; this.externalBytes = externalBytes;
   }
 
@@ -69,8 +69,9 @@ export class PendingEngineDelivery {
     const charge = marker ? undefined : this.#retention.retain(event);
     const release = marker ? undefined : this.retain?.(event);
     prior?.charge?.();
+    const bytes = this.#retention.bytes + this.#size * 128 + (this.externalBytes?.(prior?.event) ?? 0);
     if (this.#size - (prior === undefined ? 0 : 1) >= MAX_PENDING_EVENTS
-      || this.#bytes + (prior === undefined ? 128 : 0) > MAX_PENDING_EVENT_BYTES) {
+      || bytes + (prior === undefined ? 128 : 0) > MAX_PENDING_EVENT_BYTES) {
       this.rejection = this.#size - (prior === undefined ? 0 : 1) >= MAX_PENDING_EVENTS ? "event-count" : "retained-bytes";
       charge?.(); release?.();
       if (prior?.event) prior.charge = this.#retention.retain(prior.event);

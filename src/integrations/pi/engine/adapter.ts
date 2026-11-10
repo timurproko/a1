@@ -119,7 +119,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     sessionId: () => this.#sessionId,
     sessionGeneration: () => this.#engine.generation,
     authoritativeTranscript: () => this.#projection.snapshot(),
-    retainedAssetBytes: () => this.#projection.assets.pendingBytes,
+    retainedAssetBytes: excluding => this.#projection.assets.pendingBytesExcluding(excluding),
     transcriptBlock: id => this.#projection.block(id),
     retainEvent: event => this.#projection.assets.retainEvent(event),
     isPendingCommand: correlationId => this.#commands.isPending(correlationId),

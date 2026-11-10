@@ -31,4 +31,4 @@
 
 ## 6. Pre-ready bookkeeping
 
-- [ ] 6.1 Complete focused checks and reconcile all discovered gaps before final delivery bookkeeping; keep broader execution with CI and do not claim the personal session has been repaired before a fixed binary is available.
+- [x] 6.1 Complete focused checks and reconcile all discovered gaps before final delivery bookkeeping; keep broader execution with CI and do not claim the personal session has been repaired before a fixed binary is available.

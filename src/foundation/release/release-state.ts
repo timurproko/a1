@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, open, readFile, rename, rm, stat } from "node:fs/promises";
+import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { MaterializedRelease } from "./release-store.js";
 import { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
@@ -505,7 +505,7 @@ async function acquireLock(path: string) {
   while (true) {
     try {
       const lock = await open(path, "wx", 0o600);
-      await lock.writeFile(JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }));
+      await lock.writeFile(JSON.stringify({ pid: process.pid, token: randomUUID(), createdAt: new Date().toISOString() }));
       await lock.sync();
       return lock;
     } catch (error) {
@@ -520,30 +520,24 @@ async function acquireLock(path: string) {
   }
 }
 async function reclaimAbandonedLock(path: string): Promise<boolean> {
-  let abandoned = false;
+  let owner: string;
   try {
-    const value = JSON.parse(await readFile(path, "utf8")) as { pid?: unknown };
-    if (typeof value.pid === "number") {
-      try { process.kill(value.pid, 0); }
-      catch (error) { abandoned = !(error instanceof Error && "code" in error && error.code === "EPERM"); }
-    }
-  } catch {
-    const metadata = await stat(path).catch(() => null);
-    abandoned = metadata !== null && Date.now() - metadata.mtimeMs > 10_000;
-  }
-  if (!abandoned) return false;
-  const quarantine = `${path}.abandoned`;
-  const oldQuarantine = await stat(quarantine).catch(() => null);
-  if (oldQuarantine && Date.now() - oldQuarantine.mtimeMs > 10_000) await rm(quarantine, { force: true });
+    owner = await readFile(path, "utf8");
+    const value = JSON.parse(owner) as { pid?: unknown };
+    if (!Number.isSafeInteger(value.pid) || (value.pid as number) <= 0) return false;
+    try { process.kill(value.pid as number, 0); return false; }
+    catch (error) { if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) return false; }
+  } catch { return false; } // Unknown ownership never becomes safe merely through age.
+  const gate = `${path}.reclaim`;
+  try { await mkdir(gate); } catch { return false; }
   try {
-    // Concurrency: the fixed destination lets exactly one waiter claim the stale lock;
-    // another waiter cannot accidentally rename a newly acquired replacement.
+    if (await readFile(path, "utf8") !== owner) return false;
+    const quarantine = `${path}.abandoned-${randomUUID()}`;
     await rename(path, quarantine);
     await rm(quarantine, { force: true });
     return true;
-  } catch {
-    return false;
-  }
+  } catch { return false; }
+  finally { await rm(gate, { recursive: true, force: true }); }
 }
 function normalizeState(value: unknown): ReleaseState {
   if (!value || typeof value !== "object") return value as ReleaseState;

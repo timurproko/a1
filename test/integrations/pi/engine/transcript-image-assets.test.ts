@@ -8,19 +8,23 @@ import { toolRenderingInput } from "../../../../src/integrations/pi/engine/tool-
 const image = { type: "image", mimeType: "image/png", data: "AQID" };
 
 describe("bounded transcript image assets", () => {
-  it("shares authoritative image leases and charges retired delivery-only assets", () => {
+  it.each([false, true])("charges retired assets without blocking legal replacement (replace: %s)", replace => {
     const assets = new TranscriptImageAssets();
     const reference = assets.reference({ ...image, data: "AAAA".repeat(2 * 1024 * 1024) }, "tool-result")!;
-    const block: OwnedUiTranscriptBlock = { id: "image", kind: "tool-result", status: "finalized", revision: 1,
+    const block: OwnedUiTranscriptBlock = { id: "image", kind: "tool-result", status: replace ? "live" : "finalized", revision: 1,
       title: "image", text: "", payload: {}, imageReferences: [reference] };
     assets.retain(block);
     let current = [block];
-    const queue = new PendingEngineDelivery(event => assets.retainEvent(event), () => current, () => assets.pendingBytes);
+    const queue = new PendingEngineDelivery(event => assets.retainEvent(event), () => current, excluding => assets.pendingBytesExcluding(excluding));
     for (let sequence = 1; sequence < 20; sequence++) expect(queue.push({ type: "transcript-block", block, sequence, sessionId: "s" }, 1)).toBe(true);
     expect(assets.pendingBytes).toBe(32);
     assets.release(block); current = [];
     expect(assets.pendingBytes).toBeGreaterThan(8 * 1024 * 1024);
-    expect(queue.push({ type: "agent-run-started", sequence: 20, sessionId: "s" }, 1)).toBe(false);
+    if (replace) {
+      const replacement = { ...block, revision: 2, imageReferences: [] };
+      current = [replacement];
+      expect(queue.push({ type: "transcript-block", block: replacement, sequence: 21, sessionId: "s" }, 1)).toBe(true);
+    } else expect(queue.push({ type: "agent-run-started", sequence: 20, sessionId: "s" }, 1)).toBe(false);
     queue.discardObsolete(2);
     expect(assets.pendingBytes).toBe(0);
     expect(assets.resolve(reference.assetId)).toBeNull();

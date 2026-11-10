@@ -46,7 +46,7 @@ export interface PiEventDeliveryPorts {
   sessionGeneration(): number;
   /** Immutable history already owned by the engine, not additional pending payload. */
   authoritativeTranscript?(): readonly OwnedUiTranscriptBlock[];
-  retainedAssetBytes?(): number;
+  retainedAssetBytes?(excluding?: OwnedUiEvent): number;
   /** The current block for a lazily materialized transcript event. */
   transcriptBlock(id: string): OwnedUiTranscriptBlock | undefined;
   /** Retain the image assets an event references until the returned release runs. */

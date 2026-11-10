@@ -6,10 +6,16 @@ const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 // Security: current blocks and admitted delivery snapshots own assets independently; superseded state owns none.
 export class TranscriptImageAssets {
   readonly #assets = new Map<string, { asset: OwnedUiImageAttachment; byteLength: number; owners: number; pending: number }>();
-  readonly #events = new WeakMap<object, { owners: number; release(): void }>();
+  readonly #events = new WeakMap<object, { owners: number; release(): void; exclusiveBytes(): number }>();
   #captureBytes = 0;
 
   /** Encoded assets held only by delivery, plus shared pending lease metadata. */
+  pendingBytesExcluding(event?: OwnedUiEvent): number {
+    const key = event === undefined ? undefined : event.type === "transcript-block" ? event.block : event.type === "session-view" ? event.view.transcript : undefined;
+    const shared = key === undefined ? undefined : this.#events.get(key);
+    return this.pendingBytes - (shared?.owners === 1 ? shared.exclusiveBytes() : 0);
+  }
+
   get pendingBytes(): number {
     let bytes = this.#captureBytes;
     for (const entry of this.#assets.values()) {
@@ -75,7 +81,16 @@ export class TranscriptImageAssets {
         entry.owners++; entry.pending++;
         this.#unowned.delete(id);
       }
-      shared = { owners: 0, release: () => {
+      shared = { owners: 0, exclusiveBytes: () => {
+        let bytes = entries.length * 32;
+        const counts = new Map<string, number>();
+        for (const [id, entry] of entries) if (entry !== undefined && this.#assets.get(id) === entry) counts.set(id, (counts.get(id) ?? 0) + 1);
+        for (const [id, count] of counts) {
+          const entry = this.#assets.get(id)!;
+          if (entry.owners === count && entry.pending === count) bytes += 64 + entry.asset.data.length * 2;
+        }
+        return bytes;
+      }, release: () => {
         this.#captureBytes -= entries.length * 32;
         for (const [id, entry] of entries) {
           if (entry !== undefined && this.#assets.get(id) === entry) {
