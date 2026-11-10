@@ -57,7 +57,7 @@ export class SessionDialogCoordinator {
     if (presentation === undefined || !this.#ports.terminal.running || !this.canOpenApps()) return;
     let dialog: TerminalComponentPort | undefined;
     let closed = false;
-    let loading = "Loading Apps…";
+    let loading = "Loading Launcher…";
     const pending: string[] = [];
     const cancel = () => { closed = true; pending.length = 0; this.#apps?.hide(); this.#apps = undefined; };
     this.#apps = this.#ports.terminal.showOverlay({
@@ -92,16 +92,7 @@ export class SessionDialogCoordinator {
       });
       for (const key of pending.splice(0)) { if (!closed) dialog.handleInput?.(key); }
       this.#ports.terminal.requestRender();
-    }).catch(() => { if (!closed && !this.#ports.disposed()) { loading = "Apps unavailable — Esc close"; this.#ports.terminal.requestRender(); } });
-  }
-
-  /** Presents the owned Models component as a floating modal rather than replacing the prompt. */
-  setFloatingInput(component: TerminalComponentPort | null): void {
-    this.#close();
-    if (component !== null) {
-      this.#source = "local";
-      this.#handle = this.#ports.terminal.showOverlay(component, { ...OVERLAY_OPTIONS, maxHeight: "100%", modal: true });
-    }
+    }).catch(() => { if (!closed && !this.#ports.disposed()) { loading = "Launcher unavailable — Esc close"; this.#ports.terminal.requestRender(); } });
   }
 
   /** Clears the replacement input surface a selector put in the dock; the shared close action of every dock selector. */
