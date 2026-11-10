@@ -26,10 +26,10 @@ The maintainer integration decision accepts these scenarios:
     "Successful model changes update status state without redundant notices while actionable warnings and failures remain visible.",
     "The first footer row separates the linked PR number with a dim dot and clips safely without changing comparison presentation."
   ],
-  "archiveDigest": "6078b5230043c53fbee6e8e21cc2f21696a1028cac0a547945ef67dfd5f45b8c",
+  "archiveDigest": "e19a9f3026f9411d2f90d4220d4881fa35c381fa76bec5d030a186c924aa1c09",
   "specDigest": "e7c56f8bab53a90ab43c7c2dc6335261244a0b716254a5a8d46d557f29c5e2a6",
   "tasksDigest": "5349f8a8a5112b61d63191c83e6d060dfd2844151a8892ccc0c7ac105dd3d0c6",
-  "evidenceDigest": "d82fa0a052556ca0b558d65b08f6d466ef4b6b15b9bb7feb89e04f84d9e345ed",
+  "evidenceDigest": "7a2d6aa2a7fcc3c7d712984b0126e24e89b64d1f1dfb158fe0e6a607e426d92f",
   "knownGaps": []
 }
 ```
