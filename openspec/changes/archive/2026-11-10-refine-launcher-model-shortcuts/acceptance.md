@@ -26,10 +26,10 @@ The maintainer integration decision accepts these scenarios:
     "Quiet model switches, visible diagnostics, legacy Enter, explicit keybinding overrides, and comparison defaults remain unchanged.",
     "Hotkeys shows the current shortcuts through Launcher instead of a bare-A1 Agent built-in command, while comparison and extension commands remain available."
   ],
-  "archiveDigest": "c22079f0511979c15b70c85177ef54b0c4c7dde44d8bb6b108418f0c8ee9a677",
+  "archiveDigest": "a5b3e37fc206af99e2a6c8abf35ec2953f12a875ac01186c21b93d62f98952bf",
   "specDigest": "5d3b2bbbb930f5d1151532093dd25609d139a34d4aae09151f1375b45cfd4ad2",
-  "tasksDigest": "fd55cef315305a991bf0ca5abf02c03ab6d3eca8a6e7315be86b6b7f0e77b071",
-  "evidenceDigest": "c49dae801add9a2b3181df430ed299e7d097bf86272b9c16288beca48051dddd",
+  "tasksDigest": "c87a81e729282fa36c036dd15713c4417bc124b79c3c17e9be9b4db7fca6b9c0",
+  "evidenceDigest": "67ce2c216a02de8c918e8af00e97377610a84638f341160ead5c8d9e64f044db",
   "knownGaps": []
 }
 ```
