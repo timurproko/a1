@@ -22,6 +22,14 @@
 - Architecture boundaries, session writer guard, product identity boundaries/package governance, pinned source-port provenance, and changed-file documentation checks passed. The ledger records the current declarations and refreshed port digest.
 - Strict OpenSpec validation passed. Required exact-head CI remains the post-readiness authority; these local results do not claim remote CI success or manual acceptance.
 
+## Models opening and Hotkeys follow-up
+
+- Removed the deferred Models loading placeholder and unused initial refresh-status copy. The host holds the current terminal frame until the Models controller is ready, using the same atomic presentation boundary as other asynchronous selectors. The hold releases in `finally`; early input/cancellation and actual failures remain supported.
+- Regression tests assert an empty pending component render, preserved early search input, no terminal writes even on a forced render while held, a completed Models frame without loading/refresh text, and release on readiness or early cancellation.
+- Added Hotkeys to Launcher using its existing full-screen reference route and live keybinding document. Added cross-application coverage for reaching it, canceling Launcher over it, selecting the current Hotkeys screen without resetting it, returning to the retained Agent draft, and keyboard/pointer isolation.
+- Removed Hotkeys from the bare-A1 built-in catalog, completion/help inputs, and built-in slash route dispatch. Tests retain the comparison command manifest and in-feed behavior, and prove that a same-named extension completion remains available.
+- 174 tests passed across the ten affected dialog, shell/reference-screen, autocomplete, presenter, engine-workflow, and composition test files. The final atomic-presentation helper rerun passed all 46 tests in its three directly affected files; extracting that helper shrank the presenter factory from 271 to 267 lines, and the size ratchet was lowered accordingly. Typecheck, architecture/session-writer/product-identity guards, pinned source-port provenance, and strict OpenSpec validation also passed. Required exact-head CI must validate the follow-up; the previous finalized head is not current evidence.
+
 ## Known gaps
 
 None. Legacy terminals cannot distinguish Ctrl+M from Enter; preserving Enter is the approved compatibility behavior, with `/models` available for explicit selection.

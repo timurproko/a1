@@ -59,7 +59,7 @@ Launch A1, one agent in this terminal (profile: `~/.a1/agent`):
 a1
 ```
 
-In A1, **Ctrl+P** opens the searchable **Launcher**: Agent, Settings, and Changelog. You can switch from any of those screens; returning to Agent keeps the current session and draft. Settings and Changelog are applications rather than Agent slash commands.
+In A1, **Ctrl+P** opens the searchable **Launcher**: Agent, Settings, Changelog, and Hotkeys. You can switch from any of those screens; returning to Agent keeps the current session and draft. Settings, Changelog, and Hotkeys are applications rather than Agent slash commands.
 
 **Ctrl+M** cycles to the next model: all available models when no scope is set, or only available scoped models when a scope exists. **`/models`** opens the in-place Models selector to select a model or manage that scope. **Ctrl+L** cycles thinking levels, and **Alt+Up** restores queued messages. In legacy terminals that encode Ctrl+M as Enter, ordinary Enter still sends the prompt; use `/models` to select a model instead. Explicit keybinding overrides remain supported. Successful model changes update the status bar without an extra success message; errors and warnings remain visible.
 

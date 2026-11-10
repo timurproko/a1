@@ -28,11 +28,11 @@ describe("bare-A1 unified Models dialog", () => {
     const ownedBuiltIns = OWNED_BUILTIN_SLASH_COMMANDS.map(command => command.name);
     expect(ownedBuiltIns).toEqual(OWNED_WORKFLOW_COMMAND_NAMES);
     expect(ownedBuiltIns.slice(0, 3)).toEqual(["models", "thinking", "tree"]);
-    for (const removed of ["model", "scoped-models", "settings", "changelog"]) expect(ownedBuiltIns).not.toContain(removed);
-    expect(ownedBuiltIns).toHaveLength(PINNED_PI_BUILTIN_SLASH_COMMANDS.length - 3);
-    expect(OWNED_WORKFLOW_COMMAND_NAMES).toHaveLength(PINNED_PI_WORKFLOW_COMMAND_NAMES.length - 3);
+    for (const removed of ["model", "scoped-models", "settings", "changelog", "hotkeys"]) expect(ownedBuiltIns).not.toContain(removed);
+    expect(ownedBuiltIns).toHaveLength(PINNED_PI_BUILTIN_SLASH_COMMANDS.length - 4);
+    expect(OWNED_WORKFLOW_COMMAND_NAMES).toHaveLength(PINNED_PI_WORKFLOW_COMMAND_NAMES.length - 4);
     expect(workflowCommandNames("comparison")).toBe(PINNED_PI_WORKFLOW_COMMAND_NAMES);
-    for (const retained of ["model", "scoped-models", "settings", "changelog"]) expect(PINNED_PI_WORKFLOW_COMMAND_NAMES).toContain(retained);
+    for (const retained of ["model", "scoped-models", "settings", "changelog", "hotkeys"]) expect(PINNED_PI_WORKFLOW_COMMAND_NAMES).toContain(retained);
     for (const name of ["thinking", "login"]) {
       expect(OWNED_BUILTIN_SLASH_COMMANDS.find(command => command.name === name)).not.toHaveProperty("argumentHint");
       expect(PINNED_PI_BUILTIN_SLASH_COMMANDS.find(command => command.name === name)).toHaveProperty("argumentHint");
@@ -47,6 +47,7 @@ describe("bare-A1 unified Models dialog", () => {
       autocompleteCommands: [
         { name: "models", source: "builtin", argumentOptions: [{ id: "openai/gpt-5", label: "GPT-5" }] },
         { name: "model", source: "extension", description: "Extension command named model" },
+        { name: "hotkeys", source: "extension", description: "Extension Hotkeys action" },
       ],
     });
     for (const character of "/mod") editor.handleInput?.(character);
@@ -56,12 +57,42 @@ describe("bare-A1 unified Models dialog", () => {
     expect(rows).toContain("Extension command named model");
     expect(rows).not.toContain("scoped-models");
     expect(rows).not.toContain("Select model (opens selector UI)");
+    editor.setText("");
+    for (const character of "/hot") editor.handleInput?.(character);
+    await nextImmediate();
+    const extensionRows = editor.render(80).join("\n");
+    expect(extensionRows).toContain("Extension Hotkeys action");
+    expect(extensionRows).not.toContain("Show all keyboard shortcuts");
+  });
+
+  it("paints Models atomically without a loading or refresh-status frame", async () => {
+    const { shell, terminal } = await fixture([], [], true);
+    try {
+      shell.root.editor.setText("/models");
+      shell.runtime.renderNow(true);
+      const writesBefore = terminal.writes.length;
+      terminal.input(ENTER);
+      expect(shell.runtime.presentationHeld).toBe(true);
+      shell.runtime.renderNow(true);
+      expect(terminal.writes).toHaveLength(writesBefore);
+      await vi.dynamicImportSettled();
+      expect(shell.runtime.presentationHeld).toBe(false);
+      shell.runtime.renderNow(true);
+      const painted = stripTerminalSequences(terminal.writes.slice(writesBefore).join(""));
+      expect(painted).toContain("Models");
+      expect(painted).toContain("Filter: all | scoped");
+      expect(painted).not.toContain("Loading Models");
+      expect(painted).not.toContain("Refreshing model catalogs");
+      terminal.input(ESCAPE);
+      expect(defaultSurface(shell)).toBe(true);
+    } finally { await shell.dispose(); }
   });
 
   it("opens /models in place with argument seeding and preserves removed-command routing", async () => {
     const { engine, shell, adapter } = await fixture([], [], true);
     try {
       expect(adapter.workflows.workflowAutocompleteCommands().find(command => command.source === "builtin" && command.name.startsWith("model"))?.name).toBe("models");
+      expect(adapter.workflows.workflowAutocompleteCommands().filter(command => command.source === "builtin").map(command => command.name)).not.toContain("hotkeys");
       await shell.submit("/model"); await shell.submit("/scoped-models openai/gpt-5");
       expect(engine.session.calls).toContain("prompt:/model");
       expect(engine.session.calls).toContain("prompt:/scoped-models openai/gpt-5");

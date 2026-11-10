@@ -22,12 +22,12 @@
 
 ## 4. Hotkeys application
 
-- [ ] 4.1 Add searchable Hotkeys to Launcher using the existing reference-screen route and effective shortcuts document.
-- [ ] 4.2 Remove built-in Hotkeys from bare-A1 Agent catalog, completion, help, and route dispatch while preserving comparison and unrelated resource/extension commands.
-- [ ] 4.3 Add focused coverage for Launcher discovery, navigation from Hotkeys and back, same-app preservation, input isolation, live shortcut content, and comparison command behavior.
+- [x] 4.1 Add searchable Hotkeys to Launcher using the existing reference-screen route and effective shortcuts document.
+- [x] 4.2 Remove built-in Hotkeys from bare-A1 Agent catalog, completion, help, and route dispatch while preserving comparison and unrelated resource/extension commands.
+- [x] 4.3 Add focused coverage for Launcher discovery, navigation from Hotkeys and back, same-app preservation, input isolation, live shortcut content, and comparison command behavior.
 
 ## 5. Delivery preparation
 
-- [ ] 5.1 Update implementation evidence and any affected source-port provenance records; disposition every known gap.
-- [ ] 5.2 Run bounded affected tests, typecheck, strict OpenSpec validation, and applicable architecture/provenance/documentation checks.
-- [ ] 5.3 Prepare plain acceptance outcomes and reconcile current origin/develop before completing the final PR implementation outcome for trusted readiness and finalization.
+- [x] 5.1 Update implementation evidence and any affected source-port provenance records; disposition every known gap.
+- [x] 5.2 Run bounded affected tests, typecheck, strict OpenSpec validation, and applicable architecture/provenance/documentation checks.
+- [x] 5.3 Prepare plain acceptance outcomes and reconcile current origin/develop before completing the final PR implementation outcome for trusted readiness and finalization.

@@ -15,7 +15,7 @@ export function createDeferredModelsDialog(options: ModelsDialogConfig & ModelsD
   let focused = false;
   let models = options.models;
   let status: readonly [string, "muted" | "success" | "warning"] | undefined;
-  let loading = "Loading Models…";
+  let failure: string | undefined;
   const pending: string[] = [];
   const ready = import("./models-dialog.js").then(({ ModelsDialogComponent }) => {
     if (closed) return;
@@ -24,10 +24,10 @@ export function createDeferredModelsDialog(options: ModelsDialogConfig & ModelsD
     if (status !== undefined) dialog.setRefreshStatus(...status);
     for (const data of pending.splice(0)) { if (!closed) dialog.handleInput(data); }
     options.requestRender();
-  }).catch(() => { if (!closed) { loading = "Models unavailable — Esc close"; options.requestRender(); } });
+  }).catch(() => { if (!closed) { failure = "Models unavailable — Esc close"; options.requestRender(); } });
   return {
     ready,
-    render: width => dialog?.render(width) ?? [loading.slice(0, width)],
+    render: width => dialog?.render(width) ?? (failure === undefined ? [] : [failure.slice(0, width)]),
     handleInput: data => {
       if (dialog !== undefined) dialog.handleInput(data);
       else if (data === "\u001b" || data === "\u0003") options.onCancel();

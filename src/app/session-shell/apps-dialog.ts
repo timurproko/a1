@@ -5,6 +5,7 @@ const APPS = [
   { id: "agent", label: "Agent" },
   { id: "settings", label: "Settings" },
   { id: "changelog", label: "Changelog" },
+  { id: "hotkeys", label: "Hotkeys" },
 ] as const;
 type AppId = typeof APPS[number]["id"];
 const SCOPE = "apps";

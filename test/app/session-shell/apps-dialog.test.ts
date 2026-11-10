@@ -23,6 +23,7 @@ describe("Launcher dialog", () => {
     expect(text()).toContain("→ Agent");
     expect(text()).toContain("Settings");
     expect(text()).toContain("Changelog");
+    expect(text()).toContain("Hotkeys");
     expect(text()).toContain("Type search  ↑↓ navigate  Enter open  Esc close");
     for (const width of [12, 24, 60]) expect(dialog.render(width).every(row => displayWidth(row) === width)).toBe(true);
   });
@@ -36,7 +37,7 @@ describe("Launcher dialog", () => {
     expect(text()).toContain("Esc close");
   });
 
-  it.each([["SET", "settings"], ["change", "changelog"], ["agent", "agent"]])("filters %s case-insensitively and opens %s", (query, id) => {
+  it.each([["SET", "settings"], ["change", "changelog"], ["agent", "agent"], ["HOT", "hotkeys"]])("filters %s case-insensitively and opens %s", (query, id) => {
     const { dialog, select, text } = fixture();
     dialog.handleInput(query);
     expect(text()).toContain(`> ${query}`);

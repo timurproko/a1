@@ -25,7 +25,7 @@ describe("session application switching", () => {
     const shell = new OwnedUiSessionShell({
       presenters: createPiSessionPresenters(adapter),
       engine: { backend: adapter, cwd: "D:/work", sessionLayout: "custom-viewport", routeHost: {
-        claims: route => ["settings", "changelog"].includes(route),
+        claims: route => ["settings", "changelog", "hotkeys"].includes(route),
         open: route => {
           const state = { route, input: vi.fn(), mouse: vi.fn(), close: vi.fn() };
           surfaces.push(state);
@@ -77,10 +77,21 @@ describe("session application switching", () => {
       expect(surfaces[0]!.close).toHaveBeenCalledOnce();
       expect(surfaces.map(surface => surface.route)).toEqual(["settings", "changelog"]);
       expect(await text()).toContain("changelog");
+      terminal.input(APPS); terminal.input("hot"); terminal.input(ENTER);
+      await vi.dynamicImportSettled();
+      expect(surfaces[1]!.close).toHaveBeenCalledOnce();
+      expect(surfaces.map(surface => surface.route)).toEqual(["settings", "changelog", "hotkeys"]);
+      expect(await text()).toContain("hotkeys");
+      terminal.input(APPS); await text(); terminal.input(ESC);
+      expect(surfaces[2]!.close).not.toHaveBeenCalled();
+      terminal.input(APPS); terminal.input("hotkeys"); terminal.input(ENTER);
+      await vi.dynamicImportSettled();
+      expect(surfaces).toHaveLength(3);
+      expect(surfaces[2]!.close).not.toHaveBeenCalled();
       terminal.input(APPS); terminal.input(ENTER);
       await vi.dynamicImportSettled();
       expect(shell.runtime.hasOverlay()).toBe(false);
-      expect(surfaces[1]!.close).toHaveBeenCalledOnce();
+      expect(surfaces[2]!.close).toHaveBeenCalledOnce();
       expect(shell.root.editor.getText()).toBe("unfinished draft");
       expect(engine.session.calls.some(call => call.startsWith("prompt:") || call === "setModel")).toBe(false);
       expect(surfaces.flatMap(surface => surface.input.mock.calls)).toEqual([]);
