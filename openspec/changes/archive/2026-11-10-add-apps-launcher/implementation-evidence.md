@@ -25,6 +25,13 @@ These are bounded local observations, not exact-head CI or maintainer visual acc
 - Retained every transcript scroll/copy assertion for floating Models and the remaining dock selectors, checking focused-overlay ownership instead of incorrectly requiring prompt replacement. Settings now exercises the actual Apps/fullscreen path, including wheel/drag ownership, no background transcript scroll or clipboard write, and retained Agent draft.
 - The exact CI-selected changed-file documentation check, typecheck, and four explicitly selected session-shell test files passed locally: 101 tests covering paste/clipboard, Apps/application switching, the dialog coordinator, and workflow output. These bounded repair observations do not claim renewed exact-head CI success.
 
+## Core-lane CI repair
+
+- Development validation run `42795514273` passed the previous delivery/documentation/resource repairs and exposed 22 core assertions across six files still tied to the removed Settings command or dock-based Models. It also identified a real interaction regression: the collapsed Skills entry was inserted relative to Settings and disappeared when that entry was retired.
+- The Skills browser now occupies its primary command position independently of any retired app command. Existing command completion, argument/colon behavior, palette roles, history modes, menu layout/cursor stability, selection, and compaction input ownership retain explicit assertions using supported Agent commands.
+- Nested Settings selection/resize coverage now opens the actual fullscreen Settings route through Apps and traverses both thinking-level steps. It preserves the detached Agent scroll position, blocks background selection, and checks step-back, modal close, and application close independently.
+- All six CI-failing files passed locally with 210 tests. Typecheck, ownership/startup architecture checks, and changed-file documentation checks using a fresh impact selection also passed. Required CI and validation selection remain unchanged; this repair does not claim renewed exact-head CI success.
+
 ## Known gaps
 
 No known implementation gaps within the approved scope. The following constraints are explicitly dispositioned:

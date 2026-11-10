@@ -554,9 +554,9 @@ describe("Pi shell public component adapters", () => {
       expect(cellBackgroundAt(row, itemEnd)).toBe(selectionBackground);
     };
 
-    expectSplitRoles(selectedRow(bare, 80, "settings"), "settings", "Open settings menu");
-    bare.handleInput?.("\u001b[B");
     expectSplitRoles(selectedRow(bare, 80, "models"), "models", "Switch models and manage scoped model cycling");
+    bare.handleInput?.("\u001b[B");
+    expectSplitRoles(selectedRow(bare, 80, "thinking"), "thinking", "Set thinking level");
     bare.handleInput?.("\u001b");
     bare.setText("");
     bare.handleInput?.("/dep");

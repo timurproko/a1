@@ -365,12 +365,11 @@ function autocompleteCommandSetter(
     state.skills = collapsed.skills;
     const additions = new Map(collapsed.commands.map(command => [command.name, command]));
     const builtInNames = new Set(builtInCatalog.map(command => command.name));
-    const builtIns = builtInCatalog.flatMap(command => [
-      autocompleteCommand(command, additions.get(command.name)),
-      // Rationale: the collapsed browser is a primary bare-A1 command, not a resource after quit.
-      ...(command.name === "settings" && collapsed.collapsedCommand !== undefined
-        ? [autocompleteCommand(collapsed.collapsedCommand)] : []),
-    ]);
+    // Rationale: Skills is a primary command, independent of retired application commands.
+    const builtIns = [
+      ...(collapsed.collapsedCommand === undefined ? [] : [autocompleteCommand(collapsed.collapsedCommand)]),
+      ...builtInCatalog.map(command => autocompleteCommand(command, additions.get(command.name))),
+    ];
     const resources = collapsed.commands
       .filter(command => command.name !== collapsed.collapsedCommand?.name && command.source !== "builtin" && !builtInNames.has(command.name))
       .map(command => autocompleteCommand(command));
