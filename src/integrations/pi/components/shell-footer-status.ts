@@ -388,8 +388,9 @@ function expandedHeaderText(bindings?: OwnedUiShellKeybindings): string {
     rawKeyHint(process.platform === "win32" ? "" : "ctrl+z", "to suspend"),
     rawKeyHint("ctrl+k", "to delete to end"),
     rawKeyHint(keys?.getKeys("app.thinking.cycle").join("/") ?? "shift+tab", "to cycle thinking level"),
-    rawKeyHint("ctrl+p/shift+ctrl+p", "to cycle models"),
-    // Invariant: only bare A1 supplies live bindings, and its unbound fallback is the unified `/models` command.
+    rawKeyHint(keys === undefined ? "ctrl+p/shift+ctrl+p" : [...keys.getKeys("app.model.cycleForward"), ...keys.getKeys("app.model.cycleBackward")].join("/") || "unbound", "to cycle models"),
+    ...(keys === undefined ? [] : [rawKeyHint(keys.getKeys("owned.apps.open").join("/") || "unbound", "to open Apps")]),
+    // Invariant: only bare A1 supplies live bindings; `/models` remains the legacy-terminal fallback.
     rawKeyHint(keys === undefined ? "ctrl+l" : keys.getKeys("app.model.select").join("/") || "/models", "to select model"),
     rawKeyHint("ctrl+o", "to expand tools"),
     rawKeyHint("ctrl+t", "to expand thinking"),

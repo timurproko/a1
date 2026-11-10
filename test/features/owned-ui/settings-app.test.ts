@@ -197,7 +197,7 @@ const SUCCESS_HOST: AppHostServices = {
   ...HOST,
   theme: { ...NAMING_THEME, fg: (token, text) => token === "success" ? `\u001b[32m${text}\u001b[39m` : text },
 };
-const PANEL_BACKGROUND = "\u001b[48;2;38;38;38m";
+const PANEL_BACKGROUND = "\u001b[48;2;65;65;65m";
 const MENU_BACKGROUND = "\u001b[48;2;55;55;55m";
 const PANEL_THEME: UiTheme = Object.freeze({
   fg: (_token: UiThemeToken, text: string) => text,
@@ -836,7 +836,7 @@ describe("the settings screen", () => {
     expect(dialogHint).not.toContain(" to ");
     const rendered = target.render({ width: 80, height: 24 }, PANEL_HOST);
     expect(rendered.some(line => line.includes(PANEL_BACKGROUND))).toBe(true);
-    expect(rendered.some(line => line.includes("\u001b[2m") && line.includes("\u001b[22;39;49m"))).toBe(true);
+    expect(rendered.some(line => line.includes("\u001b[0;38;5;240;48;5;233m") && line.includes("\u001b[22;39;49m"))).toBe(true);
 
     target.onInput?.(SPACE, HOST);
     expect(find(target, "Anthropic extra usage")).toContain("true");
@@ -885,7 +885,7 @@ describe("the settings screen", () => {
     const title = lines.findIndex(line => line.trim() === "Warnings");
     const firstPart = lines.findIndex(line => line.includes("Anthropic extra usage"));
     expect(frame).toHaveLength(24);
-    expect(frame.every(line => line.includes("\u001b[2m"))).toBe(true);
+    expect(frame.every(line => line.includes("\u001b[0;38;5;240;48;5;233m"))).toBe(true);
     expect(lines).toHaveLength(10);
     expect(lines[0]?.trim()).toBe("");
     expect(title).toBe(1);

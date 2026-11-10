@@ -1,7 +1,7 @@
 import { SUGGESTION_CONVERSATIONS } from "../../fixtures/prompt-suggestion-conversations.js";
 import { SuggestionDiagnosticCapture } from "../../../src/features/prompt-suggestions/index.js";
 import { memoryHistory } from "./prompt-history-fixture.js";
-import { type ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import { type AgentSessionRuntime, type ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -28,7 +28,14 @@ vi.mock("node:worker_threads", async importOriginal => {
 import { piTheme } from "../../../src/integrations/pi/components/index.js";
 import { replayTerminalBackgroundCells, replayTerminalCheckpoints, replayTerminalPaint } from "../../support/rendering/terminal-paint-evidence.js";
 import type { OwnedUiPromptSuggestionGeneratorPort, OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../../../src/contracts/owned-ui/index.js";
-import { fixture, nextImmediate } from "./session-shell-fixture.js";
+import { fixture, nextImmediate, Runtime } from "./session-shell-fixture.js";
+import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
+import { createOwnedRouteHost } from "../../../src/composition/index.js";
+import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
+import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
+import { OwnedSettingsManager } from "../../../src/ui/settings/index.js";
+import type { UiRouteSurface } from "../../../src/ui/apps/index.js";
+import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
 
 describe("OwnedUiSessionShell transcript selection and scrolling", () => {
   it("keeps empty last-message copy silent through the shortcut and explicit workflow", async () => {
@@ -89,37 +96,69 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     } finally { await shell.dispose(); }
   });
 
-  it("keeps nested settings and post-resize transcript hit regions independent", async () => {
-    const { shell, terminal } = await fixture([{ role: "assistant", content: [{ type: "text", text: "alpha beta gamma\n\n".repeat(100) }] }], [], true);
+  it("keeps nested Settings and post-resize transcript hit regions independent", async () => {
+    const root = await mkdtemp(join(tmpdir(), "a1-nested-settings-selection-"));
+    const engine = new Runtime([{ role: "assistant", content: [{ type: "text", text: "alpha beta gamma\n\n".repeat(100) }] }]);
+    const adapter = await createPiEngineAdapter({ cwd: root, agentDir: root, sessionId: "nested-settings", settingsProductMode: "bare",
+      createRuntime: async () => engine as unknown as AgentSessionRuntime });
+    const settings = new OwnedSettingsManager({ configDir: root, profileId: "a1", agent: {
+      capabilities: { write: true, flush: false },
+      async listSettings() { return [{ key: "modelThinkingLevels", label: "Default thinking level per model", valueType: "json",
+        writable: true, available: true, application: "live", owner: "agent", limitationReason: null, storedValue: {}, effectiveValue: {},
+        flags: [{ key: "openai/gpt-5", label: "gpt-5 [openai]", description: "Global default", fallback: "default", choices: ["default", "low", "high"] }],
+      }]; },
+      readSetting: async () => ({}),
+      writeSetting: async (_key, value) => ({ status: "applied", application: "live", storedValue: value, effectiveValue: value, failure: null, limitationReason: null }),
+    } });
+    await settings.load();
+    const routes = createOwnedRouteHost(settings, undefined, { agentDir: root, cwd: root });
+    let surface: UiRouteSurface | null = null;
+    const terminal = new TestPresentationTerminal();
+    const shell = new OwnedUiSessionShell({ presenters: createPiSessionPresenters(adapter),
+      engine: { backend: adapter, cwd: root, sessionLayout: "custom-viewport", routeHost: {
+        claims: route => routes.claims(route), open: (route, input) => { surface = routes.open(route, input); return surface; },
+      } }, presentation: { terminal, reload: { minVisibleMs: 0 } },
+    });
+    const screen = () => surface!.render(terminal.columns, terminal.rows).map(stripTerminalSequences).join("\n");
     try {
-      terminal.resize(80, 54);
-      await shell.submit("/settings");
-      terminal.input("per model");
-      terminal.input("\r");
-      await nextImmediate();
-      shell.runtime.renderNow();
-      expect(shell.root.render(80).join("\n")).toContain("Per-Model Thinking Level");
-      terminal.input("\u001b[<64;2;3M".repeat(4));
-      shell.runtime.renderNow();
+      shell.start(); terminal.resize(80, 54); shell.runtime.renderNow();
+      terminal.input("\u001b[<64;2;3M"); await nextImmediate(); shell.runtime.renderNow();
+      expect(shell.root.viewportFrameDescriptor()?.followingEnd).toBe(false);
       const top = shell.root.viewportPresentationEvidence().scrollTop;
+      terminal.input("\u0010"); await vi.dynamicImportSettled();
+      terminal.input("settings"); terminal.input("\r"); await vi.dynamicImportSettled();
+      await vi.waitFor(() => expect(screen()).toContain("Default thinking level per model"));
+      terminal.input("\u001b[1;5F"); await nextImmediate();
+      for (let step = 0; step < 20 && !screen().includes("→ Default thinking level per model"); step++) {
+        terminal.input("\u001b[A"); await nextImmediate(); shell.runtime.renderNow();
+      }
+      expect(screen()).toContain("→ Default thinking level per model");
+      terminal.input("\r"); await nextImmediate();
+      expect(screen()).toContain("Thinking Level (step 1/2)");
+      terminal.input("\r"); await nextImmediate();
+      expect(screen()).toContain("Thinking Level (step 2/2)");
+      shell.runtime.renderNow();
+      terminal.input("\u001b[<64;2;3M".repeat(4));
       const row = shell.root.render(80).findIndex(line => stripTerminalSequences(line).includes("alpha")) + 1;
+      expect(row).toBeGreaterThan(0);
       terminal.input(`\u001b[<0;2;${row}M\u001b[<32;7;${row}M`);
       terminal.resize(70, 48);
       terminal.input("\u001b[<32;3;2M\u001b[<0;3;2m");
-      expect(shell.root.hasActiveSelection()).toBe(false);
       shell.runtime.renderNow();
+      expect(shell.root.hasActiveSelection()).toBe(false);
       expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
       terminal.input("\u001b");
-      await nextImmediate();
-      shell.runtime.renderNow();
-      expect(shell.root.render(70).join("\n")).not.toContain("Select reasoning depth");
-      expect(shell.root.usesDefaultInputSurface()).toBe(false);
+      expect(screen()).toContain("Thinking Level (step 1/2)");
+      expect(shell.runtime.hasOverlay()).toBe(true);
       terminal.input("\u001b");
-      await nextImmediate();
-      shell.runtime.renderNow();
+      expect(screen()).not.toContain("Thinking Level (step");
+      expect(surface!.isClosed()).toBe(false);
+      expect(shell.runtime.hasOverlay()).toBe(true);
+      terminal.input("\u001b");
+      expect(shell.runtime.hasOverlay()).toBe(false);
       expect(shell.root.usesDefaultInputSurface()).toBe(true);
       expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
-    } finally { await shell.dispose(); }
+    } finally { await shell.dispose(); await rm(root, { recursive: true, force: true }); }
   });
 
   it("keeps overlay paint above transcript selection while streaming and blocks full-cover click-through", async () => {
@@ -178,7 +217,8 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       const closed = position();
       terminal.input("/");
       await nextImmediate(); await nextImmediate();
-      expect(shell.root.render(80).join("\n")).toContain("settings");
+      expect(shell.root.render(80).join("\n")).toContain("models");
+      expect(shell.root.render(80).join("\n")).not.toContain("Open settings menu");
       expect(position()).toEqual(closed);
       terminal.input("mo");
       await nextImmediate(); await nextImmediate();
@@ -218,7 +258,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
         terminal.input("/");
         const opened = await capture();
         expect(shell.root.editor.bodyGeometry!().rowOffset).toBeGreaterThan(0);
-        const selectedMenuRow = opened.rows.find(row => row.includes("→ settings"));
+        const selectedMenuRow = opened.rows.find(row => row.includes("→ models"));
         expect(selectedMenuRow?.indexOf("→")).toBe(1);
         if (state === "streaming") {
           const workingRow = opened.rows.find(row => row.includes("Working"));

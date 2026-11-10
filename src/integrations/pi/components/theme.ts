@@ -8,6 +8,7 @@ import {
   type UiThemeBackground,
   type UiThemeToken,
 } from "../../../contracts/presentation/index.js";
+import { renderFloatingDialogSurface } from "../../../ui/components/spans.js";
 import { stripTerminalSequences, truncateToWidth, type MarkdownTheme, type SelectListTheme } from "@earendil-works/pi-tui";
 import { getMarkdownTheme } from "../startup-public.js";
 import { onPiThemeChange, piTheme, renderPiAccentPreview } from "./upstream/theme/theme.js";
@@ -27,6 +28,11 @@ export {
 } from "./upstream/theme/theme.js";
 
 type Paint = (text: string) => string;
+
+/** The owned floating-panel background in the live terminal color capability. */
+export function paintPiFloatingDialog(text: string): string {
+  return renderFloatingDialogSurface(text, piTheme().getColorMode());
+}
 
 /** The live Pi theme in neutral roles; `panel` and `disabled` default to plain and dim. */
 export function piUiTheme(options: { readonly panel?: Paint; readonly disabled?: Paint } = {}): UiTheme {

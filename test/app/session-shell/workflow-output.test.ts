@@ -50,6 +50,28 @@ describe("WorkflowOutput", () => {
     expect(anchored).toEqual([]);
   });
 
+  it.each(["model", "models"] as const)("keeps successful %s changes quiet without hiding actionable diagnostics", command => {
+    const { output, dock, anchored } = harness(true);
+    output.appendResult(result({ command, message: "Switched to a model", presentation: { kind: "model-change" } }));
+    expect(dock.setNotice).not.toHaveBeenCalled();
+    output.appendResult(result({ command, presentation: { kind: "model-change" }, messages: [
+      { kind: "warning", message: "catalog offline" }, { kind: "status", message: "Model: selected" },
+    ] }));
+    output.appendResult(result({ command, outcome: "failed", message: "No API key" }));
+    output.appendResult(result({ command, outcome: "cancelled", message: "cancelled" }));
+    expect(dock.setNotice.mock.calls.map(([notice]) => notice)).toEqual([
+      { kind: "warning", message: "catalog offline" }, { kind: "error", message: "No API key" },
+    ]);
+    expect(anchored).toEqual([]);
+    output.appendResult(result({ command, message: "A provider warning", messageKind: "warning", presentation: { kind: "model-change" } }));
+    expect(dock.setNotice).toHaveBeenLastCalledWith({ kind: "warning", message: "A provider warning" });
+    output.appendResult(result({ command, message: "Only one model available" }));
+    expect(dock.setNotice).toHaveBeenLastCalledWith({ kind: "status", message: "Only one model available" });
+    const pinned = harness(false);
+    pinned.output.appendResult(result({ command, message: "Switched to a model", presentation: { kind: "model-change" } }));
+    expect(pinned.text()).toContain("Switched to a model");
+  });
+
   it("anchors pinned output after the transcript and replaces a repeated status in place", () => {
     const { output, document, anchored, invalidate, text, grow } = harness(false);
     output.appendStatus("first");
