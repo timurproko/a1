@@ -261,8 +261,11 @@ export class SessionSelectors implements WorkflowSelectors {
   }
 
   /** The bare-A1 unified Models dialog: switch on Enter, scope on Space, persist on Ctrl+S, all through the engine. */
-  showModelsDialog(initialQuery?: string): void {
-    this.#presenters.openModelsDialog(this.#dialogHost, initialQuery);
+  showModelsDialog(initialQuery?: string): void | Promise<void> {
+    return this.#presenters.openModelsDialog(this.#customViewport ? {
+      ...this.#dialogHost,
+      setInputSurface: component => this.#dialogs.setFloatingInput(component),
+    } : this.#dialogHost, initialQuery);
   }
 
   #treeSummary(): Promise<string | undefined> {

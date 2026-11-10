@@ -50,5 +50,7 @@ export interface ShellPresentationPorts {
   canvasBackground(style: CanvasBackgroundStyle): string | null;
   /** Columns the pinned comparison layout pads command output with. */
   readonly pinnedOutputPad: 0 | 1;
+  /** Live color-capability-aware background for owned floating panels only. */
+  readonly floatingDialogSurface?: (text: string) => string;
   readonly terminalRuntime: TerminalRuntimeFactory;
 }

@@ -1,5 +1,7 @@
 import { PI_SHELL_COMPONENTS } from "../../support/pi-shell-components.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { TerminalComponentPort } from "../../../src/contracts/presentation/index.js";
+import { PI_SHELL_PRESENTATION } from "../../../src/integrations/pi/session-presenters/presentation.js";
 import type { OwnedUiDialog } from "../../../src/contracts/owned-ui/index.js";
 import type { UiRouteHost } from "../../../src/ui/apps/contracts.js";
 
@@ -33,14 +35,14 @@ function harness(overrides: { routeHost?: UiRouteHost | null; startupRoute?: { r
   const terminal = {
     running: true,
     hasOverlay: () => overlay,
-    showOverlay: vi.fn((component: { kind: string }) => ({ hide: () => hidden.push(component.kind) })),
+    showOverlay: vi.fn((component: { kind: string }) => ({ hide: () => hidden.push(component.kind ?? "apps") })),
     openRoute: vi.fn((surface: { id: string }, callbacks: { closed(rendered: boolean): void; exit(): void }) => {
       routes.push({ id: surface.id, ...callbacks });
-      return { hide: () => hidden.push(`route:${surface.id}`) };
+      return { hide: () => hidden.push(`route:${surface.id}`), close: () => { hidden.push(`route:${surface.id}`); callbacks.closed(true); } };
     }),
     requestRender: vi.fn(),
   };
-  const root = { chrome: { dismissNotice: vi.fn() }, setInputSurface: vi.fn(), usesDefaultInputSurface: () => defaultSurface };
+  const root = { chrome: { dismissNotice: vi.fn(), setNotice: vi.fn() }, setInputSurface: vi.fn(), usesDefaultInputSurface: () => defaultSurface };
   const routeHost = overrides.routeHost === undefined
     ? { open: (route: string) => ({ id: `${route}-surface` }), claims: (name: string) => name === "settings" } as unknown as UiRouteHost
     : overrides.routeHost;
@@ -51,6 +53,8 @@ function harness(overrides: { routeHost?: UiRouteHost | null; startupRoute?: { r
     root: root as never,
     routeHost,
     dialogs: PI_SHELL_COMPONENTS.dialogs,
+    presentation: PI_SHELL_PRESENTATION,
+    viewport: () => ({ rows: 24 }),
     disposed: () => false,
     exit,
     routeClosed,
@@ -80,6 +84,43 @@ describe("SessionDialogCoordinator", () => {
     expect(routeClosed).toHaveBeenCalledWith("settings");
     coordinator.onSessionReplaced();
     expect(hidden).toEqual(["selector"]);
+  });
+
+  it("opens Apps over a route, cancels back, preserves the current app, and switches to Agent", async () => {
+    const { coordinator, terminal, hidden, root } = harness();
+    coordinator.openRoute("settings");
+    const apps = () => terminal.showOverlay.mock.calls.at(-1)![0] as unknown as TerminalComponentPort;
+    const open = async () => { coordinator.showApps(); await vi.dynamicImportSettled(); };
+    await open(); apps().handleInput?.("\u001b");
+    expect(hidden).toEqual(["apps"]);
+    await open(); apps().handleInput?.("settings"); apps().handleInput?.("\r");
+    expect(terminal.openRoute).toHaveBeenCalledOnce();
+    expect(hidden).toEqual(["apps", "apps"]);
+    await open(); apps().handleInput?.("change"); apps().handleInput?.("\r");
+    expect(hidden).toContain("route:settings-surface");
+    expect(terminal.openRoute).toHaveBeenCalledTimes(2);
+    await open(); apps().handleInput?.("\r");
+    expect(hidden).toContain("route:changelog-surface");
+    expect(root.setInputSurface).not.toHaveBeenCalled();
+  });
+
+  it("acknowledges a rendered startup document when Apps leaves its route", async () => {
+    const { coordinator, terminal } = harness();
+    const acknowledged = vi.fn();
+    coordinator.openRoute("changelog", undefined, acknowledged);
+    coordinator.showApps(); await vi.dynamicImportSettled();
+    const apps = terminal.showOverlay.mock.calls.at(-1)![0] as unknown as TerminalComponentPort;
+    apps.handleInput?.("\r");
+    expect(acknowledged).toHaveBeenCalledOnce();
+  });
+
+  it("closes a selector before running an action that opens the destination", () => {
+    const { coordinator, hidden } = harness();
+    coordinator.showSelector("Pick", [], () => coordinator.openRoute("settings"));
+    created[0]!.onSelect("settings");
+    expect(hidden).toEqual(["selector"]);
+    coordinator.onSessionReplaced();
+    expect(hidden).toEqual(["selector", "route:settings-surface"]);
   });
 
   it("fails an unavailable route without touching the current dialog", () => {
