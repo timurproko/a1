@@ -6,13 +6,39 @@ Unrelated standalone documentation remains separate: a non-draft unassociated PR
 
 Version-1 and version-2 deliveries and their existing comments, acceptance PRs, archive PRs, receipts, retries, and bounded catch-up remain supported under [Legacy delivery](#legacy-delivery). Do not silently convert an in-flight legacy delivery.
 
+## Agent operating guide
+
+This runbook owns the delivery lifecycle. The [worktree protocol](architecture/project-structure.md#development-worktrees) owns checkout creation, identity, ownership, and runtime adapters; [local cleanup](local-worktree-cleanup.md) owns removal decisions, commands, blockers, and recovery. `AGENTS.md`, the delivery skill, and OpenSpec context are concise entry points, not separate copies of these procedures. Detailed checks stay in their owning runbook and tooling.
+
+### Authorization without repeated confirmation
+
+A planning-only request authorizes planning only. Once a concrete plan has been presented, one explicit instruction approving it and requesting implementation satisfies both requirements; no separate messages or special approval phrase are required. Ask only about a genuinely missing scope or authorization decision, not an approval already given. Reconcile approved refinements in the same PR before corresponding implementation edits.
+
+Implementation approval never grants merge permission, foreign-worktree ownership, unrelated user-file deletion, or background cleanup authority. Use the separate [exact-candidate merge procedure](#maintainer-requested-agent-merge) and [cleanup decisions](local-worktree-cleanup.md#cleanup-decisions). A named-export deletion request does not require preservation approval instead.
+
+### Branches and validation
+
+Keep unrelated changes out. Use `type/short-description` branches with `feature`, `fix`, `refactor`, `docs`, `test`, `chore`, or `style`, and `type(scope): subject` commits; mark incompatible changes with `BREAKING CHANGE:`.
+
+Before pushing, run only quick targeted checks of what changed: typecheck, the test files covering the changed code, and strict OpenSpec validation. Do not run preflight, `test:fast`, `test:full`, `test:release`, or directory-wide suites unless reproducing a reported CI failure or explicitly requested by the maintainer. Preflight is diagnostic, not CI authority. Draft PRs run no Development test suites; ready finalized candidates receive the selected exact-head validation. Use [complete-regression ordering](#complete-regression-evidence-ordering) for trusted failed-Full repairs, not broader local test runs.
+
+After a push, do not watch CI in the foreground. Read and report its current result before unrelated work; do not poll for completion. Repair routine failed checks in the same branch/PR without weakening behavior, assertions, coverage, or required checks. Ask for approval only when a repair adds substantive scope. A changed candidate or target requires renewed applicable validation.
+
+### Generated proposals
+
+Nightly regression repairs and Pi upgrades are ordinary implementation-bound changes. Continue the generated branch and PR. Check each generated Implementation outcome when its work is complete, including an outcome needing no code change; do not rewrite the generated items. Keep detailed report evidence in its existing comments/design; do not add commits solely to insert a final CI run ID or body edits solely to record lifecycle phase. Draft implementation runs no Development suites.
+
+Failed-Full repair selection follows the immutable provenance checks in [complete-regression ordering](#complete-regression-evidence-ordering); labels or naming never select it. Regression repair templates retain two implementation outcomes, one acceptance outcome, and triage metadata under Automation. Pi-upgrade proposals retain four implementation outcomes and one acceptance outcome; their version delta, changelog excerpt, gate verdicts, and review items remain in sync report comments/design. Publishing recovery remains independent of PR validation. The existing post-publication `chore/release-X.Y.Z-dev` reopening exception is limited to `openspec-ci[bot]`, version-only manifests, and a note matching the published Release; it grants no implementation integration authority.
+
+### Handoff and reporting
+
+Provide the absolute worktree, branch/commit, change, PR, behavior, known gaps, applicable run or inspection command, and whether editing ownership is handed over. For interactive checkout tests, build first and use `./scripts/dev` or `./scripts/dev pi`, never a direct Node launcher. Follow `AGENTS.md` for pasteable user-command formatting. End runnable implementation reports with `🧪 Manual test:` and the applicable command; a documentation-only change needs inspection, not a product build. Say when nothing is runnable instead of inventing a test.
+
+After exact-head required validation succeeds, park the exact candidate with the primary-checkout `handoff` command, and repeat after a validated repair. It registers/releases cleanup ownership without removing anything. Do not add a lifecycle body edit, rerun successful validation, wait for merge, or start a watcher. Leave integration to a current authorized maintainer decision. CI counts are not progress, and manual validation never blocks truthful task completion or readiness.
+
 ## Worktree context across agent environments
 
-External agents use ordinary Git worktrees without an A1 installation, runtime, or session link. Follow the [development worktree protocol](architecture/project-structure.md#development-worktrees): keep primary on `develop`, run the cleanup sweep, inspect Git inventory, and verify the exact task root, common repository, branch, and state before edits. A fresh worktree created by the session establishes its provenance. An existing delivery needs continuing ownership or explicit handoff plus the exact branch, change, and PR; inventory and a clean checkout alone grant nothing.
-
-Use A1 inventory/linking only inside an active A1 shell-tool session, and Claude Code's established worktree hooks in that environment. Missing A1 integration alone does not block an external agent. A known live owner, Git lock, conflicting cleanup owner, or unverifiable handoff still blocks reuse. Claim any released cleanup registration through the [cleanup ownership protocol](local-worktree-cleanup.md#resume-or-recover-ownership) before editing. Neither a runtime link nor a cleanup claim proves the absence of arbitrary external editors; coordination remains cooperative.
-
-Repeat context and ownership verification on resume or stream changes, preserve the delivery's branch/history/PR, and keep every command explicitly scoped to its worktree. Handoffs name the absolute worktree path, branch, change, PR, and whether editing ownership is being handed over. An editing handoff does not register, release, or authorize cleanup and grants no integration authority. The lifecycle below applies equally to all agent environments.
+Follow the [development worktree protocol](architecture/project-structure.md#development-worktrees) before creating, resuming, or switching checkouts. It defines the common Git path and conditional A1/Claude Code adapters; external agents need no A1 installation or runtime link. Editing handoff, runtime association, cleanup ownership, and integration authority remain distinct.
 
 ## Version-3 lifecycle
 

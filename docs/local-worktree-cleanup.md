@@ -6,6 +6,21 @@ The implementation is repository tooling, not part of the installed A1 product. 
 
 If the whole repository moves to another canonical path or Windows drive, a carried cleanup journal still names the old absolute paths. Read-only `status` and `preview` report `state-relocation-required` and never rewrite it. The next mutation-locked operation safely rebases the journal only when every recorded entry is completed terminal history, the repository and remote identities still match, and every historical path is beneath the old recorded worktree root. The migration is atomic and changes only repository/path fields; the requested current worktree is then captured afresh and must pass every ordinary cleanup gate. Any owned, released, partially deleting, malformed, escaped, or identity-mismatched entry blocks relocation without changing the journal or local resources.
 
+## Cleanup decisions
+
+Use one clear request for one identified scope; do not ask the maintainer to repeat a decision already supplied. Tool confirmation flags encode that authority and are not a reason for another conversational confirmation.
+
+| Request | Action |
+| --- | --- |
+| Ordinary cleanup of completed work | Use `sweep` for released candidates or exact `complete`; retain every reported blocker. |
+| Delete one identified export | Follow [export decisions](#export-decisions); preservation is not mandatory. |
+| Preserve one identified export | Use optional [named-export preservation](#explicit-named-export-preservation). |
+| Discard a rejected change and its remote branch | Use exact confirmed `discard` only when both rejection and remote deletion are authorized. One explicit request can supply both. |
+| Stop development processes, remove a disposable link, retire a redundant checkout, or enable background cleanup | Use the corresponding exact authorized operation below; generic cleanup does not imply these extra permissions. |
+| Ambiguous file, conflicting owner, dirty work, unavailable evidence, or a lock | Retain the affected scope and report the actionable blocker. Ask only for a missing decision; do not repeat an unchanged attempt without a reason. |
+
+Automatic cleanup remains conservative. Explicit file decisions do not weaken worktree/branch eligibility, ownership, content, link, process, or compare-and-delete safeguards. Use integrated tooling from primary, not unmerged task tooling against live worktrees. Detailed journals, races, and recovery belong in tooling and the sections below; user-facing reports should state the result or blocker concisely.
+
 ## Hand-off and sweep: the ordinary agent path
 
 The delivering agent's session usually ends before the maintainer merges, so cleanup is split into two commands that never need the same session. When the validated PR is handed to the maintainer, and again after any repair push, the owning agent parks the worktree from the primary checkout:
@@ -92,7 +107,7 @@ Agents do not manually remove generated content, call `git worktree remove`, or 
 
 ## Explicit closed-unmerged discard
 
-Closing a PR does not itself authorize deletion. After the maintainer explicitly rejects one exact PR and separately confirms remote deletion, run the candidate-scoped command from the primary checkout:
+Closing a PR does not itself authorize deletion. Require explicit rejection of the exact PR and authority to delete its remote branch; one clear request may supply both. Then run the candidate-scoped command from the primary checkout:
 
 ```bash
 node scripts/governance/local-worktree-cleanup.mjs discard \
@@ -119,11 +134,19 @@ Branch mode verifies the named same-repository PR is still closed-unmerged into 
 
 A branch-scoped `branch-discard-<ref-digest>.json` journal beside the ordinary cleanup state pins the repository, exact ref, change, PR, expected head, and deletion step without changing existing worktree records. After local preflight, the command journals intent, revalidates live evidence, expected-head deletes only the remote ref, verifies remote absence, and compare-and-deletes the unchanged local ref. Absent refs support resumption. Repeated completed requests report `already-discarded` only while both refs remain absent; a recreated ref is retained as `discard-ref-recreated`. Command reports, not the worktree-only registration list, describe this branch-scoped state. Sweep and queue never invoke branch-only discard.
 
+## Export decisions
+
+Default bare-A1 exports live in `~/.a1/exports/`; see [session exports](features/session-exports.md). An existing worktree export is user data, not an automatic cleanup disposable.
+
+- **Delete:** an explicit request to delete one identified export is sufficient. Its exact path or an unambiguous previously reported blocker in the same interaction identifies the file; do not demand a copy or another preservation confirmation. Verify the candidate and ownership, regular-file identity, untracked HTML/JSONL status, and real non-link ancestors within that worktree. Recheck identity immediately before non-recursively unlinking only that file. Do not follow links, delete directories, remove tracked content, or resolve another owner's blocker by deleting their files.
+- **Preserve:** when chosen, use the optional confirmed operation below. Its verified-copy and journal safeguards remain unchanged.
+- **Unspecified:** a generic cleanup request does not authorize deleting unknown exports. Report the file and ask only whether to retain, preserve, or delete it. Do not add a blanket filename pattern to ignored/disposable content.
+
+Either file decision leaves subsequent worktree and branch removal to integrated cleanup tooling with every ordinary safeguard intact. A deletion request does not authorize overriding another blocker.
+
 ## Explicit named-export preservation
 
-Default bare-A1 exports now live in the persistent user directory `~/.a1/exports/`; see [session exports](features/session-exports.md). Existing exports in a worktree remain user data, not cleanup disposables. Adding a filename pattern to `.gitignore` or the disposable policy is not a preservation operation.
-
-After the maintainer explicitly chooses one named legacy export to preserve, run the integrated repository operation from primary:
+This optional operation is for a maintainer who wants to keep a named legacy export. It is not a prerequisite when deletion was explicitly requested. Run it from primary:
 
 ```bash
 cd /d/Git/a1 && node scripts/governance/local-worktree-cleanup.mjs preserve-export --repo D:/Git/a1 --path D:/Git/a1/.worktrees/example-task --change example-change --pr 123 --file session.html --confirm-preserve-export
