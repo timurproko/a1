@@ -20,10 +20,10 @@ The maintainer integration decision accepts these scenarios:
     "An explicit request to delete an identified worktree export needs no preservation prompt, while preservation remains optional and generic cleanup retains unknown files.",
     "Agent entry points route to the owning procedures, and one explicit instruction can approve a presented plan and request implementation without authorizing merge."
   ],
-  "archiveDigest": "f66cc0bc3490439c465a01cb528d366aa547c0b163eb94b90b12fc551ade1749",
+  "archiveDigest": "777b00ac0c09a9d7491e3ff99dc5419dbccd21d90e7a2bdcdd076f7df2415e16",
   "specDigest": "849378a031eea21d648bd6941b01d59b41ab92d94d00f109844d2df754a2fba2",
-  "tasksDigest": "81bafe47aa8890c81a99e0840db690ffe768b0cbdef244d2974c67e2ce8e9771",
-  "evidenceDigest": "2145f4d043ccb662160e7fb347ab6f6686a656960c775deb5dd0dca7cfa4a3e7",
+  "tasksDigest": "495117cb43bb22de981938077956ba65ef7d31a53b6358335b742bc38495afd9",
+  "evidenceDigest": "d590622543d69ab5eac6bcf5b9e1ded7de390f208395a751fe429b3bb317b1a4",
   "knownGaps": []
 }
 ```
