@@ -16,4 +16,4 @@
 ## 3. Delivery preparation
 
 - [x] 3.1 Complete bounded checks, strict OpenSpec validation, safeguard review, and explicit known-gap disposition.
-- [ ] 3.2 Prepare plain acceptance outcomes and push the completed candidate reconciled with current origin/develop before the final Implementation marker.
+- [x] 3.2 Prepare plain acceptance outcomes and push the completed candidate reconciled with current origin/develop before the final Implementation marker.
