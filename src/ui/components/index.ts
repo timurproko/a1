@@ -5,6 +5,8 @@ export {
   dialogRowAt,
   dialogValueColumn,
   renderCenteredDialogOverlay,
+  renderModalBackdrop,
+  renderFloatingDialogSurface,
   renderDialogPanel,
   renderSteppedDialogPanel,
 } from "./dialog-panel.js";

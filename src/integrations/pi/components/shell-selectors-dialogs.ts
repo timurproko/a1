@@ -26,7 +26,8 @@ import {
 import type { OwnedUiDialog } from "../../../contracts/owned-ui/index.js";
 import { ScopedModelsSelectorComponent } from "./upstream/components/scoped-models-selector.js";
 import { addPiModalSelectFooter, adoptPiModalFrame, adoptPiModalHeader, adoptPiModalSearchInput } from "./modal-frame.js";
-import { ModelsDialogComponent, type ModelsDialogCallbacks, type ModelsDialogConfig } from "./models-dialog.js";
+import { createDeferredModelsDialog } from "./models-dialog-loader.js";
+import type { ModelsDialogCallbacks, ModelsDialogConfig } from "./models-dialog.js";
 import { TrustSelectorComponent, type TrustDecision, type TrustOption, type TrustUpdate } from "./upstream/components/trust-selector.js";
 import {
   canonicalizePiSettingsHint,
@@ -229,6 +230,7 @@ export function createPiShellScopedModelsSelector(options: PiShellScopedModelsSe
 export interface PiShellModelsDialogOptions extends ModelsDialogConfig, ModelsDialogCallbacks {}
 
 export interface PiShellModelsDialogPort extends PiShellComponentPort {
+  readonly ready?: Promise<void>;
   updateModels(models: readonly PiShellScopedModelDescriptor[]): void;
   setRefreshStatus(message: string, kind: "muted" | "success" | "warning"): void;
   readonly dirty: () => boolean;
@@ -237,13 +239,7 @@ export interface PiShellModelsDialogPort extends PiShellComponentPort {
 /** The bare-A1 unified Models dialog behind the owned component boundary; the pinned selectors above stay for `a1 pi`. */
 export function createPiShellModelsDialog(options: PiShellModelsDialogOptions): PiShellModelsDialogPort {
   ensureTheme();
-  const dialog = new ModelsDialogComponent(options, options);
-  return {
-    ...componentPort(dialog),
-    updateModels: models => dialog.updateModels(models),
-    setRefreshStatus: (message, kind) => dialog.setRefreshStatus(message, kind),
-    dirty: () => dialog.dirty,
-  };
+  return createDeferredModelsDialog(options);
 }
 
 export function createPiShellTrustSelector(options: {

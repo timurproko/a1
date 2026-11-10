@@ -330,7 +330,11 @@ describe("prompt-style compaction in the real engine and shell", () => {
       await nextImmediate();
       shell.runtime.renderNow();
       expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
-      expect(shell.root.usesDefaultInputSurface()).toBe(false);
+      expect(shell.root.usesDefaultInputSurface()).toBe(true);
+      expect(shell.runtime.hasFocusedOverlay()).toBe(true);
+      terminal.input("\u001b");
+      expect(shell.runtime.hasOverlay()).toBe(false);
+      expect(shell.root.usesDefaultInputSurface()).toBe(true);
     } finally { await shell.dispose(); }
   });
 

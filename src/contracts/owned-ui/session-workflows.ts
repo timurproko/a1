@@ -138,7 +138,7 @@ export interface OwnedUiCacheWarmingPresentation {
   };
 }
 
-export type OwnedUiWorkflowPresentation = OwnedUiSessionInfoPresentation;
+export type OwnedUiWorkflowPresentation = OwnedUiSessionInfoPresentation | { readonly kind: "model-change" };
 
 export type OwnedUiWorkflowMessageKind = "status" | "warning" | "error" | "accent" | "silent";
 

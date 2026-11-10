@@ -202,7 +202,7 @@ export class PiTuiRuntimeAdapter {
   readonly #presentationHolds = new Set<symbol>();
 
   constructor(options: TerminalRuntimeOptions) {
-    this.#overlayGeometry = options.onOverlayGeometry === undefined ? undefined : new OverlayGeometryTracker(options.onOverlayGeometry);
+    this.#overlayGeometry = options.onOverlayGeometry === undefined ? undefined : new OverlayGeometryTracker(options.onOverlayGeometry, options.paintModalBackdrop);
     this.#terminal = options.terminal ?? new ProcessTerminal();
     this.#consumeUnhandledMouse = options.consumeUnhandledMouse ?? false;
     const diagnostics = options.inputDiagnostics;
@@ -307,6 +307,7 @@ export class PiTuiRuntimeAdapter {
     const bridge = new ComponentBridge(component);
     this.#bridges.set(component, bridge);
     this.#overlayGeometry?.ports.set(bridge, component);
+    if (options?.modal) this.#overlayGeometry?.modals.add(component);
     let hidden = false;
     const dispose = () => {
       if (hidden) return;

@@ -1,8 +1,8 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
- * Modifications: Owned UI/routing; A1 level color, linked PRs, dim ellipsis, model priority, and
- * secondary-accent name reveals after stats; Pi unchanged.
+ * Modifications: Owned UI/routing; A1 level color, linked PRs after a dim dot separator, dim ellipsis,
+ * model priority, and secondary-accent name reveals after stats; Pi unchanged.
  * Deviations: owned-status-level-color, owned-pull-request-badge, owned-footer-ellipsis,
  * owned-footer-model-priority, owned-session-name-reveal.
  */
@@ -76,15 +76,12 @@ export class SessionFooter implements Component {
     if (pullRequest == null) {
       pathRow = theme.fg("dim", this.profile === "pi" && sessionName ? `${pwd} • ${sessionName}` : pwd);
     } else {
-      const badge = theme.fg("dim", " ")
-        + hyperlink(theme.fg("mdLink", `#${pullRequest.number}`), pullRequest.url);
-      const full = theme.fg("dim", pwd) + badge;
-      if (visibleWidth(full) <= width) pathRow = full;
-      else if (visibleWidth(badge) <= width) {
-        pathRow = truncateToWidth(theme.fg("dim", pwd), width - visibleWidth(badge), dimEllipsis) + badge;
-      } else {
-        pathRow = truncateToWidth(badge, width, dimEllipsis);
-      }
+      const badge = hyperlink(theme.fg("mdLink", `#${pullRequest.number}`), pullRequest.url);
+      const separator = theme.fg("dim", " • ");
+      const budget = width - visibleWidth(badge) - visibleWidth(separator);
+      const prefix = budget > 0 ? truncateToWidth(theme.fg("dim", pwd), budget, dimEllipsis) : "";
+      pathRow = visibleWidth(badge) > width ? truncateToWidth(dimEllipsis, width, "")
+        : (visibleWidth(prefix) > 0 ? prefix + separator : "") + badge;
     }
 
     const parts: string[] = [];

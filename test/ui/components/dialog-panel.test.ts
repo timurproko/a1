@@ -5,6 +5,7 @@ import {
   configureDialogWidth,
   displayWidth,
   renderCenteredDialogOverlay,
+  renderModalBackdrop,
   renderDialogPanel,
   renderSteppedDialogPanel,
   stripAnsi,
@@ -130,17 +131,33 @@ describe("shared dialog panel", () => {
 
     expect(rendered).toHaveLength(14);
     expect(rendered.every(row => displayWidth(row) === width)).toBe(true);
-    expect(rendered[0]).toContain("\u001b[2mbackground 0");
-    expect(rendered[1]).toContain("\u001b[1m\u001b[2mbright\u001b[22m\u001b[2m tail");
+    expect(rendered[0]).toContain("\u001b[0;38;5;240;48;5;233mbackground 0");
+    expect(rendered[1]).toContain("\u001b[0;38;5;240;48;5;233mbright tail");
+    expect(rendered[1]).not.toContain("\u001b[1m");
     const title = rendered.find(row => stripAnsi(row).includes("Warnings")) ?? "";
-    expect(title).toContain("\u001b[22;39;49m\u001b[48;2;38;38;38m");
+    expect(title).toContain("\u001b[48;2;65;65;65m");
     expect(stripAnsi(title).indexOf("Warnings")).toBe(12);
-    expect(title.slice(title.indexOf("\u001b[49m") + 5)).toContain("\u001b[2m");
+    expect(title.slice(title.indexOf("\u001b[49m") + 5)).toContain("\u001b[0;38;5;240;48;5;233m");
     const selected = rendered.find(row => stripAnsi(row).includes("Alpha")) ?? "";
-    expect(selected).toContain("\u001b[49m\u001b[48;2;38;38;38m  ");
-    expect(renderFloatingDialogSurface("panel", "256color")).toBe("\u001b[48;5;235mpanel\u001b[49m");
+    expect(selected).toContain("\u001b[49m\u001b[48;2;65;65;65m");
+    expect(renderFloatingDialogSurface("panel", "256color")).toBe("\u001b[48;5;238mpanel\u001b[49m");
     expect(renderFloatingMenuSurface("panel", "truecolor")).toBe("\u001b[48;2;55;55;55mpanel\u001b[49m");
     expect(renderFloatingMenuSurface("panel", "256color")).toBe("\u001b[48;5;237mpanel\u001b[49m");
+  });
+
+  it("darkens a completed stack around an undimmed panel while preserving dimensions and links", () => {
+    const panel = { component: { render: () => [], invalidate() {} }, rowStart: 2, rowEnd: 2, columnStart: 4, columnEnd: 8 };
+    const link = "\u001b]8;;https://example.com\u001b\\";
+    const source = ["bright background", `abc\u001b[48;5;238m${link}界XYZ\u001b]8;;\u001b\\\u001b[49m tail`, "bottom"];
+    const rendered = renderModalBackdrop(source, 20, 3, panel);
+    expect(rendered.every(row => displayWidth(row) === 20)).toBe(true);
+    expect(rendered[0]).toContain("38;5;240;48;5;233m");
+    expect(rendered[1]).toContain(link);
+    expect(rendered[1]).toContain("\u001b[48;5;238m");
+    expect(stripAnsi(rendered[1]!)).toBe("abc界XYZ tail       ");
+    expect(source[0]).toBe("bright background");
+    const selected = "\u001b[48;5;49mselected\u001b[49m";
+    expect(renderFloatingDialogSurface(selected, "256color")).toContain("\u001b[48;5;49mselected\u001b[49m\u001b[48;5;238m");
   });
 
   it("mutes a stepped model row's bracketed provider, including on the selected row", () => {

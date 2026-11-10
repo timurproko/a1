@@ -66,7 +66,8 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
       const closed = coordinates();
       editor.handleInput?.("/");
       await settle();
-      expect(editor.render(80).join("\n")).toContain("settings");
+      expect(editor.render(80).join("\n")).toContain("models");
+      expect(editor.render(80).join("\n")).not.toContain("Open settings menu");
       expect(coordinates()).toEqual(closed);
       editor.handleInput?.("mo");
       await settle();

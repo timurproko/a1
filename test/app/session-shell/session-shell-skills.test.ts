@@ -179,7 +179,8 @@ describe("OwnedUiSessionShell skills command", () => {
     const { shell, skills, menu } = await skillsFixture();
     try {
       let shown = await menu("/s");
-      expect(shown.indexOf("settings")).toBeLessThan(shown.indexOf("skills"));
+      expect(shown).not.toContain("Open settings menu");
+      expect(shown.indexOf("skills")).toBeGreaterThanOrEqual(0);
       expect(shown.indexOf("skills")).toBeLessThan(shown.indexOf("session"));
       shown = await menu("/skill");
       expect(shown).toContain("skills");

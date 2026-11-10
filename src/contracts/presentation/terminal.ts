@@ -92,6 +92,8 @@ export interface TerminalOverlayOptions {
   readonly margin?: TerminalOverlayMargin | number;
   readonly visible?: (columns: number, rows: number) => boolean;
   readonly nonCapturing?: boolean;
+  /** An owned floating panel; the host supplies its surface and dims the completed backdrop. */
+  readonly modal?: boolean;
   /** A1-owned input scheduling declaration; omitted extension overlays fail closed. */
   readonly inputCoordination?: Exclude<TerminalInputSurfaceKind, "editor">;
 }
@@ -176,6 +178,8 @@ export interface TerminalRuntimeOptions {
   readonly root: TerminalComponentPort;
   /** Bare viewport only: painted overlays in back-to-front order; null while geometry is stale. */
   readonly onOverlayGeometry?: (surfaces: readonly TerminalPointerSurface[] | null) => void;
+  /** Presentation policy applied after composition around the topmost owned floating panel. */
+  readonly paintModalBackdrop?: (lines: readonly string[], width: number, height: number, panel: TerminalPointerSurface) => string[];
   readonly mode?: "regular" | "fullscreen";
   readonly layoutRoot?: TerminalLayoutNode;
   readonly terminal?: TerminalPort;

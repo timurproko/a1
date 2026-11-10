@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-09T11:40:57.233Z",
+  "recordedAt": "2026-11-10T09:43:18.287Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "f9a26365568127461c47a07a37dcb42c140a3ac5",
@@ -512,9 +512,9 @@
       "localDestination": "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model selection, Tab tree-filter cycling, tree-local navigation aliases, cross-platform Alt+Up queued-message restoration, and an implicit Ctrl+C selection-cancel alias omitted from shortcut labels.",
+      "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, Ctrl+M model selection with ordinary Enter preserved, Ctrl+P Apps, unbound forward model cycling, Tab tree-filter cycling, tree-local navigation aliases, cross-platform Alt+Up queued-message restoration, and an implicit Ctrl+C selection-cancel alias omitted from shortcut labels.",
       "upgradeStrategy": "three-way",
-      "localSha256": "f470aed948a32fe9f0e595e69e9d3c089773362c3e3fdb6a39938a4e589dd490",
+      "localSha256": "ef744467f120861547e7591fe18c0e679ebd1b64840689c0b1d651c90b074b95",
       "approvedDeviations": [
         {
           "id": "keybindings-public-config-boundary",
@@ -524,9 +524,15 @@
         },
         {
           "id": "owned-level-cycle-shortcut",
-          "reason": "Accepted unify-prompt-input-ux assigns Ctrl+L to level cycling, leaves Shift+Tab unassigned, and removes the default model-selector shortcut in bare A1.",
-          "upstreamBehavior": "Pinned defaults, user override resolution, and modal-local bindings remain unchanged; model selection remains reachable through /model.",
+          "reason": "Accepted unify-prompt-input-ux assigns Ctrl+L to level cycling and leaves Shift+Tab unassigned; add-apps-launcher supersedes its unbound model-selector default with distinguishable Ctrl+M.",
+          "upstreamBehavior": "Pinned defaults, user override resolution, and modal-local bindings remain unchanged; bare A1 model selection remains reachable through /models.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        },
+        {
+          "id": "owned-apps-shortcuts",
+          "reason": "Approved add-apps-launcher reserves Ctrl+P for Apps across owned applications, unbinds default forward model cycling, and assigns distinguishable Ctrl+M to Models without consuming legacy Enter.",
+          "upstreamBehavior": "Comparison defaults and explicit user override/conflict behavior remain unchanged.",
+          "acceptanceTest": "test/app/session-shell/session-shell-apps.test.ts"
         },
         {
           "id": "owned-input-keybinding-aliases",
@@ -1890,9 +1896,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Owned UI/routing; A1 level color, linked PRs, dim ellipsis, model priority, and secondary-accent name reveals after stats; Pi unchanged.",
+      "modifications": "Owned UI/routing; A1 level color, linked PRs after a dim dot separator, dim ellipsis, model priority, and secondary-accent name reveals after stats; Pi unchanged.",
       "upgradeStrategy": "three-way",
-      "localSha256": "82db243d74c8260b9cc1cf5a931b8a7295b11f063f31158040eebf356662281a",
+      "localSha256": "428038a42c01979a5ab52649f794c1b58be7e2118c4c845bf9762fc285790165",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1902,7 +1908,7 @@
         },
         {
           "id": "owned-pull-request-badge",
-          "reason": "Approved show-pr-id-status-bar adds `PR #<number>` to bare A1 so the current branch's open pull request is available from the footer; only the number is a terminal-native hyperlink.",
+          "reason": "Approved show-pr-id-status-bar links the branch PR number in the bare-A1 footer; add-apps-launcher places a dim dot separator before that badge and omits the separator when no path prefix fits. Only the PR number is a terminal-native hyperlink.",
           "upstreamBehavior": "The pinned comparison footer remains unchanged. Bare A1 preserves the upstream path, branch, session, width, usage, and extension-row behavior when no validated pull request identity is available.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         },

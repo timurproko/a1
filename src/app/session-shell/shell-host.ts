@@ -13,12 +13,13 @@ import type {
   TerminalDamageFrameSafety,
   TerminalDamagePort,
   TerminalProgramStatus,
-  TerminalRuntimeFactory,
   TerminalRuntimePort,
   TerminalWheelScrollLines,
 } from "../../contracts/presentation/index.js";
 import type { QuitOutroEffect } from "./quit-outro-effects.js";
 import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../ui/components/mouse.js";
+import { renderModalBackdrop } from "../../ui/components/spans.js";
+import { padToWidth } from "../../ui/components/text.js";
 import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js";
 import {
   pinnedLayoutRoot,
@@ -72,7 +73,7 @@ export interface OwnedUiPresenterTerminal extends OwnedUiPresenterHost {
   addInputListener(listener: TerminalInputListener): () => void;
   armFrame(descriptor: TerminalDamageFrameDescriptor, safety: TerminalDamageFrameSafety): void;
   requestHyperlinkCleanup(rows?: readonly number[]): void;
-  openRoute(surface: UiRouteSurface, callbacks: OwnedUiRouteCallbacks): { hide(): void };
+  openRoute(surface: UiRouteSurface, callbacks: OwnedUiRouteCallbacks): { hide(): void; close?(): void };
   beginPresentationHold(): () => void;
   switchMode(mode: "regular" | "fullscreen"): boolean;
   setTitle(title: string): void;
@@ -145,7 +146,7 @@ export function sessionTerminalHostOptions(options: OwnedUiSessionShellOptions):
 export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiHostedPresenter> {
   readonly runtime: TerminalRuntimePort;
   readonly #customViewport: boolean;
-  readonly #runtimeFactory: TerminalRuntimeFactory;
+  readonly #presentation: ShellPresentationPorts;
   readonly #damageTerminal: TerminalDamagePort | null;
   readonly #quitOutro: OwnedUiTerminalHostOptions["quitOutro"];
   readonly #presenters = new Set<OwnedUiHostedPresenter>();
@@ -160,7 +161,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
 
   constructor(options: OwnedUiTerminalHostOptions) {
     this.#customViewport = options.layout === "custom-viewport";
-    this.#runtimeFactory = options.presentation.terminalRuntime;
+    this.#presentation = options.presentation;
     this.#quitOutro = options.quitOutro;
     const input = options.input;
     let damageTerminal: TerminalDamagePort | undefined;
@@ -182,8 +183,9 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
         mouse: false,
         consumeUnhandledMouse: true,
         onOverlayGeometry: surfaces => this.#active?.setOverlaySurfaces(surfaces),
+        paintModalBackdrop: renderModalBackdrop,
         decorateTerminal: (terminal: TerminalPort) => {
-          damageTerminal = this.#runtimeFactory.createDamageTerminal(terminal, {
+          damageTerminal = this.#presentation.terminalRuntime.createDamageTerminal(terminal, {
             regionalScroll: process.env.TERM !== "dumb",
             inspectHyperlinks: readVisibleHyperlinks,
             onResize: () => this.#active?.noteImmediatePresentation(),
@@ -193,7 +195,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
         },
         ...(input?.coordination === false ? {} : {
           inputCoordination: {
-            classify: (data: string, focusedOverlay) => this.#runtimeFactory.classifyInput(
+            classify: (data: string, focusedOverlay) => this.#presentation.terminalRuntime.classifyInput(
               data,
               focusedOverlay ?? this.#active?.inputCoordinationSurface() ?? "opaque",
             ),
@@ -212,7 +214,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
       hardwareCursor: options.hardwareCursor,
       ...(options.wheelScrollLines === undefined ? {} : { wheelScrollLines: options.wheelScrollLines }),
     };
-    this.runtime = this.#runtimeFactory.createRuntime(runtimeOptions);
+    this.runtime = this.#presentation.terminalRuntime.createRuntime(runtimeOptions);
     this.#damageTerminal = damageTerminal ?? null;
     const background = this.#customViewport ? options.backgroundSettings : undefined;
     if (background !== undefined) this.#damageTerminal?.setCanvasBackground(options.presentation.canvasBackground(background.snapshot()));
@@ -375,7 +377,14 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
     const owned = this.#overlays.get(presenter) ?? new Set<PresenterOverlay>();
     this.#overlays.set(presenter, owned);
     const overlay = new PresenterOverlay(
-      this.runtime.showOverlay(component, options),
+      this.runtime.showOverlay(this.#customViewport && options?.modal ? {
+        ...component,
+        render: width => component.render(width).map(line => (this.#presentation.floatingDialogSurface ?? (text => text))(`\u001b[22;39;49m${padToWidth(line, width)}`)),
+        invalidate: () => component.invalidate(),
+        handleInput: data => component.handleInput?.(data),
+        setFocused: focused => component.setFocused?.(focused),
+        dispose: () => component.dispose?.(),
+      } : component, options),
       () => this.#active === presenter,
       () => owned.delete(overlay),
     );
@@ -411,7 +420,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
     this.runtime.writeControl(effective ? MOUSE_TRACKING_ON : MOUSE_TRACKING_OFF);
   }
 
-  #openRoute(presenter: OwnedUiHostedPresenter, surface: UiRouteSurface, callbacks: OwnedUiRouteCallbacks): { hide(): void } {
+  #openRoute(presenter: OwnedUiHostedPresenter, surface: UiRouteSurface, callbacks: OwnedUiRouteCallbacks): { hide(): void; close(): void } {
     const runtime = this.runtime;
     const attached = () => this.#active === presenter;
     // Protocol: any-event reporting: hover and drag are what the screen is driven by, and
@@ -431,13 +440,14 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
       closed = true;
       removeSurfacePreInput();
       removeInterruptWatch();
+      surface.close();
       this.#setPointerReporting(false);
       overlay?.hide();
       if (notify) callbacks.closed(rendered);
     };
     removeInterruptWatch = runtime.addInputListener(data => {
       // Compatibility: a kitty-keyboard child reports Ctrl+C as a CSI-u sequence rather than the byte.
-      if (!attached() || !data.includes(INTERRUPT) && this.#runtimeFactory.legacyKeyInput(data) !== INTERRUPT) return undefined;
+      if (!attached() || overlay?.isFocused() !== true || !data.includes(INTERRUPT) && this.#presentation.terminalRuntime.legacyKeyInput(data) !== INTERRUPT) return undefined;
       // Protocol: route hosts decide whether one interrupt closes their app. Raw-input forwarding
       // is required because Pi handles Ctrl+C before the fullscreen overlay receives normal input.
       const consumedBySurface = surface.handleInput(INTERRUPT);
@@ -469,7 +479,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
     // at the pre-input boundary so dropdowns, value hover, and numeric +/- work,
     // and consume even unhandled reports so settings content is never selected.
     const routeMouse: TerminalPreInputListener = data => {
-      if (!attached()) return undefined;
+      if (!attached() || overlay?.isFocused() !== true) return undefined;
       const { events, rest } = parseMouseInput(data);
       if (events.length === 0) return undefined;
       for (const event of events) surface.handleMouse(event);
@@ -489,7 +499,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
         const { events, rest } = parseMouseInput(data);
         for (const event of events) surface.handleMouse(event);
         // Invariant: owned screens see legacy key bytes whether the terminal reports legacy or kitty keys.
-        const key = rest.length > 0 ? this.#runtimeFactory.legacyKeyInput(rest) : "";
+        const key = rest.length > 0 ? this.#presentation.terminalRuntime.legacyKeyInput(rest) : "";
         if (key.length > 0) surface.handleInput(key);
         if (surface.isClosed()) {
           closeSurface(true);
@@ -510,7 +520,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
       anchor: "top-left",
       inputCoordination: "owned",
     });
-    return { hide: () => closeSurface(false) };
+    return { hide: () => closeSurface(false), close: () => closeSurface(true) };
   }
 
   // Invariant: the snapshot is synchronous; the outro module itself loads only at quit.
@@ -552,7 +562,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
         write: data => this.runtime.writeControl(data),
         ...(capture.settings.canvasBackgroundAnsi === null
           ? {}
-          : { canvas: { ansi: capture.settings.canvasBackgroundAnsi, rebase: this.#runtimeFactory.rebaseDefaultBackground } }),
+          : { canvas: { ansi: capture.settings.canvasBackgroundAnsi, rebase: this.#presentation.terminalRuntime.rebaseDefaultBackground } }),
         ...(outro.now === undefined ? {} : { now: outro.now }),
         ...(outro.sleep === undefined ? {} : { sleep: outro.sleep }),
         ...(outro.seed === undefined ? {} : { seed: outro.seed }),

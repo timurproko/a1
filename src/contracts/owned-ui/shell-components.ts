@@ -58,6 +58,8 @@ export interface OwnedUiShellEditorPort extends OwnedUiShellComponentPort {
   /** Restores the shared keybindings if anything replaced the active registry; a no-op when it is already active. */
   activateKeybindings(): void;
   keybindingConfig(): OwnedUiShellKeybindings;
+  /** Resolves application-host actions against the same active declarations as editor dispatch. */
+  matchesAction?(data: string, action: "owned.apps.open"): boolean;
   reloadKeybindings(): void;
   /** Uses the vendor's terminal decoder rather than assuming one terminal escape spelling. */
   matchesTerminalKey(data: string, key: "home" | "end" | "pageUp" | "pageDown" | "ctrl+home" | "ctrl+end" | "alt+home" | "ctrl+v"): boolean;

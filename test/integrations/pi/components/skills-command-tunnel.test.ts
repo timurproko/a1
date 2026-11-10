@@ -170,26 +170,26 @@ describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)",
 
       editor.handleInput?.("/s");
       await settle();
-      const settingsMenu = menuText(editor);
-      expect(settingsMenu.length).toBeGreaterThan(1);
-      expect(settingsMenu.find(row => row.includes("→"))).toMatch(/→ settings\s+Open settings menu/u);
+      const shareMenu = menuText(editor);
+      expect(shareMenu.length).toBeGreaterThan(1);
+      expect(shareMenu.find(row => row.includes("→"))).toMatch(/→ share\s+Share session/u);
       editor.handleInput?.(TAB);
-      expect(editor.getText()).toBe("/settings");
-      expect(menuText(editor)).toEqual(settingsMenu);
+      expect(editor.getText()).toBe("/share");
+      expect(menuText(editor)).toEqual(shareMenu);
       await settle();
       expect(menuText(editor)).toHaveLength(1);
-      expect(menuText(editor).find(row => row.includes("→"))).toMatch(/→ settings\s+Open settings menu/u);
+      expect(menuText(editor).find(row => row.includes("→"))).toMatch(/→ share\s+Share session/u);
       editor.handleInput?.(":");
       await settle();
-      expect(editor.getText()).toBe("/settings:");
+      expect(editor.getText()).toBe("/share:");
       expect(menuText(editor)).toEqual([]);
 
-      editor.setText("/settTAIL");
+      editor.setText("/shaTAIL");
       for (let index = 0; index < 4; index++) editor.handleInput?.("\u001b[D");
       editor.handleInput?.(TAB);
       await settle();
       editor.handleInput?.(TAB);
-      expect(editor.getText()).toBe("/settingsTAIL");
+      expect(editor.getText()).toBe("/shareTAIL");
 
       editor.setText("");
       editor.handleInput?.("/log");
@@ -205,10 +205,10 @@ describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)",
       expect(editor.getText()).toBe("/login openai");
 
       editor.setText("");
-      editor.handleInput?.("/sett");
+      editor.handleInput?.("/sha");
       await settle();
       editor.handleInput?.(ENTER);
-      expect(submitted).toEqual(["/settings"]);
+      expect(submitted).toEqual(["/share"]);
     } finally { await dispose(); }
   });
 
@@ -225,11 +225,13 @@ describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)",
         const selected = menuText(editor).find(row => row.includes("→"));
         const name = /^\s*→\s+(\S+)/u.exec(selected ?? "")?.[1];
         expect(name).toBeDefined();
-        if (name === "settings" && catalog.length > 0) break;
+        if (name === catalog[0]) break;
         catalog.push(name!);
         editor.handleInput?.(DOWN);
       }
-      expect(catalog.slice(0, 3)).toEqual(["settings", "skills", "models"]);
+      expect(catalog.slice(0, 3)).toEqual(["skills", "models", "thinking"]);
+      expect(catalog).not.toContain("settings");
+      expect(catalog).not.toContain("changelog");
       expect(catalog.filter(name => name === "skills")).toHaveLength(1);
       expect(catalog.slice(-4)).toEqual(["quit", "model", "plan", "mcp"]);
       editor.handleInput?.(ESC);
@@ -355,7 +357,8 @@ describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)",
       // Invariant: a menu whose selected row is another command keeps the colon ordinary, before and after moving the selection.
       editor.handleInput?.("/s");
       await settle();
-      expect(menuText(editor)[0]).toMatch(/^\s*→ settings/u);
+      editor.handleInput?.(DOWN);
+      expect(menuText(editor).find(row => row.includes("→"))).toMatch(/^\s*→ share/u);
       editor.handleInput?.(":");
       expect(editor.getText()).toBe("/s:");
       editor.handleInput?.(ESC);

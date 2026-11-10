@@ -3,7 +3,7 @@ import type { OwnedUiCommandResult, OwnedUiWorkflowRequest } from "../../contrac
 /** The owned selectors a workflow can open in place of asking the engine to choose. */
 export interface WorkflowSelectors {
   showScopedModelsSelector(): void;
-  showModelsDialog(initialQuery?: string): void;
+  showModelsDialog(initialQuery?: string): void | Promise<void>;
   showModelSelector(initialSearchInput?: string): void;
   showForkSelector(): void;
   showThinkingSelector(): Promise<void>;

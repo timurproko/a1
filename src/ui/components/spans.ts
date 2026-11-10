@@ -1,4 +1,5 @@
-import { displayWidth, graphemeWidth } from "./text.js";
+import type { PresentationPointerSurface } from "../../contracts/presentation/index.js";
+import { displayWidth, graphemeWidth, padToWidth } from "./text.js";
 
 /**
  * Ported from the A1 UI reference implementation (`core/presentation/spans.ts`).
@@ -69,6 +70,65 @@ export function overlaySpan(
   }
   if (column < from) head += " ".repeat(from - column);
   return head + (hyperlinkOpen ? HYPERLINK_OFF : "") + span + replay + tail;
+}
+
+/** Extracts exact styled cells, replacing partial boundary graphemes with spaces. */
+function sliceStyledColumns(line: string, from: number, to: number): string {
+  let column = 0;
+  let styles = "";
+  let output = "";
+  let started = false;
+  for (const token of line.split(ANSI_SPLIT)) {
+    if (token.startsWith("\u001b")) {
+      if (column < from) styles += token;
+      else if (column < to) output += token;
+      continue;
+    }
+    for (const { segment } of GRAPHEMES.segment(token)) {
+      const end = column + graphemeWidth(segment);
+      if (end > from && column < to) {
+        if (!started) { output = styles + output; started = true; }
+        output += column >= from && end <= to ? segment : " ".repeat(Math.min(to, end) - Math.max(from, column));
+      }
+      column = end;
+    }
+  }
+  return `${output}\u001b[0m${HYPERLINK_OFF}`;
+}
+
+/** Raised background shared by every owned floating dialog surface. */
+export function renderFloatingDialogSurface(text: string, mode: "truecolor" | "256color"): string {
+  const background = mode === "truecolor" ? "\u001b[48;2;65;65;65m" : "\u001b[48;5;238m";
+  const painted = text.replace(/\u001b\[[0-9;]*m/gu, sequence => {
+    const codes = sequence.slice(2, -1).split(";").map(Number);
+    let restore = false;
+    for (let index = 0; index < codes.length; index++) {
+      const code = codes[index];
+      if (code === 0 || code === 49) restore = true;
+      if (code === 48) restore = false;
+      if (code === 38 || code === 48) index += codes[index + 1] === 2 ? 4 : codes[index + 1] === 5 ? 2 : 0;
+    }
+    return restore ? sequence + background : sequence;
+  });
+  return `${background}${painted}\u001b[49m`;
+}
+
+/** Indexed backdrop colors remain deterministic in both supported terminal color modes. */
+export function renderDialogBackdropLine(line: string, width: number): string {
+  return `\u001b[0;38;5;240;48;5;233m${padToWidth(line, width).replace(/\u001b\[[0-9;]*m/gu, "")}\u001b[0m`;
+}
+
+/** Darkens a completed overlay stack everywhere outside its topmost floating panel. */
+export function renderModalBackdrop(
+  frame: readonly string[], width: number, height: number, panel: PresentationPointerSurface,
+): string[] {
+  return Array.from({ length: height }, (_, row) => {
+    const source = padToWidth(frame[row] ?? "", width);
+    if (row + 1 < panel.rowStart || row + 1 > panel.rowEnd) return renderDialogBackdropLine(source, width);
+    const left = Math.max(0, panel.columnStart - 1);
+    const right = Math.min(width, panel.columnEnd);
+    return overlaySpan(renderDialogBackdropLine(source, width), left, right, sliceStyledColumns(source, left, right));
+  });
 }
 
 /** Wraps visible columns `[from,to)` in an explicit OSC 8 hyperlink. */
