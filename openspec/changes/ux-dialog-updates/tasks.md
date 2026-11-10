@@ -54,6 +54,11 @@
 - [x] 10.1 Remove owned preferred-partner suffixes without changing provider names, status, order or actions; extend focused provider parity/style assertions for OpenRouter and Radius while retaining pinned comparison badges.
 - [x] 10.2 Finish targeted checks and gap/evidence updates, reconcile current origin/develop, and pass final body/finalization inspection before the final implementation marker.
 
+## 11. Dim footer session-name truncation
+
+- [x] 11.1 Keep settled and animated session-name ellipses in the existing dim role without exposing truncator resets to grapheme reveals; add width, style, live-theme and palette regression assertions while retaining comparison behavior.
+- [x] 11.2 Finish targeted checks, evidence/gap reconciliation, current origin/develop reconciliation and final body/finalization inspection before completing the final PR marker.
+
 ## Workflow follow-up
 
 - Trusted automation owns readiness and in-branch finalization after implementation completion; required exact-head CI follows.

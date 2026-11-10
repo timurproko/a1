@@ -95,6 +95,12 @@ The preceding exact-head CI failure was an obsolete `Detached choice` expectatio
 
 The maintainer asked what the diamond-like `✦` markers beside OpenRouter and Radius represent and requested removing them when they have no functional representation. The pinned source labels them preferred partner providers. In A1's alphabetically ordered selector they are a hard-coded decorative suffix, independent of credentials, configured status, capabilities, active model or actions. Remove that suffix only from owned provider rendering; retain real status dots/checkmarks, auth-type qualifiers, names, order, filtering and actions. Comparison rendering remains pinned and can still show its original badge.
 
+## Approved Refinement: Dim Status-Bar Name Truncation
+
+The maintainer requested that the session-name truncation symbol match the name's dim grey instead of default white. The vendor truncator inserts an SGR reset before its ellipsis, so painting the already-truncated string with an outer dim wrapper does not retain the marker's foreground. Its clipped string can also carry reset sequences into the per-grapheme reveal path.
+
+Keep clipping as plain text at the session-name adapter boundary, then apply dim styling to settled names and markers. During truecolor reveals, keep the inserted ellipsis dim while ordinary name graphemes retain the existing secondary-accent animation. Preserve complete authoritative names, animation timing, width allocation, model position, gutters and comparison presentation. Add settled and animated clipping assertions across widths, themes and terminal color modes.
+
 ## Implementation Evidence
 
 - Session Info uses a bounded input-route adapter with component-local pointer routing and shared reference rendering. Escape and Ctrl+C close even before its deferred document resolves. Semantic identity/group rows share a left-aligned value column, reduce optional padding on narrow frames, and retain complete wrapped paths and values.
@@ -123,6 +129,12 @@ The maintainer asked what the diamond-like `✦` markers beside OpenRouter and R
 - Owned OpenRouter and Radius rows omit only the decorative `✦` suffix. Real configuration dots/checkmarks and method qualifiers, provider names, existing order, filtering and selection actions remain intact.
 - Provider parity fixtures now cover both names with owned badge absence, pinned comparison badge presence, retained configured/unconfigured state and identical selected provider IDs.
 - Build, typecheck, strict OpenSpec validation, architecture, provenance and changed-file documentation passed. Three focused test files passed (52 tests); required finalized-head CI remains authoritative.
+
+## Dim Footer Name Evidence
+
+- Regression assertions reproduced default-white session-name ellipses before the fix in both truecolor and 256-color modes. The adapter now strips truncator control sequences before styling/segmentation and paints reveal ellipses through the existing dim role.
+- Width/phase tests cover dark/light themes, multiple accents, settled names and shimmer/reveal/settle frames, asserting dim markers, stable model columns, bounded widths and no exposed reset fragments. Existing reveal timing/grapheme and comparison assertions remain intact.
+- Build, typecheck, strict OpenSpec validation, architecture/startup limits, provenance and changed-file documentation passed. Three focused files passed (58 tests); required finalized-head CI remains authoritative.
 
 ## Open Questions
 

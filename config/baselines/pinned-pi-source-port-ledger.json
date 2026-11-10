@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-10T18:59:29.054Z",
+  "recordedAt": "2026-11-10T19:11:15.403Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "dd30101cfc5b0609411dd80b6f93adbc14db14cf",
@@ -1905,9 +1905,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Owned UI/routing; A1 level color, linked PRs after a dim dot separator, dim ellipsis, model priority, and secondary-accent name reveals after stats; Pi unchanged.",
+      "modifications": "A1 PR links, model priority, level colors, secondary-accent name reveals, dim name/row clipping; Pi intact.",
       "upgradeStrategy": "three-way",
-      "localSha256": "a3aa9c829990b15581b0567bc8a4ee340ee7d9d122be4f46ff8a4a988f2f016c",
+      "localSha256": "b0f6d50650a678b37604be5c2c55c3722cd032f25941e37ebf5a4f6ce886760a",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1923,7 +1923,7 @@
         },
         {
           "id": "owned-footer-ellipsis",
-          "reason": "Approved improve-tab-overflow-menu uses one dim ellipsis for clipped A1 path, usage, and extension rows.",
+          "reason": "Clipped A1 path, usage, extension and session-name markers use one dim ellipsis, including markers shown during name reveals.",
           "upstreamBehavior": "The pinned comparison footer retains its three-dot suffix; A1 PR hyperlinks and untruncated rows remain unchanged.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         },

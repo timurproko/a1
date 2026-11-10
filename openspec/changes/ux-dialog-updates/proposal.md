@@ -17,6 +17,8 @@ Session Info currently takes over the terminal as a full-screen reference docume
 - Make Up/Down wrap through internal choice lists in both directions, including account/API-key providers, authentication methods, trust, Launcher, and Settings model/level/value/structured choices. Preserve search, paging, confirmation and cancel behavior.
 - Leave Changelog, Keyboard Shortcuts, Models, Skills, authentication logic, trust policy, extension-authored content, and the `a1 pi` comparison profile unchanged apart from internal implementation prerequisites.
 
+- Keep the session-name truncation marker in the status bar's existing dim grey role, including during shimmer/reveal animation, without changing name text, timing, width allocation or comparison presentation.
+
 ## Capabilities
 
 ### New Capabilities

@@ -2879,15 +2879,15 @@ Bare A1 SHALL present hyperlinks in both the complete `/changelog` history and s
 - **THEN** the bare-A1 changelog hyperlink policy SHALL NOT alter that presentation
 
 ### Requirement: The session command opens a reference screen in bare A1
-Bare A1 SHALL declare `/session` as an A1-owned replacement for the pinned in-feed session-information document. The owned route host SHALL claim the route ahead of the pinned workflow table, obtain a fresh structured session-information snapshot for each invocation, and open Session Info in the Agent input dock using the established in-place Models and Skills presentation, not full screen or as a floating overlay. Invoking the command SHALL append no document, status, checkmark, error, or placeholder row to the feed.
+Bare A1 SHALL declare `/session` as an A1-owned replacement for the pinned in-feed session-information document. The owned route host SHALL claim the route ahead of the pinned workflow table, obtain a fresh structured session-information snapshot for each invocation, and open the shared reference screen full screen over the session. Invoking the command SHALL append no document, status, checkmark, error, or placeholder row to the feed.
 
-The screen SHALL use `Session Info` as its accent title. It SHALL present the optional session Name followed by File and ID as identity rows before the grouped report. All report key/value rows SHALL share a left-aligned value column at feasible widths, including identity and grouped values, while preserving nested label indentation and semantic roles. Alignment SHALL use the labels actually present and SHALL reduce optional padding on narrow frames before wrapping content. The session file value SHALL begin on its labelled row at the aligned column when space permits. When the complete value does not fit, it SHALL use the remaining visible columns before continuing the complete, untruncated value on subsequent rows; only a frame too narrow to leave any value column after the label MAY begin the value on the following row. `Messages`, `Tokens`, `Cache Warming`, and, when its existing condition is met, `Cost` SHALL be structured sections using the same shared bold yellow Markdown-heading role, one-cell left inset, content adjacency, inter-section spacing, and active-section pinning as the `Navigation` section of Keyboard Shortcuts and owned Settings. The report SHALL preserve the existing labels, values, calculations, conditional details, indentation, semantic label/value styles, complete value content across aligned wrapping, and group order.
+The screen SHALL use `Session Info` as its accent title. It SHALL present the optional session Name followed by File and ID as identity rows before the grouped report. When the session file value fits on its identity row, it SHALL begin immediately after `File:`. When the complete value does not fit, it SHALL use the remaining visible columns after `File:` before continuing the complete, untruncated value on subsequent rows; only a frame too narrow to leave any value column after the label MAY begin the value on the following row. `Messages`, `Tokens`, `Cache Warming`, and, when its existing condition is met, `Cost` SHALL be structured sections using the same shared bold yellow Markdown-heading role, one-cell left inset, content adjacency, inter-section spacing, and active-section pinning as the `Navigation` section of Keyboard Shortcuts and owned Settings. The report SHALL preserve the existing labels, values, calculations, conditional details, indentation, semantic label/value styles, wrapping outside this declared File-row refinement, and group order.
 
-The session screen SHALL retain the shared reference screen's keyboard, wheel, scrollbar rail, close, interrupt, resize, and viewport-restoration behavior within its input-dock rectangle. The transcript and ordinary session footer SHALL remain visible, and transcript pointer interaction outside the dialog SHALL remain available. Closing SHALL restore ordinary prompt input and focus without losing retained draft content or attachments. The `a1 pi` comparison profile SHALL keep the pinned `/session` workflow and chronological in-feed presentation and SHALL open no A1-owned session reference screen.
+The session screen SHALL retain the shared reference screen's keyboard, wheel, scrollbar rail, close, interrupt, resize, and viewport-restoration behavior. The `a1 pi` comparison profile SHALL keep the pinned `/session` workflow and chronological in-feed presentation and SHALL open no A1-owned session reference screen.
 
 #### Scenario: Invoke the session command in bare A1
 - **WHEN** the user submits `/session` in bare A1
-- **THEN** the `Session Info` reference screen SHALL open in the input dock with a fresh snapshot, the editor SHALL be cleared, and the feed SHALL gain no rows
+- **THEN** the `Session Info` reference screen SHALL open with a fresh snapshot, the editor SHALL be cleared, and the feed SHALL gain no rows
 - **AND** closing the screen SHALL restore the prior session viewport without leaving a status or placeholder
 
 #### Scenario: Render the session hierarchy
@@ -2898,14 +2898,8 @@ The session screen SHALL retain the shared reference screen's keyboard, wheel, s
 
 #### Scenario: Render a long session file path
 - **WHEN** the session file value is longer than the visible space remaining after `File:`
-- **THEN** the value SHALL begin at the aligned value column after `File:`, reducing optional padding on narrow frames, and fill that row's remaining visible columns
+- **THEN** the value SHALL begin directly after `File:` and fill that row's remaining visible columns
 - **AND** the rest of the complete value SHALL continue on following rows before the ID row without truncation or an intervening blank row
-
-#### Scenario: Align report values
-- **WHEN** Session Info presents identity, message, token, cache-warming, or cost label/value rows at a feasible width
-- **THEN** the values SHALL begin in the same left-aligned column without right-aligning numeric values
-- **AND** labels, nested indentation, semantic styles, calculations, optional details, and complete values SHALL remain intact
-- **AND** constrained widths SHALL reduce optional alignment padding and wrap rather than truncate source content
 
 #### Scenario: Omit conditional session information
 - **WHEN** the session has no name and its existing cost and cache-waste condition does not require a Cost group
@@ -2917,24 +2911,14 @@ The session screen SHALL retain the shared reference screen's keyboard, wheel, s
 - **THEN** the reopened screen SHALL show a newly obtained snapshot rather than cached values from the earlier opening
 
 #### Scenario: Scroll and close the session screen
-- **WHEN** the session report overflows the available input-dock rectangle
+- **WHEN** the session report overflows the available rectangle
 - **THEN** keyboard, wheel, rail hover, thumb drag, and track paging SHALL scroll it with active section pinning
-- **AND** Escape and the interrupt chord SHALL retain the shared reference-screen close and exit behavior without activating transcript controls through the dialog
+- **AND** Escape and the interrupt chord SHALL retain the shared reference-screen close and exit behavior without activating transcript controls through the screen
 
 #### Scenario: Invoke the session command in the comparison profile
 - **WHEN** the user submits `/session` in `a1 pi`
 - **THEN** the pinned workflow SHALL append the complete pinned session-information component at its chronological feed position
 - **AND** no A1-owned reference screen SHALL open
-
-#### Scenario: Keep conversation context visible
-- **WHEN** Session Info is open in bare A1
-- **THEN** its frame SHALL replace only the Agent input surface, with no full-screen takeover, floating panel, or dimmed backdrop
-- **AND** the transcript and session footer SHALL remain visible with ordinary transcript scrolling, selection, and copying outside the dialog
-
-#### Scenario: Resize and restore the input dock
-- **WHEN** the terminal is compact or resizes while Session Info is open
-- **THEN** the dialog SHALL stay bounded by the available input-dock dimensions with usable scrolling and close guidance
-- **AND** closing SHALL restore ordinary prompt input and focus without losing any retained draft content or attachments
 
 ### Requirement: Bare-A1 Session Tree follows the standard dialog presentation
 
@@ -3092,16 +3076,16 @@ After successful tree navigation, bare A1 SHALL rebuild the visible transcript f
 
 ### Requirement: Bare-A1 project-trust dialogs use the standard dialog hierarchy
 
-Both the pre-resource startup trust selector and the in-session project-trust selector SHALL use the established bare-A1 dialog hierarchy. Titles SHALL use bold accent styling and Title Case without a trailing colon: `Trust Project Folder?` at startup and `Project Trust` in-session. Selected choices SHALL use the shared selected-background role, an accent arrow, normal-text labels, and no selection-induced bold, matching the item-bounded highlight used by Skills rather than accent-colored labels alone. Top and bottom rules SHALL use the standard border role; ordinary path and label context SHALL remain muted; and shortcut rows SHALL use distinct dim key and muted action roles with whitespace-only entry gaps. The startup selector SHALL reproduce those fixed dark-dialog roles without consulting project settings, project themes, extensions, prompts, packages, skills, or post-trust components.
+Both the pre-resource startup trust selector and the in-session project-trust selector SHALL use the established bare-A1 dialog hierarchy. Titles and active selections SHALL use the accent role; top and bottom rules SHALL use the standard border role; ordinary path and label context SHALL remain muted; and shortcut rows SHALL use distinct dim key and muted action roles with whitespace-only entry gaps. The startup selector SHALL reproduce those fixed dark-dialog roles without consulting project settings, project themes, extensions, prompts, packages, skills, or post-trust components.
 
-In the in-session selector, `Saved decision:` and `Current session:` SHALL remain muted labels while their decision values use the normal text role. Both values SHALL start in the same left-aligned column, padding after the shorter label. The saved-decision value SHALL omit any parenthesized folder-path suffix while retaining its actual resolved decision. Every selected trust option SHALL contain exactly one visible space between its arrow and label. The choice list SHALL NOT display a saved-decision checkmark; an exact saved choice SHALL instead be represented by the status line and initial active selection. The shortcut row SHALL be followed immediately by the bottom rule without an intervening blank row.
+In the in-session selector, `Saved decision:` and `Current session:` SHALL remain muted labels while their decision values use the normal text role. Every selected trust option SHALL contain exactly one visible space between its arrow and label. The choice list SHALL NOT display a saved-decision checkmark; an exact saved choice SHALL instead be represented by the status line and initial active selection. The shortcut row SHALL be followed immediately by the bottom rule without an intervening blank row.
 
-These presentation requirements SHALL NOT change trust outcomes, persistence, policy resolution, confirmation, exit/cancel behavior, terminal restoration, constrained-terminal fallback, or the explicit `a1 pi` comparison profile. In-session Up/Down navigation SHALL follow the internal choice-list wraparound policy.
+These presentation requirements SHALL NOT change trust outcomes, persistence, policy resolution, navigation, confirmation, exit/cancel behavior, terminal restoration, constrained-terminal fallback, or the explicit `a1 pi` comparison profile.
 
 #### Scenario: Ask for trust before project resources load
 
 - **WHEN** bare A1 presents the pre-resource startup trust selector
-- **THEN** its title SHALL be the accent-bold text `Trust Project Folder?` and its selected option SHALL use the standard selected background, accent arrow, and normal-text label
+- **THEN** its title and selected option SHALL use the standard accent role
 - **AND** its full-width rules SHALL use the standard border role
 - **AND** its shortcut row SHALL present `↑↓ navigate`, `Enter select`, and `Esc exit` with the standard key/action roles and two-space entry gaps
 - **AND** producing that frame SHALL not consult project-derived presentation or resources
@@ -3109,16 +3093,14 @@ These presentation requirements SHALL NOT change trust outcomes, persistence, po
 #### Scenario: Show current project trust in-session
 
 - **WHEN** bare A1 presents the in-session project-trust selector
-- **THEN** the title SHALL be the accent-bold text `Project Trust` without a trailing colon, and the active selection, rules, and shortcut row SHALL use the same semantic roles as other standard dialogs
+- **THEN** the title, active selection, rules, and shortcut row SHALL use the same semantic roles as other standard dialogs
 - **AND** `Saved decision:` and `Current session:` SHALL be muted while the value following each label SHALL use the normal text role
-- **AND** both decision values SHALL begin in the same left-aligned column, with no parenthesized folder-path suffix after the saved decision
-- **AND** the separate project-path context row and underlying saved/current trust decisions SHALL remain unchanged
 - **AND** the shortcut row SHALL be directly adjacent to the bottom rule
 
 #### Scenario: Select a trust option
 
 - **WHEN** any in-session trust option is active
-- **THEN** its visible row SHALL render the accent arrow, exactly one space, and the normal-text option label over the shared item-bounded selected background without selection-induced bold
+- **THEN** its visible row SHALL render the arrow, exactly one space, and the option label
 - **AND** no option SHALL reserve a saved-marker gap or display a checkmark
 
 #### Scenario: Open with an exact saved choice
@@ -3130,8 +3112,7 @@ These presentation requirements SHALL NOT change trust outcomes, persistence, po
 #### Scenario: Constrain or close a trust dialog
 
 - **WHEN** either trust surface is resized, navigated, confirmed, cancelled, exited, interrupted, or disposed
-- **THEN** its existing choices, responsive priority, non-navigation key behavior, trust effects, and restoration lifecycle SHALL remain unchanged
-- **AND** selected spans SHALL remain within the available width without wrapping or background leakage
+- **THEN** its existing choices, responsive priority, key behavior, trust effects, and restoration lifecycle SHALL remain unchanged
 - **AND** the `a1 pi` comparison presentation SHALL remain unchanged
 
 ### Requirement: Tab-filtered dialogs cycle backward with reverse Tab
@@ -3899,105 +3880,3 @@ The owned interactive UI SHALL treat `/quit` and the second `Ctrl+C` in the exis
 - **WHEN** slash-command autocomplete presents the built-in `quit` command
 - **THEN** its description SHALL be `Quit`
 - **AND** the description SHALL NOT include `Pi`, `A1`, or another product qualifier
-
-### Requirement: Internal dialogs share style and wraparound choice navigation
-
-Bare A1 SHALL use accent-bold Title Case headings without trailing colons, accent arrows, normal primary labels, muted metadata, and shared selected backgrounds for internal dialogs, including nested authentication choices. Up/Down SHALL wrap internal choice lists in both directions. Search, paging, section jumps, document scrolling, confirmation, cancellation, authentication/trust effects, extension-authored content, and comparison behavior SHALL otherwise remain unchanged.
-
-#### Scenario: Open a nested authentication method picker
-
-- **WHEN** an internal sign-in flow presents a provider-specific authentication-method selector such as Amazon Bedrock
-- **THEN** its title SHALL use Title Case without a trailing colon and its active option SHALL use the same shared background and normal label styling as the top-level method picker
-- **AND** provider names, acronyms, option wording, status, and nested return/cancel behavior SHALL retain their existing meaning
-
-#### Scenario: Wrap provider and authentication choices
-
-- **WHEN** Up is pressed on the first choice or Down on the last choice in an account-provider, API-key-provider, authentication-method, or in-session trust selector
-- **THEN** selection SHALL move to the last or first choice respectively and remain visible
-- **AND** only currently filtered matches SHALL participate, while empty or one-choice lists SHALL remain safe
-
-#### Scenario: Wrap Launcher choices
-
-- **WHEN** Up is pressed on the first Launcher result or Down on its last result
-- **THEN** selection SHALL wrap to the opposite end of the current search results without opening an application until confirmed
-
-#### Scenario: Wrap Settings choices
-
-- **WHEN** Up or Down crosses a choice boundary in Settings, Default Model, either Thinking Level step, a value menu, or a structured choice dialog
-- **THEN** selection SHALL wrap to the opposite end of the current selectable choices and remain visible
-- **AND** filtered results, effective-value indicators, save/cancel, paging, and section-jump behavior SHALL retain their existing semantics
-
-#### Scenario: Keep non-choice scrolling and external content unchanged
-
-- **WHEN** the user scrolls a document, uses a paging or section-jump shortcut, or interacts with comparison-profile or extension-authored content
-- **THEN** the internal choice-list wraparound policy SHALL NOT alter that behavior
-
-### Requirement: All provider login states share the live-themed dialog template
-
-Every bare-A1 provider login state SHALL use the active theme's accent-bold title, muted description immediately beneath it, one blank row before an accent `>` input when present, shared one-cell inset, and standard rules/footer. This SHALL cover prompt/API-key/manual-code, browser/device, info/details, waiting/progress, and submitted states without provider exceptions. Auth effects, source text, links, input results, cancellation, and comparison presentation SHALL remain unchanged.
-
-#### Scenario: Ask for a provider credential or manual code
-- **WHEN** any provider requests an API key, credential prompt, or manual callback code
-- **THEN** its muted prompt description SHALL immediately follow the live accent-bold heading, with one blank row before the accent-colored input chevron
-- **AND** title, description, input, and footer SHALL share the same one-cell left inset without package-default color overrides or nested padding
-- **AND** placeholders and prior authentication context SHALL remain readable without changing input results, including blank optional answers
-
-#### Scenario: Present non-input login states
-- **WHEN** login presents browser instructions, device codes, informational links, details, waiting, progress, submitted values, or nested return states
-- **THEN** the same shared title, description, spacing, border, and footer roles SHALL apply without provider-specific exceptions
-- **AND** URL links/copy, device-confirm actions, visible status and errors, source text, cancellation, and completion behavior SHALL retain their meaning
-
-#### Scenario: Honor the live theme throughout login
-- **WHEN** the active accent, appearance, or terminal color mode changes while a login state is visible
-- **THEN** the title, chevron, description, rules, links, and shortcut footer SHALL resolve through the current semantic theme roles on the next render
-- **AND** no literal green or pinned-package accent SHALL override the configured theme
-
-#### Scenario: Keep comparison login unchanged
-- **WHEN** a provider login runs in the comparison profile
-- **THEN** its pinned presentation and existing authentication interactions SHALL remain unchanged
-
-### Requirement: Bare-A1 sign-in selectors use standard dialog styling
-
-Bare A1's sign-in method and provider selectors SHALL use accent-bold Title Case headings without trailing colons. Selected rows SHALL use the shared item-bounded selected background, an accent arrow, normal primary text, muted metadata, and no selection-induced bold, matching Skills. Authentication behavior, search, status indicators, cancellation, and the `a1 pi` comparison presentation SHALL remain unchanged. Up/Down SHALL follow the internal choice-list wraparound policy.
-
-#### Scenario: Choose a sign-in method
-
-- **WHEN** bare A1 opens the sign-in method selector
-- **THEN** its title SHALL be `Select Authentication Method` in the standard accent-bold style without a trailing colon
-- **AND** its active account or API-key choice SHALL use the shared selected background rather than accent-colored label text alone
-- **AND** its option wording and selection behavior SHALL remain unchanged
-
-#### Scenario: Choose a sign-in provider
-
-- **WHEN** bare A1 presents the account or API-key provider selector
-- **THEN** its title SHALL be `Select Provider to Configure` in the standard accent-bold style without a trailing colon
-- **AND** the active provider SHALL use the shared selected background with normal primary text and muted configuration metadata
-- **AND** configured-state markers, provider names, search, result counts, navigation, and nested cancel/back behavior SHALL retain their existing meaning
-
-#### Scenario: Show configured provider status
-
-- **WHEN** a provider has a configured authentication status in a bare-A1 provider selector
-- **THEN** its status suffix SHALL retain a muted separator dot followed by success-green `configured` text and a success-green checkmark immediately after that text
-- **AND** an alternate configured method SHALL retain the `subscription configured` or `API key configured` qualifier using the same success role rather than warning yellow
-- **AND** raw storage/environment source labels SHALL NOT replace the configured wording in the bare-A1 suffix
-- **AND** unconfigured providers SHALL retain muted `not configured` text without a checkmark, and comparison presentation SHALL remain pinned
-
-#### Scenario: Omit decorative provider partner badges
-
-- **WHEN** bare A1 renders a provider choice, including OpenRouter or Radius
-- **THEN** it SHALL NOT append a decorative preferred-partner badge to the provider label
-- **AND** provider names, order, configuration status dots/checkmarks, auth-type qualifiers, filtering and actions SHALL remain intact
-- **AND** comparison presentation SHALL retain its pinned partner badges
-
-#### Scenario: Move or clip selection
-
-- **WHEN** a sign-in selection changes, is filtered, or is rendered at a narrow width
-- **THEN** only the active item span from its arrow through its final visible content cell SHALL receive the selected background
-- **AND** the span SHALL stay within the available width without wrapping, stale highlights, or background leakage
-- **AND** the selected appearance SHALL resolve through the same live semantic roles as Skills and Models
-
-#### Scenario: Keep authentication and profile behavior intact
-
-- **WHEN** a sign-in choice starts, completes, fails, or cancels authentication
-- **THEN** credential handling, status, parent restoration, and ordinary prompt restoration SHALL remain unchanged
-- **AND** `a1 pi` SHALL retain its pinned heading and selection presentation
