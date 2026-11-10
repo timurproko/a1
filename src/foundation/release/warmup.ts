@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawnReleaseEntry } from "./release-use.js";
 import { resolveReleaseEntryPoint, type MaterializedRelease } from "./release-store.js";
 import { releaseEnvironment } from "./bootstrap.js";
 import { launchContractTarget, launchEnvironmentKeys } from "../launch-context/index.js";
@@ -18,15 +18,13 @@ export async function warmMaterializedRelease(
   timeoutMs = 30_000,
 ): Promise<void> {
   const entry = await resolveReleaseEntryPoint(release, "bin/warmup.js");
+  const child = await spawnReleaseEntry(entry, [], {
+    env: { ...releaseEnvironment(environment, release), [launchEnvironmentKeys(launchContractTarget(release)).immutableWarmup!]: "1" },
+    stdio: ["ignore", "ignore", "pipe"],
+    windowsHide: true,
+  });
   await new Promise<void>((resolvePromise, rejectPromise) => {
-    // Rationale: the child still gets no terminal, but a discarded failure reason leaves an
-    // update reporting only an exit status. Its own diagnostics are read and bounded so the
-    // transaction journal records why the graph could not be imported.
-    const child = spawn(process.execPath, [entry], {
-      env: { ...releaseEnvironment(environment, release), [launchEnvironmentKeys(launchContractTarget(release)).immutableWarmup!]: "1" },
-      stdio: ["ignore", "ignore", "pipe"],
-      windowsHide: true,
-    });
+    // Bounded diagnostics explain graph-import failures without attaching a terminal.
     let diagnostics = "";
     child.stderr?.setEncoding("utf8");
     child.stderr?.on("data", chunk => { diagnostics = `${diagnostics}${chunk}`.slice(-WARMUP_DIAGNOSTIC_LIMIT); });

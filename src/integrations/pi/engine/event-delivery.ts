@@ -1,4 +1,5 @@
 import type { OwnedUiEvent, OwnedUiTranscriptBlock } from "../../../contracts/owned-ui/index.js";
+import { OverloadRecovery } from "./view-state.js";
 import { PendingEngineDelivery } from "./pending-delivery.js";
 
 /**
@@ -58,7 +59,8 @@ export interface PiEventDeliveryPorts {
   reconcileOverload(cancelled: boolean): Promise<void>;
   /** A listener threw; the adapter records the warning. */
   listenerFailed(message: string): void;
-  recoveryDrained?(): void;
+  canResume?(): boolean;
+  resume?(): void;
   incident?(failure: DeliveryFailure): void;
 }
 
@@ -81,11 +83,14 @@ export class PiEventDelivery {
   #invalidatedEvents = 0;
   #failure: DeliveryFailure | null = null;
   #reported = 0;
+  readonly recovery: OverloadRecovery;
 
   get failure(): DeliveryFailure | null { return this.#failure; }
 
   constructor(ports: PiEventDeliveryPorts) {
     this.#ports = ports;
+    this.recovery = new OverloadRecovery({ generation: () => ports.sessionGeneration(), busy: () => this.overloaded,
+      canResume: () => ports.canResume?.() ?? false, resume: () => ports.resume?.() });
     this.#queue = new PendingEngineDelivery(event => ports.retainEvent(event), ports.authoritativeTranscript, ports.retainedAssetBytes);
   }
 
@@ -176,11 +181,13 @@ export class PiEventDelivery {
     this.#deliveryFailed = true;
     // Concurrency: reserve before cancellation; outcomes produced reentrantly must not enter the saturated queue.
     this.#overload = Promise.resolve(false);
+    this.recovery.begin();
     const cancellation = this.#ports.cancelForOverload();
     this.#overload = new Promise<boolean>(resolve => {
       const timer = setTimeout(() => resolve(false), OVERLOAD_CANCELLATION_TIMEOUT_MS);
       cancellation.then(() => {
         clearTimeout(timer); resolve(true);
+        this.recovery.settled();
       }, () => { clearTimeout(timer); resolve(false); });
     });
   }
@@ -246,7 +253,7 @@ export class PiEventDelivery {
         // Invariant: an outcome reserved while reconciliation replayed the earlier ones is dropped with the overload.
         this.#reservedOutcomes.clear();
         this.#overload = undefined;
-        this.#ports.recoveryDrained?.();
+        this.recovery.resume();
       }
     } finally {
       this.#processing = undefined;

@@ -125,8 +125,24 @@ describe("atomic release references", () => {
     const store = new ReleaseStateStore(root);
     await writeFile(store.path, JSON.stringify({ ...emptyState(), schema: "addone-release-cohort-v1" }));
 
-    expect(RELEASE_STATE_SCHEMA).toBe("a1-release-cohort-v1");
+    expect(RELEASE_STATE_SCHEMA).toBe("a1-release-cohort-v2");
     await expect(store.read()).rejects.toThrow(/invalid release state/);
+  });
+
+  it("upgrades v1 control state and retains legacy approved roots", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-release-state-claims-")); roots.push(root);
+    const store = new ReleaseStateStore(root);
+    const first = release("1.0.0", "1"), second = release("1.0.1", "2");
+    const initial = approvedState(first, second);
+    const { lifetimeClaims: _capability, ...legacy } = initial.releases[first.releaseId]!;
+    await writeFile(store.path, JSON.stringify({ ...initial, schema: "a1-release-cohort-v1",
+      releases: { ...initial.releases, [first.releaseId]: legacy },
+      references: { ...initial.references, rollback: null },
+    }));
+    const state = await store.update(value => value);
+    expect(state.schema).toBe(RELEASE_STATE_SCHEMA);
+    expect(planProtectedReleases(state).retainedReleaseIds).toContain(first.releaseId);
+    expect(JSON.parse(await readFile(store.path, "utf8")).schema).toBe("a1-release-cohort-v2");
   });
 
   it("reconciles a large legacy retention list to age-based retention", async () => {
@@ -152,6 +168,7 @@ describe("atomic release references", () => {
         packageVersion: candidate.packageVersion,
         contentDigest: candidate.contentDigest,
         approval: "approved" as const,
+        lifetimeClaims: true as const,
         materializedAt: timestamp,
         certifiedAt: candidate === recent ? new Date(now - 6 * 24 * 60 * 60 * 1_000).toISOString() : timestamp,
         diagnosticsPath: `${candidate.releaseId}.json`,
@@ -214,6 +231,7 @@ describe("atomic release references", () => {
         packageVersion: value.packageVersion,
         contentDigest: value.contentDigest,
         approval,
+        lifetimeClaims: true as const,
         materializedAt: value === candidate ? at(day) : at(400 * day),
         certifiedAt,
         diagnosticsPath: null,
@@ -257,6 +275,7 @@ function approvedState(first: MaterializedRelease, second: MaterializedRelease):
       launchContract: "neutral-launch-v1",
       contentDigest: candidate.contentDigest,
       approval: "approved" as const,
+      lifetimeClaims: true as const,
       materializedAt: timestamp,
       certifiedAt: timestamp,
       diagnosticsPath: `${candidate.releaseId}.json`,

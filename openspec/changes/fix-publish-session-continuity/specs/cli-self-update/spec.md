@@ -23,10 +23,15 @@ Release retention SHALL keep active and selected releases, releases approved wit
 - **WHEN** a launch selects a retained release while cleanup considers it
 - **THEN** claim acquisition and collection SHALL be mutually excluded so the launch never enters a detached root
 
+#### Scenario: Legacy cleanup does not ignore lifetime ownership
+- **WHEN** a claim-aware control process adopts a valid v1 release store
+- **THEN** its locked update SHALL preserve the records and write a control-state schema that pre-claim cleanup readers refuse
+- **AND** saved sessions SHALL remain unchanged and approved legacy release roots SHALL remain conservatively retained
+
 ## ADDED Requirements
 
 ### Requirement: Restart-ready announcements preserve large-session execution
-Activation of an approved successor and its restart-ready announcement SHALL leave an existing large-session process on its executing immutable release, without aborting its agent work, replacing its session, disposing its UI, or requiring restart because its authoritative transcript exceeds the pending delivery allowance. The notice SHALL remain informational; ordinary subsequent input SHALL continue in the existing process, and only a later launch SHALL select the approved successor. Existing retention and certification guarantees remain unchanged.
+Activation of an approved successor and its restart-ready announcement SHALL leave an existing large-session process on its executing immutable release, without aborting its agent work, replacing its session, disposing its UI, or requiring restart because its authoritative transcript exceeds the pending delivery allowance. The notice SHALL remain informational; ordinary subsequent input SHALL continue in the existing process, and only a later launch SHALL select the approved successor. Existing certification guarantees remain unchanged.
 
 #### Scenario: Another process activates a successor during long-session work
 - **WHEN** a retained published process has more than 8 MiB of authoritative transcript and observes a newer approved same-channel active release

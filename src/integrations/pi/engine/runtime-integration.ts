@@ -219,8 +219,9 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
         ...(modelScope.thinkingLevel && !hasExistingSession ? { thinkingLevel: modelScope.thinkingLevel } : {}),
         ...(modelScope.scopedModels.length > 0 ? { scopedModels: [...modelScope.scopedModels] } : {}),
       });
+      try { await (options.markStartupPhase ?? defaultStartupPhaseMarker)("session-created"); }
+      catch (error) { created.session.dispose(); throw error; }
       sessionWriters.activate(pendingWriter);
-      await (options.markStartupPhase ?? defaultStartupPhaseMarker)("session-created");
       return {
         ...created,
         services,

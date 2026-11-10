@@ -20,7 +20,7 @@ describe("bounded transcript image assets", () => {
     expect(assets.pendingBytes).toBe(32);
     assets.release(block); current = [];
     expect(assets.pendingBytes).toBeGreaterThan(8 * 1024 * 1024);
-    expect(queue.push({ type: "agent-run-started", sequence: 20, sessionId: "s", runId: "r" }, 1)).toBe(false);
+    expect(queue.push({ type: "agent-run-started", sequence: 20, sessionId: "s" }, 1)).toBe(false);
     queue.discardObsolete(2);
     expect(assets.pendingBytes).toBe(0);
     expect(assets.resolve(reference.assetId)).toBeNull();

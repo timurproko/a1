@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
+import { spawnReleaseEntry } from "./release-use.js";
 import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, type FileHandle } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ReleaseStateStore,
+  releaseUseIsLive,
   type ReleaseState,
   type OrphanReleaseDisposition,
   type ProtectedReleaseInputs,
@@ -317,7 +318,8 @@ async function collectDisposition(
   try {
     const inputs = await protectionInputs(options.transactionStore ?? new UpdateTransactionStore(dataDir), options);
     const current = await store.read();
-    if (isProtectedDetachedRelease(current, inputs, releaseId)) return false;
+    if (isProtectedDetachedRelease(current, inputs, releaseId)
+      || (disposition.release.approval === "approved" && disposition.release.lifetimeClaims !== true)) return false;
 
     const storeRoot = await canonicalReleaseStore(dataDir);
     const trashRoot = await canonicalTrashRoot(storeRoot);
@@ -335,7 +337,18 @@ async function collectDisposition(
       } else {
         await assertReleaseDirectory(source, storeRoot, disposition.release, releaseId);
         trashPath = resolve(trashRoot, `${releaseId}--${randomUUID()}`);
-        await (options.operations?.rename ?? rename)(source, trashPath);
+        let moved = false;
+        const destination = trashPath;
+        // Claim admission and destructive rename share the state gate. A launch recorded
+        // after discovery cannot slip between the last protection read and deletion.
+        await store.update(async latest => {
+          if (!isProtectedDetachedRelease(latest, inputs, releaseId)) {
+            await (options.operations?.rename ?? rename)(source, destination);
+            moved = true;
+          }
+          return latest;
+        });
+        if (!moved) return false;
       }
       await store.markCleanupTrash(releaseId, trashPath);
     }
@@ -357,6 +370,7 @@ function isProtectedDetachedRelease(state: ReleaseState, inputs: ProtectedReleas
     .some(reference => reference === releaseId);
   // Concurrency: a launch may have recorded the same release again after it was detached.
   return selected
+    || Object.values(state.uses ?? {}).some(claim => claim.releaseId === releaseId && releaseUseIsLive(claim))
     || state.releases[releaseId] !== undefined
     || (inputs.ownReleaseIds ?? []).includes(releaseId)
     || (inputs.transaction?.status === "active" && inputs.transaction.priorActiveReleaseId === releaseId);
@@ -476,6 +490,7 @@ async function readReleaseRecord(path: string, parent: string, expectedName: str
     releaseRoot: resolve(parent, manifest.releaseId),
     packageVersion: manifest.packageVersion,
     contentDigest: manifest.contentDigest,
+    ...(Array.isArray(manifest.files) && manifest.files.some(file => file?.path === "dist/foundation/release/release-use.js") ? { lifetimeClaims: true as const } : {}),
     approval: "approved",
     materializedAt: new Date(0).toISOString(),
     certifiedAt: null,
@@ -738,7 +753,7 @@ function sortArtifacts(artifacts: readonly string[], state: ReleaseState): strin
 }
 
 async function spawnCleanupWorker(entry: string, environment: NodeJS.ProcessEnv): Promise<void> {
-  const child = spawn(process.execPath, [entry], {
+  const child = await spawnReleaseEntry(entry, [], {
     detached: true,
     windowsHide: true,
     stdio: "ignore",

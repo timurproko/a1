@@ -1360,6 +1360,45 @@ describe("Pi engine adapter", () => {
     await adapter.dispose();
   });
 
+  it.each([false, true])("coordinates late cancellation without reviving a disposed generation (disposed: %s)", async disposed => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    let finishAbort!: () => void;
+    const session = new FakeSession("late-cancellation");
+    session.abort = async () => new Promise<void>(resolve => { finishAbort = resolve; });
+    const { adapter } = await adapterWithRuntime(new FakeRuntime(session));
+    try {
+      await adapter.flushEvents();
+      for (let index = 0; index < 2048; index++) session.emit({ type: "agent_start" });
+      const failed = expect(adapter.flushEvents()).rejects.toThrow("Engine delivery did not complete");
+      await vi.advanceTimersByTimeAsync(2100);
+      await failed;
+      expect(adapter.view().lifecycle).toBe("failed");
+      if (disposed) await adapter.dispose();
+      finishAbort();
+      await Promise.resolve(); await Promise.resolve();
+      await adapter.flushEvents();
+      expect(adapter.view().lifecycle).toBe(disposed ? "stopped" : "ready");
+      expect(session.listeners.size).toBe(disposed ? 0 : 1);
+      if (!disposed) expect(adapter.view().editor.submitEnabled).toBe(true);
+    } finally { vi.useRealTimers(); await adapter.dispose(); }
+  });
+
+  it("reports an already applied model exactly once when its presentation causes genuine overload", async () => {
+    const session = new FakeSession("applied-model");
+    const { adapter } = await adapterWithRuntime(new FakeRuntime(session));
+    await adapter.flushEvents();
+    session.setModel = async model => {
+      session.calls.push("setModel"); session.model = model;
+      for (let index = 0; index < 2048; index++) session.emit({ type: "agent_start" });
+    };
+    expect(await adapter.executeWorkflow({ command: "models", argument: "", selection: "openai/gpt-5" })).toMatchObject({ outcome: "completed" });
+    await expect(adapter.flushEvents()).rejects.toThrow("Engine delivery did not complete");
+    expect(session.calls.filter(call => call === "setModel")).toHaveLength(1);
+    expect(adapter.view().lifecycle).toBe("ready");
+    expect(adapter.view().editor.submitEnabled).toBe(true);
+    await adapter.dispose();
+  });
+
   it("allows safe quit after failed recovery", async () => {
     const session = new FakeSession("stalled");
     session.abort = async () => { throw new Error("offline cancellation failure"); };

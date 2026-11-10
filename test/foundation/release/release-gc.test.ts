@@ -1,3 +1,5 @@
+import { once } from "node:events";
+import { acquireReleaseUse, spawnReleaseEntry } from "../../../src/foundation/release/release-use.js";
 import { lstat, mkdir, mkdtemp, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -20,6 +22,79 @@ afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursi
 const noTransaction = { read: async () => null };
 
 describe("bounded immutable release cleanup", () => {
+  it("keeps lazy imports available in a live old process while a later process uses its successor", async () => {
+    const fixture = await releaseFixture(4);
+    const first = fixture.releases[0]!;
+    await activateAll(fixture.store, [first]);
+    const launch = (release: MaterializedRelease) => spawnReleaseEntry(resolve(release.releaseRoot, "bin/probe.js"), [], {
+      env: { ...process.env, A1_DATA_DIR: fixture.dataDir }, stdio: ["ignore", "ignore", "pipe", "ipc"],
+    });
+    const message = (child: Awaited<ReturnType<typeof launch>>) => {
+      let diagnostics = "";
+      child.stderr?.on("data", chunk => { diagnostics += String(chunk); });
+      return Promise.race([once(child, "message"), once(child, "exit").then(([code]) => { throw new Error(`Probe exited ${code}: ${diagnostics}`); })]);
+    };
+    const old = await launch(first);
+    const oldClosed = once(old, "close");
+    try {
+      await message(old);
+      expect(Object.values((await fixture.store.read()).uses ?? {})).toContainEqual(expect.objectContaining({ releaseId: first.releaseId }));
+      await activateAll(fixture.store, fixture.releases.slice(1));
+      await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, ownReleaseIds: [] });
+      const reply = message(old); old.send("load");
+      expect((await reply)[0]).toMatchObject({ value: 0 });
+      expect(old.exitCode).toBeNull();
+      const successor = await launch(fixture.releases[3]!);
+      const successorClosed = once(successor, "close");
+      try {
+        await message(successor);
+        const next = message(successor); successor.send("load");
+        expect((await next)[0]).toMatchObject({ value: 3 });
+      } finally { successor.kill("SIGKILL"); await successorClosed; }
+    } finally { old.kill("SIGKILL"); await oldClosed; }
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, ownReleaseIds: [] });
+    await expect(lstat(first.releaseRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("protects an expired executing root across several successor activations and concurrent users", async () => {
+    const fixture = await releaseFixture(4);
+    const first = fixture.releases[0]!;
+    await activateAll(fixture.store, [first]);
+    const one = await acquireReleaseUse(fixture.dataDir, first.releaseId);
+    const two = await acquireReleaseUse(fixture.dataDir, first.releaseId);
+    await one.started(process.pid); await two.started(process.pid);
+    await activateAll(fixture.store, fixture.releases.slice(1));
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, ownReleaseIds: [] });
+    expect(await readFile(resolve(first.releaseRoot, "dist/app.js"), "utf8")).toContain("export default 0");
+    expect((await fixture.store.read()).references.active).toBe(fixture.releases[3]!.releaseId);
+    await one.release();
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, ownReleaseIds: [] });
+    expect((await lstat(first.releaseRoot)).isDirectory()).toBe(true);
+    await two.release();
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, ownReleaseIds: [] });
+    await expect(lstat(first.releaseRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("retains interrupted launch handoffs and reclaims only proven-dead running claims", async () => {
+    const fixture = await releaseFixture(4);
+    await activateAll(fixture.store, fixture.releases);
+    const uncertain = fixture.releases[0]!, dead = fixture.releases[1]!;
+    const launching = await acquireReleaseUse(fixture.dataDir, uncertain.releaseId);
+    const running = await acquireReleaseUse(fixture.dataDir, dead.releaseId);
+    await running.started(2147483647);
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, ownReleaseIds: [] });
+    expect((await lstat(uncertain.releaseRoot)).isDirectory()).toBe(true);
+    await expect(lstat(dead.releaseRoot)).rejects.toMatchObject({ code: "ENOENT" });
+    await launching.release(); await running.release();
+  });
+
+  it("refuses late launch admission after cleanup atomically detaches a release", async () => {
+    const fixture = await releaseFixture(3);
+    await activateAll(fixture.store, fixture.releases);
+    await fixture.store.reconcileRetention(() => ({ ownReleaseIds: [] }));
+    await expect(acquireReleaseUse(fixture.dataDir, fixture.releases[0]!.releaseId)).rejects.toThrow("no longer available");
+  });
+
   it("never treats profile history databases or sidecars as release or dependency cache", async () => {
     const fixture = await releaseFixture(3);
     await activateAll(fixture.store, fixture.releases);
@@ -495,8 +570,12 @@ async function releaseFixture(count: number) {
   for (let index = 0; index < count; index += 1) {
     const packageRoot = resolve(root, `package-${index}`);
     await mkdir(resolve(packageRoot, "dist"), { recursive: true });
-    await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", privateLaunchContract: "neutral-launch-v1", version: `1.0.${index}`, files: ["dist"] }));
+    await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", privateLaunchContract: "neutral-launch-v1", version: `1.0.${index}`, files: ["dist", "bin"] }));
     await writeFile(resolve(packageRoot, "dist", "app.js"), `export default ${index};`);
+    await mkdir(resolve(packageRoot, "bin"));
+    await writeFile(resolve(packageRoot, "bin/probe.js"), `process.on('message', async () => { const value = await import('../dist/app.js'); process.send({ value: value.default }); }); process.send('ready');`);
+    await mkdir(resolve(packageRoot, "dist/foundation/release"), { recursive: true });
+    await writeFile(resolve(packageRoot, "dist/foundation/release/release-use.js"), "// lifetime-claim fixture\n");
     releases.push(await materializeRelease(packageRoot, dataDir));
   }
   return { root, dataDir, releases, store: new ReleaseStateStore(dataDir) };

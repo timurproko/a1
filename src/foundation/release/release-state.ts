@@ -7,7 +7,7 @@ import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
 export const RELEASE_STATE_SCHEMA = PRODUCT_IDENTITY.protocol.releaseCohortSchema;
 const RELEASE_ID_PATTERN = /^[0-9A-Za-z.+_-]+-[a-f0-9]{20}$/;
-/** How long a release stays on disk after its approval, so processes started from it keep their files. */
+/** Minimum age retention; live, uncertain, and legacy ownership independently overrides age. */
 export const RELEASE_RETENTION_MS = 7 * 24 * 60 * 60 * 1_000;
 
 export type ReleaseApproval = "candidate" | "approved" | "rejected";
@@ -18,6 +18,8 @@ export interface ReleaseRecord {
   readonly packageVersion: string;
   readonly contentDigest: string;
   readonly launchContract?: string;
+  /** Only binaries implementing launch claims may become age-collectible. */
+  readonly lifetimeClaims?: true;
   readonly approval: ReleaseApproval;
   readonly materializedAt: string;
   /** When the release was approved; retention measures its age from this instant. */
@@ -85,12 +87,20 @@ export interface ReleaseCleanupState {
   readonly workerRuns: readonly ReleaseCleanupWorkerRun[];
 }
 
+export interface ReleaseUseClaim {
+  readonly releaseId: string;
+  readonly pid: number;
+  /** An interrupted handoff is uncertain and must remain protected. */
+  readonly phase: "launching" | "running";
+}
+
 export interface ReleaseState {
   readonly schema: typeof RELEASE_STATE_SCHEMA;
   readonly revision: number;
   readonly releases: Readonly<Record<string, ReleaseRecord>>;
   readonly references: ReleaseReferences;
   readonly cleanup: ReleaseCleanupState;
+  readonly uses?: Readonly<Record<string, ReleaseUseClaim>>;
 }
 
 export interface ProtectedReleaseInputs {
@@ -125,11 +135,11 @@ export interface ReleaseRetentionReconciliation {
  * Age-based retention. A release stays while a selector names it (active, its rollback, or a
  * candidate still being certified), while an unfinished update may return to it, while the
  * reconciling command runs from it, or while its approval is younger than the retention window.
- * Nothing asks which processes are running: a session that outlives the window and two updates
- * can lose its release files, which is the documented trade-off.
+ * Process-lifetime claims override age; legacy approved binaries remain conservatively retained.
  */
 export function planProtectedReleases(state: ReleaseState, inputs: ProtectedReleaseInputs = {}): ProtectedReleasePlan {
   const protectedIds = new Set<string>();
+  for (const claim of Object.values(state.uses ?? {})) if (releaseUseIsLive(claim)) protectedIds.add(claim.releaseId);
   for (const id of [state.references.active, state.references.pending, state.references.approved, state.references.rollback]) {
     if (id !== null) protectedIds.add(id);
   }
@@ -140,7 +150,7 @@ export function planProtectedReleases(state: ReleaseState, inputs: ProtectedRele
   const now = inputs.now ?? Date.now();
   const window = inputs.retentionMs ?? RELEASE_RETENTION_MS;
   for (const release of Object.values(state.releases)) {
-    if (withinRetention(release, now, window)) protectedIds.add(release.releaseId);
+    if (withinRetention(release, now, window) || (release.approval === "approved" && release.lifetimeClaims !== true)) protectedIds.add(release.releaseId);
   }
   const protectedReleaseIds = [...protectedIds].sort();
   const known = Object.keys(state.releases).sort();
@@ -216,6 +226,7 @@ export class ReleaseStateStore {
         packageVersion: release.packageVersion,
         contentDigest: release.contentDigest,
         ...(release.launchContract === undefined ? {} : { launchContract: release.launchContract }),
+        ...(release.files.some(file => file.path === "dist/foundation/release/release-use.js") ? { lifetimeClaims: true as const } : {}),
         approval: "candidate",
         materializedAt: new Date().toISOString(),
         certifiedAt: null,
@@ -542,6 +553,8 @@ function normalizeState(value: unknown): ReleaseState {
   const cleanup = state.cleanup;
   return {
     ...state,
+    // One-way control-state upgrade fences pre-claim cleanup workers; session files are untouched.
+    ...(state.schema === "a1-release-cohort-v1" ? { schema: RELEASE_STATE_SCHEMA } : {}),
     cleanup: cleanup
       ? { ...cleanup, workerRuns: cleanup.workerRuns ?? [] }
       : { pending: {}, diagnostics: [], workerRuns: [] },
@@ -553,6 +566,11 @@ function validateState(state: ReleaseState): void {
     || !state.cleanup || typeof state.cleanup.pending !== "object" || !Array.isArray(state.cleanup.diagnostics)
     || !Array.isArray(state.cleanup.workerRuns)) {
     throw new Error("invalid release state");
+  }
+  if (state.uses !== undefined && (state.uses === null || typeof state.uses !== "object" || Array.isArray(state.uses))) throw new Error("invalid release use claims");
+  for (const [token, claim] of Object.entries(state.uses ?? {})) {
+    if (!/^[a-f0-9-]{36}$/.test(token) || !claim || !RELEASE_ID_PATTERN.test(claim.releaseId)
+      || !Number.isSafeInteger(claim.pid) || claim.pid <= 0 || !["launching", "running"].includes(claim.phase)) throw new Error("invalid release use claim");
   }
   for (const run of state.cleanup.workerRuns) {
     if (!run || typeof run.runId !== "string" || run.runId.length === 0
@@ -586,6 +604,13 @@ function validateTransition(current: ReleaseState, next: ReleaseState): void {
   if (next.schema !== current.schema) throw new Error("release schema cannot change during a state update");
   if (next.revision !== current.revision) throw new Error("release revision is controlled by the state store");
 }
+export function releaseUseIsLive(claim: ReleaseUseClaim): boolean {
+  if (claim.phase === "launching") return true;
+  // PID reuse only over-retains: no live/uncertain process identity ever proves a claim dead.
+  try { process.kill(claim.pid, 0); return true; }
+  catch (error) { return !(error instanceof Error && "code" in error && error.code === "ESRCH"); }
+}
+
 function boundedError(error: unknown): string {
   return (error instanceof Error ? error.message : String(error)).replace(/[\r\n]+/g, " ").slice(0, 1_000);
 }
