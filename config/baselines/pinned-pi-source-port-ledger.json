@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-10T17:57:22.820Z",
+  "recordedAt": "2026-11-10T18:21:33.949Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "dd30101cfc5b0609411dd80b6f93adbc14db14cf",
@@ -38,8 +38,8 @@
     "sourceModules": 128,
     "assets": 4,
     "classifications": {
-      "public-api-reuse": 66,
-      "owned-presentation": 32,
+      "public-api-reuse": 64,
+      "owned-presentation": 34,
       "host-adaptation": 34
     },
     "requiredBehaviorIds": 29,
@@ -1131,12 +1131,21 @@
       "sourceMap": "modes/interactive/components/auth-url.js.map",
       "lines": 40,
       "sha256": "a4b3531e947746ca1bc2319b717ff79b37898366d282d02f9fc0b955481fc913",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/shell-selectors-dialogs.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/components/auth-url.ts",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Reached transitively through the public LoginDialogComponent; A1 passes its TUI facade to that component, which owns the sign-in URL, click hint, copy action, and feedback.",
-      "approvedDeviations": [],
+      "modifications": "Adapt sign-in URL/copy feedback to live semantic roles, shared zero-inset login content and canonical shortcut hints. Preserve safe hyperlinks, copy results and lifetime guards; the comparison profile keeps the public component.",
+      "upgradeStrategy": "three-way",
+      "localSha256": "c0cf3b6d72f7da38462fd694150b133d1c94917d71be6d9c45765d149596dc41",
+      "approvedDeviations": [
+        {
+          "id": "shared-login-template",
+          "reason": "Every provider login state shares the live themed title, description, spacing, chevron and footer template.",
+          "upstreamBehavior": "Authentication effects, safe link targets, copy behavior and comparison presentation remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/login-template.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "stateful-components"
       ],
@@ -2024,12 +2033,21 @@
       "sourceMap": "modes/interactive/components/login-dialog.js.map",
       "lines": 331,
       "sha256": "4baa766d4fbb1ace9afd61272bd8342c7f897edaabb2394e8c78ffe541e1f437",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/components/login-dialog.ts",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
-      "approvedDeviations": [],
+      "modifications": "Adapt all provider login states to shared live-themed framing: title, immediate muted description, blank row before accent-chevron input and one-cell inset. Preserve prompt, callback, device/copy, browser, cancellation and nested lifecycle contracts through neutral runtime ports; retain the public component for comparison.",
+      "upgradeStrategy": "three-way",
+      "localSha256": "6599401d572b44634f8b8c478a82590a155899ad68564b773175eb9c5c1625ec",
+      "approvedDeviations": [
+        {
+          "id": "shared-login-template",
+          "reason": "Every provider login state shares the live themed title, description, spacing, chevron and footer template.",
+          "upstreamBehavior": "Authentication effects, safe link targets, copy behavior and comparison presentation remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/login-template.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "stateful-components"
       ],

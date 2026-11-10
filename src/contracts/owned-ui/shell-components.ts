@@ -383,7 +383,6 @@ export interface OwnedUiShellTrustOption {
 }
 
 export interface OwnedUiShellTrustSelectorOptions {
-  readonly standardStyle?: boolean;
   readonly cwd: string;
   readonly savedDecision: OwnedUiShellTrustDecision | null;
   readonly projectTrusted: boolean;

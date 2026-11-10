@@ -39,9 +39,9 @@
 
 ## 8. Shared live-themed login template
 
-- [ ] 8.1 Replace package-colored login presentation with one shared live-themed template for every provider/state; add title-description adjacency, blank-row/input geometry, one-cell inset, and live accent/appearance/color-mode assertions.
-- [ ] 8.2 Preserve prompt/manual-code/optional answers, prior auth context, submitted text, URL-copy/browser/device actions, info/details, waiting/progress, nested return, cancel/completion, and comparison behavior; cover focused interaction transitions and safe links.
-- [ ] 8.3 Finish targeted checks and gap disposition, reconcile current origin/develop, and pass final body/finalization inspection before checking the final implementation item.
+- [x] 8.1 Replace package-colored login presentation with one shared live-themed template for every provider/state; add title-description adjacency, blank-row/input geometry, one-cell inset, and live accent/appearance/color-mode assertions.
+- [x] 8.2 Preserve prompt/manual-code/optional answers, prior auth context, submitted text, URL-copy/browser/device actions, info/details, waiting/progress, nested return, cancel/completion, and comparison behavior; cover focused interaction transitions and safe links.
+- [x] 8.3 Finish targeted checks and gap disposition, reconcile current origin/develop, and pass final body/finalization inspection before checking the final implementation item.
 
 ## Workflow follow-up
 

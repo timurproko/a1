@@ -26,6 +26,7 @@ import {
 import type { OwnedUiDialog } from "../../../contracts/owned-ui/index.js";
 import { ScopedModelsSelectorComponent } from "./upstream/components/scoped-models-selector.js";
 import { addPiModalSelectFooter, adoptPiModalFrame, adoptPiModalHeader, adoptPiModalSearchInput, renderPiModalSelectedPrimary, standardInternalChoicePort } from "./modal-frame.js";
+import { deferredLoginDialog } from "./login-dialog-loader.js";
 import { deferredSelector } from "./deferred-selector.js";
 import { createDeferredModelsDialog } from "./models-dialog-loader.js";
 import type { ModelsDialogCallbacks, ModelsDialogConfig } from "./models-dialog.js";
@@ -359,15 +360,15 @@ export function createPiShellLoginDialog(
   standard = false,
 ): PiShellLoginDialogPort {
   ensureTheme();
-  const heading = standard ? internalDialogTitle(title ?? `Login to ${providerName ?? providerId}`) : title;
-  const dialog = new LoginDialogComponent(createTuiFacade(runtime), providerId, onComplete, providerName, heading);
+  if (standard) return deferredLoginDialog(runtime, providerId, onComplete, providerName, title);
+  const dialog = new LoginDialogComponent(createTuiFacade(runtime), providerId, onComplete, providerName, title);
   const preInsetTitle = dialog.children[1]!;
   const content = dialog.children[2] as Container;
   dialog.children.splice(dialog.children.length - 1, 0,
     new Spacer(1),
     new Text(renderPiModalShortcutHints([DIALOG_CLOSE_SHORTCUT_HINT]), 0, 0),
   );
-  const removeDependencyHint = (): void => { content.children.pop(); };
+  const stripHint = <T>(result: T): T => { content.children.pop(); return result; };
   const header = adoptPiModalHeader(dialog, 0, 1);
   adoptPiModalFrame(dialog, {
     topIndex: 0,
@@ -379,23 +380,12 @@ export function createPiShellLoginDialog(
     ...componentPort(dialog),
     showAuth: (url, instructions) => dialog.showAuth(url, instructions),
     showDeviceCode: info => dialog.showDeviceCode(info),
-    showManualInput(message) {
-      const result = dialog.showManualInput(message);
-      removeDependencyHint();
-      return result;
-    },
-    showPrompt(message, placeholder) {
-      const result = dialog.showPrompt(message, placeholder);
-      removeDependencyHint();
-      return result;
-    },
+    showManualInput: message => stripHint(dialog.showManualInput(message)),
+    showPrompt: (message, placeholder) => stripHint(dialog.showPrompt(message, placeholder)),
     showDetails: lines => dialog.showDetails([...lines]),
-    // Rationale: The persistent canonical footer replaces the dependency's optional close hint.
+    // Rationale: one footer replaces optional hints.
     showInfo: (message, links = []) => dialog.showInfo(message, [...links], false),
-    showWaiting(message) {
-      dialog.showWaiting(message);
-      removeDependencyHint();
-    },
+    showWaiting: message => stripHint(dialog.showWaiting(message)),
     showProgress: message => dialog.showProgress(message),
   };
 }
@@ -453,7 +443,7 @@ export function createPiShellAuthProviderSelector(
     const selected = providers.find(provider => provider.providerId === providerId && provider.authType === authType);
     if (selected) onSelect(selected.id);
   }, onCancel, initialSearchInput);
-  // Provenance: OAuth selector slot is top rule, spacer, title, spacer, then its search Input.
+  // Provenance: public search slot 4.
   adoptPiModalSearchInput(selector, selector.children[4]!);
   addPiModalSelectFooter(selector);
   const preInsetContent = [selector.children[2]!, selector.children[6]!];
@@ -522,7 +512,6 @@ export function createPiShellDialog(
   box.addChild(componentFromPort(selector));
   return componentPort(box, data => selector.handleInput?.(data));
 }
-
 
 function toSelectItem(option: PiShellSelectorOption): SelectItem {
   return {

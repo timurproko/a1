@@ -700,13 +700,21 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await shell.dispose();
   });
 
-  it("preserves a blank optional OAuth prompt before a device-code flow", async () => {
-    const { engine, terminal, shell } = await fixture();
+  it.each([false, true])("preserves optional prompts and themes every device-flow state, bare=%s", async bare => {
+    const { engine, terminal, shell } = await fixture([], [], bare);
     engine.loginPromptKind = "optional-text";
 
     const login = shell.runWorkflow({ command: "login", argument: "", selection: "oauth:openai" });
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("GitHub Enterprise URL/domain (blank for github.com)");
+    await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("GitHub Enterprise URL/domain (blank for github.com)"));
+    if (bare) {
+      const rows = shell.root.render(100);
+      const titleIndex = rows.findIndex(row => stripTerminalSequences(row).includes("Login to OpenAI Codex"));
+      expect(stripTerminalSequences(rows[titleIndex + 1]!)).toContain(" GitHub Enterprise URL/domain");
+      expect(stripTerminalSequences(rows[titleIndex + 2]!)).toContain(" e.g., company.ghe.com");
+      expect(stripTerminalSequences(rows[titleIndex + 3]!).trim()).toBe("");
+      expect(cellStyle(rows[titleIndex + 4]!, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
+    }
 
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));

@@ -93,10 +93,18 @@ Use a deferred attributed owned login presenter with the same behavioral contrac
 - Build, typecheck, strict OpenSpec validation, architecture boundaries, pinned-source provenance, and palette synchronization passed. The final refinement run passed fifteen focused test files (289 tests), covering shared choice movement, Launcher, Settings, nested authentication, provider parity, trust, report alignment/wrapping, routes, Skills, and extension isolation. Changed-file documentation checks pass after repairing the four CI-reported DOC005 comment prefixes.
 - No broad local regression suite was run; required finalized-head CI remains authoritative. Interactive terminal review remains optional; the agent did not perform it, and the maintainer supplied the refinement screenshots.
 
+## Login Template Evidence
+
+- One deferred owned login presenter now supplies every provider's prompt, manual-code, browser URL/instructions, device-code, details/info/links, waiting/progress, submitted-value and nested return states. All text rows are zero-inset internally and receive the shared frame's single inset.
+- Active descriptions follow the heading immediately; a blank row separates the description/optional placeholder from the live accent-chevron input. Prior authorization context and submitted answers remain available beneath the current prompt.
+- Title, chevron, description, links, rules and shortcut roles resolve at render time. Tests cover three synthetic provider names, dark/light appearances, several accents and truecolor/256-color modes without provider-specific code.
+- Deferred state calls and early input replay in order; early cancellation rejects pending answers and prevents resurrection. Copy feedback/device-confirm actions are lifetime-guarded. Safe web URLs use encoded hyperlinks and best-effort shell-free browser argv without a project cwd; non-web targets/control payloads do not get execution or raw terminal control authority.
+- The final login refinement passed build, typecheck, architecture/startup budgets, pinned-source provenance, changed-file documentation, strict OpenSpec validation and eight focused test files (146 tests). Existing prompt, optional blank answer, nested flow, cancel, comparison and extension-isolation assertions remain in place. No broad local regression suite or agent-driven interactive provider login was performed; required CI remains authoritative.
+
 ## Open Questions
 
 None for the described Session Info, sign-in, and project-trust updates. Additional UX requests are not inferred and require scope refinement in the same PR.
 
 ## Known Gaps
 
-The newly approved shared login-template refinement is in progress; no known intended behavior exclusions.
+None identified in the approved implemented scope. Live provider sign-in remains optional maintainer validation and was not performed by the agent.
