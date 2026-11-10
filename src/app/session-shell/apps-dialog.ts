@@ -12,7 +12,7 @@ const SHORTCUTS = new ShortcutRegistry<"previous" | "next" | "open" | "close">()
 SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Previous app", hint: { keys: "↑↓", does: "navigate" } }, "previous");
 SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Next app", hint: { keys: "↑↓", does: "navigate" } }, "next");
 SHORTCUTS.declare({ key: "enter", scope: SCOPE, description: "Open app", hint: { keys: "Enter", does: "open" } }, "open");
-SHORTCUTS.declare({ key: "escape", scope: SCOPE, description: "Close Apps", hint: { keys: "Esc", does: "close" } }, "close");
+SHORTCUTS.declare({ key: "escape", scope: SCOPE, description: "Close Launcher", hint: { keys: "Esc", does: "close" } }, "close");
 
 /** A compact application chooser; actions return to the same session and never launch a process. */
 export class AppsDialog implements TerminalComponentPort {
@@ -34,10 +34,10 @@ export class AppsDialog implements TerminalComponentPort {
     const matches = this.#matches();
     const height = Math.max(1, this.ports.height());
     const compact = height < 12;
-    const capacity = compact ? Math.max(1, height - 3) : configureDialogChoiceCapacity(height, true);
+    const capacity = compact ? Math.max(1, height - 3) : configureDialogChoiceCapacity(height, true, 0);
     const start = Math.max(0, this.#index - capacity + 1);
     return renderSteppedDialogPanel({
-      title: "Apps", description: "Open an application", input: this.#input, compact,
+      title: "Launcher", input: this.#input, compact,
       rows: matches.length === 0 ? [{ label: "No apps found", value: "" }]
         : matches.slice(start, start + capacity).map(app => ({ label: app.label, value: "" })),
       index: matches.length === 0 ? -1 : this.#index - start,

@@ -50,7 +50,7 @@ export interface ModelsDialogConfig {
 }
 
 export interface ModelsDialogCallbacks {
-  /** Live available overlay height; omitted component consumers retain the ordinary 24-row budget. */
+  /** Live terminal height; omitted component consumers retain the ordinary 24-row budget. */
   viewportHeight?(): number;
   /** Enter on a row: the shell switches through its workflow and closes the dialog on success. */
   onSelect(modelId: string): void;

@@ -16,7 +16,7 @@ const ESC = "\u001b";
 const ENTER = "\r";
 
 describe("session application switching", () => {
-  it("opens Apps over Agent and routes, retains the draft, closes replaced apps, and isolates keyboard and pointer input", async () => {
+  it("opens Launcher over Agent and routes, retains the draft, closes replaced apps, and isolates keyboard and pointer input", async () => {
     const agentDir = await mkdtemp(join(tmpdir(), "a1-apps-"));
     const engine = new Runtime([{ role: "assistant", content: [{ type: "text", text: "transcript selection target\n\n".repeat(120) }] }]);
     const adapter = await createPiEngineAdapter({ cwd: "D:/work", agentDir, sessionId: "apps-test", createRuntime: async () => engine as unknown as AgentSessionRuntime });
@@ -53,7 +53,7 @@ describe("session application switching", () => {
     try {
       shell.root.editor.setText("unfinished draft");
       terminal.input(APPS);
-      expect(await text()).toContain("Apps");
+      expect(await text()).toContain("Launcher");
       terminal.input("set"); terminal.input(ENTER);
       expect(await text()).toContain("settings");
       expect(surfaces.map(surface => surface.route)).toEqual(["settings"]);
@@ -66,7 +66,7 @@ describe("session application switching", () => {
       expect(terminal.writes.slice(copiedAt).join("")).not.toContain("\u001b]52;c;");
       expect(shell.root.editor.getText()).toBe("unfinished draft");
       terminal.input(APPS);
-      expect(await text()).toContain("Apps");
+      expect(await text()).toContain("Launcher");
       terminal.input(ESC);
       expect(surfaces[0]!.close).not.toHaveBeenCalled();
       terminal.input(APPS); terminal.input("settings"); terminal.input(ENTER);
@@ -84,10 +84,12 @@ describe("session application switching", () => {
       expect(shell.root.editor.getText()).toBe("unfinished draft");
       expect(engine.session.calls.some(call => call.startsWith("prompt:") || call === "setModel")).toBe(false);
       expect(surfaces.flatMap(surface => surface.input.mock.calls)).toEqual([]);
-      terminal.input("\u001b[109;5u");
+      await shell.submit("/models");
       expect(await text()).toContain("Models");
+      expect(shell.root.usesDefaultInputSurface()).toBe(false);
+      expect(shell.runtime.hasOverlay()).toBe(false);
       terminal.input(APPS);
-      expect(await text()).not.toContain("Open an application");
+      expect(await text()).not.toContain("Launcher");
       terminal.input(ESC);
       expect(shell.root.editor.getText()).toBe("unfinished draft");
     } finally { await shell.dispose(); await rm(agentDir, { recursive: true, force: true }); }

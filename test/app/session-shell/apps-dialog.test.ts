@@ -12,10 +12,14 @@ function fixture(height = 24) {
   return { dialog, select, cancel, text: () => dialog.render(60).map(stripAnsi).join("\n") };
 }
 
-describe("Apps dialog", () => {
+describe("Launcher dialog", () => {
   it("renders all applications with searchable compact-selector chrome", () => {
     const { dialog, text } = fixture();
-    expect(text()).toContain("Apps");
+    expect(text()).toContain("Launcher");
+    expect(text()).not.toContain("Apps");
+    expect(text()).not.toContain("Open an application");
+    const rows = dialog.render(60).map(stripAnsi);
+    expect(rows.findIndex(row => row.includes("> "))).toBe(rows.findIndex(row => row.includes("Launcher")) + 2);
     expect(text()).toContain("→ Agent");
     expect(text()).toContain("Settings");
     expect(text()).toContain("Changelog");
@@ -23,10 +27,10 @@ describe("Apps dialog", () => {
     for (const width of [12, 24, 60]) expect(dialog.render(width).every(row => displayWidth(row) === width)).toBe(true);
   });
 
-  it.each([4, 6, 8, 12])("keeps Apps, input, selected choice, and close guidance in %i rows", height => {
+  it.each([4, 6, 8, 12])("keeps Launcher, input, selected choice, and close guidance in %i rows", height => {
     const { dialog, text } = fixture(height);
     expect(dialog.render(60).length).toBeLessThanOrEqual(height);
-    expect(text()).toContain("Apps");
+    expect(text()).toContain("Launcher");
     expect(text()).toContain("> ");
     expect(text()).toContain("→ Agent");
     expect(text()).toContain("Esc close");
