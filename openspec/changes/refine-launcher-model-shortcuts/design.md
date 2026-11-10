@@ -18,15 +18,19 @@ The existing keybinding boundary must continue treating raw carriage return as E
 
 Keep the unified Models controller and its deferred loading, but mount it through the existing replacement input surface rather than the floating-overlay coordinator. Compare its layout and styling against the parent of PR #900. Both `/models` and an explicit effective selection binding must use the same dock presentation. Close and accept must restore the existing prompt draft and ordinary input ownership.
 
-Retain the selector's search, all/scoped filter, scope editing and saving, ordering, keyboard actions, compact layouts, and transcript scroll/copy behavior. Restore the original non-floating styling only for the in-place Models surface; Launcher and nested Settings floating selectors must retain the raised shared palette and deterministic backdrop.
+Hold the current terminal frame until the deferred Models controller is ready, as for other asynchronous in-place selectors, and render no loading or refresh-status placeholder. The controller must still capture early input and allow cancellation, and actual failures must remain visible. Retain the selector's search, all/scoped filter, scope editing and saving, ordering, keyboard actions, compact layouts, and transcript scroll/copy behavior. Restore the original non-floating styling only for the in-place Models surface; Launcher and nested Settings floating selectors must retain the raised shared palette and deterministic backdrop.
 
 ### Rename presentation, not identity
 
-Use `Launcher` for the modal title and omit its description/subtitle entirely, without reserving a blank description row. Align user-facing shortcut help, loading/unavailable messages, and close guidance. Keep stable internal application IDs, the existing neutral routes, and internal action identifiers where renaming would be gratuitous. Ctrl+P remains available from Agent, Settings, and Changelog.
+Use `Launcher` for the modal title and omit its description/subtitle entirely, without reserving a blank description row. Align user-facing shortcut help, loading/unavailable messages, and close guidance. Keep stable internal application IDs, the existing neutral routes, and internal action identifiers where renaming would be gratuitous. Ctrl+P remains available from Agent, Settings, Changelog, and the added Hotkeys destination.
+
+### Move Hotkeys into Launcher
+
+Add Hotkeys after Changelog in the Launcher choices and reuse its existing `hotkeys` reference-screen route. Preserve live effective keybindings and extension shortcut content, normal close/scroll behavior, return to the existing Agent session, and same-app preservation. Remove Hotkeys only from bare A1's built-in Agent command catalog, autocomplete, command help, and built-in route dispatch, following the existing Settings/Changelog separation. Preserve the pinned comparison `/hotkeys` command and unrelated extension/resource commands.
 
 ## Non-goals
 
-- No additional applications, process launching, or new default selection/backward-cycle chords.
+- No additional application destinations beyond Hotkeys, process launching, or new default selection/backward-cycle chords.
 - No changes to Agent session identity, draft/attachments/queue/work preservation, startup What's New, or removed built-in Settings/Changelog commands.
 - No changes to model scope semantics, model-cycle ordering, quiet-success metadata, diagnostic visibility, comparison defaults, footer PR links, or shared floating-dialog colors.
 

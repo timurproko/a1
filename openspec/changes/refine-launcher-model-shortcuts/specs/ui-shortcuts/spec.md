@@ -87,11 +87,11 @@ Bare A1's startup help and shortcut listings SHALL derive level-cycle, Launcher,
 
 ### Requirement: Apps owns Ctrl+P across the owned application surfaces by default
 
-Bare A1 SHALL declare Ctrl+P as the default Launcher action and SHALL make the effective action available while Agent, Settings, or Changelog is active. The default model-cycle-forward declaration SHALL use Ctrl+M rather than Ctrl+P. Existing explicit overrides and conflict diagnostics SHALL remain authoritative and SHALL NOT be silently rewritten. Unrelated dialog-local Ctrl+P actions and comparison-profile declarations SHALL retain their behavior outside the Launcher action's scope. Stable internal action identifiers MAY retain their existing names.
+Bare A1 SHALL declare Ctrl+P as the default Launcher action and SHALL make the effective action available while Agent, Settings, Changelog, or Hotkeys is active. The default model-cycle-forward declaration SHALL use Ctrl+M rather than Ctrl+P. Existing explicit overrides and conflict diagnostics SHALL remain authoritative and SHALL NOT be silently rewritten. Unrelated dialog-local Ctrl+P actions and comparison-profile declarations SHALL retain their behavior outside the Launcher action's scope. Stable internal action identifiers MAY retain their existing names.
 
 #### Scenario: Open Apps from any supported application
 
-- **WHEN** Agent, Settings, or Changelog receives its effective Launcher shortcut
+- **WHEN** Agent, Settings, Changelog, or Hotkeys receives its effective Launcher shortcut
 - **THEN** the searchable Launcher dialog SHALL open over the current application
 - **AND** no model-cycle action SHALL also run
 

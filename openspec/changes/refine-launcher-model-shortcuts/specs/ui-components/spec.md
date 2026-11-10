@@ -2,13 +2,20 @@
 
 ### Requirement: Unified Models uses the existing in-place input surface
 
-Bare A1 SHALL present unified Models in the Agent input dock using its pre-Apps layout and styling, not a floating modal. Its controller SHALL remain deferred. `/models` and effective explicit selection bindings SHALL open it; default Ctrl+M SHALL only cycle models. The selector SHALL preserve its controls, prompt restoration, transcript interaction, and exact compact/resize frame dimensions.
+Bare A1 SHALL present unified Models in the Agent input dock using its pre-Apps layout and styling, not a floating modal. Its controller SHALL remain deferred, and opening SHALL present the completed dialog atomically without loading or refresh-status text. `/models` and effective explicit selection bindings SHALL open it; default Ctrl+M SHALL only cycle models. The selector SHALL preserve its controls, prompt restoration, transcript interaction, and exact compact/resize frame dimensions.
 
 #### Scenario: Open model selection in place
 
 - **WHEN** bare A1 receives `/models` or an effective explicit model-selection binding
 - **THEN** the unified Models selector SHALL replace the Agent input surface using the established in-place presentation
 - **AND** no centered floating Models overlay or full-screen dimmed backdrop SHALL be introduced
+
+#### Scenario: Open without an intermediate status frame
+
+- **WHEN** the deferred Models controller is preparing
+- **THEN** the existing terminal frame SHALL remain visible until Models is ready
+- **AND** no loading or refresh-status message SHALL flash before the completed selector
+- **AND** early input and cancellation SHALL remain supported without hiding actual failures
 
 #### Scenario: Restore the prompt
 
