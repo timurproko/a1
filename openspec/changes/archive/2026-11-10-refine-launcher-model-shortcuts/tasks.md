@@ -14,6 +14,8 @@
 
 - [x] 2.4 Open Models atomically without loading or refresh-status text, preserving early input, cancellation, deferred loading, and visible failures.
 
+- [x] 2.5 Align compaction selector ownership coverage with the restored input dock, retaining transcript scroll isolation and explicit draft restoration.
+
 ## 3. Launcher presentation
 
 - [x] 3.1 Rename visible Apps title and related help/loading/error/close copy to Launcher, omitting the description and any reserved subtitle row.

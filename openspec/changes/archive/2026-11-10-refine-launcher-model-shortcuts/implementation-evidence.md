@@ -30,6 +30,12 @@
 - Removed Hotkeys from the bare-A1 built-in catalog, completion/help inputs, and built-in slash route dispatch. Tests retain the comparison command manifest and in-feed behavior, and prove that a same-named extension completion remains available.
 - 174 tests passed across the ten affected dialog, shell/reference-screen, autocomplete, presenter, engine-workflow, and composition test files. The final atomic-presentation helper rerun passed all 46 tests in its three directly affected files; extracting that helper shrank the presenter factory from 271 to 267 lines, and the size ratchet was lowered accordingly. Typecheck, architecture/session-writer/product-identity guards, pinned source-port provenance, and strict OpenSpec validation also passed. Required exact-head CI must validate the follow-up; the previous finalized head is not current evidence.
 
+## CI compaction ownership repair
+
+- Development validation run `42814041225` on finalized head `6af0866a` passed the delivery, documentation, resource-sensitive, release/resume, and rendering checks. Its core/unit lane reported one failure: the compaction selector test still expected floating Models ownership after the approved return to the input dock.
+- Updated that test to require replacement input ownership with no focused overlay. It still asserts that selector input cannot scroll the compaction transcript, now also requires Models to remain visible, and checks restoration of the retained draft after Escape. No production behavior, validation selection, or required checks were weakened.
+- All 120 tests passed across `session-shell-compaction.test.ts`, `session-shell-models.test.ts`, and `session-shell-paste.test.ts`. Renewed exact-head CI remains required for the repair.
+
 ## Known gaps
 
 None. Legacy terminals cannot distinguish Ctrl+M from Enter; preserving Enter is the approved compatibility behavior, with `/models` available for explicit selection.
