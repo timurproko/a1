@@ -85,6 +85,17 @@ describe("pinned Pi scripted event and terminal-frame parity", () => {
     expect(new Set(hashes).size).toBe(1);
   });
 
+  it.each([null, "kitty", "iterm2"] as const)("declares image-free capture regardless of ambient image support (%s)", async images => {
+    const expected = await buildEventFrameParityResult();
+    await withPiParityColorMode(EVENT_FRAME_PARITY_COLOR_MODE, async () => {
+      const previous = getCapabilities();
+      const actual = await buildEventFrameParityResult();
+      expect(actual).toEqual(expected);
+      expect(actual.frames[0]!.capturedAnsi).not.toContain("\x1b[16t");
+      expect(getCapabilities()).toEqual(previous);
+    }, { images });
+  });
+
   it("reproduces the historical cursor-only completed frame when scheduled paints are not held", async () => {
     // Invariant: remove just the transaction hold, retaining the real adapter, renderer,
     // scheduler callbacks and terminal writes rather than synthesizing the old mismatch.

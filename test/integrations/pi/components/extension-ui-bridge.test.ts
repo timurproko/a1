@@ -54,6 +54,23 @@ function fixture() {
 }
 
 describe("pinned extension UI bridge", () => {
+  it("windows long option lists around the selection without changing the selected result", async () => {
+    const value = fixture();
+    const options = Array.from({ length: 25 }, (_, index) => `option-${String(index).padStart(2, "0")}`);
+    const selection = value.bridge.context.select("Choose", options);
+    const frame = () => stripTerminalSequences(value.inputSurface!.render(60).join("\n"));
+    expect(frame()).toContain("(1/25)");
+    expect(frame()).toContain("option-09");
+    expect(frame()).not.toContain("option-10");
+    for (let index = 0; index < 24; index++) value.inputSurface!.handleInput?.("\x1b[B");
+    expect(frame()).toContain("(25/25)");
+    expect(frame()).toContain("option-15");
+    expect(frame()).not.toContain("option-14");
+    value.inputSurface!.handleInput?.("\r");
+    await expect(selection).resolves.toBe("option-24");
+    value.bridge.dispose();
+  });
+
   it("opens, resolves, cancels, and restores selectors and text inputs", async () => {
     const value = fixture();
     const selection = value.bridge.context.select("Choose", ["alpha", "beta"]);

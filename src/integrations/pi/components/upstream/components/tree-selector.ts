@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
  * packages/coding-agent/src/modes/interactive/components/tree-selector.ts.
  * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
  * preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode
@@ -1207,6 +1207,8 @@ class TreeSearchInput implements Component, Focusable {
 	}
 
 	render(width: number): string[] {
+		if (width <= 0) return [""];
+
 		const query = this.treeList.getSearchQuery();
 		if (query !== this.renderedQuery) {
 			this.input = Object.assign(new Input(), { focused: this.input.focused });
@@ -1398,7 +1400,7 @@ export class TreeSelectorComponent extends Container implements Focusable {
 	private onLabelChangeCallback: ((entryId: string, label: string | undefined) => void) | undefined;
 	public onCopy?: (text: string | undefined) => void;
 
-	// Focusable implementation - propagate to labelInput when active for IME cursor positioning
+	// Focusable implementation - propagate to the active input for IME cursor positioning
 	private _focused = false;
 	get focused(): boolean {
 		return this._focused;
@@ -1475,9 +1477,8 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		};
 		this.labelInput.onCancel = () => this.hideLabelInput();
 
-		// Focus only the active editor.
-		this.searchInput.focused = false;
-		this.labelInput.focused = this._focused;
+		// Propagate focus to the active editor, never both inputs.
+		this.focused = this._focused;
 
 		this.titleText.setText(theme.fg("accent", theme.bold("Label")));
 		this.searchInputContainer.clear();
@@ -1489,7 +1490,7 @@ export class TreeSelectorComponent extends Container implements Focusable {
 
 	private hideLabelInput(): void {
 		this.labelInput = null;
-		this.searchInput.focused = this._focused;
+		this.focused = this._focused;
 		this.labelInputContainer.clear();
 		this.restoreTreeContent();
 	}
