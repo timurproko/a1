@@ -15,7 +15,7 @@ Goals:
 
 Non-goals:
 - Changing the session statistics engine, values, persistence, cache-warming behavior, authentication workflows, credential handling, or trust decisions.
-- Redesigning Models, Skills, Settings, Hotkeys, or Changelog.
+- Redesigning Models, Skills, Settings, Hotkeys, or Changelog beyond the requested choice-navigation consistency.
 - Altering the comparison profile or adding a general-purpose modal framework.
 
 ## Decisions
@@ -61,6 +61,18 @@ Update focused shell tests to distinguish Session Info from full-screen referenc
 
 Before an implementation push, run `npm run typecheck`, only the directly affected test files, and `openspec validate ux-dialog-updates --strict`. Required post-ready CI remains authoritative. Optional maintainer review should compare `/session` against `/models` and Skills, scroll the full report, resize, and close it; manual review does not gate implementation completion.
 
+## Approved Refinement: Internal Dialog Consistency
+
+The maintainer requested continuous Up/Down navigation for both account and API-key providers, Launcher, Default Model, and the two-step Thinking Level flow, and requested matching styles for all internal dialogs after showing a nested Amazon Bedrock authentication picker.
+
+Apply the owned presentation policy at the internal component-factory boundary rather than relying on each top-level call to pass an opt-in. Nested authentication choices must receive the same policy. Use Title Case without trailing colons while preserving provider names/acronyms and option text; keep extension-authored content and comparison presentation unchanged.
+
+All internal choice lists wrap from first to last on Up and last to first on Down. Filtered lists wrap only their current matches; empty and one-item lists remain safe. Apply this to provider, method, trust, Launcher, Settings model/level/value/structured lists, and ordinary settings navigation. Paging, section jumps, document scrolling, search editing, selection persistence, confirmation, cancellation, and underlying auth/trust effects retain their existing semantics. Startup trust keeps its established startup-safe presentation and navigation.
+
+Use shared movement helpers where existing ownership permits it. Any necessary provider controller adaptation must use public APIs or a source-attributed owned port, never private field access or synthesized navigation against an inaccessible controller. Keep optional controllers deferred to preserve the existing startup budget.
+
+Add focused boundary, filtered/empty/single-choice, profile-isolation, nested auth, Launcher, and Settings tests. Repair the four DOC005 comment-prefix failures reported by exact-head CI as part of this same refinement.
+
 ## Implementation Evidence
 
 - Session Info uses a bounded input-route adapter with component-local pointer routing and shared reference rendering. Escape and Ctrl+C close even before its deferred document resolves.
@@ -75,4 +87,4 @@ None for the described Session Info, sign-in, and project-trust updates. Additio
 
 ## Known Gaps
 
-None identified in the implemented scope.
+None identified in the previously implemented scope. The approved internal-dialog/navigation refinement remains in progress.

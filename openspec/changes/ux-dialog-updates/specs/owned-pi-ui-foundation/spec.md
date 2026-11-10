@@ -58,7 +58,7 @@ Both the pre-resource startup trust selector and the in-session project-trust se
 
 In the in-session selector, `Saved decision:` and `Current session:` SHALL remain muted labels while their decision values use the normal text role. Both values SHALL start in the same left-aligned column, padding after the shorter label. The saved-decision value SHALL omit any parenthesized folder-path suffix while retaining its actual resolved decision. Every selected trust option SHALL contain exactly one visible space between its arrow and label. The choice list SHALL NOT display a saved-decision checkmark; an exact saved choice SHALL instead be represented by the status line and initial active selection. The shortcut row SHALL be followed immediately by the bottom rule without an intervening blank row.
 
-These presentation requirements SHALL NOT change trust outcomes, persistence, policy resolution, navigation, confirmation, exit/cancel behavior, terminal restoration, constrained-terminal fallback, or the explicit `a1 pi` comparison profile.
+These presentation requirements SHALL NOT change trust outcomes, persistence, policy resolution, confirmation, exit/cancel behavior, terminal restoration, constrained-terminal fallback, or the explicit `a1 pi` comparison profile. In-session Up/Down navigation SHALL follow the internal choice-list wraparound policy.
 
 #### Scenario: Ask for trust before project resources load
 
@@ -98,9 +98,41 @@ These presentation requirements SHALL NOT change trust outcomes, persistence, po
 
 ## ADDED Requirements
 
+### Requirement: Internal dialogs share style and wraparound choice navigation
+
+Bare A1 SHALL use accent-bold Title Case headings without trailing colons, accent arrows, normal primary labels, muted metadata, and shared selected backgrounds for internal dialogs, including nested authentication choices. Up/Down SHALL wrap internal choice lists in both directions. Search, paging, section jumps, document scrolling, confirmation, cancellation, authentication/trust effects, extension-authored content, and comparison behavior SHALL otherwise remain unchanged.
+
+#### Scenario: Open a nested authentication method picker
+
+- **WHEN** an internal sign-in flow presents a provider-specific authentication-method selector such as Amazon Bedrock
+- **THEN** its title SHALL use Title Case without a trailing colon and its active option SHALL use the same shared background and normal label styling as the top-level method picker
+- **AND** provider names, acronyms, option wording, status, and nested return/cancel behavior SHALL retain their existing meaning
+
+#### Scenario: Wrap provider and authentication choices
+
+- **WHEN** Up is pressed on the first choice or Down on the last choice in an account-provider, API-key-provider, authentication-method, or in-session trust selector
+- **THEN** selection SHALL move to the last or first choice respectively and remain visible
+- **AND** only currently filtered matches SHALL participate, while empty or one-choice lists SHALL remain safe
+
+#### Scenario: Wrap Launcher choices
+
+- **WHEN** Up is pressed on the first Launcher result or Down on its last result
+- **THEN** selection SHALL wrap to the opposite end of the current search results without opening an application until confirmed
+
+#### Scenario: Wrap Settings choices
+
+- **WHEN** Up or Down crosses a choice boundary in Settings, Default Model, either Thinking Level step, a value menu, or a structured choice dialog
+- **THEN** selection SHALL wrap to the opposite end of the current selectable choices and remain visible
+- **AND** filtered results, effective-value indicators, save/cancel, paging, and section-jump behavior SHALL retain their existing semantics
+
+#### Scenario: Keep non-choice scrolling and external content unchanged
+
+- **WHEN** the user scrolls a document, uses a paging or section-jump shortcut, or interacts with comparison-profile or extension-authored content
+- **THEN** the internal choice-list wraparound policy SHALL NOT alter that behavior
+
 ### Requirement: Bare-A1 sign-in selectors use standard dialog styling
 
-Bare A1's sign-in method and provider selectors SHALL use accent-bold Title Case headings without trailing colons. Selected rows SHALL use the shared item-bounded selected background, an accent arrow, normal primary text, muted metadata, and no selection-induced bold, matching Skills. Authentication behavior, search, navigation, status indicators, cancellation, and the `a1 pi` comparison presentation SHALL remain unchanged.
+Bare A1's sign-in method and provider selectors SHALL use accent-bold Title Case headings without trailing colons. Selected rows SHALL use the shared item-bounded selected background, an accent arrow, normal primary text, muted metadata, and no selection-induced bold, matching Skills. Authentication behavior, search, status indicators, cancellation, and the `a1 pi` comparison presentation SHALL remain unchanged. Up/Down SHALL follow the internal choice-list wraparound policy.
 
 #### Scenario: Choose a sign-in method
 

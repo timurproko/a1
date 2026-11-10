@@ -21,6 +21,17 @@
 - [x] 4.1 Run typecheck, only directly affected test files, and strict validation of this change; reconcile implementation observations and any explicit known-gap dispositions in the design.
 - [x] 4.2 Reconcile and push current origin/develop, prepare the plain Acceptance outcomes, and pass the final delivery-body check before completing the final PR implementation marker.
 
+## 5. Internal dialog styling refinement
+
+- [ ] 5.1 Apply the standard internal title/selection policy at the shared built-in factory boundary, including nested authentication choices, while preserving extension content and comparison behavior; add nested auth and profile-isolation tests.
+- [ ] 5.2 Repair the four DOC005 comment prefixes reported by CI and pass changed-file documentation checks without weakening their rules.
+
+## 6. Continuous choice navigation
+
+- [ ] 6.1 Make account/API-key providers, authentication methods, and in-session trust choices wrap Up/Down through visible options; cover both ends, empty/single/filtered choices, configured metadata, and unchanged comparison behavior.
+- [ ] 6.2 Make Launcher and Settings model/level/value/structured/ordinary choice lists wrap Up/Down without changing paging, section jumps, editing or saves; add focused boundary and filtered-list tests.
+- [ ] 6.3 Run directly affected tests, typecheck, strict OpenSpec validation, documentation and architecture checks; reconcile evidence/gaps and current origin/develop before final progress completion.
+
 ## Workflow follow-up
 
 - Trusted automation owns readiness and in-branch finalization after implementation completion; required exact-head CI follows.
