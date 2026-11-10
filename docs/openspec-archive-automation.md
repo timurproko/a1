@@ -32,7 +32,7 @@ Failed-Full repair selection follows the immutable provenance checks in [complet
 
 ### Handoff and reporting
 
-Provide the absolute worktree, branch/commit, change, PR, behavior, known gaps, applicable run or inspection command, and whether editing ownership is handed over. For interactive checkout tests, build first and use `./scripts/dev` or `./scripts/dev pi`, never a direct Node launcher. Follow `AGENTS.md` for pasteable user-command formatting. End runnable implementation reports with `🧪 Manual test:` and the applicable command; a documentation-only change needs inspection, not a product build. Say when nothing is runnable instead of inventing a test.
+Provide the absolute worktree, branch/commit, change, PR, behavior, known gaps, applicable run or inspection command, and whether editing ownership is handed over. For interactive checkout tests, build first and use `./scripts/dev` or `./scripts/dev pi`, never a direct Node launcher such as `node scripts/development/dev-launch.mjs`. Follow `AGENTS.md` for pasteable user-command formatting. End runnable implementation reports with `🧪 Manual test:` and the applicable command; a documentation-only change needs inspection, not a product build. Say when nothing is runnable instead of inventing a test.
 
 After exact-head required validation succeeds, park the exact candidate with the primary-checkout `handoff` command, and repeat after a validated repair. It registers/releases cleanup ownership without removing anything. Do not add a lifecycle body edit, rerun successful validation, wait for merge, or start a watcher. Leave integration to a current authorized maintainer decision. CI counts are not progress, and manual validation never blocks truthful task completion or readiness.
 

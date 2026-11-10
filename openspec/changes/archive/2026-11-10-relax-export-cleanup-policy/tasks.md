@@ -17,3 +17,9 @@
 
 - [x] 3.1 Complete bounded checks, strict OpenSpec validation, safeguard review, and explicit known-gap disposition.
 - [x] 3.2 Prepare plain acceptance outcomes and push the completed candidate reconciled with current origin/develop before the final Implementation marker.
+
+## 4. Reported CI repair
+
+- [x] 4.1 Restore the required schema/date metadata in the archived change without reverting finalization or changing lifecycle guards.
+- [x] 4.2 Retarget the terminal-colour handoff test to the owning runbook and retain every launcher-safety assertion and the explicit prohibited Node launcher path.
+- [x] 4.3 Complete the two affected test files, typecheck, documentation checks, strict affected-spec validation, final body check, and re-finalization inspection.
