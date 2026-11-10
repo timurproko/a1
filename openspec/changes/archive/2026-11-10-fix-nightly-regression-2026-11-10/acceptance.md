@@ -14,7 +14,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-10-fix-nightly-regression-2026-11-10/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-10-fix-nightly-regression-2026-11-10/acceptance.md",
   "finalizedDate": "2026-11-10",
-  "specBaseSha": "0786d541a99a4f97166a34a3c1f3ea79097d7ce4",
+  "specBaseSha": "e2dd6f6e5e63bb872c7e1a81c0dfe596948ad4cb",
   "acceptanceScenarios": [
     "The 2026-11-10 Full regression failure on develop is repaired, and its failed lanes pass on the fix head without weakened assertions, budgets, timeouts, or coverage."
   ],
