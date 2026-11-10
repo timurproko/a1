@@ -295,6 +295,36 @@ describe("owned shared input and status presentation", () => {
     expect(absent).not.toContain("\u001b]8;;");
   });
 
+  it.each(["truecolor", "256color"] as const)("keeps clipped session-name markers dim at rest and during %s reveals", mode => {
+    const base = view();
+    const state = { ...base, status: { ...base.status, footer: { ...base.status.footer!, sessionName: "new-long-session-name-".repeat(10) } } };
+    for (const appearance of ["dark", "light"] as const) for (const accent of ["blue", "pink"] as const) {
+      applyPiTheme(appearance, false, mode); setPiAccentColor(accent);
+      for (const width of [45, 60, 80]) {
+        const footer = createPiShellFooter(state, "/WORK", "a1");
+        const settled = footer.render(width)[1]!;
+        expect(stripTerminalSequences(settled)).toContain("…");
+        expect(cellStyle(settled, "…")).toEqual(cellStyle(piTheme().fg("dim", "…"), "…"));
+        const modelColumn = stripTerminalSequences(settled).indexOf("MODEL");
+        let markers = 0;
+        for (const elapsed of [0, 300, 600, 645, 1000, 1600, 3000, 10000]) {
+          footer.setNameReveal?.({ from: "old-long-session-name-".repeat(10), elapsed });
+          const row = footer.render(width)[1]!;
+          const plain = stripTerminalSequences(row);
+          expect(visibleWidth(row)).toBeLessThanOrEqual(width);
+          expect(plain.indexOf("MODEL")).toBe(modelColumn);
+          expect(plain).not.toContain("[0m");
+          if (plain.includes("…")) {
+            markers++;
+            expect(cellStyle(row, "…")).toEqual(cellStyle(piTheme().fg("dim", "…"), "…"));
+          }
+        }
+        expect(markers).toBeGreaterThan(1);
+        footer.dispose?.();
+      }
+    }
+  });
+
   it("reveals only the stats-row name using live secondary-accent tones and leaves stats/model stable", () => {
     applyPiTheme("dark", false, "truecolor"); setPiAccentColor("blue");
     const base = view();

@@ -35,18 +35,34 @@ function semantic(rows: readonly string[]): string[] {
   });
 }
 
-function dialog(skills = SKILLS) {
+async function dialog(skills = SKILLS) {
   const onSelect = vi.fn<(name: string) => void>();
   const onCancel = vi.fn();
   const component = createPiShellSkillsSelector({ skills, onSelect, onCancel });
+  await component.ready;
   component.setFocused?.(true);
   const plain = (width: number) => component.render(width).map(row => stripTerminalSequences(row).replace(/\s+$/u, ""));
   return { component, onSelect, onCancel, plain, type: (text: string) => { for (const char of text) component.handleInput?.(char); } };
 }
 
 describe("the Skills dialog", () => {
-  it("renders the model-selector composition with v2 content at narrow and wide widths", () => {
-    const { component, plain } = dialog();
+  it("retains early navigation and cancellation without resurrecting a disposed selector", async () => {
+    const selected = vi.fn();
+    const cancel = vi.fn();
+    const early = createPiShellSkillsSelector({ skills: SKILLS, onSelect: selected, onCancel: cancel });
+    early.handleInput?.(DOWN);
+    early.handleInput?.(ENTER);
+    await early.ready;
+    expect(selected).toHaveBeenCalledWith("code-review");
+    const closed = createPiShellSkillsSelector({ skills: SKILLS, onSelect: selected, onCancel: cancel });
+    closed.handleInput?.(ESC);
+    closed.dispose?.();
+    await closed.ready;
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(closed.render(80)).toEqual([]);
+  });
+  it("renders the model-selector composition with v2 content at narrow and wide widths", async () => {
+    const { component, plain } = await dialog();
     expect(plain(80)).toEqual([
       "─".repeat(80),
       " Skills",
@@ -105,15 +121,15 @@ describe("the Skills dialog", () => {
     expect(rows.at(-1)).toBe(`<border>${"─".repeat(80)}</>`);
   });
 
-  it("uses the canonical dialog close footer wording", () => {
-    const { component } = dialog();
+  it("uses the canonical dialog close footer wording", async () => {
+    const { component } = await dialog();
     const footer = component.render(80).map(row => stripTerminalSequences(row).trim()).find(row => row.includes("navigate"));
     expect(footer).toBe("Type search  ↑↓ navigate  Enter select  Esc close");
     expect(footer).not.toContain("Ctrl+C");
   });
 
-  it("wraps the selection, shows the selected description, and applies with Enter", () => {
-    const { component, onSelect, onCancel, plain } = dialog();
+  it("wraps the selection, shows the selected description, and applies with Enter", async () => {
+    const { component, onSelect, onCancel, plain } = await dialog();
     component.handleInput?.(UP);
     // Invariant: a skill without a description shows no description block.
     expect(plain(80).slice(5, 10)).toEqual(["   framer", "   code-review", " → apply-patch", "", " Type search  ↑↓ navigate  Enter select  Esc close"]);
@@ -126,16 +142,16 @@ describe("the Skills dialog", () => {
     expect(onCancel).not.toHaveBeenCalled();
   });
 
-  it("truncates a long description to one line instead of wrapping", () => {
+  it("truncates a long description to one line instead of wrapping", async () => {
     const long = "Update an OpenSpec change by revising its existing planning artifacts and keeping them coherent with one another. Never edits code.";
-    const { plain } = dialog([{ name: "openspec-update-change", description: long }]);
+    const { plain } = await dialog([{ name: "openspec-update-change", description: long }]);
     const rows = plain(60);
     expect(rows[7]).toBe("   " + long.slice(0, 57));
     expect(rows.slice(8)).toEqual(["", " Type search  ↑↓ navigate  Enter select  Esc close", "─".repeat(60)]);
   });
 
-  it("filters on name or description ignoring case and skill:, resets the selection, and reports no matches", () => {
-    const { component, onSelect, plain, type } = dialog();
+  it("filters on name or description ignoring case and skill:, resets the selection, and reports no matches", async () => {
+    const { component, onSelect, plain, type } = await dialog();
     component.handleInput?.(DOWN);
     type("SKILL:APP");
     expect(plain(80).slice(3, 8)).toEqual([" > SKILL:APP", "", " → apply-patch", "", " Type search  ↑↓ navigate  Enter select  Esc close"]);
@@ -153,16 +169,16 @@ describe("the Skills dialog", () => {
     expect(semantic(component.render(80))[5]).toBe(" <muted>  No matching skills</>");
   });
 
-  it.each([ESC, "\u0003"])("cancels on %j without selecting or clearing a populated search", key => {
-    const { component, onSelect, onCancel, type } = dialog();
+  it.each([ESC, "\u0003"])("cancels on %j without selecting or clearing a populated search", async key => {
+    const { component, onSelect, onCancel, type } = await dialog();
     type("review");
     component.handleInput?.(key);
     expect(onCancel).toHaveBeenCalledOnce();
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it("renders No skills yet when nothing is discovered and Enter does nothing", () => {
-    const { component, onSelect, plain, type } = dialog([]);
+  it("renders No skills yet when nothing is discovered and Enter does nothing", async () => {
+    const { component, onSelect, plain, type } = await dialog([]);
     expect(plain(60).slice(5, 7)).toEqual(["   No skills yet", ""]);
     component.handleInput?.(ENTER);
     component.handleInput?.(DOWN);
@@ -172,9 +188,9 @@ describe("the Skills dialog", () => {
     expect(plain(60)[5]).toBe("   No skills yet");
   });
 
-  it("shows the pinned scroll counter only when the rows overflow the visible window", () => {
+  it("shows the pinned scroll counter only when the rows overflow the visible window", async () => {
     const many = Array.from({ length: 12 }, (_, index) => ({ name: `skill-${String(index).padStart(2, "0")}`, description: `Skill ${index}` }));
-    const { component, plain } = dialog(many);
+    const { component, plain } = await dialog(many);
     const initial = plain(80);
     expect(initial.filter(row => row.startsWith("   skill-") || row.startsWith(" → skill-"))).toHaveLength(10);
     expect(initial).toContain("   (1/12)");
@@ -183,7 +199,7 @@ describe("the Skills dialog", () => {
     expect(wrapped).toContain(" → skill-11");
     expect(wrapped).toContain("   (12/12)");
     expect(wrapped).toContain("   Skill 11");
-    const { plain: few } = dialog(SKILLS);
+    const { plain: few } = await dialog(SKILLS);
     expect(few(80).some(row => /\(\d+\/\d+\)/u.test(row))).toBe(false);
   });
 });

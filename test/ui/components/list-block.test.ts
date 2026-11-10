@@ -38,6 +38,13 @@ const ROWS: readonly Row[] = [
 ];
 
 describe("selection", () => {
+  it("wraps selectable choices only when requested", () => {
+    expect(moveSelection(ROWS, 1, -1, true)).toBe(11);
+    expect(moveSelection(ROWS, 11, 1, true)).toBe(1);
+    expect(moveSelection(ROWS, 2, 1, true)).toBe(6);
+    expect(moveSelection([group("A"), note("A", "x")], 0, 1, true)).toBe(-1);
+    expect(moveSelection([element("A", "only")], 0, -1, true)).toBe(0);
+  });
   it("selects only selectable elements", () => {
     expect(selectableIndexes(ROWS)).toEqual([1, 2, 6, 11]);
     expect(selectableIndexes([group("A"), note("A", "x"), spacer])).toEqual([]);

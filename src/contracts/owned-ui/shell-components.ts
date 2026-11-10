@@ -19,9 +19,14 @@ export interface OwnedUiShellKeybindingsHost {
 }
 
 export interface OwnedUiShellComponentPort {
+  readonly ready?: Promise<void>;
   render(width: number): readonly string[];
+  /** Bounds scrollable replacement inputs within the dock. */
+  renderInDock?(width: number, maxHeight: number): readonly string[];
   invalidate(): void;
   handleInput?(data: string): void;
+  /** Pointer input in one-based component-local coordinates, when supported. */
+  handleLocalMouse?(event: { readonly kind: "press" | "release" | "motion" | "wheel-up" | "wheel-down"; readonly button: number; readonly column: number; readonly row: number }): void;
   setFocused?(focused: boolean): void;
   dispose?(): void;
 }

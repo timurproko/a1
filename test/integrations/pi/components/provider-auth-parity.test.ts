@@ -38,6 +38,14 @@ const STATES: readonly ParityState[] = [
     },
   },
   {
+    name: "OpenRouter without decorative badge",
+    option: { id: "oauth:openrouter", providerId: "openrouter", label: "OpenRouter", authType: "oauth" },
+  },
+  {
+    name: "Radius without decorative badge",
+    option: { id: "api_key:radius", providerId: "radius", label: "Radius", authType: "api_key", status: { type: "api_key", source: "stored credential" } },
+  },
+  {
     name: "other configured method",
     option: {
       id: "api_key:openai-codex", providerId: "openai-codex", label: "OpenAI Codex", authType: "api_key",
@@ -61,21 +69,31 @@ function plainRows(component: { render(width: number): readonly string[] }, widt
 }
 
 describe("provider authentication selector presentation", () => {
-  it.each(STATES)("preserves Pi content for $name except for shared chrome and the canonical close footer", state => {
+  it.each(STATES.flatMap(state => [false, true].map(standardStyle => ({ ...state, standardStyle }))))("preserves Pi content and actions for $name with standard style $standardStyle", async state => {
     initTheme("dark", false);
     const upstreamSelected = vi.fn();
     const ownedSelected = vi.fn();
     const upstream = upstreamSelector(state, upstreamSelected);
-    const owned = createPiShellAuthProviderSelector("login", [state.option], ownedSelected, () => {});
+    const owned = createPiShellAuthProviderSelector("login", [state.option], ownedSelected, () => {}, undefined, state.standardStyle);
 
+    await owned.ready;
     for (const width of [44, 100]) {
       const expected = [...plainRows(upstream, width)];
       expect(expected[1]?.trim(), `${state.name}@${width} pinned top-title gap`).toBe("");
       expected.splice(1, 1);
+      if (state.standardStyle) {
+        expected[1] = " Select Provider to Configure".padEnd(width);
+        expected[5] = ` → ${state.option.label} • ${state.option.status === undefined ? "not configured" : "configured ✓"}`;
+      }
       // Compatibility: the pinned title/list already own one cell; only its zero-inset search input moves.
       expected[3] = ` ${expected[3]!.slice(0, -1)}`;
       expected.splice(-1, 0, " ↑↓ navigate  Enter select  Esc close".padEnd(width));
       expect(plainRows(owned, width), `${state.name}@${width}`).toEqual(expected);
+      if (["openrouter", "radius"].includes(state.option.providerId)) {
+        expect(plainRows(upstream, width).join("\n")).toContain("✦");
+        if (state.standardStyle) expect(plainRows(owned, width).join("\n")).not.toContain("✦");
+        else expect(plainRows(owned, width).join("\n")).toContain("✦");
+      }
     }
     upstream.handleInput("\r");
     owned.handleInput?.("\r");

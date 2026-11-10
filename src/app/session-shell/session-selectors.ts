@@ -107,8 +107,8 @@ export class SessionSelectors implements WorkflowSelectors {
     }
   }
 
-  /** The Skills dialog: a replacement input like the model selector, applying the chosen skill through the prompt path. */
-  showSkillsSelector(skills: readonly OwnedUiShellSkillSummary[]): void {
+  /** Applies a dock-selected skill through the prompt path. */
+  showSkillsSelector(skills: readonly OwnedUiShellSkillSummary[]): Promise<void> | undefined {
     const close = this.#dialogs.closeInputSurface;
     const component = this.#presenters.components.dialogs.skillsSelector({
       skills,
@@ -119,6 +119,7 @@ export class SessionSelectors implements WorkflowSelectors {
       onCancel: close,
     });
     this.#present(component);
+    return component.ready;
   }
 
   showModelSelector(initialSearchInput?: string): void {
@@ -235,7 +236,7 @@ export class SessionSelectors implements WorkflowSelectors {
     this.#presenters.openSettingsSelector(this.#dialogHost);
   }
 
-  showTrustSelector(): void {
+  showTrustSelector(): Promise<void> | undefined {
     const context = this.#backend.catalog.pinnedProjectTrustContext();
     const close = this.#dialogs.closeInputSurface;
     const component = this.#presenters.components.dialogs.trustSelector({
@@ -254,6 +255,7 @@ export class SessionSelectors implements WorkflowSelectors {
       onCancel: close,
     });
     this.#present(component);
+    return component.ready;
   }
 
   showScopedModelsSelector(): void {
@@ -309,9 +311,11 @@ export class SessionSelectors implements WorkflowSelectors {
     if (result.diagnostic === "Branch summarization cancelled") await this.showTreeSelector(entryId);
   }
 
-  // Invariant: a selector replaces the editor in the input dock and paints in the same frame.
+  // Performance: retain the frame until a deferred selector is ready.
   #present(component: Parameters<SessionSelectorPorts["root"]["setInputSurface"]>[0]): void {
+    const release = component?.ready === undefined ? undefined : this.#terminal.beginPresentationHold();
     this.#root.setInputSurface(component);
+    void component?.ready?.finally(() => { release?.(); if (!this.#ports.disposed()) this.#terminal.requestRender(); });
     this.#terminal.requestRender();
   }
 }

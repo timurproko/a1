@@ -78,12 +78,12 @@ describe("bounded project trust terminal preflight", () => {
     const output = new TtyOutput();
     const prompt = createConsoleProjectTrustPrompt({ input, output, environment: { A1_PROFILE_HOME: resolve("missing-trust-profile"), COLORTERM: "truecolor" } });
     await expect(prompt(request())).resolves.toBe(expected);
-    expect(output.text).toContain("Trust project folder?");
+    expect(output.text).toContain("Trust Project Folder?");
     expect(output.text).toContain("D:/work");
     const visible = output.text.replace(/\u001b\[[0-9;?]*[A-Za-z]/gu, "").replace(/\s+/gu, " ");
     expect(visible).toContain("This allows to load project settings and resources, install missing project packages, and execute project extensions.");
     expect(visible).not.toContain("This allows a1 to load");
-    expect(output.text).toContain("→ Trust");
+    expect(output.text.replace(/\u001b\[[0-9;]*m/gu, "")).toContain("→ Trust");
     expect(output.text).toContain("Trust parent folder (D:/)");
     expect(output.text).toContain("Trust (this session only)");
     expect(output.text).toContain("Do not trust");
@@ -93,12 +93,13 @@ describe("bounded project trust terminal preflight", () => {
     expect(output.text).not.toContain("Ctrl+C\u001b[38;2;157;165;169m exit");
     expect(output.text).not.toMatch(/[·•]/u);
     const lastFrame = frames(output.text).reverse()
-      .find(frame => frame.includes("Trust project folder?"))!.split("\n");
-    const heading = lastFrame.find(line => line.includes("Trust project folder?"))!;
+      .find(frame => frame.includes("Trust Project Folder?"))!.split("\n");
+    const heading = lastFrame.find(line => line.includes("Trust Project Folder?"))!;
     const hintIndex = lastFrame.findIndex(line => line.includes("↑↓"));
     const hint = lastFrame[hintIndex]!;
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(heading));
-    expect(heading).toContain(`${earlyAccentPalette("blue").accent}Trust project folder?`);
+    expect(heading).toContain(`${earlyAccentPalette("blue").accent}Trust Project Folder?`);
+    expect(lastFrame.find(line => line.includes("→ "))).toContain(earlyAccentPalette("blue").selectedBg);
     expect(lastFrame.find(line => line.includes("→ "))).toContain(`${earlyAccentPalette("blue").accent}→ `);
     expect(lastFrame.findIndex(line => line.includes("─"))).toBeGreaterThanOrEqual(0);
     expect(lastFrame.findLastIndex(line => line.includes("─"))).toBe(17);
@@ -125,9 +126,9 @@ describe("bounded project trust terminal preflight", () => {
         environment: { A1_PROFILE_HOME: home, COLORTERM: "truecolor" },
       });
       await expect(prompt(request(project))).resolves.toBe("trust");
-      const frame = frames(output.text).find(part => part.includes("Trust project folder?"))!;
-      expect(frame).toContain(`${earlyAccentPalette("pink").accent}Trust project folder?`);
-      expect(frame).toContain(`${earlyAccentPalette("pink").accent}→ Trust`);
+      const frame = frames(output.text).find(part => part.includes("Trust Project Folder?"))!;
+      expect(frame).toContain(`${earlyAccentPalette("pink").accent}Trust Project Folder?`);
+      expect(frame).toContain(`${earlyAccentPalette("pink").selectedBg}${earlyAccentPalette("pink").accent}→ \u001b[39mTrust`);
       expect(frame).toContain(`${earlyAccentPalette("pink").border}─`);
       expect(frame).not.toContain(earlyAccentPalette("orange").accent);
     } finally {
@@ -142,8 +143,9 @@ describe("bounded project trust terminal preflight", () => {
       environment: { A1_PROFILE_HOME: resolve("missing-trust-profile"), COLORFGBG: "0;15", TERM: "xterm-256color", PI_TRUE_COLOR: "0" },
     });
     await prompt(request());
-    const frame = frames(output.text).find(part => part.includes("Trust project folder?"))!;
-    expect(frame).toContain(`${earlyAccentPalette("blue", "light", "256color").accent}Trust project folder?`);
+    const frame = frames(output.text).find(part => part.includes("Trust Project Folder?"))!;
+    expect(frame).toContain(`${earlyAccentPalette("blue", "light", "256color").accent}Trust Project Folder?`);
+    expect(frame).toContain(earlyAccentPalette("blue", "light", "256color").selectedBg);
     expect(frame).toContain(`${earlyAccentPalette("blue", "light", "256color").border}─`);
   });
 
@@ -174,9 +176,10 @@ describe("bounded project trust terminal preflight", () => {
     const output = new TtyOutput(30, 5);
     const prompt = createConsoleProjectTrustPrompt({ input: new TtyInput("\t\t\t\r"), output });
     await prompt(request());
-    const frame = frames(output.text).reverse().find(part => part.includes("Trust project folder?"))!;
+    const frame = frames(output.text).reverse().find(part => part.includes("Trust Project Folder?"))!;
     expect(frame.split("\n")).toHaveLength(5);
-    expect(frame).toContain("→ Do not trust");
+    expect(frame.replace(/\u001b\[[0-9;]*m/gu, "")).toContain("→ Do not trust");
+    expect(frame.split("\n").find(row => row.includes("→ "))).toMatch(/\u001b\[49m/u);
     expect(frame).toContain("this session only");
     expect(frame).toContain("↑↓");
     expect(frame).not.toContain("─");
@@ -205,7 +208,7 @@ describe("bounded project trust terminal preflight", () => {
     const output = new TtyOutput();
     const prompt = createConsoleProjectTrustPrompt({ input: new TtyInput("\u001b[B\r"), output });
     await prompt(request());
-    expect(output.text.indexOf("\u001b[?1049h")).toBeLessThan(output.text.indexOf("Trust project folder?"));
+    expect(output.text.indexOf("\u001b[?1049h")).toBeLessThan(output.text.indexOf("Trust Project Folder?"));
     expect(output.text.lastIndexOf("\u001b[2J\u001b[H")).toBeLessThan(output.text.lastIndexOf("\u001b[?1049l"));
     expect(output.text.endsWith(`\u001b[2J\u001b[H${EMERGENCY_TERMINAL_RESET}`)).toBe(true);
     expect(output.text.lastIndexOf("\u001b[?1049l")).toBeLessThan(output.text.lastIndexOf("\u001b[?25h"));
@@ -217,7 +220,7 @@ describe("bounded project trust terminal preflight", () => {
     await prompt(request());
     const beforeRestore = output.text.slice(0, output.text.lastIndexOf("\u001b[2J"));
     expect(beforeRestore).not.toContain("\u001b[2J");
-    expect(frames(output.text).filter(frame => frame.includes("Trust project folder?"))).toHaveLength(3);
+    expect(frames(output.text).filter(frame => frame.includes("Trust Project Folder?"))).toHaveLength(3);
   });
 
   it("hands the alternate screen to the shell with the parent cursor parked after a selection", async () => {

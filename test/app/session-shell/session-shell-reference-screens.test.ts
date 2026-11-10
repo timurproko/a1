@@ -131,7 +131,7 @@ describe("bare A1 reference screens", () => {
     } finally { await shell.dispose(); }
   });
 
-  it.each(["session", "changelog", "hotkeys"])("opens %s as an owned screen without a feed document and restores the viewport on Esc", async route => {
+  it.each(["changelog", "hotkeys"])("opens %s as an owned screen without a feed document and restores the viewport on Esc", async route => {
     const { shell, terminal, routes, adapter, engine } = await shellFixture({ customViewport: true });
     const workflow = vi.spyOn(adapter.workflows, "executeWorkflow");
     shell.start();
@@ -164,7 +164,7 @@ describe("bare A1 reference screens", () => {
     await shell.dispose();
   });
 
-  it.each(["settings", "session", "changelog", "hotkeys"])("closes the %s fullscreen route on one Ctrl+C", async route => {
+  it.each(["settings", "changelog", "hotkeys"])("closes the %s fullscreen route on one Ctrl+C", async route => {
     const { shell, terminal, routes, adapter } = await shellFixture({ customViewport: true });
     shell.start();
     await openReference(shell, terminal, route);
@@ -190,9 +190,43 @@ describe("bare A1 reference screens", () => {
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(routes!.opens).toEqual([{ route: "session", input: undefined }]);
     expect(feed(shell)).not.toContain("stale route notice");
-    expect(feed(shell)).not.toContain("Session Info");
+    expect(shell.runtime.hasOverlay()).toBe(false);
+    expect(feed(shell)).toContain("SCREEN session");
     terminal.input(ESC);
     await shell.dispose();
+  });
+
+  it.each([ESC, "\u0003", "\u001b[99;5u"])("opens Session Info in the dock and restores input on %j", async close => {
+    const { shell, terminal, routes, engine } = await shellFixture({ customViewport: true });
+    shell.start();
+    shell.root.editor.setText("retained draft");
+    const before = feed(shell);
+    shell.openOwnedRoute("session");
+    expect(shell.runtime.hasOverlay()).toBe(false);
+    expect(shell.root.usesDefaultInputSurface()).toBe(false);
+    const frame = feed(shell);
+    expect(frame).toContain("SCREEN session");
+    expect(frame).toContain("D:/work");
+    expect(frame.split("\n")).toHaveLength(24);
+    terminal.input(close);
+    expect(routes!.surfaces[0]!.isClosed()).toBe(true);
+    expect(shell.root.usesDefaultInputSurface()).toBe(true);
+    expect(shell.root.editor.getText()).toBe("retained draft");
+    expect(feed(shell)).toBe(before);
+    expect(engine.session.calls.some(call => call.startsWith("prompt:"))).toBe(false);
+    await shell.dispose();
+  });
+
+  it("disposes an in-place route when another input replaces it or the shell stops", async () => {
+    const { shell, routes } = await shellFixture({ customViewport: true });
+    shell.start();
+    shell.openOwnedRoute("session");
+    shell.root.setInputSurface({ render: () => ["replacement"], invalidate: () => {} });
+    expect(routes!.surfaces[0]!.isClosed()).toBe(true);
+    shell.root.setInputSurface(null);
+    shell.openOwnedRoute("session");
+    await shell.dispose();
+    expect(routes!.surfaces[1]!.isClosed()).toBe(true);
   });
 
   it("keeps the in-feed documents in the pinned layout without a route host", async () => {
@@ -332,7 +366,7 @@ describe("owned screens decode legacy and kitty keys alike", () => {
   });
 
   /** The real Changelog screen behind the shell's route boundary, recording each opened surface. */
-  async function changelogRoutes() {
+  async function changelogRoutes(sessionReady: Promise<void> = Promise.resolve()) {
     const root = mkdtempSync(path.join(tmpdir(), "a1-kitty-keys-"));
     roots.push(root);
     const settings = new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: [], agent: null });
@@ -341,7 +375,7 @@ describe("owned screens decode legacy and kitty keys alike", () => {
     const real = createOwnedRouteHost(settings, {
       changelog: async () => ({ rows: () => rows }),
       hotkeys: async () => ({ rows: () => rows }),
-      session: async () => ({ rows: () => rows }),
+      session: async () => { await sessionReady; return { rows: () => rows }; },
     });
     const surfaces: UiRouteSurface[] = [];
     const host: UiRouteHost = {
@@ -364,6 +398,50 @@ describe("owned screens decode legacy and kitty keys alike", () => {
     }
     return row;
   }
+
+  it("closes Session Info before its document loads without resurrecting the dock", async () => {
+    let release!: () => void;
+    const routes = await changelogRoutes(new Promise<void>(resolve => { release = resolve; }));
+    const { shell, terminal } = await shellFixture({ customViewport: true, routes: routes as unknown as ReturnType<typeof routeHost> });
+    shell.start();
+    shell.openOwnedRoute("session");
+    terminal.input(ESC);
+    expect(routes.surfaces[0]!.isClosed()).toBe(true);
+    expect(shell.root.usesDefaultInputSurface()).toBe(true);
+    release();
+    await vi.dynamicImportSettled();
+    expect(shell.root.usesDefaultInputSurface()).toBe(true);
+    expect(feed(shell)).not.toContain("Session Info");
+    await shell.dispose();
+  });
+
+  it("bounds Session Info, routes local wheel input, and leaves transcript gestures outside the dock", async () => {
+    const routes = await changelogRoutes();
+    const { shell, terminal } = await shellFixture({ customViewport: true, routes: routes as unknown as ReturnType<typeof routeHost> });
+    shell.start();
+    shell.openOwnedRoute("session");
+    const surface = routes.surfaces[0]!;
+    await firstRow(surface, "row 01");
+    const mouse = vi.spyOn(surface, "handleMouse");
+    let frame = shell.root.render(80).map(stripTerminalSequences);
+    const start = frame.findIndex(row => row.startsWith("─"));
+    expect(start).toBeGreaterThan(0);
+    terminal.input(`\u001b[<65;20;${start + 4}M`);
+    expect(mouse).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "wheel-down", column: 20, row: 4 }));
+    const calls = mouse.mock.calls.length;
+    terminal.input("\u001b[<64;20;1M");
+    expect(mouse).toHaveBeenCalledTimes(calls);
+    terminal.resize(40, 12);
+    frame = shell.root.render(40).map(stripTerminalSequences);
+    expect(frame).toHaveLength(12);
+    expect(frame.some(row => row.includes("Esc close"))).toBe(true);
+    expect(frame.at(-1)).toContain("gpt");
+    terminal.input("\u001b[1;1B");
+    terminal.input(ESC);
+    expect(surface.isClosed()).toBe(true);
+    expect(shell.root.usesDefaultInputSurface()).toBe(true);
+    await shell.dispose();
+  });
 
   it.each([
     { name: "legacy", up: `${ESC}[A`, down: `${ESC}[B`, close: ESC },

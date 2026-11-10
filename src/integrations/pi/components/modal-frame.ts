@@ -3,15 +3,47 @@ import {
   Input,
   Spacer,
   Text,
+  sliceByColumn,
+  stripTerminalSequences,
+  visibleWidth,
   type Component,
   type Focusable,
   type TuiMouseEvent,
   type TuiMouseEventResult,
 } from "@earendil-works/pi-tui";
+import type { OwnedUiShellComponentPort } from "../../../contracts/owned-ui/index.js";
 import { DIALOG_CONTENT_PADDING_X, dialogFrameGeometry, insetDialogContent } from "../../../contracts/presentation/index.js";
-import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "./theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints, renderPiModalListRow } from "./theme.js";
 
 export const PI_MODAL_CONTENT_PADDING_X = DIALOG_CONTENT_PADDING_X;
+
+/** Applies standard primary/metadata roles without changing a pinned row's text or clipping. */
+export function renderPiModalSelectedPrimary(row: string, width: number, labels: readonly string[]): string {
+  const plain = stripTerminalSequences(row).trimEnd();
+  if (!plain.startsWith(" → ")) return row;
+  const primary = labels.filter(label => plain.slice(3).startsWith(label))
+    .sort((left, right) => visibleWidth(right) - visibleWidth(left))[0];
+  const length = primary === undefined ? Math.max(0, visibleWidth(plain) - 3) : visibleWidth(primary);
+  const label = stripTerminalSequences(sliceByColumn(row, 3, length));
+  const suffix = sliceByColumn(row, 3 + length, Math.max(0, visibleWidth(plain) - 3 - length));
+  const theme = piTheme();
+  return ` ${renderPiModalListRow(`${theme.fg("accent", "→ ")}${theme.fg("text", label)}${theme.fg("muted", stripTerminalSequences(suffix))}`, Math.max(0, width - 1), true)}`;
+}
+
+/** Standardizes internal legacy model/message choices without changing their controller or metadata. */
+export function standardInternalChoicePort(port: OwnedUiShellComponentPort, metadata = false): OwnedUiShellComponentPort {
+  return { ...port, render: width => port.render(width).map(row => {
+    const match = /^(\s*)[→›] (.*)$/u.exec(stripTerminalSequences(row).trimEnd());
+    if (match === null) return row;
+    const indent = visibleWidth(match[1]!);
+    const marker = metadata ? sliceByColumn(row, indent + 2, 2) : "";
+    const label = metadata ? match[2]!.slice(2).split(/ \[| \(/u, 1)[0]! : match[2]!;
+    const suffixStart = indent + 2 + (metadata ? 2 : 0) + visibleWidth(label);
+    const suffix = metadata ? sliceByColumn(row, suffixStart, Math.max(0, visibleWidth(row) - suffixStart)).trimEnd() : "";
+    const theme = piTheme();
+    return `${match[1]}${renderPiModalListRow(`${theme.fg("accent", "→ ")}${marker}${theme.fg("text", label)}${suffix}`, Math.max(0, width - indent), true)}`;
+  }) };
+}
 
 /** Paints the standard Pi Input prompt as a live-themed dialog-search marker. */
 export function renderPiModalSearchInput(input: Input, width: number): string[] {

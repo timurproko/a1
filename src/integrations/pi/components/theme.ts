@@ -87,6 +87,12 @@ export function getPiSelectListTheme(): SelectListTheme {
   };
 }
 
+/** Display casing for internal headings, preserving provider spelling and acronyms. */
+export function internalDialogTitle(title: string): string {
+  return title.replace(/:\s*$/u, "").replace(/\b[a-z][a-z]*/gu, (word, offset: number) =>
+    offset > 0 && /^(a|an|and|for|in|of|on|or|the|to|with)$/u.test(word) ? word : word[0]!.toUpperCase() + word.slice(1));
+}
+
 /** Paint one selected bare-A1 list item with the standard blue selection surface. */
 export function renderPiListSelection(content: string): string {
   return piTheme().bg("selectedBg", content);

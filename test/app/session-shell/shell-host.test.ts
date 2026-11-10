@@ -128,7 +128,7 @@ describe("OwnedUiTerminalHost", () => {
       shell.terminalHost.attach(second.presenter);
       expect(overlay.isHidden()).toBe(false);
       await settledFrames();
-      expect(stripTerminalSequences(terminal.writes.join(""))).toContain("Detached choice");
+      expect(stripTerminalSequences(terminal.writes.join(""))).toContain("Detached Choice");
 
       shell.terminalHost.attach(shell);
       expect(overlay.isHidden()).toBe(true);

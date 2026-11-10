@@ -1,16 +1,16 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
  * packages/coding-agent/src/modes/interactive/components/extension-selector.ts.
- * Modifications: Mechanical port: remap public imports, use ECMAScript private fields, and route the
- * bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded
- * modal-frame components while preserving options, timeout, navigation, selection, cancellation, and
- * disposal behavior.
+ * Modifications: Mechanical port with public imports, private fields, shared shortcut rows and compact
+ * framing; internal choices opt into normal labels over selected backgrounds and circular navigation
+ * while preserving extension/comparison styling, timeout, cancellation, and disposal.
  * Deviations: owned-modal-shortcut-hints.
  */
+import { wrapChoiceIndex } from "../../../../../contracts/presentation/index.js";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { Container, getKeybindings, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints, renderPiModalListRow } from "../../theme.js";
 import { CountdownTimer } from "./countdown-timer.js";
 
 interface ExtensionSelectorOptions {
@@ -18,11 +18,13 @@ interface ExtensionSelectorOptions {
   readonly timeout?: number;
   readonly description?: string;
   readonly onToggleToolsExpanded?: () => void;
+  readonly standardSelection?: boolean;
 }
 
 /** Bare-A1 extension selector using the common modal shortcut row. */
 export class ExtensionSelectorComponent extends Container {
   readonly #options: readonly string[];
+  readonly #standardSelection: boolean;
   #selectedIndex = 0;
   readonly #listContainer = new Container();
   readonly #onSelect: (value: string) => void;
@@ -35,6 +37,7 @@ export class ExtensionSelectorComponent extends Container {
   constructor(title: string, options: readonly string[], onSelect: (value: string) => void, onCancel: () => void, opts?: ExtensionSelectorOptions) {
     super();
     this.#options = options;
+    this.#standardSelection = opts?.standardSelection === true;
     this.#onSelect = onSelect;
     this.#onCancel = onCancel;
     this.#baseTitle = title;
@@ -75,9 +78,18 @@ export class ExtensionSelectorComponent extends Container {
     const endIndex = Math.min(startIndex + maxVisible, this.#options.length);
     for (let index = startIndex; index < endIndex; index += 1) {
       const option = this.#options[index]!;
-      this.#listContainer.addChild(new Text(index === this.#selectedIndex
-        ? theme.fg("accent", "→ ") + theme.fg("accent", option)
-        : `  ${theme.fg("text", option)}`, 0, 0));
+      const selected = index === this.#selectedIndex;
+      const content = selected
+        ? theme.fg("accent", "→ ") + theme.fg(this.#standardSelection ? "text" : "accent", option)
+        : `  ${theme.fg("text", option)}`;
+      this.#listContainer.addChild(this.#standardSelection ? {
+        render: width => {
+          const current = piTheme();
+          const arrow = selected ? current.fg("accent", "→ ") : "  ";
+          return [renderPiModalListRow(`${arrow}${current.fg("text", option)}`, width, selected)];
+        },
+        invalidate: () => {},
+      } : new Text(content, 0, 0));
     }
     if (startIndex > 0 || endIndex < this.#options.length) {
       this.#listContainer.addChild(new Text(theme.fg("muted", `  (${this.#selectedIndex + 1}/${this.#options.length})`), 0, 0));
@@ -88,10 +100,10 @@ export class ExtensionSelectorComponent extends Container {
     const keys = getKeybindings();
     if (keys.matches(keyData, "app.tools.expand")) this.#onToggleToolsExpanded?.();
     else if (keys.matches(keyData, "tui.select.up") || keyData === "k") {
-      this.#selectedIndex = Math.max(0, this.#selectedIndex - 1);
+      this.#selectedIndex = this.#standardSelection ? wrapChoiceIndex(this.#selectedIndex, -1, this.#options.length) : Math.max(0, this.#selectedIndex - 1);
       this.#updateList();
     } else if (keys.matches(keyData, "tui.select.down") || keyData === "j") {
-      this.#selectedIndex = Math.min(this.#options.length - 1, this.#selectedIndex + 1);
+      this.#selectedIndex = this.#standardSelection ? wrapChoiceIndex(this.#selectedIndex, 1, this.#options.length) : Math.min(this.#options.length - 1, this.#selectedIndex + 1);
       this.#updateList();
     } else if (keys.matches(keyData, "tui.select.confirm") || keyData === "\n") {
       const selected = this.#options[this.#selectedIndex];

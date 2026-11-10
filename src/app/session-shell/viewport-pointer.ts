@@ -174,7 +174,9 @@ export class ViewportPointerGestures {
       viewport.setRailHovered(false);
       viewport.setStickyHovered(false);
       this.#position = undefined;
-      owner.component.handleInput?.(report);
+      if (owner.component.handleLocalMouse !== undefined) {
+        owner.component.handleLocalMouse({ ...event, column: event.column - owner.columnStart + 1, row: event.row - owner.rowStart + 1 });
+      } else owner.component.handleInput?.(report);
       outcome.repaint = true;
       return true;
     }

@@ -121,6 +121,7 @@ async function loadReferenceSurface(
     id,
     title,
     document: content,
+    ...(route === "session" ? { presentation: "dialog" as const } : {}),
     scrollSettings: () => ({
       scrollbarAppearance: settings.value("scrollbarAppearance"),
       scrollbarStyle: settings.value("scrollbarStyle"),

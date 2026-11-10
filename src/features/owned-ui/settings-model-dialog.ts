@@ -1,4 +1,4 @@
-import { DIALOG_BACK_SHORTCUT_HINT, DIALOG_CLOSE_SHORTCUT_HINT } from "../../contracts/presentation/index.js";
+import { DIALOG_BACK_SHORTCUT_HINT, DIALOG_CLOSE_SHORTCUT_HINT, wrapChoiceIndex } from "../../contracts/presentation/index.js";
 import type { DialogRow } from "../../ui/components/index.js";
 import {
   LineInput,
@@ -80,7 +80,7 @@ export function modelDialogKey(open: StructuredEdit, data: string, key: string, 
       return { consumed: true };
     }
     if (action === "previous" || action === "next") {
-      open.index = Math.min(Math.max(0, flags.length - 1), Math.max(0, open.index + (action === "next" ? 1 : -1)));
+      open.index = wrapChoiceIndex(open.index, action === "next" ? 1 : -1, flags.length);
       return { consumed: true };
     }
     if (action === "select") {
@@ -111,7 +111,7 @@ export function modelDialogKey(open: StructuredEdit, data: string, key: string, 
     return { consumed: true };
   }
   if (action === "previous" || action === "next") {
-    open.index = Math.min(Math.max(0, choices.length - 1), Math.max(0, open.index + (action === "next" ? 1 : -1)));
+    open.index = wrapChoiceIndex(open.index, action === "next" ? 1 : -1, choices.length);
     return { consumed: true };
   }
   if (action === "select") {

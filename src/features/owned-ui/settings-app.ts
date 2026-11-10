@@ -1,4 +1,4 @@
-import { DIALOG_CLOSE_SHORTCUT_HINT } from "../../contracts/presentation/index.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, wrapChoiceIndex } from "../../contracts/presentation/index.js";
 import type { AppHostServices, UiApp } from "../../ui/apps/index.js";
 import type {
   ListViewRow,
@@ -340,7 +340,7 @@ export class SettingsApp implements UiApp {
       }
       case "move-up":
       case "move-down":
-        this.#select(rows, moveSelection(rows, selected, action === "move-down" ? 1 : -1));
+        this.#select(rows, moveSelection(rows, selected, action === "move-down" ? 1 : -1, true));
         return { consumed: true };
       case "page-up":
       case "page-down":
@@ -563,10 +563,10 @@ export class SettingsApp implements UiApp {
         this.#structured = null;
         return { consumed: true };
       case "part-previous":
-        open.index = Math.max(0, open.index - 1);
+        open.index = wrapChoiceIndex(open.index, -1, open.flags.length);
         return { consumed: true };
       case "part-next":
-        open.index = Math.min(open.flags.length - 1, open.index + 1);
+        open.index = wrapChoiceIndex(open.index, 1, open.flags.length);
         return { consumed: true };
       case "part-change":
         this.#toggleFlag(open.index);
@@ -623,7 +623,7 @@ export class SettingsApp implements UiApp {
       // Compatibility: the keyboard starts from the value in effect rather than from the top.
       menu.index = menu.index < 0
         ? menu.current
-        : Math.min(menu.choices.length - 1, Math.max(0, menu.index + (key === "down" ? 1 : -1)));
+        : wrapChoiceIndex(menu.index, key === "down" ? 1 : -1, menu.choices.length);
     }
     else if (key === "enter") {
       const value = menu.choices[menu.index];
@@ -669,7 +669,7 @@ export class SettingsApp implements UiApp {
         if (target !== undefined) this.#jump(rows, target);
         return { consumed: true };
       }
-      this.#select(rows, moveSelection(rows, selected, forward ? 1 : -1));
+      this.#select(rows, moveSelection(rows, selected, forward ? 1 : -1, true));
       return { consumed: true };
     }
 

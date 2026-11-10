@@ -3,6 +3,7 @@ import {
   assertPresentationComponent,
   assertPresentationRuntime,
   probePresentationLifecycle,
+  wrapChoiceIndex,
   type PresentationComponentPort,
   type PresentationRuntimePort,
   type PresentationRuntimeState,
@@ -29,6 +30,12 @@ const component: PresentationComponentPort = {
 };
 
 describe("vendor-neutral presentation contracts", () => {
+  it("wraps choices in both directions and keeps empty or singleton lists safe", () => {
+    expect(wrapChoiceIndex(0, -1, 4)).toBe(3);
+    expect(wrapChoiceIndex(3, 1, 4)).toBe(0);
+    expect(wrapChoiceIndex(1, 1, 4)).toBe(2);
+    for (const count of [0, 1]) for (const delta of [-1, 1]) expect(wrapChoiceIndex(0, delta, count)).toBe(0);
+  });
   it("accepts a bounded component and complete terminal runtime", async () => {
     expect(() => assertPresentationComponent(component)).not.toThrow();
     const runtime = new Runtime();

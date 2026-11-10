@@ -7,7 +7,7 @@ export interface WorkflowSelectors {
   showModelSelector(initialSearchInput?: string): void;
   showForkSelector(): void;
   showThinkingSelector(): Promise<void>;
-  showTrustSelector(): void;
+  showTrustSelector(): void | Promise<void>;
   showSettingsSelector(): void;
   showSessionSelector(): Promise<void>;
   showLoginAuthTypeSelector(): void;

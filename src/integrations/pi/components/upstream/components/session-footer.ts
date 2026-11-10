@@ -1,24 +1,24 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
- * Modifications: Owned UI/routing; A1 level color, linked PRs after a dim dot separator, dim ellipsis,
- * model priority, and secondary-accent name reveals after stats; Pi unchanged.
+ * Modifications: A1 PR links, model priority, level colors, secondary-accent name reveals, dim
+ * name/row clipping; Pi intact.
  * Deviations: owned-status-level-color, owned-pull-request-badge, owned-footer-ellipsis,
  * owned-footer-model-priority, owned-session-name-reveal.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import { hyperlink, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
+import { hyperlink, stripTerminalSequences, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import type { OwnedUiSessionViewModel } from "../../../../../contracts/owned-ui/index.js";
 import { piTheme } from "../../theme.js";
 import { sessionNameFrame } from "../../../../../ui/components/session-name-frame.js";
 
 export class SessionFooter implements Component {
-  private readonly getView: () => OwnedUiSessionViewModel;
-  private readonly cwd: string;
-  private readonly profile: "pi" | "a1";
-  private readonly show: () => boolean;
   #reveal: { readonly from: string; readonly elapsed: number } | null = null;
   #nameBudget = Number.MAX_SAFE_INTEGER;
+  private readonly getView;
+  private readonly cwd;
+  private readonly profile;
+  private readonly show;
   constructor(getView: () => OwnedUiSessionViewModel, cwd: string, profile: "pi" | "a1" = "pi", show: () => boolean = () => true) {
     this.getView = getView; this.cwd = cwd; this.profile = profile; this.show = show;
   }
@@ -35,13 +35,15 @@ export class SessionFooter implements Component {
     const theme = piTheme();
     const secondary = rgb(theme.getFgAnsi("mdHeading"));
     const settled = rgb(theme.getFgAnsi("dim"));
-    if (!this.#reveal) return { text: theme.fg("dim", truncateToWidth(name, width, "…")), done: true };
+    const clip = (text: string, columns: number) => stripTerminalSequences(truncateToWidth(text, columns, "…"));
+    if (!this.#reveal) return { text: theme.fg("dim", clip(name, width)), done: true };
     return sessionNameFrame({
       ...this.#reveal, to: name, width,
       truecolor: theme.getColorMode() === "truecolor" && secondary !== null && settled !== null,
-      measure: visibleWidth, clip: (text, columns) => truncateToWidth(text, columns, "…"),
+      measure: visibleWidth, clip,
       dim: text => theme.fg("dim", text),
       paint: (text, brightness, progress) => {
+        if (text === "…") return theme.fg("dim", text);
         const channels = secondary!.map((value, index) => {
           const bright = value + (235 - value) * brightness;
           return Math.round(bright + (settled![index]! - bright) * progress);
