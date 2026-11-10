@@ -38,6 +38,14 @@ const STATES: readonly ParityState[] = [
     },
   },
   {
+    name: "OpenRouter without decorative badge",
+    option: { id: "oauth:openrouter", providerId: "openrouter", label: "OpenRouter", authType: "oauth" },
+  },
+  {
+    name: "Radius without decorative badge",
+    option: { id: "api_key:radius", providerId: "radius", label: "Radius", authType: "api_key", status: { type: "api_key", source: "stored credential" } },
+  },
+  {
     name: "other configured method",
     option: {
       id: "api_key:openai-codex", providerId: "openai-codex", label: "OpenAI Codex", authType: "api_key",
@@ -83,6 +91,11 @@ describe("provider authentication selector presentation", () => {
       expected[3] = ` ${expected[3]!.slice(0, -1)}`;
       expected.splice(-1, 0, " ↑↓ navigate  Enter select  Esc close".padEnd(width));
       expect(plainRows(owned, width), `${state.name}@${width}`).toEqual(expected);
+      if (["openrouter", "radius"].includes(state.option.providerId)) {
+        expect(plainRows(upstream, width).join("\n")).toContain("✦");
+        if (state.standardStyle) expect(plainRows(owned, width).join("\n")).not.toContain("✦");
+        else expect(plainRows(owned, width).join("\n")).toContain("✦");
+      }
     }
     upstream.handleInput("\r");
     owned.handleInput?.("\r");

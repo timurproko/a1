@@ -91,6 +91,10 @@ The maintainer requested success-green configured status for an alternate config
 
 The preceding exact-head CI failure was an obsolete `Detached choice` expectation in the shell-host overlay test; the approved internal title policy correctly renders `Detached Choice`. Update only that expectation, retaining the attachment, overlay visibility, and terminal-write assertions.
 
+## Approved Refinement: Remove Decorative Provider Badges
+
+The maintainer asked what the diamond-like `✦` markers beside OpenRouter and Radius represent and requested removing them when they have no functional representation. The pinned source labels them preferred partner providers. In A1's alphabetically ordered selector they are a hard-coded decorative suffix, independent of credentials, configured status, capabilities, active model or actions. Remove that suffix only from owned provider rendering; retain real status dots/checkmarks, auth-type qualifiers, names, order, filtering and actions. Comparison rendering remains pinned and can still show its original badge.
+
 ## Implementation Evidence
 
 - Session Info uses a bounded input-route adapter with component-local pointer routing and shared reference rendering. Escape and Ctrl+C close even before its deferred document resolves. Semantic identity/group rows share a left-aligned value column, reduce optional padding on narrow frames, and retain complete wrapped paths and values.
@@ -113,6 +117,12 @@ The preceding exact-head CI failure was an obsolete `Detached choice` expectatio
 - Both truecolor and 256-color tests cover dark/light themes, multiple accents, selected/unselected rows, matching OAuth/API-key status, environment-backed credentials, alternate configured methods, clipping and unchanged selection actions. Comparison parity assertions retain the pinned source-label format.
 - The CI-reported overlay failure was repaired by updating only the expected approved title casing to `Detached Choice`. The shell-host test retains its visibility and terminal-write assertions and passes.
 - Build, typecheck, strict OpenSpec validation, architecture, provenance and changed-file documentation passed. Four focused test files passed (53 tests); finalized-head CI remains authoritative.
+
+## Provider Badge Removal Evidence
+
+- Owned OpenRouter and Radius rows omit only the decorative `✦` suffix. Real configuration dots/checkmarks and method qualifiers, provider names, existing order, filtering and selection actions remain intact.
+- Provider parity fixtures now cover both names with owned badge absence, pinned comparison badge presence, retained configured/unconfigured state and identical selected provider IDs.
+- Build, typecheck, strict OpenSpec validation, architecture, provenance and changed-file documentation passed. Three focused test files passed (52 tests); required finalized-head CI remains authoritative.
 
 ## Open Questions
 

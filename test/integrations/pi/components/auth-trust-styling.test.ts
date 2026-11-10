@@ -172,7 +172,8 @@ describe("standard sign-in and trust presentation", () => {
     auth.handleInput?.("\u001b[B");
     const rows = auth.render(80);
     assertSelected(rows.find(row => stripTerminalSequences(row).includes("→ "))!, "OpenRouter");
-    expect(stripTerminalSequences(rows.join("\n"))).toContain("OpenRouter ✦ • configured ✓");
+    expect(stripTerminalSequences(rows.join("\n"))).toContain("OpenRouter • configured ✓");
+    expect(stripTerminalSequences(rows.join("\n"))).not.toContain("✦");
     expect(rows.find(row => stripTerminalSequences(row).includes("Anthropic"))).not.toContain(piTheme().getBgAnsi("selectedBg"));
     auth.handleInput?.("\r");
     expect(selected).toHaveBeenLastCalledWith("oauth:openrouter");

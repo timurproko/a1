@@ -49,6 +49,11 @@
 - [x] 9.2 Update the CI-reported shell-host title expectation for the approved Title Case presentation while retaining its overlay visibility and terminal-write assertions.
 - [x] 9.3 Finish targeted checks, evidence/gap reconciliation, current origin/develop reconciliation and final delivery-body/finalization inspection before completing the final PR marker.
 
+## 10. Remove decorative provider badges
+
+- [x] 10.1 Remove owned preferred-partner suffixes without changing provider names, status, order or actions; extend focused provider parity/style assertions for OpenRouter and Radius while retaining pinned comparison badges.
+- [x] 10.2 Finish targeted checks and gap/evidence updates, reconcile current origin/develop, and pass final body/finalization inspection before the final implementation marker.
+
 ## Workflow follow-up
 
 - Trusted automation owns readiness and in-branch finalization after implementation completion; required exact-head CI follows.

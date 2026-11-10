@@ -186,6 +186,13 @@ Bare A1's sign-in method and provider selectors SHALL use accent-bold Title Case
 - **AND** raw storage/environment source labels SHALL NOT replace the configured wording in the bare-A1 suffix
 - **AND** unconfigured providers SHALL retain muted `not configured` text without a checkmark, and comparison presentation SHALL remain pinned
 
+#### Scenario: Omit decorative provider partner badges
+
+- **WHEN** bare A1 renders a provider choice, including OpenRouter or Radius
+- **THEN** it SHALL NOT append a decorative preferred-partner badge to the provider label
+- **AND** provider names, order, configuration status dots/checkmarks, auth-type qualifiers, filtering and actions SHALL remain intact
+- **AND** comparison presentation SHALL retain its pinned partner badges
+
 #### Scenario: Move or clip selection
 
 - **WHEN** a sign-in selection changes, is filtered, or is rendered at a narrow width

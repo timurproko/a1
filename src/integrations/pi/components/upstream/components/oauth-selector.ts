@@ -1,10 +1,11 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
  * packages/coding-agent/src/modes/interactive/components/oauth-selector.ts.
- * Modifications: Adapt the provider controller to injected neutral options, shared modal framing, live
+ * Modifications: Adapt the provider controller to injected neutral options, shared framing, live
  * roles, Title Case and circular navigation. Configured status uses a muted dot, success-green text
- * and trailing checkmark with alternate-method qualifiers instead of storage-source labels; filtering,
- * paging, partner markers, actions and comparison presentation remain unchanged.
+ * and trailing checkmark with alternate-method qualifiers instead of storage-source labels. Omit
+ * decorative preferred-partner badges while retaining filtering, paging, actions and comparison
+ * presentation.
  * Deviations: standard-sign-in-dialog-styling.
  */
 import { Container, fuzzyFilter, getKeybindings, getSelectPageIndex, Input, Spacer, Text, TruncatedText } from "@earendil-works/pi-tui";
@@ -96,10 +97,8 @@ export class AuthProviderSelector extends Container {
         render: width => {
           const theme = piTheme();
           const prefix = selected ? theme.fg("accent", "→ ") : "  ";
-          // Compatibility: Pi's partner marker is presentation only, independent of configured state.
-          const partner = provider.providerId === "radius" || provider.providerId === "openrouter" ? theme.fg("muted", " ✦") : "";
           const type = this.#showTypes ? theme.fg("muted", ` [${provider.authType === "api_key" ? "API key" : "subscription"}]`) : "";
-          return [renderPiModalListRow(`${prefix}${theme.fg("text", provider.label)}${partner}${type}${providerStatus(provider)}`, width, selected)];
+          return [renderPiModalListRow(`${prefix}${theme.fg("text", provider.label)}${type}${providerStatus(provider)}`, width, selected)];
         },
         invalidate: () => {},
       });
