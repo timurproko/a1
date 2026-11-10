@@ -323,6 +323,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
       const frame = shell.root.render(80);
       expect(stripTerminalSequences(frame[0]!)).toContain("Compacted from 281,483 tokens");
       expect(frame[0]).toContain("\u001b[2m");
+      shell.root.editor.setText("retained draft");
       await shell.submit("/models");
       shell.runtime.renderNow();
       const top = shell.root.viewportPresentationEvidence().scrollTop;
@@ -330,11 +331,13 @@ describe("prompt-style compaction in the real engine and shell", () => {
       await nextImmediate();
       shell.runtime.renderNow();
       expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
-      expect(shell.root.usesDefaultInputSurface()).toBe(true);
-      expect(shell.runtime.hasFocusedOverlay()).toBe(true);
+      expect(shell.root.usesDefaultInputSurface()).toBe(false);
+      expect(shell.runtime.hasFocusedOverlay()).toBe(false);
+      expect(shell.root.render(80).map(stripTerminalSequences).join("\n")).toContain("Models");
       terminal.input("\u001b");
       expect(shell.runtime.hasOverlay()).toBe(false);
       expect(shell.root.usesDefaultInputSurface()).toBe(true);
+      expect(shell.root.editor.getText()).toBe("retained draft");
     } finally { await shell.dispose(); }
   });
 

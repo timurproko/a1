@@ -46,7 +46,7 @@ export interface SteppedDialogPanelState {
   /** Omitted for a one-step searchable selector whose title needs no step marker. */
   readonly step?: number;
   readonly steps?: number;
-  readonly description: string;
+  readonly description?: string;
   readonly input?: LineInput;
   readonly rows: readonly DialogRow[];
   readonly index: number;
@@ -77,7 +77,7 @@ export function configureDialogWidth(width: number): number {
 
 /** Rows available to a selector after retaining its title, description, control, and guidance. */
 export function configureDialogChoiceCapacity(height: number, hasInput: boolean, descriptionRows = 1): number {
-  const wrappedDescriptionRows = Math.max(1, descriptionRows);
+  const wrappedDescriptionRows = Math.max(0, descriptionRows);
   return Math.max(1, Math.max(0, height) - (hasInput ? 9 : 7) - (wrappedDescriptionRows - 1));
 }
 
@@ -204,7 +204,7 @@ export function renderSteppedDialogPanel(
       }).lines.map(row => layout.contentRow(row)),
       layout.blank,
     ];
-  const descriptionRows = wrapText(state.description, layout.contentWidth);
+  const descriptionRows = state.description === undefined ? [] : wrapText(state.description, layout.contentWidth);
   const step = state.step === undefined || state.steps === undefined ? "" : `(step ${state.step}/${state.steps})`;
   const title = step.length === 0 ? state.title : `${state.title} ${step}`;
   const paintedTitle = step.length === 0
