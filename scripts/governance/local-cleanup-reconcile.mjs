@@ -5,6 +5,8 @@ import { atomicJson, fail } from "./local-cleanup-state.mjs";
 import { discoverRepository, emptyDirectoryTree, exists, inside, inspectResidue, inspectWorktree, nothingLeft, parseWorktrees, purgeDisposable, removeEmptyTree, removeLocalRef, removeWorktree, repairResidue, retireRegistration, canonical, gitRunner } from "./local-cleanup-git.mjs";
 import { acceptedHead, mergedIntoDevelop, verifyCleanupEvidence } from "./local-cleanup-evidence.mjs";
 import { pruneMergedBranches } from "./local-cleanup-branches.mjs";
+import { cleanupPreflight } from "./local-cleanup-preflight.mjs";
+import { stopCheckoutDevelopmentProcesses } from "../development/checkout-process-inspection.mjs";
 
 /** A folder Git left behind is removable only once it has sat untouched long enough that no worktree add or removal is mid-flight. */
 const EMPTY_DIRECTORY_GRACE_MS = 10 * 60 * 1000;
@@ -35,6 +37,7 @@ export async function writeLocalCleanupReport(store, report, now) {
 export async function reconcileLocalCleanup({ identity, store, reader, preview = true, now = Date.now, deadline = now() + 60000,
   cancelled = () => false, git = gitRunner({ deadline, now }), verify = verifyCleanupEvidence, inspect = inspectWorktree,
   remove = removeWorktree, removeRef = removeLocalRef, purge = purgeDisposable, repair = repairResidue,
+  preflight = cleanupPreflight, stopDevProcesses = false, stopProcesses = stopCheckoutDevelopmentProcesses,
   cwd = process.cwd(), entryIds = null, heldEntryIds = [], requireEnabled = true, includeUnmanaged = true, stopSince = null, pruneBranches = false,
   ancestorOf = (sha, head) => acceptedHead(reader, sha, head), merged = entry => mergedIntoDevelop(reader, entry) }) {
   const report = { version: 1, preview, results: [], coverage: { total: 0, visited: 0, complete: false }, at: now() };
@@ -91,8 +94,19 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
         // Protocol: a released path deleted by hand is judged by its journal, not by a directory that no longer exists.
         const absentBeforeRemoval = entry.step === "none" && !await exists(entry.path);
         if (entry.step === "none" && !absentBeforeRemoval) {
-          const content = await inspect(identity, entry, { git, cwd, deadline, now, accepted });
-          if (!content.clean) { Object.assign(row, content, { disposition: "blocked" }); continue; }
+          let content = await preflight(identity, entry, { inspect, git, cwd, deadline, now, accepted });
+          if (!preview && stopDevProcesses && content.blockers?.length && content.blockers.every(item => item.reason === "development-processes-running")) {
+            await enabled();
+            const currentEvidence = await verify(reader, entry);
+            if (currentEvidence.disposition !== "eligible") { Object.assign(row, currentEvidence); continue; }
+            const currentContent = await inspect(identity, entry, { git, cwd, deadline, now, accepted });
+            if (!currentContent.clean) { Object.assign(row, currentContent, { disposition: "blocked" }); continue; }
+            const stopped = await stopProcesses(entry.path, { deadline });
+            row.stoppedDevelopmentProcesses = stopped.stopped;
+            if (stopped.survivors.length) { Object.assign(row, content, { reason: "development-process-survivors", survivors: stopped.survivors, blockers: [{ reason: "development-process-survivors", pids: stopped.survivors }], disposition: "blocked" }); continue; }
+            content = await preflight(identity, entry, { inspect, git, cwd, deadline, now, accepted });
+          }
+          if (!content.clean) { Object.assign(row, content, { disposition: deferred(content.reason) ? "deferred" : "blocked" }); continue; }
         } else if (entry.step === "remove-intent" || absentBeforeRemoval) {
           const residue = await inspectResidue(identity, entry, { git, cwd, deadline, now, inspect });
           if (!residue.clean) { Object.assign(row, residue, { disposition: "partial" }); continue; }
@@ -114,8 +128,8 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
           evidence = await verify(reader, entry);
           if (evidence.disposition !== "eligible") { Object.assign(row, evidence); continue; }
           if (JSON.stringify(await discoverRepository(identity.primary, git)) !== JSON.stringify(identity)) fail("repository-changed");
-          const content = await inspect(identity, entry, { git, cwd, deadline, now, accepted });
-          if (!content.clean) { Object.assign(row, content, { disposition: "blocked" }); continue; }
+          const content = await preflight(identity, entry, { inspect, git, cwd, deadline, now, accepted });
+          if (!content.clean) { Object.assign(row, content, { disposition: deferred(content.reason) ? "deferred" : "blocked" }); continue; }
           // Invariant: generated roots go first with bounded retries, so a held handle blocks before any journaled intent.
           await enabled(); await purge(entry, { deadline, now, containedLinks: content.containedLinks }); await enabled();
           // Provenance: journal the accepted live HEAD so residue verification and ref deletion compare against the tree Git removes.

@@ -1,0 +1,36 @@
+# Tasks
+
+## 1. Durable export defaults
+
+- [x] 1.1 Resolve persistent user exports independently of checkout/development roots and reserve unique default output files exclusively.
+- [x] 1.2 Route bare-A1 implicit HTML and format-only JSONL exports there while retaining explicit destinations and comparison behavior.
+- [x] 1.3 Add hermetic default/format/collision/failure/compatibility coverage and export documentation.
+
+## 2. Cleanup preflight diagnostics
+
+- [x] 2.1 Discover checkout-owned development processes with stable start identities, exact entry association, and caller/ancestor protection.
+- [x] 2.2 Aggregate process and content blockers in eligible cleanup reports without exposing file contents or full command lines.
+- [x] 2.3 Cover simultaneous blockers, unavailable inspection, unrelated processes, and unchanged preview/sweep behavior.
+
+## 3. Explicit development-process shutdown
+
+- [x] 3.1 Add exact-candidate stop authority only to explicitly requested eligible completed-delivery cleanup.
+- [x] 3.2 Recheck identity before stopping, bound termination/settlement, and repeat ordinary cleanup safety checks before purge.
+- [x] 3.3 Cover PID reuse, caller/ancestors, foreign roots, uncertain inspection, survivors, and eligibility/content vetoes.
+
+## 4. Explicit export preservation
+
+- [x] 4.1 Add confirmed named-export preservation under existing candidate identity, release, merge/archive/remote, content, and scoped-lock gates.
+- [x] 4.2 Implement exclusive destination creation, durable byte verification, source identity recheck, journaling, and resumable source removal.
+- [x] 4.3 Cover collisions, links/escapes, tracked or other unknown content, source changes, interruption/retry, and non-destructive reporting.
+
+## 5. Delivery preparation
+
+- [x] 5.1 Update cleanup runbook/agent guidance and implementation evidence with explicit known-gap disposition.
+- [x] 5.2 Run bounded affected tests, typecheck, strict OpenSpec validation, and applicable architecture/documentation/provenance checks.
+- [x] 5.3 Add plain acceptance outcomes, reconcile/push current origin/develop, and complete the final delivered PR outcome for trusted readiness.
+
+## 6. Reported CI repair
+
+- [x] 6.1 Synchronize the provider-default mirror, including the individual China Qwen provider, with the integrated Pi 1.5.1 pin.
+- [x] 6.2 Retain the independent exact-map comparison and strengthen login selection with the previous Anthropic model preceding the current pinned default.

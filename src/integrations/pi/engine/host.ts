@@ -33,7 +33,7 @@ export interface PiEngineHostOptions {
   readonly announceStartupChangelog?: boolean;
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
   readonly checkPackageUpdates?: PiEnginePackageUpdateProbe;
-  readonly workflowHost?: PiWorkflowHost;
+  readonly workflowHost?: Partial<PiWorkflowHost>;
   readonly createRuntime?: PiEngineRuntimeFactory;
   /** Installs the process HTTP dispatcher; defaults to the owned undici seam. */
   readonly installHttpDispatcher?: (timeoutMs: number) => void;

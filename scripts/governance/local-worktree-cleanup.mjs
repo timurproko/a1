@@ -13,10 +13,11 @@ import { discardLocalCleanup } from "./local-cleanup-discard.mjs";
 import { discardBranchCleanup } from "./local-cleanup-branch-discard.mjs";
 import { unlinkDisposableLink } from "./local-cleanup-link.mjs";
 import { retireRedundantWorktree } from "./local-cleanup-redundant.mjs";
+import { preserveExport } from "./local-cleanup-export.mjs";
 
 const help = `Local worktree cleanup (disabled until explicitly enabled)
 Usage: node scripts/governance/local-worktree-cleanup.mjs COMMAND --repo PRIMARY [options]
-Commands: preview (default), status, handoff, sweep, complete, discard, unlink-disposable-link, retire-redundant, forget, enable, disable, once, watch, register, claim, release, recover
+Commands: preview (default), status, handoff, sweep, complete, discard, preserve-export, unlink-disposable-link, retire-redundant, forget, enable, disable, once, watch, register, claim, release, recover
 Forget: --id ID --confirm-nothing-left
   Marks a released entry whose worktree, Git row, and local ref are all already absent as forgotten; reads nothing remote, deletes nothing.
 Handoff: --path PATH --change NAME --pr N
@@ -25,11 +26,14 @@ Handoff: --path PATH --change NAME --pr N
 Sweep: one bounded pass that completes every handed-off candidate whose PR is verified merged, reports open ones as
   pending and rejected ones as awaiting-discard, and prunes merged local topic branches by pull-request evidence.
   Disjoint worktree/ref cleanups may overlap; a command already holding the same resource defers only that candidate.
-Complete: --path PATH --change NAME --pr N [--role implementation|archive|acceptance]
+Complete: --path PATH --change NAME --pr N [--role implementation|archive|acceptance] [--stop-dev-processes]
+  Explicit stop authorization applies only to freshly verified development processes of this eligible clean candidate.
   Runs one exact-candidate post-merge cleanup with repository-owned generated paths: ${COMPLETION_DISPOSABLE_PATHS.join(", ")}.
 Discard: (--path PATH | --branch TOPIC) --change NAME --pr N --confirm-closed-unmerged
   Deletes only one verified closed-unmerged PR's unchanged refs; --path also removes its worktree.
   --branch never creates/removes a checkout and refuses a checked-out or live-registered ref.
+Preserve export: --path PATH --change NAME --pr N --file RELATIVE --confirm-preserve-export
+  Preserves one regular untracked HTML/JSONL export in ~/.a1/exports using verified durable copying; cleanup remains separate.
 Unlink disposable link: --path PATH --change NAME --pr N --link RELATIVE --confirm-link-only
   Removes exactly one named ignored disposable descendant link from a released eligible merged worktree.
   Does not traverse or change its target, remove the worktree, or widen ordinary sweep/purge authority.
@@ -51,7 +55,8 @@ export function sweepLines(report) {
   for (const row of report.results ?? []) {
     if (row.disposition === "unmanaged" || row.disposition === "already-absent" && row.reason === "verified-completed-journal") continue;
     const label = row.sourcePr ? `#${row.sourcePr}` : row.reason?.startsWith("empty-directory") ? "directory" : "candidate", name = row.path?.split("/").pop() ?? row.path;
-    lines.push(`${label} ${name}: ${row.disposition}${row.reason ? ` (${row.reason})` : ""}${row.steps?.length ? ` [${row.steps.join(", ")}]` : ""}`);
+    const blockers = row.blockers?.map(item => `${item.reason}${item.paths?.length ? `: ${item.paths.join(", ")}` : ""}${item.pids?.length ? `: PID ${item.pids.join(", ")}` : ""}`).join("; ");
+    lines.push(`${label} ${name}: ${row.disposition}${row.reason ? ` (${row.reason})` : ""}${row.steps?.length ? ` [${row.steps.join(", ")}]` : ""}${blockers ? ` [${blockers}]` : ""}`);
   }
   for (const row of report.branches?.results ?? []) {
     lines.push(`branch ${row.ref.slice("refs/heads/".length)}: ${row.disposition}${row.reason ? ` (${row.reason})` : ""}${row.sourcePr ? ` #${row.sourcePr}` : ""}`);
@@ -70,16 +75,18 @@ export async function main(args = process.argv.slice(2)) {
   const { values, positionals } = parseArgs({ args, allowPositionals: true, strict: true, options: {
     repo: { type: "string" }, path: { type: "string" }, branch: { type: "string" }, change: { type: "string" }, pr: { type: "string" }, "source-pr": { type: "string" }, "candidate-pr": { type: "string" },
     role: { type: "string" }, disposable: { type: "string", multiple: true }, id: { type: "string" }, generation: { type: "string" },
-    link: { type: "string" }, "confirm-link-only": { type: "boolean" },
+    link: { type: "string" }, "confirm-link-only": { type: "boolean" }, file: { type: "string" }, "confirm-preserve-export": { type: "boolean" },
     "confirm-stopped": { type: "boolean" }, "confirm-closed-unmerged": { type: "boolean" }, "confirm-redundant": { type: "boolean" },
-    "confirm-nothing-left": { type: "boolean" }, help: { type: "boolean" },
+    "confirm-nothing-left": { type: "boolean" }, "stop-dev-processes": { type: "boolean" }, help: { type: "boolean" },
   } });
   if (values.help) { console.log(help); return; }
   if (positionals.length > 1) fail("command-count");
   const command = positionals[0] ?? "preview";
-  if (!["preview", "status", "handoff", "sweep", "complete", "discard", "unlink-disposable-link", "retire-redundant", "forget", "enable", "disable", "once", "watch", "register", "claim", "release", "recover"].includes(command)) fail("unknown-command");
+  if (!["preview", "status", "handoff", "sweep", "complete", "discard", "preserve-export", "unlink-disposable-link", "retire-redundant", "forget", "enable", "disable", "once", "watch", "register", "claim", "release", "recover"].includes(command)) fail("unknown-command");
   const identity = await discoverRepository(values.repo ?? process.cwd());
   const store = createStateStore(identity);
+  if (command !== "preserve-export" && (values.file !== undefined || values["confirm-preserve-export"] !== undefined)) fail("export-preservation-arguments");
+  if (command !== "complete" && values["stop-dev-processes"] !== undefined) fail("development-stop-arguments");
   if (command !== "retire-redundant" && values["confirm-redundant"] !== undefined) fail("redundant-arguments");
   if (command !== "discard" && values.branch !== undefined) fail("discard-arguments");
   if (command !== "unlink-disposable-link" && (values.link !== undefined || values["confirm-link-only"] !== undefined)) fail("disposable-link-arguments");
@@ -136,7 +143,7 @@ export async function main(args = process.argv.slice(2)) {
     }));
     return;
   }
-  if (["complete", "discard", "unlink-disposable-link", "retire-redundant", "sweep", "once", "watch"].includes(command) && inside(identity.root, await canonical(fileURLToPath(import.meta.url)))) fail("worker-code-inside-removable-root");
+  if (["complete", "discard", "preserve-export", "unlink-disposable-link", "retire-redundant", "sweep", "once", "watch"].includes(command) && inside(identity.root, await canonical(fileURLToPath(import.meta.url)))) fail("worker-code-inside-removable-root");
   let nextAllowed = 0;
   async function authorizedReader(deadline) {
     let token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
@@ -155,6 +162,17 @@ export async function main(args = process.argv.slice(2)) {
     const report = await retireRedundantWorktree({ identity, store, reader: await authorizedReader(deadline), path: values.path,
       confirmed: true, cwd: process.cwd(), deadline });
     console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+  if (command === "preserve-export") {
+    const sourcePr = Number(values.pr);
+    if (!values.path || !values.file || values["confirm-preserve-export"] !== true || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(values.change ?? "")
+      || !Number.isSafeInteger(sourcePr) || sourcePr < 1 || values["source-pr"] !== undefined || values["candidate-pr"] !== undefined
+      || values.role !== undefined || values.disposable !== undefined || values.id !== undefined || values.generation !== undefined
+      || values["confirm-closed-unmerged"] !== undefined || values["confirm-stopped"] !== undefined || values["confirm-nothing-left"] !== undefined) fail("export-preservation-arguments");
+    const deadline = Date.now() + 60000;
+    console.log(JSON.stringify(await preserveExport({ identity, store, reader: await authorizedReader(deadline), path: values.path,
+      change: values.change, sourcePr, file: values.file, confirmed: true, deadline }), null, 2));
     return;
   }
   if (command === "unlink-disposable-link") {
@@ -214,7 +232,7 @@ export async function main(args = process.argv.slice(2)) {
       || role === "implementation" && sourcePr !== candidatePr) fail("completion-arguments");
     const deadline = Date.now() + 60000;
     const report = await completeLocalCleanup({ identity, store, reader: await authorizedReader(deadline), path: values.path,
-      change: values.change, sourcePr, candidatePr, role, cwd: process.cwd(), ownerToken: process.env.LOCAL_CLEANUP_OWNER_TOKEN ?? null, reconcileOptions: { deadline } });
+      change: values.change, sourcePr, candidatePr, role, cwd: process.cwd(), ownerToken: process.env.LOCAL_CLEANUP_OWNER_TOKEN ?? null, reconcileOptions: { deadline, stopDevProcesses: values["stop-dev-processes"] === true } });
     console.log(JSON.stringify(report, null, 2));
     return;
   }

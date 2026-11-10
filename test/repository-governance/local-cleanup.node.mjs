@@ -12,6 +12,8 @@ import { atomicJson, createStateStore, registerEntry, relocateTerminalState, tra
 import { canonical, captureWorktree, discoverRepository, inspectWorktree, exists, gitRunner, purgeDisposable, removeLocalRef, removeRemoteRef, removeWorktree } from "../../scripts/governance/local-cleanup-git.mjs";
 import { reconcileLocalCleanup, writeLocalCleanupReport } from "../../scripts/governance/local-cleanup-reconcile.mjs";
 import { completeLocalCleanup, handoffLocalCleanup, COMPLETION_DISPOSABLE_PATHS } from "../../scripts/governance/local-cleanup-complete.mjs";
+import { preserveExport } from "../../scripts/governance/local-cleanup-export.mjs";
+import { copyExport, exportSnapshot } from "../../scripts/governance/local-cleanup-export-files.mjs";
 import { pruneMergedBranches } from "../../scripts/governance/local-cleanup-branches.mjs";
 import { sweepLines } from "../../scripts/governance/local-worktree-cleanup.mjs";
 import { discardLocalCleanup } from "../../scripts/governance/local-cleanup-discard.mjs";
@@ -49,6 +51,15 @@ async function fixture(t, branch = false, registered = true, beforeDiscovery = a
   const ancestorOf = async (sha, head) => { try { await git(primary, "merge-base", "--is-ancestor", sha, head); return true; } catch { return false; } };
   const pass = (options = {}) => reconcileLocalCleanup({ identity, store, reader: {}, cwd: primary, verify, git: boundedGit, ancestorOf, ...options });
   return { identity, store, entry, snapshot, path, primary, temporary, pass, verify, boundedGit, ancestorOf };
+}
+
+async function exportFixture(t) {
+  const f = await fixture(t, true);
+  const home = join(f.temporary, "home"); await mkdir(home);
+  const source = join(f.path, "session.html"); await writeFile(source, "private user export");
+  const preserve = (options = {}) => preserveExport({ identity: f.identity, store: f.store, reader: {}, path: f.path,
+    change: "example", sourcePr: 20, file: "session.html", confirmed: true, home, cwd: f.primary, verify: f.verify, git: f.boundedGit, ...options });
+  return { ...f, home, source, preserve };
 }
 
 // Performance: every case owns a private temporary repository, so cases run concurrently instead of
@@ -1666,6 +1677,143 @@ test("journals written before completion notes still load and report", async t =
   const read = await f.store.read(); assert.equal(read.entries[0].completion, null); assert.equal(read.entries[0].completionReason, null);
   assert.throws(() => validateState({ ...read, entries: [{ ...read.entries[0], completion: "retired-nothing-left" }] }, f.identity), /registration-state/);
   assert.throws(() => validateState({ ...read, entries: [{ ...read.entries[0], completion: "made-up" }] }, f.identity), /registration-schema/);
+});
+
+test("development process stops require explicit eligible execution and repeat ordinary checks", async t => {
+  const f = await fixture(t, true); await f.store.enable();
+  let running = true, stops = 0;
+  const preflight = async (identity, entry, options) => {
+    const content = await inspectWorktree(identity, entry, options);
+    return { ...content, clean: content.clean && !running, reason: running ? "development-processes-running" : content.reason,
+      blockers: running ? [{ reason: "development-processes-running", pids: [42] }] : [] };
+  };
+  const stopProcesses = async () => { stops++; running = false; return { stopped: [42], survivors: [] }; };
+  await f.pass({ preview: true, stopDevProcesses: true, preflight, stopProcesses });
+  assert.equal(stops, 0); assert.equal(await exists(f.path), true);
+  const blocked = await f.pass({ preview: false, preflight, stopProcesses });
+  assert.equal(blocked.results[0].reason, "development-processes-running"); assert.equal(stops, 0);
+  const survivor = await f.pass({ preview: false, stopDevProcesses: true, preflight, stopProcesses: async () => ({ stopped: [], survivors: [77] }) });
+  assert.equal(survivor.results[0].reason, "development-process-survivors");
+  assert.deepEqual(survivor.results[0].blockers, [{ reason: "development-process-survivors", pids: [77] }]);
+  assert.equal(await exists(f.path), true);
+  const removed = await f.pass({ preview: false, stopDevProcesses: true, preflight, stopProcesses });
+  assert.equal(removed.results[0].disposition, "removed"); assert.equal(stops, 1);
+  assert.deepEqual(removed.results[0].stoppedDevelopmentProcesses, [42]);
+});
+
+test("dirty and ineligible worktrees veto development-process termination", async t => {
+  const f = await fixture(t); await f.store.enable();
+  await writeFile(join(f.path, "session.html"), "user export");
+  let stops = 0;
+  const stopProcesses = async () => { stops++; return { stopped: [], survivors: [] }; };
+  const preflight = async (identity, entry, options) => {
+    const content = await inspectWorktree(identity, entry, options);
+    return { ...content, blockers: [{ reason: "worktree-content" }, { reason: "development-processes-running", pids: [42] }] };
+  };
+  const dirty = await f.pass({ preview: false, stopDevProcesses: true, preflight, stopProcesses });
+  assert.equal(dirty.results[0].reason, "worktree-content"); assert.equal(stops, 0);
+  const pending = await f.pass({ preview: false, stopDevProcesses: true, preflight, stopProcesses, verify: async () => ({ disposition: "pending", reason: "source-open" }) });
+  assert.equal(pending.results[0].disposition, "pending"); assert.equal(stops, 0);
+});
+
+test("named export preservation makes a private durable copy without deleting the checkout or repeating the export", async t => {
+  const f = await exportFixture(t);
+  const first = await f.preserve(), row = first.results[0];
+  assert.equal(row.disposition, "preserved"); assert.equal(await exists(f.source), false);
+  assert.equal(await readFile(row.destination, "utf8"), "private user export");
+  assert.equal(await exists(f.path), true); assert.equal((await f.store.read()).entries[0].state, "released");
+  const repeated = await f.preserve();
+  assert.equal(repeated.results[0].disposition, "preserved"); assert.equal(repeated.results[0].destination, row.destination);
+  assert.equal((await readdir(join(f.home, ".a1", "exports"))).length, 1);
+  assert.doesNotMatch(JSON.stringify(first), /private user export/);
+});
+
+test("export preservation requires named confirmation, matching candidate, and a released owner", async t => {
+  const f = await exportFixture(t);
+  assert.equal((await f.preserve({ confirmed: false })).results[0].reason, "export-preservation-confirmation-required");
+  assert.equal((await f.preserve({ file: "../outside.html" })).results[0].reason, "export-preservation-path");
+  assert.equal((await f.preserve({ change: "other" })).results[0].reason, "export-preservation-candidate");
+  await f.store.locked(async (state, save) => { transitionEntry(state.entries[0], "claim", owner, state.entries[0].generation); await save(state); });
+  assert.equal((await f.preserve()).results[0].reason, "owned-worktree");
+  assert.equal(await readFile(f.source, "utf8"), "private user export");
+});
+
+test("export preservation refuses tracked exports, other unknown work, and ineligible delivery", async t => {
+  const f = await exportFixture(t);
+  await writeFile(join(f.path, "uncommitted.txt"), "other work");
+  assert.equal((await f.preserve()).results[0].reason, "worktree-content");
+  await rm(join(f.path, "uncommitted.txt"));
+  assert.equal((await f.preserve({ verify: async () => ({ disposition: "pending", reason: "source-open" }) })).results[0].reason, "source-open");
+  await git(f.path, "add", "session.html");
+  assert.equal((await f.preserve()).results[0].reason, "export-preservation-not-untracked");
+  assert.equal(await readFile(f.source, "utf8"), "private user export");
+});
+
+test("export preservation rejects linked ancestors without touching their target", async t => {
+  const f = await exportFixture(t);
+  await rm(f.source);
+  const outside = join(f.temporary, "outside"); await mkdir(outside); await writeFile(join(outside, "session.html"), "outside data");
+  await symlink(outside, join(f.path, "linked"), process.platform === "win32" ? "junction" : "dir");
+  const report = await f.preserve({ file: "linked/session.html" });
+  assert.equal(report.results[0].disposition, "blocked");
+  assert.equal(await readFile(join(outside, "session.html"), "utf8"), "outside data");
+});
+
+test("changed source or destination invalidates preservation after a verified copy", async t => {
+  const f = await exportFixture(t);
+  const changed = await f.preserve({ afterCopy: async () => { await writeFile(f.source, "edited export"); } });
+  assert.equal(changed.results[0].disposition, "partial"); assert.equal(changed.results[0].reason, "export-preservation-source-drift");
+  assert.equal(await readFile(f.source, "utf8"), "edited export");
+  assert.equal(await readFile(changed.results[0].destination, "utf8"), "private user export");
+  const g = await exportFixture(t);
+  const replaced = await g.preserve({ afterCopy: async () => {
+    const name = (await readdir(g.store.directory)).find(name => name.startsWith("export-preservation-"));
+    const journal = JSON.parse(await readFile(join(g.store.directory, name), "utf8"));
+    await writeFile(journal.destination, "user destination replacement");
+  } });
+  assert.equal(replaced.results[0].disposition, "partial"); assert.equal(await exists(g.source), true);
+  assert.equal(await readFile(replaced.results[0].destination, "utf8"), "user destination replacement");
+});
+
+test("preservation resumes after copying or source unlinking without overwriting a destination", async t => {
+  for (const callback of ["afterCopy", "afterUnlink"]) {
+    const f = await exportFixture(t);
+    const interrupted = await f.preserve({ [callback]: async () => { throw new Error("interrupted"); } });
+    assert.equal(interrupted.results[0].disposition, "partial");
+    const resumed = await f.preserve();
+    assert.equal(resumed.results[0].disposition, "preserved");
+    assert.equal(resumed.results[0].destination, interrupted.results[0].destination);
+    assert.equal(await exists(f.source), false);
+    assert.equal(await readFile(resumed.results[0].destination, "utf8"), "private user export");
+  }
+});
+
+test("copying an export never overwrites an existing destination", async t => {
+  const f = await exportFixture(t), destination = join(f.home, "existing.html");
+  await writeFile(destination, "keep this");
+  await assert.rejects(copyExport(f.source, destination, await exportSnapshot(f.source)), error => error.code === "EEXIST");
+  assert.equal(await readFile(destination, "utf8"), "keep this");
+  assert.equal(await readFile(f.source, "utf8"), "private user export");
+});
+
+test("preflight inspection budgets retain the existing deferred disposition", async t => {
+  const f = await fixture(t);
+  const report = await f.pass({ preflight: async () => ({ clean: false, reason: "content-inspection-budget", blockers: [{ reason: "content-inspection-budget" }] }) });
+  assert.equal(report.results[0].disposition, "deferred");
+  assert.equal(report.results[0].reason, "content-inspection-budget");
+  assert.equal(await exists(f.path), true);
+});
+
+test("CLI confines preservation and development stops to their explicit commands", async t => {
+  const f = await fixture(t);
+  const cli = fileURLToPath(new URL("../../scripts/governance/local-worktree-cleanup.mjs", import.meta.url));
+  const invoke = (...args) => execFileSync(process.execPath, [cli, ...args, "--repo", f.primary], { cwd: f.primary, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  assert.throws(() => invoke("sweep", "--stop-dev-processes"), /development-stop-arguments/);
+  assert.throws(() => invoke("complete", "--file", "session.html"), /export-preservation-arguments/);
+  assert.throws(() => invoke("preserve-export", "--path", f.path, "--change", "example", "--pr", "20", "--file", "session.html"), /export-preservation-arguments/);
+  const help = invoke("--help").toString();
+  assert.match(help, /preserve-export/); assert.match(help, /stop-dev-processes/);
+  assert.equal(await exists(f.path), true);
 });
 
 test("pass deadline reports incomplete coverage without mutation", async t => {

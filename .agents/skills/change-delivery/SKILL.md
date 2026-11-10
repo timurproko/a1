@@ -34,4 +34,6 @@ Provide worktree, branch, change, PR, commit, commands, behavior, gaps, and edit
 
 ## Cleanup
 
+Keep implicit user exports in `~/.a1/exports/`, never in disposable worktrees. For a legacy export, only an explicitly confirmed named `preserve-export --file ... --confirm-preserve-export` operation may durably preserve it before ordinary cleanup; never move/delete user files ad hoc. Review combined content/process blockers. Exact eligible clean `complete --stop-dev-processes` authorizes verified checkout development-process shutdown only; sweep/preview never stop processes, and caller ancestry, foreign roots, and unverifiable identities remain protected. Use integrated tooling from primary, not an unmerged task checkout.
+
 Follow [local cleanup](../../../docs/local-worktree-cleanup.md) from primary: `local-worktree-cleanup.mjs sweep`, exact-candidate `local-worktree-cleanup.mjs complete`, or `discard --confirm-closed-unmerged` (`--path`/`--branch`). Integrated `unlink-disposable-link --confirm-link-only`: named ignored disposable link only, never its target. `retire-redundant --confirm-redundant` requires exact authorization and documented no-PR/no-remote containment. Retain open/unverifiable/dirty/unowned work; never delete those ad hoc or bypass blockers.

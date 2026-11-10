@@ -15,9 +15,11 @@ import {
 } from "../../src/foundation/lifecycle/session-repository-context.js";
 import type { ProcessIdentity } from "../../src/foundation/lifecycle/model.js";
 
+import type { PiEngineHostOptions } from "../../src/integrations/pi/engine/host.js";
+
 type RepositoryContextReader = (sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<unknown>;
 
-const observed = vi.hoisted(() => ({ readers: [] as Array<RepositoryContextReader | undefined>, autoName: true, nameFormat: "kebab" as "kebab" | "sentence" | "title" }));
+const observed = vi.hoisted(() => ({ hosts: [] as PiEngineHostOptions[], readers: [] as Array<RepositoryContextReader | undefined>, autoName: true, nameFormat: "kebab" as "kebab" | "sentence" | "title" }));
 // Rationale: run the real composition, registry, and lifecycle store without provider, terminal, or user-file effects.
 vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async importOriginal => ({
   ...await importOriginal<object>(), applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {} }));
@@ -61,6 +63,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   observed.readers = [];
+  observed.hosts = [];
   observed.autoName = true;
   observed.nameFormat = "kebab";
   vi.unstubAllEnvs();
@@ -77,14 +80,14 @@ async function compose(options: Pick<OwnedUiCompositionOptions, "productMode" | 
     sessionForkPrompt: async () => null as never,
     ...options,
     checkForNewerRelease: async () => null,
-    createEngineHost: async () => ({
+    createEngineHost: async hostOptions => { observed.hosts.push(hostOptions); return ({
       create: async (input: { repositoryContextReader?: RepositoryContextReader }) => {
         observed.readers.push(input.repositoryContextReader);
         return { identity: { cwd: primary, agentDir: join(root, "agent") }, settings: { configuredTheme: () => "dark" }, ...extra };
       },
       setAccentColor() {},
       dispose: async () => {},
-    }) as never,
+    }) as never; },
   });
 }
 
@@ -101,6 +104,21 @@ async function runtimeRecords(): Promise<Array<Record<string, unknown>>> {
 }
 
 describe("session runtime composition wiring", () => {
+  it.each(["bare", "comparison"] as const)("supplies product-owned persistent export storage only for %s", async productMode => {
+    vi.stubEnv(PRODUCT_IDENTITY.environment.profileHome, root);
+    const composed = await compose({ productMode });
+    try {
+      const reserve = observed.hosts.at(-1)?.workflowHost?.reserveExport;
+      if (productMode === "comparison") expect(reserve).toBeUndefined();
+      else {
+        const selected = await reserve!("session", "html");
+        expect(selected.path.startsWith(join(root, ".a1", "exports"))).toBe(true);
+        expect(selected.path.startsWith(dataDir)).toBe(false);
+        await selected.failed();
+      }
+    } finally { await composed.application.dispose(); }
+  });
+
   function namingBackend(file: string) {
     let listener: (event: unknown) => void = () => {};
     let state = { sessionFile: file, binding: 1, name: null as string | null, nameEntryId: null as string | null, source: "unnamed", completedContext: null as string | null };

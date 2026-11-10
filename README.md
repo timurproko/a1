@@ -63,6 +63,8 @@ In A1, **Ctrl+P** opens the searchable **Launcher**: Agent, Settings, Changelog,
 
 **Ctrl+M** cycles to the next model: all available models when no scope is set, or only available scoped models when a scope exists. **`/models`** opens the in-place Models selector to select a model or manage that scope. **Ctrl+L** cycles thinking levels, and **Alt+Up** restores queued messages. In legacy terminals that encode Ctrl+M as Enter, ordinary Enter still sends the prompt; use `/models` to select a model instead. Explicit keybinding overrides remain supported. Successful model changes update the status bar without an extra success message; errors and warnings remain visible.
 
+Session exports without an explicit destination are saved in **`~/.a1/exports/`**, outside disposable worktrees. Use `/export` for HTML or `/export --jsonl` for JSONL; explicit destinations retain their existing meaning. See [session exports](docs/features/session-exports.md).
+
 Resume a saved session:
 
 ```text

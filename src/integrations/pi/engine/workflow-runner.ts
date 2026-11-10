@@ -32,6 +32,7 @@ type PiWorkflowModel = ReturnType<PiRuntimeApi["services"]["modelRuntime"]["getA
 const MAX_PENDING_WORK = 32;
 
 interface PiWorkflowRunnerOptions {
+  readonly productMode?: "bare" | "comparison";
   readonly agentDir: string;
   readonly host: PiWorkflowHost;
   readonly contexts: PiWorkflowContexts;
@@ -71,6 +72,7 @@ export interface PiWorkflowRunnerPorts {
  */
 export class PiWorkflowRunner {
   readonly #agentDir: string;
+  readonly #bare: boolean;
   readonly #host: PiWorkflowHost;
   readonly #authentication: PiProviderAuthentication;
   readonly #ports: PiWorkflowRunnerPorts;
@@ -79,6 +81,7 @@ export class PiWorkflowRunner {
 
   constructor(options: PiWorkflowRunnerOptions, ports: PiWorkflowRunnerPorts) {
     this.#agentDir = options.agentDir;
+    this.#bare = options.productMode === "bare";
     this.#host = options.host;
     this.#ports = ports;
     this.#authentication = new PiProviderAuthentication({ agentDir: options.agentDir, contexts: options.contexts }, {
@@ -292,7 +295,7 @@ export class PiWorkflowRunner {
       case "model": return this.#modelWorkflow(call);
       case "models": return this.#modelsWorkflow(call);
       case "scoped-models": return scopedModelsWorkflow(call);
-      case "export": return exportWorkflow(call);
+      case "export": return (await import("./workflow-export.js")).exportWorkflow(request, session, this.#bare, this.#host.reserveExport);
       case "import": return importWorkflow(call);
       case "share": return (await import("./workflow-share.js")).runShareWorkflow({ request, session, runtime, host: this.#host });
       case "copy": return copyWorkflow(call, text => this.copyWorkflowText(text));
@@ -402,14 +405,6 @@ function scopedModelsWorkflow({ request, session, runtime, selection }: PiWorkfl
   if (!model) return workflowResult(request.command, "failed", `Model is unavailable: ${selection}`);
   requireCapability(session.setScopedModels, "setScopedModels").call(session, [{ model }]);
   return workflowResult(request.command, "completed", `Enabled scoped model ${selection}`);
-}
-
-async function exportWorkflow({ request, session, argument }: PiWorkflowCall): Promise<PiWorkflowResult> {
-  const path = pathArgument(argument);
-  const file = path?.toLowerCase().endsWith(".jsonl")
-    ? requireCapability(session.exportToJsonl, "exportToJsonl").call(session, path)
-    : await requireCapability(session.exportToHtml, "exportToHtml").call(session, path);
-  return workflowResult(request.command, "completed", `Session exported to: ${String(file)}`);
 }
 
 async function importWorkflow({ request, runtime, argument }: PiWorkflowCall): Promise<PiWorkflowResult> {

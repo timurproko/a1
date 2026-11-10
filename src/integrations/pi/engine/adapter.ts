@@ -43,7 +43,7 @@ import { PiEngineSettings } from "./settings-port.js";
 import { PiSessionEvents } from "./session-events.js";
 import { PiWorkflowContexts } from "./workflow-contexts.js";
 import { PiWorkflowRunner } from "./workflow-runner.js";
-import { defaultWorkflowHost } from "./workflow-support.js";
+import { resolveWorkflowHost } from "./workflow-support.js";
 import { EngineViewState, projectSessionView } from "./view-state.js";
 import { createEnginePorts, type PiEngineAdapterPorts, type PiEngineAnnouncements, type PiSessionPresentationSource } from "./ports.js";
 
@@ -76,7 +76,7 @@ export interface PiEngineAdapterOptions {
   readonly sessionSelection?: PiSessionSelection;
   readonly sessionForkPrompt?: PiSessionForkPrompt;
   readonly createRuntime?: PiEngineRuntimeFactory;
-  readonly workflowHost?: PiWorkflowHost;
+  readonly workflowHost?: Partial<PiWorkflowHost>;
   /**
    * Themes installed on this machine. Supplied because listing them belongs to
    * the component adapter that owns the engine's theme unit; the grammar and the
@@ -167,7 +167,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     this.#agentDir = options.agentDir ?? getAgentDir();
     this.#sessionId = options.sessionId;
     this.#engineHost = options.engineHost ?? detachedEngineHostPorts();
-    this.#workflowHost = options.workflowHost ?? defaultWorkflowHost();
+    this.#workflowHost = resolveWorkflowHost(options.workflowHost);
     this.#workflowInteraction = { prompt: async () => null, notify() {} };
     this.#engine = new PiEngineRuntime({
       cwd: options.cwd ?? process.cwd(),
@@ -207,7 +207,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
       activeModel: () => this.#state.activeModel,
       emitView: () => { this.#emitView(); },
     });
-    this.#workflows = new PiWorkflowRunner({ agentDir: this.#agentDir, host: this.#workflowHost, contexts: this.#contexts }, {
+    this.#workflows = new PiWorkflowRunner({ agentDir: this.#agentDir, productMode: options.settingsProductMode ?? "bare", host: this.#workflowHost, contexts: this.#contexts }, {
       session: () => this.#engine.session,
       runtime: () => this.#engine.runtime,
       disposed: () => this.#disposed,
