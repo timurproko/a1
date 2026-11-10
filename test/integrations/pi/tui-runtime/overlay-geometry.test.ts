@@ -52,6 +52,31 @@ describe("painted overlay geometry", () => {
     } finally { await runtime.stop({ drainInput: false }); }
   });
 
+  it("applies modal backdrop policy after full-screen route composition and stops on close", async () => {
+    const terminal = new TestPresentationTerminal();
+    const calls: { frame: readonly string[]; panel: PresentationPointerSurface }[] = [];
+    const runtime = new PiTuiRuntimeAdapter({
+      root: { render: () => ["agent"], invalidate() {} }, terminal, mode: "fullscreen", onOverlayGeometry() {},
+      paintModalBackdrop: (frame, _width, _height, panel) => { calls.push({ frame, panel }); return [...frame]; },
+    });
+    runtime.start();
+    try {
+      const route = runtime.showOverlay({ render: width => Array.from({ length: terminal.rows }, () => "s".repeat(width)), invalidate() {} }, { width: "100%", maxHeight: "100%" });
+      runtime.renderNow();
+      expect(calls).toHaveLength(0);
+      const component = { render: (width: number) => ["m".repeat(width)], invalidate() {} };
+      const modal = runtime.showOverlay(component, { width: 12, modal: true });
+      runtime.renderNow();
+      expect(calls.at(-1)?.frame.join("")).toContain("ssss");
+      expect(calls.at(-1)?.frame.join("")).toContain("mmmm");
+      expect(calls.at(-1)?.panel.component).toBe(component);
+      const count = calls.length;
+      modal.hide(); runtime.renderNow();
+      expect(calls).toHaveLength(count);
+      route.hide();
+    } finally { await runtime.stop({ drainInput: false }); }
+  });
+
   it("observes a runtime-created search overlay without a shell command registration", async () => {
     const terminal = new TestPresentationTerminal();
     let surfaces: readonly PresentationPointerSurface[] | null = [];

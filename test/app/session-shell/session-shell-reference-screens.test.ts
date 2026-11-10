@@ -81,6 +81,7 @@ async function shellFixture(options: {
   const adapter = await createPiEngineAdapter({
     cwd: "D:/work",
     sessionId: "owned-shell",
+    settingsProductMode: options.customViewport ? "bare" : "comparison",
     createRuntime: async () => engine as unknown as AgentSessionRuntime,
     workflowHost: { copyText: async () => {}, runCommand: async () => ({ stdout: "", stderr: "" }), readChangelog },
   });
@@ -106,8 +107,31 @@ function feed(shell: OwnedUiSessionShell, width = 100): string {
   return stripTerminalSequences(shell.root.render(width).join("\n"));
 }
 
-describe("bare A1 reference command screens", () => {
-  it.each(["session", "changelog", "hotkeys"])("opens /%s as an owned screen without a feed document and restores the viewport on Esc", async route => {
+async function openReference(shell: OwnedUiSessionShell, terminal: TestPresentationTerminal, route: string): Promise<void> {
+  if (route === "settings" || route === "changelog" || route === "hotkeys") {
+    terminal.input("\u0010"); await vi.dynamicImportSettled();
+    terminal.input(route); terminal.input("\r"); await vi.dynamicImportSettled();
+  } else {
+    shell.root.editor.setText(`/${route}`); terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+}
+
+describe("bare A1 reference screens", () => {
+  it("does not dispatch the removed bare-A1 Hotkeys built-in command or shadow unrelated slash input", async () => {
+    const { shell, adapter, engine, routes } = await shellFixture({ customViewport: true });
+    const workflow = vi.spyOn(adapter.workflows, "executeWorkflow");
+    shell.start();
+    try {
+      await shell.submit("/hotkeys");
+      expect(workflow).not.toHaveBeenCalled();
+      expect(routes!.opens).toEqual([]);
+      expect(engine.session.calls).toContain("prompt:/hotkeys");
+      expect(shell.runtime.hasOverlay()).toBe(false);
+    } finally { await shell.dispose(); }
+  });
+
+  it.each(["session", "changelog", "hotkeys"])("opens %s as an owned screen without a feed document and restores the viewport on Esc", async route => {
     const { shell, terminal, routes, adapter, engine } = await shellFixture({ customViewport: true });
     const workflow = vi.spyOn(adapter.workflows, "executeWorkflow");
     shell.start();
@@ -117,9 +141,7 @@ describe("bare A1 reference command screens", () => {
     expect(before).not.toContain("What's New");
     expect(before).not.toContain("Keyboard Shortcuts");
 
-    shell.root.editor.setText(`/${route}`);
-    terminal.input("\r");
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await openReference(shell, terminal, route);
     expect(routes!.opens).toEqual([{ route, input: undefined }]);
     expect(workflow).not.toHaveBeenCalled();
     expect(engine.session.calls.some(call => call.startsWith("prompt:"))).toBe(false);
@@ -142,12 +164,10 @@ describe("bare A1 reference command screens", () => {
     await shell.dispose();
   });
 
-  it.each(["settings", "session", "changelog", "hotkeys"])("closes the /%s fullscreen route on one Ctrl+C", async route => {
+  it.each(["settings", "session", "changelog", "hotkeys"])("closes the %s fullscreen route on one Ctrl+C", async route => {
     const { shell, terminal, routes, adapter } = await shellFixture({ customViewport: true });
     shell.start();
-    shell.root.editor.setText(`/${route}`);
-    terminal.input("\r");
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await openReference(shell, terminal, route);
     expect(shell.runtime.hasOverlay()).toBe(true);
 
     terminal.input("\u0003");

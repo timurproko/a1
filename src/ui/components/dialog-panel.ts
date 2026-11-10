@@ -1,7 +1,8 @@
 import type { PaneRect } from "./frame.js";
 import { LineInput, renderInputRow } from "./line-input.js";
 import { renderShortcutHintsWithClose, type ShortcutHintEntry } from "./shortcut-hints.js";
-import { overlaySpan } from "./spans.js";
+import { overlaySpan, renderDialogBackdropLine as dimStyledLine } from "./spans.js";
+export { renderFloatingDialogSurface, renderModalBackdrop } from "./spans.js";
 import { displayWidth, padToWidth, truncateToWidth } from "./text.js";
 import type { UiTheme } from "./theme.js";
 
@@ -39,11 +40,13 @@ export interface DialogPanelFrame {
 }
 
 export interface SteppedDialogPanelState {
+  /** Tight terminal geometry retains controls and guidance before optional spacing. */
+  readonly compact?: boolean;
   readonly title: string;
   /** Omitted for a one-step searchable selector whose title needs no step marker. */
   readonly step?: number;
   readonly steps?: number;
-  readonly description: string;
+  readonly description?: string;
   readonly input?: LineInput;
   readonly rows: readonly DialogRow[];
   readonly index: number;
@@ -54,13 +57,6 @@ const LABEL_COLUMN_CAP = 30;
 const STEPPED_LABEL_COLUMN_CAP = 46;
 const CONFIGURE_MODAL_MAX_WIDTH = 60;
 const CONFIGURE_MODAL_PADDING_X = 2;
-const SGR = /\u001b\[[0-9;]*m/gu;
-
-/** Canonical native-matching background for every owned floating dialog surface. */
-export function renderFloatingDialogSurface(text: string, mode: "truecolor" | "256color"): string {
-  const background = mode === "truecolor" ? "\u001b[48;2;38;38;38m" : "\u001b[48;5;235m";
-  return `${background}${text}\u001b[49m`;
-}
 
 /** Existing raised-menu background, centralized beside the darker dialog surface. */
 export function renderFloatingMenuSurface(text: string, mode: "truecolor" | "256color"): string {
@@ -81,7 +77,7 @@ export function configureDialogWidth(width: number): number {
 
 /** Rows available to a selector after retaining its title, description, control, and guidance. */
 export function configureDialogChoiceCapacity(height: number, hasInput: boolean, descriptionRows = 1): number {
-  const wrappedDescriptionRows = Math.max(1, descriptionRows);
+  const wrappedDescriptionRows = Math.max(0, descriptionRows);
   return Math.max(1, Math.max(0, height) - (hasInput ? 9 : 7) - (wrappedDescriptionRows - 1));
 }
 
@@ -208,12 +204,16 @@ export function renderSteppedDialogPanel(
       }).lines.map(row => layout.contentRow(row)),
       layout.blank,
     ];
-  const descriptionRows = wrapText(state.description, layout.contentWidth);
+  const descriptionRows = state.description === undefined ? [] : wrapText(state.description, layout.contentWidth);
   const step = state.step === undefined || state.steps === undefined ? "" : `(step ${state.step}/${state.steps})`;
   const title = step.length === 0 ? state.title : `${state.title} ${step}`;
   const paintedTitle = step.length === 0
     ? theme.bold(theme.fg("accent", state.title))
     : `${theme.bold(theme.fg("accent", state.title))} ${theme.fg("dim", step)}`;
+  if (state.compact) return [
+    layout.contentRow(paintedTitle, title), ...input.slice(0, -1), ...rows,
+    layout.contentRow(renderShortcutHintsWithClose(state.hint, theme, layout.contentWidth)),
+  ];
   return [
     layout.blank,
     layout.contentRow(paintedTitle, title),
@@ -238,11 +238,6 @@ export function dialogRowAt(frame: DialogPanelFrame, row: number, column: number
 function pad(line: string, width: number, raw: string): string {
   const visible = displayWidth(raw);
   return visible >= width ? line : line + " ".repeat(width - visible);
-}
-
-function dimStyledLine(line: string, width: number): string {
-  const padded = padToWidth(line, width);
-  return `\u001b[2m${padded.replace(SGR, sequence => `${sequence}\u001b[2m`)}\u001b[22m`;
 }
 
 function wrapText(text: string, width: number): readonly string[] {

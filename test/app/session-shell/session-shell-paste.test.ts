@@ -425,7 +425,6 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
 
   it.each([
     ["/models", "Models"],
-    ["/settings", "Auto-compact"],
     ["/fork", "Fork"],
     ["/login", "Login"],
     ["/logout", "Logout"],
@@ -439,6 +438,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       await nextImmediate();
       shell.runtime.renderNow();
       expect(shell.root.usesDefaultInputSurface()).toBe(false);
+      expect(shell.runtime.hasFocusedOverlay()).toBe(false);
       const previous = shell.root.viewportPresentationEvidence().scrollTop;
       const calls = [...engine.session.calls];
       terminal.input("\u001b[<64;3;3M");
@@ -459,11 +459,13 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       expect(Buffer.from(copies[0]![1]!, "base64").toString()).not.toContain("\u001b");
       expect(output).toContain("Copied 6 chars to clipboard");
       expect(shell.root.usesDefaultInputSurface()).toBe(false);
+      expect(shell.runtime.hasFocusedOverlay()).toBe(false);
       expect(engine.session.calls).toEqual(calls);
       terminal.input("\u001b");
       await nextImmediate();
       shell.runtime.renderNow();
       expect(shell.root.usesDefaultInputSurface()).toBe(true);
+      expect(shell.runtime.hasOverlay()).toBe(false);
     } finally { await shell.dispose(); }
   });
 

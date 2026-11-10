@@ -139,7 +139,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   #sessionBindingGeneration: number;
 
   constructor(host: OwnedUiTerminalHost, options: OwnedUiSessionShellOptions) {
-    const { backend, cwd, routeHost, sessionLayout } = options.engine;
+    const { backend, cwd, routeHost, startupRoute, sessionLayout } = options.engine;
     const {
       terminal, startup, viewportSettings,
       reload: reloadPresentation, stream: streamPresentationOptions, input: inputPresentation,
@@ -240,11 +240,11 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       // Invariant: the presenter owns its root (theme subscription and helper clients) and disposes it once the
       // terminal no longer renders it.
       constructed.push(() => this.root.dispose());
-      const startupRoute = options.engine.startupRoute;
       this.#dialogs = new SessionDialogCoordinator({
         terminal: this.#terminal,
         root: this.root,
         routeHost: routeHost ?? null, dialogs: options.presenters.components.dialogs,
+        presentation: options.presenters, viewport: () => this.#terminal.viewport(),
         disposed: () => this.#disposed,
         exit: () => { void this.shutdown(); },
         ...(startupRoute === undefined ? {} : { startupRoute }),
@@ -382,6 +382,11 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
 
   handleViewportInput(data: string): TerminalInputListenerResult | undefined {
     if (!this.#inputCoordination) this.#streamPresentation.noteImmediatePresentation();
+    if (this.#customViewport && this.#dialogs.canOpenApps()
+      && this.root.editor.matchesAction?.(data, "owned.apps.open")) {
+      this.#dialogs.showApps();
+      return { consume: true };
+    }
     // Compatibility: route modal paging and boundary keys before Pi's fullscreen handlers.
     const isDefault = this.root.usesDefaultInputSurface();
     if (!this.#terminal.hasOverlay() && !isDefault
@@ -948,7 +953,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     const separator = body.search(/\s/);
     const name = separator < 0 ? body : body.slice(0, separator);
     const argument = separator < 0 ? "" : body.slice(separator + 1).trimStart();
-    if (this.#dialogs.claimsRoute(name)) return this.#dialogs.openRoute(name);
+    const applicationOnly = this.#customViewport && (name === "settings" || name === "changelog" || name === "hotkeys");
+    if (!applicationOnly && this.#dialogs.claimsRoute(name)) return this.#dialogs.openRoute(name);
     if (this.#isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
     if (this.#skillsCollapsed()) {
       if (name === this.#presenters.components.skills.commandName) return this.#runSkillsCommand(text, argument);

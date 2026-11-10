@@ -50,6 +50,8 @@ export interface ModelsDialogConfig {
 }
 
 export interface ModelsDialogCallbacks {
+  /** Live terminal height; omitted component consumers retain the ordinary 24-row budget. */
+  viewportHeight?(): number;
   /** Enter on a row: the shell switches through its workflow and closes the dialog on success. */
   onSelect(modelId: string): void;
   /** Every scope or order edit, session-only. */
@@ -276,20 +278,23 @@ export class ModelsDialogComponent implements Component, Focusable {
     const push = (line = ""): void => { lines.push(truncateToWidth(line, width)); };
     const rows = this.#rows();
     this.#clampSelection(rows);
+    const height = this.#callbacks.viewportHeight?.() ?? 24;
+    const compact = height < 13;
+    const capacity = Math.max(1, Math.min(MAX_VISIBLE_ROWS, height - (compact ? 7 : 13)));
 
     push(theme.fg("dim", "Filter: ")
       + theme.fg(this.#filter === "all" ? "mdHeading" : "dim", "all")
       + theme.fg("dim", " | ")
       + theme.fg(this.#filter === "scoped" ? "mdHeading" : "dim", "scoped"));
-    push();
+    if (!compact) push();
     for (const line of renderPiModalSearchInput(this.#input, width)) push(line);
-    push();
+    if (!compact) push();
 
     if (rows.length === 0) {
       push(theme.fg("muted", `  ${this.#emptyText()}`));
     } else {
-      const startIndex = Math.max(0, Math.min(this.#selectedIndex - Math.floor(MAX_VISIBLE_ROWS / 2), rows.length - MAX_VISIBLE_ROWS));
-      const endIndex = Math.min(startIndex + MAX_VISIBLE_ROWS, rows.length);
+      const startIndex = Math.max(0, Math.min(this.#selectedIndex - Math.floor(capacity / 2), rows.length - capacity));
+      const endIndex = Math.min(startIndex + capacity, rows.length);
       for (let index = startIndex; index < endIndex; index += 1) {
         const row = rows[index]!;
         const selected = index === this.#selectedIndex;
@@ -302,15 +307,15 @@ export class ModelsDialogComponent implements Component, Focusable {
         const active = row.fullId === this.#activeModelId ? ` ${theme.fg("success", "✓")}` : "";
         push(renderPiModalListRow(`${prefix}${marker} ${label} ${provider}${active}`, width, selected));
       }
-      if (startIndex > 0 || endIndex < rows.length) push(theme.fg("muted", `  (${this.#selectedIndex + 1}/${rows.length})`));
+      if (!compact && (startIndex > 0 || endIndex < rows.length)) push(theme.fg("muted", `  (${this.#selectedIndex + 1}/${rows.length})`));
       const selectedRow = rows[this.#selectedIndex];
-      if (selectedRow) {
+      if (selectedRow && !compact) {
         push();
         push(theme.fg("muted", `  Model Name: ${selectedRow.model.name}`));
       }
     }
 
-    push();
+    if (!compact) push();
     if (this.#refreshStatus !== undefined) push(theme.fg(this.#refreshStatus.kind, `  ${this.#refreshStatus.message}`));
     push(renderHintsWithClose(this.#hints(), width));
     return lines;

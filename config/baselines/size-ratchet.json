@@ -91,7 +91,7 @@
       "lines": 121
     },
     "src/integrations/pi/components/shell-editor-autocomplete.ts::createPiShellEditor": {
-      "lines": 247
+      "lines": 243
     },
     "src/integrations/pi/components/shell-extension-ui.ts::createPiExtensionUiBridge": {
       "lines": 231
@@ -106,7 +106,7 @@
       "lines": 156
     },
     "src/integrations/pi/session-presenters/presenters.ts::createPiSessionPresenters": {
-      "lines": 273
+      "lines": 267
     }
   }
 }

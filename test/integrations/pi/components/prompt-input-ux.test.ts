@@ -50,18 +50,19 @@ async function editor(
 ) {
   const cycle = vi.fn();
   const select = vi.fn();
+  const modelCycle = vi.fn();
   const submit = vi.fn();
   const copy = vi.fn();
   const dequeue = vi.fn();
   const input = createPiShellEditor({
     agentDir: await agentDir(bindings), keybindingProfile: profile,
     getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit: submit,
-    onThinkingCycle: cycle, onModelSelect: select, onCopyText: copy, onDequeue: dequeue,
+    onThinkingCycle: cycle, onModelSelect: select, onModelCycle: modelCycle, onCopyText: copy, onDequeue: dequeue,
     promptPresentation: promptInputPresentation(),
     ...(inputCapabilities === undefined ? {} : { inputCapabilities }),
   });
   input.setFocused?.(true);
-  return { input, cycle, select, submit, copy, dequeue };
+  return { input, cycle, select, modelCycle, submit, copy, dequeue };
 }
 
 describe("owned shared input and status presentation", () => {
@@ -235,7 +236,9 @@ describe("owned shared input and status presentation", () => {
     };
     const ownedRow = createPiShellFooter(footerState, "/WORK", "a1").render(120)[0]!;
     const plain = stripTerminalSequences(ownedRow);
-    expect(plain).toBe("/DELIVERY/WORKTREE/WITH/A/LONG/PATH (feature/show-pr-id-status-bar) #540");
+    expect(plain).toBe("/DELIVERY/WORKTREE/WITH/A/LONG/PATH (feature/show-pr-id-status-bar) • #540");
+    expect(hyperlinkTargetAtColumn(ownedRow, plain.indexOf(" • ") + 1)).toBeUndefined();
+    expect(cellStyle(ownedRow, "•")).toEqual(cellStyle(piTheme().fg("dim", "•"), "•"));
     const statsRow = stripTerminalSequences(createPiShellFooter(footerState, "/WORK", "a1").render(120)[1]!);
     expect(statsRow).toMatch(/0\.0%\/0 • footer-test\s+\(PROVIDER\) MODEL • medium$/);
     const linkColumn = plain.indexOf("#540");
@@ -252,12 +255,44 @@ describe("owned shared input and status presentation", () => {
     const truncated = createPiShellFooter(footerState, "/WORK", "a1").render(40)[0]!;
     const truncatedPlain = stripTerminalSequences(truncated);
     expect(visibleWidth(truncated)).toBeLessThanOrEqual(40);
-    expect(truncatedPlain).toMatch(/… #540$/);
+    expect(truncatedPlain).toMatch(/… • #540$/);
     expect(cellStyle(truncated, "…")).toEqual(cellStyle(piTheme().fg("dim", "…"), "…"));
     const truncatedLink = truncatedPlain.indexOf("#540");
     expect(hyperlinkTargetAtColumn(truncated, truncatedLink - 1)).toBeUndefined();
     expect(hyperlinkTargetAtColumn(truncated, truncatedLink)).toBe("https://github.com/timurproko/a1/pull/540");
     expect(hyperlinkTargetAtColumn(truncated, truncatedLink + 3)).toBe("https://github.com/timurproko/a1/pull/540");
+  });
+
+  it("reserves a complete PR badge before the dot and path, and omits the segment when no PR exists", () => {
+    applyPiTheme("dark", false, "truecolor");
+    const state = view();
+    for (const number of [9, 900, 123456]) {
+      const label = `#${number}`;
+      const url = `https://github.com/timurproko/a1/pull/${number}`;
+      const footer = createPiShellFooter({ ...state, status: { ...state.status, footer: {
+        ...state.status.footer!, repositoryPath: "/A/LONG/PATH", branch: "feature/example", pullRequest: { number, url },
+      } } }, "/WORK", "a1");
+      for (let width = 0; width <= 70; width++) {
+        const row = footer.render(width)[0]!;
+        const plain = stripTerminalSequences(row);
+        expect(visibleWidth(row)).toBeLessThanOrEqual(width);
+        expect(hyperlinkTargetAtColumn(`${row}Z`, visibleWidth(row))).toBeUndefined();
+        if (width >= label.length) {
+          expect(plain).toMatch(new RegExp(`${label}$`));
+          const at = plain.indexOf(label);
+          expect(hyperlinkTargetAtColumn(row, at)).toBe(url);
+          expect(hyperlinkTargetAtColumn(row, at + label.length - 1)).toBe(url);
+          if (width <= label.length + 3) expect(plain).toBe(label);
+          else expect(plain).toContain(" • ");
+        }
+        expect(plain).not.toMatch(/^\s*•|•\s*$/u);
+      }
+    }
+    const absent = createPiShellFooter({ ...state, status: { ...state.status, footer: {
+      ...state.status.footer!, repositoryPath: "/WORK", branch: "develop", pullRequest: null,
+    } } }, "/WORK", "a1").render(80)[0]!;
+    expect(stripTerminalSequences(absent)).toBe("/WORK (develop)");
+    expect(absent).not.toContain("\u001b]8;;");
   });
 
   it("reveals only the stats-row name using live secondary-accent tones and leaves stats/model stable", () => {
@@ -348,7 +383,7 @@ describe("owned shared input and status presentation", () => {
       if (width < 4) expect(hyperlinkTargetAtColumn(path!, 0)).toBeUndefined();
     }
     const path = rows[0]!;
-    expect(stripTerminalSequences(path)).toMatch(/… #827$/);
+    expect(stripTerminalSequences(path)).toMatch(/… • #827$/);
     expect(hyperlinkTargetAtColumn(path, stripTerminalSequences(path).indexOf("#827"))).toBe("https://github.com/timurproko/a1/pull/827");
     const clippedStatus = createPiShellFooter(state, "/WORK", "a1").render(8)[2]!;
     expect(stripTerminalSequences(clippedStatus)).toContain("…");
@@ -583,6 +618,42 @@ describe("owned level and model keybindings", () => {
     expect(PINNED_PI_BUILTIN_SLASH_COMMANDS.find(command => command.name === "model")).toBeDefined();
   });
 
+  it.each(["\u001b[109;5u", "\u001b[27;5;109~"])("cycles models for distinguishable Ctrl+M %j without opening Models or stealing Enter", async key => {
+    const { input, select, modelCycle, cycle, submit } = await editor();
+    input.setText("draft");
+    input.handleInput?.(key);
+    expect(modelCycle).toHaveBeenCalledExactlyOnceWith("forward");
+    expect(select).not.toHaveBeenCalled();
+    expect(input.getText()).toBe("draft");
+    input.handleInput?.("\r");
+    expect(submit).toHaveBeenCalledExactlyOnceWith("draft");
+    expect(modelCycle).toHaveBeenCalledOnce();
+    expect(select).not.toHaveBeenCalled();
+    expect(cycle).not.toHaveBeenCalled();
+    const keys = KeybindingsManager.fromOwnedBindings();
+    expect(keys.getKeys("owned.apps.open")).toEqual(["ctrl+p"]);
+    expect(keys.getKeys("app.model.cycleForward")).toEqual(["ctrl+m"]);
+    expect(keys.matches("\u0010", "app.model.cycleForward")).toBe(false);
+    const custom = await editor("a1", { "owned.apps.open": "alt+a" });
+    expect(custom.input.matchesAction?.("\u0010", "owned.apps.open")).toBe(false);
+    expect(custom.input.matchesAction?.("\u001ba", "owned.apps.open")).toBe(true);
+  });
+
+  it("preserves explicit model-cycle overrides and comparison Ctrl+P cycling", async () => {
+    const custom = await editor("a1", { "app.model.cycleForward": "alt+n" });
+    custom.input.setText("draft");
+    custom.input.handleInput?.("\u001b[109;5u");
+    expect(custom.modelCycle).not.toHaveBeenCalled();
+    custom.input.handleInput?.("\u001bn");
+    expect(custom.modelCycle).toHaveBeenCalledExactlyOnceWith("forward");
+    expect(custom.select).not.toHaveBeenCalled();
+    expect(custom.input.getText()).toBe("draft");
+    const pinned = await editor("pi");
+    pinned.input.handleInput?.("\u0010");
+    expect(pinned.modelCycle).toHaveBeenCalledExactlyOnceWith("forward");
+    expect(pinned.select).not.toHaveBeenCalled();
+  });
+
   it("dispatches bare-A1 Alt+Up across platforms while preserving overrides and pinned defaults", async () => {
     const owned = await editor();
     owned.input.setText("draft");
@@ -631,6 +702,7 @@ describe("owned level and model keybindings", () => {
     custom.input.handleInput?.("\u001b[109;5u");
     expect(custom.cycle).toHaveBeenCalledOnce();
     expect(custom.select).toHaveBeenCalledOnce();
+    expect(custom.modelCycle).not.toHaveBeenCalled();
     const ownedKeys = KeybindingsManager.fromOwnedBindings({ "tui.select.cancel": "alt+x" });
     expect(ownedKeys.getKeys("app.tree.filter.labeledOnly")).toEqual(["ctrl+l"]);
     expect(ownedKeys.getKeys("app.tree.filter.cycleForward")).toEqual(["tab"]);
@@ -652,23 +724,32 @@ describe("owned level and model keybindings", () => {
     let lines = header.render(100).map(stripTerminalSequences);
     expect(lines.find(line => line.includes("to cycle thinking level"))).toContain("ctrl+l");
     expect(lines.find(line => line.includes("to select model"))).toContain("/models");
+    expect(lines.find(line => line.includes("to open Launcher"))).toContain("ctrl+p");
+    expect(lines.find(line => line.includes("to cycle models"))).toContain("ctrl+m");
+    expect(lines.find(line => line.includes("to cycle models"))).not.toContain("ctrl+p/");
     expect(lines.find(line => line.includes("to edit all queued messages")))
       .toContain(process.platform === "darwin" ? "option+up" : "alt+up");
     expect(lines.join("\n")).not.toContain("shift+tab");
     const hotkeys = stripTerminalSequences(createPiShellHotkeys(undefined, undefined, "a1").render(120).join("\n"));
     expect(hotkeys).toContain("Ctrl+L");
     expect(hotkeys).toContain(`${process.platform === "darwin" ? "Option" : "Alt"}+Up`);
-    expect(hotkeys).toContain("Unbound (/models)");
+    expect(hotkeys).toContain("Ctrl+M");
+    expect(hotkeys).toContain("Ctrl+P");
+    expect(hotkeys).toContain("/models");
+    expect(hotkeys).toContain("Open Launcher");
+    expect(hotkeys).toContain("Open the in-place Models selector");
+    expect(hotkeys).toContain("keeps Enter behavior");
     expect(hotkeys).toContain("Models dialog");
     expect(hotkeys).toContain("Reorder the cycling scope");
     expect(stripTerminalSequences(createPiShellHotkeys(undefined, undefined, "pi").render(120).join("\n"))).not.toContain("Models dialog");
     expect(hotkeys).not.toContain("Shift+Tab");
     keys = KeybindingsManager.fromOwnedBindings({
-      "app.thinking.cycle": "ctrl+r", "app.model.select": "alt+m", "app.message.dequeue": "alt+d",
+      "app.thinking.cycle": "ctrl+r", "app.model.select": "alt+m", "app.model.cycleForward": "alt+n", "app.message.dequeue": "alt+d",
     });
     lines = header.render(100).map(stripTerminalSequences);
     expect(lines.find(line => line.includes("to cycle thinking level"))).toContain("ctrl+r");
     expect(keys.getKeys("app.model.select")).toEqual(["alt+m"]);
+    expect(lines.find(line => line.includes("to cycle models"))).toContain(process.platform === "darwin" ? "option+n" : "alt+n");
     expect(lines.find(line => line.includes("to select model"))).toContain(process.platform === "darwin" ? "option+m" : "alt+m");
     expect(lines.find(line => line.includes("to edit all queued messages")))
       .toContain(process.platform === "darwin" ? "option+d" : "alt+d");

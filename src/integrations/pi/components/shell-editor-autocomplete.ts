@@ -50,6 +50,16 @@ function renderOwnedAutocompleteSelection(text: string): string {
   const description = row === null ? "" : theme.fg("muted", row[2]!);
   return renderPiListSelection(arrow + label + description);
 }
+/** Models and thinking share the active declarations, independent of input presentation. */
+function bindModelActions(editor: ShellEditorInstance, options: OwnedUiShellEditorOptions): void {
+  if (options.onModelSelect !== undefined) editor.onAction("app.model.select", options.onModelSelect);
+  if (options.onModelCycle !== undefined) {
+    editor.onAction("app.model.cycleForward", () => options.onModelCycle?.("forward"));
+    editor.onAction("app.model.cycleBackward", () => options.onModelCycle?.("backward"));
+  }
+  if (options.onThinkingCycle !== undefined) editor.onAction("app.thinking.cycle", options.onThinkingCycle);
+}
+
 const PINNED_THINKING_SLASH_COMMAND = { name: "thinking", description: "Set thinking level", argumentHint: "<level>" } as const;
 const OWNED_THINKING_SLASH_COMMAND = { name: "thinking", description: "Set thinking level" } as const;
 const OWNED_LOGIN_SLASH_COMMAND = { name: "login", description: "Configure provider authentication" } as const;
@@ -85,7 +95,7 @@ export const OWNED_BUILTIN_SLASH_COMMANDS = PINNED_PI_BUILTIN_SLASH_COMMANDS.fla
   if (command.name === "model") {
     return [{ name: "models", description: "Switch models and manage scoped model cycling" }, OWNED_THINKING_SLASH_COMMAND];
   }
-  if (command.name === "thinking" || command.name === "scoped-models") return [];
+  if (command.name === "thinking" || command.name === "scoped-models" || command.name === "settings" || command.name === "changelog" || command.name === "hotkeys") return [];
   if (command.name === "login") return [OWNED_LOGIN_SLASH_COMMAND];
   return [command];
 });
@@ -207,12 +217,7 @@ export function createPiShellEditor(options: OwnedUiShellEditorOptions): PiShell
     editor.onAction("app.clipboard.pasteImage", options.onPasteImage);
   }
   if (options.onExtensionShortcut !== undefined) editor.onExtensionShortcut = options.onExtensionShortcut;
-  if (options.onModelSelect !== undefined) editor.onAction("app.model.select", options.onModelSelect);
-  if (options.onModelCycle !== undefined) {
-    editor.onAction("app.model.cycleForward", () => options.onModelCycle?.("forward"));
-    editor.onAction("app.model.cycleBackward", () => options.onModelCycle?.("backward"));
-  }
-  if (options.onThinkingCycle !== undefined) editor.onAction("app.thinking.cycle", options.onThinkingCycle);
+  bindModelActions(editor, options);
   if (options.onThinkingToggle !== undefined) editor.onAction("app.thinking.toggle", options.onThinkingToggle);
   if (options.onToolsExpand !== undefined) editor.onAction("app.tools.expand", options.onToolsExpand);
   if (options.onMessageCopy !== undefined) editor.onAction("app.message.copy", options.onMessageCopy);
@@ -250,6 +255,7 @@ export function createPiShellEditor(options: OwnedUiShellEditorOptions): PiShell
     },
     activateKeybindings: () => host.ensureActive(),
     keybindingConfig: () => keybindings.getEffectiveConfig(),
+    matchesAction: (data, action) => keybindings.matches(data, action),
     reloadKeybindings: () => host.reload(),
     matchesTerminalKey: (data, key) => matchesKey(data, key),
     handleInput: data => {
@@ -359,12 +365,11 @@ function autocompleteCommandSetter(
     state.skills = collapsed.skills;
     const additions = new Map(collapsed.commands.map(command => [command.name, command]));
     const builtInNames = new Set(builtInCatalog.map(command => command.name));
-    const builtIns = builtInCatalog.flatMap(command => [
-      autocompleteCommand(command, additions.get(command.name)),
-      // Rationale: the collapsed browser is a primary bare-A1 command, not a resource after quit.
-      ...(command.name === "settings" && collapsed.collapsedCommand !== undefined
-        ? [autocompleteCommand(collapsed.collapsedCommand)] : []),
-    ]);
+    // Rationale: Skills is a primary command, independent of retired application commands.
+    const builtIns = [
+      ...(collapsed.collapsedCommand === undefined ? [] : [autocompleteCommand(collapsed.collapsedCommand)]),
+      ...builtInCatalog.map(command => autocompleteCommand(command, additions.get(command.name))),
+    ];
     const resources = collapsed.commands
       .filter(command => command.name !== collapsed.collapsedCommand?.name && command.source !== "builtin" && !builtInNames.has(command.name))
       .map(command => autocompleteCommand(command));

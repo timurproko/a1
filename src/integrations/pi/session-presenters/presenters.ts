@@ -1,5 +1,6 @@
 import type {
   OwnedUiDialogHost,
+  OwnedUiModelsContext,
   OwnedUiSessionBackend,
   OwnedUiSessionPresenters,
   OwnedUiTranscriptRendererPort,
@@ -19,6 +20,13 @@ import {
 } from "../components/shell-selectors-dialogs.js";
 import { PI_SHELL_PRESENTATION } from "./presentation.js";
 import { createPiShellComponents } from "./components.js";
+
+/** An explicit session scope wins; otherwise use persisted members still present in the catalog. */
+function modelDialogScope(context: OwnedUiModelsContext): { savedScopeIds: readonly string[]; scopeIds: readonly string[] } {
+  const available = new Set(context.models.map(model => `${model.provider}/${model.id}`));
+  const savedScopeIds = context.persistedScopeIds.filter(id => available.has(id));
+  return { savedScopeIds, scopeIds: context.sessionScopeIds.length > 0 ? context.sessionScopeIds : savedScopeIds };
+}
 
 const MODEL_REFRESH_TIMEOUT_MS = 15_000;
 const MODEL_REFRESH_TIMED_OUT = "Model refresh timed out; showing cached models.";
@@ -205,13 +213,10 @@ export function createPiSessionPresenters(adapter: PiSessionPresenterBackend, op
     },
 
     /** The bare-A1 unified Models dialog: switch on Enter, scope on Space, persist on Ctrl+S, all through the engine. */
-    openModelsDialog(host, initialQuery) {
+    async openModelsDialog(host, initialQuery) {
       const catalog = adapter.catalog;
       const context = catalog.modelsContext();
-      const available = new Set(context.models.map(model => `${model.provider}/${model.id}`));
-      const savedScopeIds = context.persistedScopeIds.filter(id => available.has(id));
-      // Invariant: an explicit session scope wins; otherwise the dialog starts from what is persisted, never from "all rows scoped".
-      const scopeIds = context.sessionScopeIds.length > 0 ? context.sessionScopeIds : savedScopeIds;
+      const { savedScopeIds, scopeIds } = modelDialogScope(context);
       const refresh = new ModelCatalogRefresh();
       const close = () => {
         refresh.stop();
@@ -219,12 +224,11 @@ export function createPiSessionPresenters(adapter: PiSessionPresenterBackend, op
         host.requestRender();
       };
       const dialog = createPiShellModelsDialog({
-        models: context.models,
+        viewportHeight: () => host.viewport().rows, models: context.models,
         activeModelId: context.activeModelId,
         scopeIds,
         savedScopeIds,
         ...(initialQuery === undefined ? {} : { initialQuery }),
-        refreshStatus: "Refreshing model catalogs…",
         requestRender: () => host.requestRender(),
         onSelect: modelId => {
           void host.runWorkflow({ command: "models", argument: "", selection: modelId }).then(result => {
@@ -255,9 +259,7 @@ export function createPiSessionPresenters(adapter: PiSessionPresenterBackend, op
           dialog.dispose?.();
         },
       };
-      host.setInputSurface(component);
-      host.requestRender();
-      refresh.run(host, component, signal => catalog.refreshModels(signal), refreshed => component.updateModels(refreshed.models));
+      await presentModelsSurface(host, component, refresh, catalog);
     },
 
     openScopedModelsSelector(host) {
@@ -309,6 +311,18 @@ export function createPiSessionPresenters(adapter: PiSessionPresenterBackend, op
       });
     },
   };
+}
+
+async function presentModelsSurface(host: OwnedUiDialogHost, component: PiShellModelsDialogPort, refresh: ModelCatalogRefresh, catalog: PiSessionPresenterBackend["catalog"]): Promise<void> {
+  const releasePresentation = host.beginPresentationHold?.();
+  try {
+    host.setInputSurface(component);
+    host.requestRender();
+    refresh.run(host, component, signal => catalog.refreshModels(signal), refreshed => component.updateModels(refreshed.models));
+    await component.ready;
+  } finally {
+    releasePresentation?.();
+  }
 }
 
 /**
