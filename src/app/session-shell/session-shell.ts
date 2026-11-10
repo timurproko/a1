@@ -243,7 +243,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.#dialogs = new SessionDialogCoordinator({
         terminal: this.#terminal,
         root: this.root,
-        routeHost: routeHost ?? null, dialogs: options.presenters.components.dialogs,
+        routeHost: routeHost ?? null, dialogs: options.presenters.components.dialogs, inPlaceSession: this.#customViewport,
         presentation: options.presenters, viewport: () => this.#terminal.viewport(),
         disposed: () => this.#disposed,
         exit: () => { void this.shutdown(); },
@@ -389,6 +389,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     }
     // Compatibility: route modal paging and boundary keys before Pi's fullscreen handlers.
     const isDefault = this.root.usesDefaultInputSurface();
+    if (this.#dialogs.handleInputRouteInterrupt(data)) return { consume: true };
     if (!this.#terminal.hasOverlay() && !isDefault
       && (this.root.editor.matchesTerminalKey(data, "pageUp")
         || this.root.editor.matchesTerminalKey(data, "pageDown"))) {
@@ -989,7 +990,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     const skills = this.#skillSummaries();
     const trimmed = argument.trim();
     if (trimmed.length === 0) {
-      this.selectors.showSkillsSelector(skills);
+      await this.selectors.showSkillsSelector(skills);
       return { outcome: "completed", diagnostic: null };
     }
     const separator = trimmed.search(/\s/u);

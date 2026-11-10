@@ -2,6 +2,8 @@ export interface PresentationComponentPort {
   render(width: number): readonly string[];
   invalidate(): void;
   handleInput?(data: string): void;
+  /** Optional pointer input in one-based component-local coordinates. */
+  handleLocalMouse?(event: { readonly kind: "press" | "release" | "motion" | "wheel-up" | "wheel-down"; readonly button: number; readonly column: number; readonly row: number }): void;
   setFocused?(focused: boolean): void;
   dispose?(): void;
 }

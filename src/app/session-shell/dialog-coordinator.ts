@@ -3,6 +3,7 @@ import type { ShellPresentationPorts, TerminalComponentPort } from "../../contra
 import type { TerminalOverlayHandle } from "../../contracts/presentation/index.js";
 import type { OwnedUiCommandResult, OwnedUiDialog } from "../../contracts/owned-ui/index.js";
 import type { UiRouteHost, UiRouteInput } from "../../ui/apps/contracts.js";
+import { InputRoute } from "./input-route.js";
 import type { OwnedUiPresenterTerminal } from "./shell-host.js";
 import type { OwnedUiSessionShellOptions, OwnedUiSessionShellRoot } from "./session-shell-root.js";
 
@@ -15,6 +16,7 @@ interface SessionDialogPorts {
   readonly terminal: Pick<OwnedUiPresenterTerminal, "running" | "hasOverlay" | "showOverlay" | "openRoute" | "requestRender">;
   readonly presentation?: Pick<ShellPresentationPorts, "theme" | "terminalRuntime">;
   readonly viewport?: () => { rows: number };
+  readonly inPlaceSession?: boolean;
   readonly root: Pick<OwnedUiSessionShellRoot, "chrome" | "setInputSurface" | "usesDefaultInputSurface">;
   readonly routeHost: UiRouteHost | null;
   readonly dialogs: Pick<OwnedUiShellComponents["dialogs"], "dialog" | "selector">;
@@ -26,11 +28,7 @@ interface SessionDialogPorts {
   readonly startupRoute?: StartupRoute;
 }
 
-/**
- * Owns the one modal overlay a session shows at a time, whichever source opened it: an owned route,
- * a local selector, or a backend dialog. Opening one hides the previous one, and every close path
- * clears the same state.
- */
+/** Coordinates owned routes, dock dialogs, and backend overlays through one replacement/close lifecycle. */
 export class SessionDialogCoordinator {
   readonly #ports: SessionDialogPorts;
   #handle: { hide(): void; close?(): void } | undefined;
@@ -38,6 +36,7 @@ export class SessionDialogCoordinator {
   #source: "route" | "local" | "backend" | undefined;
   #route: string | undefined;
   #apps: TerminalOverlayHandle | undefined;
+  #inputRoute: InputRoute | undefined;
   #startupRoute: StartupRoute | undefined;
   #startupRouteTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -153,19 +152,47 @@ export class SessionDialogCoordinator {
     this.#handle?.hide();
     this.#source = "route";
     this.#route = route;
+    const closed = (rendered: boolean): void => {
+      if (rendered) {
+        try { void onClosed?.()?.catch(() => undefined); } catch { /* Rationale: a failed acknowledgement stays pending. */ }
+        this.#ports.routeClosed?.(route);
+      }
+    };
+    if (route === "session" && this.#ports.inPlaceSession) {
+      const component = new InputRoute(surface, {
+        requestRender: () => this.#ports.terminal.requestRender(),
+        closed: rendered => { this.closeInputSurface(); closed(rendered); },
+        released: () => { if (this.#handle === handle) this.#clear(); },
+        key: data => this.#ports.presentation?.terminalRuntime.legacyKeyInput(data) ?? data,
+        exit: () => this.#ports.exit(),
+      });
+      const handle = { hide: () => component.close(), close: () => component.close() };
+      this.#handle = handle;
+      this.#inputRoute = component;
+      this.#id = surface.id;
+      this.#ports.root.setInputSurface(component);
+      this.#ports.terminal.requestRender();
+      return { outcome: "completed", diagnostic: null };
+    }
     const handle = this.#ports.terminal.openRoute(surface, {
       exit: () => this.#ports.exit(),
       closed: rendered => {
         if (this.#handle === handle) this.#clear();
-        if (rendered) {
-          try { void onClosed?.()?.catch(() => undefined); } catch { /* Rationale: a failed acknowledgement stays pending. */ }
-          this.#ports.routeClosed?.(route);
-        }
+        closed(rendered);
       },
     });
     this.#handle = handle;
     this.#id = surface.id;
     return { outcome: "completed", diagnostic: null };
+  }
+
+  /** Close the route before global abort. */
+  handleInputRouteInterrupt(data: string): boolean {
+    if (this.#inputRoute === undefined || this.#apps !== undefined) return false;
+    const key = this.#ports.presentation?.terminalRuntime.legacyKeyInput(data) ?? data;
+    if (key !== "\u0003") return false;
+    this.#inputRoute.handleInput(key);
+    return true;
   }
 
   claimsRoute(name: string): boolean {
@@ -218,5 +245,6 @@ export class SessionDialogCoordinator {
     this.#id = undefined;
     this.#source = undefined;
     this.#route = undefined;
+    this.#inputRoute = undefined;
   }
 }

@@ -605,10 +605,14 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
       (_value, index) => ({ row: messageStart + index }),
     );
     const aboveWidgets = this.#extensions.renderWidgets("aboveEditor", width);
-    const input = this.#input.surface.render(width);
-    const body = this.usesDefaultInputSurface() ? this.editor.bodyGeometry?.() : undefined;
     const belowWidgets = this.#extensions.renderWidgets("belowEditor", width);
     const footer = this.#renderFooter(width);
+    // Reserve transcript context above scrollable routes.
+    const available = Math.max(1, this.#componentRuntime.getRows() - transientRows.length - aboveWidgets.length - belowWidgets.length - footer.length - 3);
+    const surface = this.#input.surface;
+    const input = this.#customViewport && surface.renderInDock !== undefined
+      ? surface.renderInDock(width, available) : surface.render(width);
+    const body = this.usesDefaultInputSurface() ? this.editor.bodyGeometry?.() : undefined;
     const rowsWithoutTransient = [...aboveWidgets, ...input, ...belowWidgets, ...footer];
     const inputOffset = transientRows.length + aboveWidgets.length;
     return {

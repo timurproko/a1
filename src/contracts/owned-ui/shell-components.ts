@@ -19,9 +19,14 @@ export interface OwnedUiShellKeybindingsHost {
 }
 
 export interface OwnedUiShellComponentPort {
+  readonly ready?: Promise<void>;
   render(width: number): readonly string[];
+  /** Bounds scrollable replacement inputs within the dock. */
+  renderInDock?(width: number, maxHeight: number): readonly string[];
   invalidate(): void;
   handleInput?(data: string): void;
+  /** Pointer input in one-based component-local coordinates, when supported. */
+  handleLocalMouse?(event: { readonly kind: "press" | "release" | "motion" | "wheel-up" | "wheel-down"; readonly button: number; readonly column: number; readonly row: number }): void;
   setFocused?(focused: boolean): void;
   dispose?(): void;
 }
@@ -378,6 +383,7 @@ export interface OwnedUiShellTrustOption {
 }
 
 export interface OwnedUiShellTrustSelectorOptions {
+  readonly standardStyle?: boolean;
   readonly cwd: string;
   readonly savedDecision: OwnedUiShellTrustDecision | null;
   readonly projectTrusted: boolean;
@@ -525,8 +531,8 @@ export interface OwnedUiShellComponents {
   readonly dialogs: {
     dialog(dialog: OwnedUiDialog, handlers?: { readonly onSelect?: (id: string) => void; readonly onCancel?: () => void }): OwnedUiShellComponentPort;
     selector(options: OwnedUiShellSelectorOptions): OwnedUiShellComponentPort;
-    extensionSelector(title: string, options: readonly string[], onSelect: (value: string) => void, onCancel: () => void): OwnedUiShellComponentPort;
-    authProviderSelector(mode: "login" | "logout", providers: readonly OwnedUiShellAuthProviderOption[], onSelect: (id: string) => void, onCancel: () => void, initialSearchInput?: string): OwnedUiShellComponentPort;
+    extensionSelector(title: string, options: readonly string[], onSelect: (value: string) => void, onCancel: () => void, standardSelection?: boolean): OwnedUiShellComponentPort;
+    authProviderSelector(mode: "login" | "logout", providers: readonly OwnedUiShellAuthProviderOption[], onSelect: (id: string) => void, onCancel: () => void, initialSearchInput?: string, standardStyle?: boolean): OwnedUiShellComponentPort;
     loginDialog(runtime: OwnedUiShellRuntime, providerId: string, onComplete: (success: boolean, message?: string) => void, providerName?: string, title?: string): OwnedUiShellLoginDialogPort;
     skillsSelector(options: { readonly skills: readonly OwnedUiShellSkillSummary[]; readonly onSelect: (name: string) => void; readonly onCancel: () => void }): OwnedUiShellComponentPort;
     trustSelector(options: OwnedUiShellTrustSelectorOptions): OwnedUiShellComponentPort;

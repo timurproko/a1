@@ -21,11 +21,12 @@ import {
   SelectList,
   Spacer,
   Text,
+  TruncatedText,
   type SelectItem,
 } from "@earendil-works/pi-tui";
 import type { OwnedUiDialog } from "../../../contracts/owned-ui/index.js";
 import { ScopedModelsSelectorComponent } from "./upstream/components/scoped-models-selector.js";
-import { addPiModalSelectFooter, adoptPiModalFrame, adoptPiModalHeader, adoptPiModalSearchInput } from "./modal-frame.js";
+import { addPiModalSelectFooter, adoptPiModalFrame, adoptPiModalHeader, adoptPiModalSearchInput, renderPiModalSelectedPrimary } from "./modal-frame.js";
 import { createDeferredModelsDialog } from "./models-dialog-loader.js";
 import type { ModelsDialogCallbacks, ModelsDialogConfig } from "./models-dialog.js";
 import { TrustSelectorComponent, type TrustDecision, type TrustOption, type TrustUpdate } from "./upstream/components/trust-selector.js";
@@ -50,7 +51,8 @@ import {
   type PiShellSelectorOptions,
 } from "./shell-shared-facade.js";
 
-export { createPiShellSkillsSelector, type PiShellSkillsSelectorOptions } from "./skills-dialog.js";
+export { createPiShellSkillsSelector } from "./deferred-skills-selector.js";
+export type { PiShellSkillsSelectorOptions } from "./skills-dialog.js";
 
 export function createPiShellSelector(options: PiShellSelectorOptions): PiShellComponentPort {
   ensureTheme();
@@ -243,6 +245,7 @@ export function createPiShellModelsDialog(options: PiShellModelsDialogOptions): 
 }
 
 export function createPiShellTrustSelector(options: {
+  readonly standardStyle?: boolean;
   readonly cwd: string;
   readonly savedDecision: TrustDecision | null;
   readonly projectTrusted: boolean;
@@ -426,6 +429,7 @@ export function createPiShellAuthProviderSelector(
   onSelect: (id: string) => void,
   onCancel: () => void,
   initialSearchInput?: string,
+  standardStyle = false,
 ): PiShellComponentPort {
   ensureTheme();
   const selector = new OAuthSelectorComponent(mode, providers.map(provider => ({
@@ -437,6 +441,18 @@ export function createPiShellAuthProviderSelector(
     const selected = providers.find(provider => provider.providerId === providerId && provider.authType === authType);
     if (selected) onSelect(selected.id);
   }, onCancel, initialSearchInput);
+  if (standardStyle && mode === "login") {
+    // Adapt public chrome slots, retaining Pi's controller.
+    selector.children[2] = {
+      render: width => new TruncatedText(piTheme().fg("accent", piTheme().bold("Select Provider to Configure")), 1, 0).render(width),
+      invalidate: () => {},
+    };
+    const list = selector.children[6]!;
+    selector.children[6] = {
+      render: width => list.render(width).map(row => renderPiModalSelectedPrimary(row, width, providers.map(provider => provider.label))),
+      invalidate: () => list.invalidate(),
+    };
+  }
   // Provenance: OAuth selector slot is top rule, spacer, title, spacer, then its search Input.
   adoptPiModalSearchInput(selector, selector.children[4]!);
   addPiModalSelectFooter(selector);
@@ -456,9 +472,10 @@ export function createPiShellExtensionSelector(
   options: readonly string[],
   onSelect: (value: string) => void,
   onCancel: () => void,
+  standardSelection = false,
 ): PiShellComponentPort {
   ensureTheme();
-  return componentPort(new ExtensionSelectorComponent(title, [...options], onSelect, onCancel));
+  return componentPort(new ExtensionSelectorComponent(title, [...options], onSelect, onCancel, { standardSelection }));
 }
 
 export function createPiShellThemeSelector(

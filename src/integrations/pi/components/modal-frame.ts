@@ -3,15 +3,31 @@ import {
   Input,
   Spacer,
   Text,
+  sliceByColumn,
+  stripTerminalSequences,
+  visibleWidth,
   type Component,
   type Focusable,
   type TuiMouseEvent,
   type TuiMouseEventResult,
 } from "@earendil-works/pi-tui";
 import { DIALOG_CONTENT_PADDING_X, dialogFrameGeometry, insetDialogContent } from "../../../contracts/presentation/index.js";
-import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "./theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints, renderPiModalListRow } from "./theme.js";
 
 export const PI_MODAL_CONTENT_PADDING_X = DIALOG_CONTENT_PADDING_X;
+
+/** Restyles a pinned primary span without changing its suffix or clipping. */
+export function renderPiModalSelectedPrimary(row: string, width: number, labels: readonly string[]): string {
+  const plain = stripTerminalSequences(row).trimEnd();
+  if (!plain.startsWith(" → ")) return row;
+  const primary = labels.filter(label => plain.slice(3).startsWith(label))
+    .sort((left, right) => visibleWidth(right) - visibleWidth(left))[0];
+  const length = primary === undefined ? Math.max(0, visibleWidth(plain) - 3) : visibleWidth(primary);
+  const label = stripTerminalSequences(sliceByColumn(row, 3, length));
+  const suffix = sliceByColumn(row, 3 + length, Math.max(0, visibleWidth(plain) - 3 - length));
+  const theme = piTheme();
+  return ` ${renderPiModalListRow(`${theme.fg("accent", "→ ")}${theme.fg("text", label)}${suffix}`, Math.max(0, width - 1), true)}`;
+}
 
 /** Paints the standard Pi Input prompt as a live-themed dialog-search marker. */
 export function renderPiModalSearchInput(input: Input, width: number): string[] {

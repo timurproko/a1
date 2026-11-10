@@ -107,8 +107,8 @@ export class SessionSelectors implements WorkflowSelectors {
     }
   }
 
-  /** The Skills dialog: a replacement input like the model selector, applying the chosen skill through the prompt path. */
-  showSkillsSelector(skills: readonly OwnedUiShellSkillSummary[]): void {
+  /** Applies a dock-selected skill through the prompt path. */
+  showSkillsSelector(skills: readonly OwnedUiShellSkillSummary[]): Promise<void> | undefined {
     const close = this.#dialogs.closeInputSurface;
     const component = this.#presenters.components.dialogs.skillsSelector({
       skills,
@@ -119,6 +119,7 @@ export class SessionSelectors implements WorkflowSelectors {
       onCancel: close,
     });
     this.#present(component);
+    return component.ready;
   }
 
   showModelSelector(initialSearchInput?: string): void {
@@ -179,12 +180,13 @@ export class SessionSelectors implements WorkflowSelectors {
     }
     const close = this.#dialogs.closeInputSurface;
     const labels = method.options.map(option => option.label);
-    const component = this.#presenters.components.dialogs.extensionSelector(method.title, labels, label => {
+    const title = this.#customViewport ? method.title.replace("authentication method", "Authentication Method").replace(/:$/u, "") : method.title;
+    const component = this.#presenters.components.dialogs.extensionSelector(title, labels, label => {
       const selection = method.options.find(option => option.label === label)?.id;
       if (!selection) return;
       close();
       void this.#ports.runWorkflow({ command: "login", argument: "", selection });
-    }, close);
+    }, close, this.#customViewport);
     this.#present(component);
   }
 
@@ -198,13 +200,14 @@ export class SessionSelectors implements WorkflowSelectors {
     const close = this.#dialogs.closeInputSurface;
     const labels = ["Sign in with an account", "Sign in with an API key"];
     const component = this.#presenters.components.dialogs.extensionSelector(
-      "Select authentication method:",
+      this.#customViewport ? "Select Authentication Method" : "Select authentication method:",
       labels,
       label => {
         close();
         this.showLoginProviderSelector(label === labels[0] ? "oauth" : "api_key");
       },
       close,
+      this.#customViewport,
     );
     this.#present(component);
   }
@@ -223,7 +226,7 @@ export class SessionSelectors implements WorkflowSelectors {
     }, () => {
       close();
       if (authType !== undefined) this.showLoginAuthTypeSelector();
-    }, initialSearchInput);
+    }, initialSearchInput, this.#customViewport);
     this.#present(component);
   }
 
@@ -240,6 +243,7 @@ export class SessionSelectors implements WorkflowSelectors {
     const close = this.#dialogs.closeInputSurface;
     const component = this.#presenters.components.dialogs.trustSelector({
       ...context,
+      standardStyle: this.#customViewport,
       onSelect: selection => {
         try {
           this.#backend.catalog.persistProjectTrust(selection.updates);
@@ -309,9 +313,11 @@ export class SessionSelectors implements WorkflowSelectors {
     if (result.diagnostic === "Branch summarization cancelled") await this.showTreeSelector(entryId);
   }
 
-  // Invariant: a selector replaces the editor in the input dock and paints in the same frame.
+  // Retain the frame until a deferred selector is ready.
   #present(component: Parameters<SessionSelectorPorts["root"]["setInputSurface"]>[0]): void {
+    const release = component?.ready === undefined ? undefined : this.#terminal.beginPresentationHold();
     this.#root.setInputSurface(component);
+    void component?.ready?.finally(() => { release?.(); if (!this.#ports.disposed()) this.#terminal.requestRender(); });
     this.#terminal.requestRender();
   }
 }

@@ -61,17 +61,21 @@ function plainRows(component: { render(width: number): readonly string[] }, widt
 }
 
 describe("provider authentication selector presentation", () => {
-  it.each(STATES)("preserves Pi content for $name except for shared chrome and the canonical close footer", state => {
+  it.each(STATES.flatMap(state => [false, true].map(standardStyle => ({ ...state, standardStyle }))))("preserves Pi content and actions for $name with standard style $standardStyle", state => {
     initTheme("dark", false);
     const upstreamSelected = vi.fn();
     const ownedSelected = vi.fn();
     const upstream = upstreamSelector(state, upstreamSelected);
-    const owned = createPiShellAuthProviderSelector("login", [state.option], ownedSelected, () => {});
+    const owned = createPiShellAuthProviderSelector("login", [state.option], ownedSelected, () => {}, undefined, state.standardStyle);
 
     for (const width of [44, 100]) {
       const expected = [...plainRows(upstream, width)];
       expect(expected[1]?.trim(), `${state.name}@${width} pinned top-title gap`).toBe("");
       expected.splice(1, 1);
+      if (state.standardStyle) {
+        expected[1] = " Select Provider to Configure".padEnd(width);
+        expected[5] = expected[5]!.trimEnd();
+      }
       // Compatibility: the pinned title/list already own one cell; only its zero-inset search input moves.
       expected[3] = ` ${expected[3]!.slice(0, -1)}`;
       expected.splice(-1, 0, " ↑↓ navigate  Enter select  Esc close".padEnd(width));

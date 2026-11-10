@@ -669,8 +669,8 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await shell.dispose();
   });
 
-  it("nests login authentication type and provider selection with pinned cancellation", async () => {
-    const { adapter, terminal, shell } = await fixture();
+  it.each([false, true])("nests login authentication type and provider selection with cancellation, bare=%s", async bare => {
+    const { adapter, terminal, shell } = await fixture([], [], bare);
     vi.spyOn(adapter.catalog, "pinnedLoginOptions").mockImplementation(authType => [{
       id: `${authType ?? "oauth"}:openai`,
       providerId: "openai",
@@ -685,11 +685,12 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     }));
 
     await shell.submit("/login");
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Select authentication method:");
+    const title = bare ? "Select Authentication Method" : "Select authentication method:";
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain(title);
     terminal.input("\r");
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("OpenAI");
     terminal.input("\x1b");
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Select authentication method:");
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain(title);
     terminal.input("\r");
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
