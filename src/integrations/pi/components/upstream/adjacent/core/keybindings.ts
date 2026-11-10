@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
  * packages/coding-agent/src/core/keybindings.ts.
  * Modifications: Mechanical source port with Node import prefixes, public package-root agent-directory
  * resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, Ctrl+M model cycling
@@ -163,7 +163,7 @@ export const KEYBINDINGS = {
 		description: "Restore queued messages",
 	},
 	"app.clipboard.pasteImage": {
-		defaultKeys: windowsKeybindings ? "alt+v" : "ctrl+v",
+		defaultKeys: windowsKeybindings ? ["alt+v", "ctrl+v"] : "ctrl+v",
 		description: "Paste files on macOS, images, or text from clipboard",
 	},
 	"app.session.new": { defaultKeys: [], description: "Start a new session" },

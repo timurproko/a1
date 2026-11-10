@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.26",
   "pinned": {
-    "version": "1.5.0",
-    "commit": "f9a26365568127461c47a07a37dcb42c140a3ac5"
+    "version": "1.5.1",
+    "commit": "dd30101cfc5b0609411dd80b6f93adbc14db14cf"
   },
   "policy": {
     "scope": "Every root, nested, replacement, and overlay node plus every source-reachable transition from InteractiveMode, nested components, and public extension UI is mandatory.",
@@ -3864,7 +3864,7 @@
       "to": "editor.root",
       "source": "interactive",
       "sourceAnchors": [
-        "this.ui.hideOverlay()"
+        "overlayHandle.hide()"
       ],
       "trigger": "close/disposal",
       "stateMutation": "hide/dispose overlay",
@@ -3964,6 +3964,7 @@
     "model-selector.js",
     "oauth-selector.js",
     "pi-logo.js",
+    "provider-brand.js",
     "radius-login-selector.js",
     "scoped-models-selector.js",
     "session-selector-search.js",
