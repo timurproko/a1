@@ -40,6 +40,10 @@ Use the same policy for Apps and owned floating selectors, including nested Defa
 
 Suppress only successful active-model-switch acknowledgements in bare A1, for picker selection, direct model switching, and scoped cycling where available. Retain authoritative model/thinking updates and all underlying engine persistence/events. Do not suppress failures, warnings, catalog-refresh problems, or unrelated command output; do not match the English text `Switched to` to decide behavior. The comparison profile retains its existing output contract.
 
+### Consistent footer PR separator
+
+The maintainer additionally requested the first footer row as `path (branch) • #900` and directed completion of the remaining PR item. Use the same dim ` • ` segment grammar as the stats-row session name while keeping only the PR number inside its existing terminal hyperlink. Keep the link on the first row and the session name on the second row. Reserve the complete badge before path text at constrained widths; omit the separator when no path prefix fits, rather than leave a leading or trailing dot. With no PR, render no extra separator. Keep the comparison profile unchanged.
+
 ## Validation strategy
 
 Focused owner tests will cover launcher filtering, no matches, navigation, cancellation, all three destinations, same-app selection, draft retention, app-to-app Ctrl+P, and overlay replacement cleanup. Shortcut tests will exercise effective declarations/help, user overrides, Ctrl+P collision removal, distinguishable Ctrl+M sequences, ordinary Enter, unchanged Ctrl+L/Shift+Tab, and comparison isolation. Shared rendering tests will assert deterministic backdrop/panel colors in both color modes, full frame dimensions, ANSI/wide-grapheme safety, selected-row backgrounds, nested Settings presentation, and restoration. Workflow-output tests will prove silent successful switches with visible failures/warnings and updated status state.
@@ -51,4 +55,4 @@ During implementation run only typecheck, the affected test files, and strict ch
 - Legacy Ctrl+M ambiguity: preserve Enter and disclose any unsupported encoding rather than introducing data-loss behavior.
 - Application overlays currently use separate route and local-selector paths: ensure replacement callbacks cannot close the newly selected app.
 - Existing specifications explicitly require unbound model selection and a dark RGB 38 floating palette: this change deliberately supersedes those policies in its deltas.
-- No implementation gaps have been assessed yet; implementation must explicitly record their disposition before completion.
+- The footer separator refinement is approved for completion in this delivery; implementation evidence records the final gap dispositions.

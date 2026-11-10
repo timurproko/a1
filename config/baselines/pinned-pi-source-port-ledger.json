@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-10T09:17:46.502Z",
+  "recordedAt": "2026-11-10T09:43:18.287Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "f9a26365568127461c47a07a37dcb42c140a3ac5",
@@ -1896,9 +1896,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Owned UI/routing; A1 level color, linked PRs, dim ellipsis, model priority, and secondary-accent name reveals after stats; Pi unchanged.",
+      "modifications": "Owned UI/routing; A1 level color, linked PRs after a dim dot separator, dim ellipsis, model priority, and secondary-accent name reveals after stats; Pi unchanged.",
       "upgradeStrategy": "three-way",
-      "localSha256": "82db243d74c8260b9cc1cf5a931b8a7295b11f063f31158040eebf356662281a",
+      "localSha256": "428038a42c01979a5ab52649f794c1b58be7e2118c4c845bf9762fc285790165",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1908,7 +1908,7 @@
         },
         {
           "id": "owned-pull-request-badge",
-          "reason": "Approved show-pr-id-status-bar adds `PR #<number>` to bare A1 so the current branch's open pull request is available from the footer; only the number is a terminal-native hyperlink.",
+          "reason": "Approved show-pr-id-status-bar links the branch PR number in the bare-A1 footer; add-apps-launcher places a dim dot separator before that badge and omits the separator when no path prefix fits. Only the PR number is a terminal-native hyperlink.",
           "upstreamBehavior": "The pinned comparison footer remains unchanged. Bare A1 preserves the upstream path, branch, session, width, usage, and extension-row behavior when no validated pull request identity is available.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         },

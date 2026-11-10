@@ -10,10 +10,7 @@ Settings and Changelog are application surfaces, not Agent commands. A searchabl
 - Assign Ctrl+M to the unified Models dialog and remove the default Ctrl+P model-cycling collision. Preserve Ctrl+L thinking-level cycling, explicit user overrides, and comparison-profile behavior.
 - Increase modal/background separation centrally: darken the complete underlying surface reliably and give floating panels a visibly contrasting opaque background, inspired by the supplied Commands reference. Include nested Settings selectors.
 - Suppress successful in-session model-switch acknowledgements in bare A1; the existing status bar remains the confirmation. Keep model failures and actionable warnings visible.
-
-## Pending Scope Refinement
-
-- Awaiting maintainer approval: separate the first-row pull-request link from path/branch with ` • `, matching the session-name separator, without moving the link or changing its click target.
+- Separate the first-row pull-request link from path/branch with ` • `, matching the session-name separator, without moving the link or changing its click target. The maintainer requested this refinement and directed completion of the remaining PR item.
 
 ## Capabilities
 
@@ -21,7 +18,7 @@ Settings and Changelog are application surfaces, not Agent commands. A searchabl
 - `ui-apps`: searchable Apps launcher and application switching.
 - `ui-shortcuts`: Ctrl+P Apps and Ctrl+M Models defaults and effective help.
 - `ui-components`: stronger shared floating-modal contrast and backdrop rendering.
-- `a1-shell`: quiet successful model changes in the owned session.
+- `a1-shell`: quiet successful model changes and a consistent first-row PR separator in the owned session.
 
 ## Impact
 

@@ -22,9 +22,9 @@
 - [x] 4.1 Suppress bare-A1 successful in-session model-switch notices without changing model/thinking state, persistence, or comparison-profile output.
 - [x] 4.2 Add focused tests covering successful picker/direct/cycling changes, status-bar updates, cancellation, and visible warnings/failures.
 
-## Pending refinement: footer PR separator
+## Footer PR separator
 
-- [ ] P.1 Obtain approval for `path (branch) • #900`, then add the footer separator and focused rendering/link/clipping tests.
+- [x] P.1 Add the requested `path (branch) • #900` footer separator and focused rendering, hyperlink-boundary, absent-PR, and constrained-width tests.
 
 ## 5. Pre-ready delivery
 

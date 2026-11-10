@@ -235,7 +235,9 @@ describe("owned shared input and status presentation", () => {
     };
     const ownedRow = createPiShellFooter(footerState, "/WORK", "a1").render(120)[0]!;
     const plain = stripTerminalSequences(ownedRow);
-    expect(plain).toBe("/DELIVERY/WORKTREE/WITH/A/LONG/PATH (feature/show-pr-id-status-bar) #540");
+    expect(plain).toBe("/DELIVERY/WORKTREE/WITH/A/LONG/PATH (feature/show-pr-id-status-bar) • #540");
+    expect(hyperlinkTargetAtColumn(ownedRow, plain.indexOf(" • ") + 1)).toBeUndefined();
+    expect(cellStyle(ownedRow, "•")).toEqual(cellStyle(piTheme().fg("dim", "•"), "•"));
     const statsRow = stripTerminalSequences(createPiShellFooter(footerState, "/WORK", "a1").render(120)[1]!);
     expect(statsRow).toMatch(/0\.0%\/0 • footer-test\s+\(PROVIDER\) MODEL • medium$/);
     const linkColumn = plain.indexOf("#540");
@@ -252,12 +254,44 @@ describe("owned shared input and status presentation", () => {
     const truncated = createPiShellFooter(footerState, "/WORK", "a1").render(40)[0]!;
     const truncatedPlain = stripTerminalSequences(truncated);
     expect(visibleWidth(truncated)).toBeLessThanOrEqual(40);
-    expect(truncatedPlain).toMatch(/… #540$/);
+    expect(truncatedPlain).toMatch(/… • #540$/);
     expect(cellStyle(truncated, "…")).toEqual(cellStyle(piTheme().fg("dim", "…"), "…"));
     const truncatedLink = truncatedPlain.indexOf("#540");
     expect(hyperlinkTargetAtColumn(truncated, truncatedLink - 1)).toBeUndefined();
     expect(hyperlinkTargetAtColumn(truncated, truncatedLink)).toBe("https://github.com/timurproko/a1/pull/540");
     expect(hyperlinkTargetAtColumn(truncated, truncatedLink + 3)).toBe("https://github.com/timurproko/a1/pull/540");
+  });
+
+  it("reserves a complete PR badge before the dot and path, and omits the segment when no PR exists", () => {
+    applyPiTheme("dark", false, "truecolor");
+    const state = view();
+    for (const number of [9, 900, 123456]) {
+      const label = `#${number}`;
+      const url = `https://github.com/timurproko/a1/pull/${number}`;
+      const footer = createPiShellFooter({ ...state, status: { ...state.status, footer: {
+        ...state.status.footer!, repositoryPath: "/A/LONG/PATH", branch: "feature/example", pullRequest: { number, url },
+      } } }, "/WORK", "a1");
+      for (let width = 0; width <= 70; width++) {
+        const row = footer.render(width)[0]!;
+        const plain = stripTerminalSequences(row);
+        expect(visibleWidth(row)).toBeLessThanOrEqual(width);
+        expect(hyperlinkTargetAtColumn(`${row}Z`, visibleWidth(row))).toBeUndefined();
+        if (width >= label.length) {
+          expect(plain).toMatch(new RegExp(`${label}$`));
+          const at = plain.indexOf(label);
+          expect(hyperlinkTargetAtColumn(row, at)).toBe(url);
+          expect(hyperlinkTargetAtColumn(row, at + label.length - 1)).toBe(url);
+          if (width <= label.length + 3) expect(plain).toBe(label);
+          else expect(plain).toContain(" • ");
+        }
+        expect(plain).not.toMatch(/^\s*•|•\s*$/u);
+      }
+    }
+    const absent = createPiShellFooter({ ...state, status: { ...state.status, footer: {
+      ...state.status.footer!, repositoryPath: "/WORK", branch: "develop", pullRequest: null,
+    } } }, "/WORK", "a1").render(80)[0]!;
+    expect(stripTerminalSequences(absent)).toBe("/WORK (develop)");
+    expect(absent).not.toContain("\u001b]8;;");
   });
 
   it("reveals only the stats-row name using live secondary-accent tones and leaves stats/model stable", () => {
@@ -348,7 +382,7 @@ describe("owned shared input and status presentation", () => {
       if (width < 4) expect(hyperlinkTargetAtColumn(path!, 0)).toBeUndefined();
     }
     const path = rows[0]!;
-    expect(stripTerminalSequences(path)).toMatch(/… #827$/);
+    expect(stripTerminalSequences(path)).toMatch(/… • #827$/);
     expect(hyperlinkTargetAtColumn(path, stripTerminalSequences(path).indexOf("#827"))).toBe("https://github.com/timurproko/a1/pull/827");
     const clippedStatus = createPiShellFooter(state, "/WORK", "a1").render(8)[2]!;
     expect(stripTerminalSequences(clippedStatus)).toContain("…");
