@@ -607,7 +607,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     const aboveWidgets = this.#extensions.renderWidgets("aboveEditor", width);
     const belowWidgets = this.#extensions.renderWidgets("belowEditor", width);
     const footer = this.#renderFooter(width);
-    // Reserve transcript context above scrollable routes.
+    // Invariant: reserve transcript context above scrollable routes.
     const available = Math.max(1, this.#componentRuntime.getRows() - transientRows.length - aboveWidgets.length - belowWidgets.length - footer.length - 3);
     const surface = this.#input.surface;
     const input = this.#customViewport && surface.renderInDock !== undefined

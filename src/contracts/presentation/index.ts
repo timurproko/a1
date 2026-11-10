@@ -56,6 +56,11 @@ export const DIALOG_BACK_SHORTCUT_HINT = Object.freeze({ key: "esc", action: "ba
 /** Global inset inherited by every semantic row inside an A1-owned dialog frame. */
 export const DIALOG_CONTENT_PADDING_X = 1;
 
+/** Wraps choice navigation, leaving empty lists at a safe index. */
+export function wrapChoiceIndex(index: number, delta: number, count: number): number {
+  return count > 0 ? ((index + delta) % count + count) % count : 0;
+}
+
 export interface DialogFrameGeometry {
   readonly frameWidth: number;
   readonly contentPaddingX: number;

@@ -36,7 +36,7 @@ export class InputRoute implements OwnedUiShellComponentPort {
   handleInput(data: string): void {
     if (this.#disposed) return;
     const key = this.#options.key(data);
-    // Close even while the deferred document is loading.
+    // Compatibility: close even while the deferred document is loading.
     if (key === "\u001b" || key === "\u0003") { this.close(); return; }
     this.#surface.handleInput(key);
     this.#refresh();

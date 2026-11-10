@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-10T17:11:03.311Z",
+  "recordedAt": "2026-11-10T17:57:22.820Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "dd30101cfc5b0609411dd80b6f93adbc14db14cf",
@@ -38,8 +38,8 @@
     "sourceModules": 128,
     "assets": 4,
     "classifications": {
-      "public-api-reuse": 67,
-      "owned-presentation": 31,
+      "public-api-reuse": 66,
+      "owned-presentation": 32,
       "host-adaptation": 34
     },
     "requiredBehaviorIds": 29,
@@ -1806,9 +1806,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/extension-selector.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port with public imports, private fields, shared shortcut rows and compact modal framing; owned sign-in choices optionally use standard item-bounded selection backgrounds and normal labels while preserving extension/comparison styling, timeout, navigation, cancellation, and disposal.",
+      "modifications": "Mechanical port with public imports, private fields, shared shortcut rows and compact framing; internal choices opt into normal labels over selected backgrounds and circular navigation while preserving extension/comparison styling, timeout, cancellation, and disposal.",
       "upgradeStrategy": "three-way",
-      "localSha256": "7f7d9ce3072c85cc883d93198ccba3238bdf6a5addd82b6873d9c98220661db3",
+      "localSha256": "64ba4ba2523922bb6163414e35b385938a380304dc53bbc45d7fa332e2f46eef",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2137,8 +2137,15 @@
       "localDestination": "src/integrations/pi/components/index.ts",
       "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
-      "approvedDeviations": [],
+      "modifications": "Retain the public controller; standardize bare-A1 selected primary rows through the shared painter while preserving model/provider metadata and independent current/default indicators.",
+      "approvedDeviations": [
+        {
+          "id": "standard-internal-choice-styling",
+          "reason": "Internal choices use normal labels over item-bounded selected backgrounds without selection-induced bold.",
+          "upstreamBehavior": "Comparison presentation, navigation, metadata, selection, and persistence remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/auth-trust-styling.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "selectors",
         "settings",
@@ -2172,16 +2179,18 @@
       "sourceMap": "modes/interactive/components/oauth-selector.js.map",
       "lines": 266,
       "sha256": "ddb495b82f9cfce2a14133b937bd93f7e264f41e026dfd02f7113ae37a7d8e63",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/components/oauth-selector.ts",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Retain the public selector controller and metadata; adapt public title/list slots for bare-A1 Title Case and standard selected-background styling.",
+      "modifications": "Adapt the provider controller to injected neutral options, shared modal framing, live semantic roles, Title Case headings and circular Up/Down navigation. Preserve pinned filtering, paging, partner markers, status formatting and actions; keep the public package selector for comparison.",
+      "upgradeStrategy": "three-way",
+      "localSha256": "fc3a9f939ab92ab9d2dec36b4b4f752b732d478868e1abbfca06b037463ad6d7",
       "approvedDeviations": [
         {
           "id": "standard-sign-in-dialog-styling",
-          "reason": "Bare-A1 sign-in uses accent-bold Title Case headings without colons and normal primary labels over shared item-bounded selection backgrounds.",
-          "upstreamBehavior": "Pinned comparison titles, provider metadata, configured status, search, navigation, actions, and cancellation remain unchanged.",
+          "reason": "Internal provider selectors use Title Case headings, normal labels over shared selected backgrounds, and circular Up/Down navigation through filtered options.",
+          "upstreamBehavior": "Pinned comparison titles/navigation, provider metadata, configured status, search, paging, actions, and cancellation remain unchanged.",
           "acceptanceTest": "test/integrations/pi/components/provider-auth-parity.test.ts"
         }
       ],
@@ -2977,9 +2986,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/trust-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized trust port with injected public trust options, owned themes, shared shortcut rows, and compact framing; bare A1 opts into Title Case, item-bounded selected backgrounds, aligned decision values and no saved-path suffix while comparison styling and trust effects remain unchanged.",
+      "modifications": "Source-synchronized trust port with injected public options and shared framing; bare A1 opts into Title Case, selected backgrounds, circular navigation, aligned decisions and no saved-path suffix while comparison styling and trust effects remain unchanged.",
       "upgradeStrategy": "three-way",
-      "localSha256": "8bc854c6244be80725181f2a816ee7dce527635df6c123c6eba5a4767a014c48",
+      "localSha256": "2e68c36fe383d3020ed2e583400b5e508dc0570c62934518e009a88a364cda56",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -3030,8 +3039,15 @@
       "localDestination": "src/integrations/pi/components/index.ts",
       "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
-      "approvedDeviations": [],
+      "modifications": "Retain the public fork controller and metadata; bare A1 uses an accent-bold heading, standard accent arrow, normal selected message text, and shared selected background.",
+      "approvedDeviations": [
+        {
+          "id": "standard-internal-choice-styling",
+          "reason": "Internal choices use normal labels over item-bounded selected backgrounds without selection-induced bold.",
+          "upstreamBehavior": "Comparison presentation, navigation, metadata, and fork/cancel behavior remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/auth-trust-styling.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "selectors",
         "settings",

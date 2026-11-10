@@ -98,6 +98,7 @@ describe("canonical project trust context", () => {
     f.store.set(savedPath, kind !== "denied");
     const { value } = await f.context();
     const selector = createPiShellTrustSelector({ ...value, onSelect() {}, onCancel() {} });
+    await selector.ready;
     const raw = selector.render(600);
     const rendered = raw.map(stripTerminalSequences);
     const decision = kind === "denied" ? "untrusted" : "trusted";

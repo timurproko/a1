@@ -2,11 +2,11 @@
  * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
  * packages/coding-agent/src/modes/interactive/components/extension-selector.ts.
  * Modifications: Mechanical port with public imports, private fields, shared shortcut rows and compact
- * modal framing; owned sign-in choices optionally use standard item-bounded selection backgrounds and
- * normal labels while preserving extension/comparison styling, timeout, navigation, cancellation, and
- * disposal.
+ * framing; internal choices opt into normal labels over selected backgrounds and circular navigation
+ * while preserving extension/comparison styling, timeout, cancellation, and disposal.
  * Deviations: owned-modal-shortcut-hints.
  */
+import { wrapChoiceIndex } from "../../../../../contracts/presentation/index.js";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { Container, getKeybindings, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
@@ -100,10 +100,10 @@ export class ExtensionSelectorComponent extends Container {
     const keys = getKeybindings();
     if (keys.matches(keyData, "app.tools.expand")) this.#onToggleToolsExpanded?.();
     else if (keys.matches(keyData, "tui.select.up") || keyData === "k") {
-      this.#selectedIndex = Math.max(0, this.#selectedIndex - 1);
+      this.#selectedIndex = this.#standardSelection ? wrapChoiceIndex(this.#selectedIndex, -1, this.#options.length) : Math.max(0, this.#selectedIndex - 1);
       this.#updateList();
     } else if (keys.matches(keyData, "tui.select.down") || keyData === "j") {
-      this.#selectedIndex = Math.min(this.#options.length - 1, this.#selectedIndex + 1);
+      this.#selectedIndex = this.#standardSelection ? wrapChoiceIndex(this.#selectedIndex, 1, this.#options.length) : Math.min(this.#options.length - 1, this.#selectedIndex + 1);
       this.#updateList();
     } else if (keys.matches(keyData, "tui.select.confirm") || keyData === "\n") {
       const selected = this.#options[this.#selectedIndex];

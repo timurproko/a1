@@ -61,13 +61,14 @@ function plainRows(component: { render(width: number): readonly string[] }, widt
 }
 
 describe("provider authentication selector presentation", () => {
-  it.each(STATES.flatMap(state => [false, true].map(standardStyle => ({ ...state, standardStyle }))))("preserves Pi content and actions for $name with standard style $standardStyle", state => {
+  it.each(STATES.flatMap(state => [false, true].map(standardStyle => ({ ...state, standardStyle }))))("preserves Pi content and actions for $name with standard style $standardStyle", async state => {
     initTheme("dark", false);
     const upstreamSelected = vi.fn();
     const ownedSelected = vi.fn();
     const upstream = upstreamSelector(state, upstreamSelected);
     const owned = createPiShellAuthProviderSelector("login", [state.option], ownedSelected, () => {}, undefined, state.standardStyle);
 
+    await owned.ready;
     for (const width of [44, 100]) {
       const expected = [...plainRows(upstream, width)];
       expect(expected[1]?.trim(), `${state.name}@${width} pinned top-title gap`).toBe("");

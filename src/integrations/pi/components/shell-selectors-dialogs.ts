@@ -21,15 +21,15 @@ import {
   SelectList,
   Spacer,
   Text,
-  TruncatedText,
   type SelectItem,
 } from "@earendil-works/pi-tui";
 import type { OwnedUiDialog } from "../../../contracts/owned-ui/index.js";
 import { ScopedModelsSelectorComponent } from "./upstream/components/scoped-models-selector.js";
-import { addPiModalSelectFooter, adoptPiModalFrame, adoptPiModalHeader, adoptPiModalSearchInput, renderPiModalSelectedPrimary } from "./modal-frame.js";
+import { addPiModalSelectFooter, adoptPiModalFrame, adoptPiModalHeader, adoptPiModalSearchInput, renderPiModalSelectedPrimary, standardInternalChoicePort } from "./modal-frame.js";
+import { deferredSelector } from "./deferred-selector.js";
 import { createDeferredModelsDialog } from "./models-dialog-loader.js";
 import type { ModelsDialogCallbacks, ModelsDialogConfig } from "./models-dialog.js";
-import { TrustSelectorComponent, type TrustDecision, type TrustOption, type TrustUpdate } from "./upstream/components/trust-selector.js";
+import type { TrustDecision, TrustOption, TrustUpdate } from "./upstream/components/trust-selector.js";
 import {
   canonicalizePiSettingsHint,
   DIALOG_CLOSE_SHORTCUT_HINT,
@@ -38,6 +38,7 @@ import {
   paintPiBorder,
   piTheme,
   renderPiModalShortcutHints,
+  internalDialogTitle,
 } from "./theme.js";
 import {
   componentFromPort,
@@ -51,18 +52,18 @@ import {
   type PiShellSelectorOptions,
 } from "./shell-shared-facade.js";
 
-export { createPiShellSkillsSelector } from "./deferred-skills-selector.js";
+export { createPiShellSkillsSelector } from "./deferred-selector.js";
 export type { PiShellSkillsSelectorOptions } from "./skills-dialog.js";
 
-export function createPiShellSelector(options: PiShellSelectorOptions): PiShellComponentPort {
+export function createPiShellSelector(options: PiShellSelectorOptions, standard = false): PiShellComponentPort {
   ensureTheme();
   const items = options.options.map(toSelectItem);
   const list = new SelectList(items, options.maxVisible ?? Math.min(PINNED_PI_LAYOUT.selectorMaxVisible, Math.max(1, items.length)), getPiSelectListTheme());
   if (options.onSelect !== undefined) list.onSelect = item => options.onSelect?.(item.value);
   if (options.onCancel !== undefined) list.onCancel = options.onCancel;
-  if (!options.title && options.onCancel === undefined) return componentPort(list);
+  if (!options.title && options.onCancel === undefined && !standard) return componentPort(list);
   const container = new Container();
-  if (options.title) container.addChild(new Text(piTheme().fg("accent", piTheme().bold(options.title)), PINNED_PI_LAYOUT.contentPaddingX, 0));
+  if (options.title) container.addChild(new Text(piTheme().fg("accent", piTheme().bold(standard ? internalDialogTitle(options.title) : options.title)), PINNED_PI_LAYOUT.contentPaddingX, 0));
   container.addChild(list);
   if (options.onCancel !== undefined) {
     container.addChild(new Spacer(1));
@@ -72,7 +73,8 @@ export function createPiShellSelector(options: PiShellSelectorOptions): PiShellC
       DIALOG_CLOSE_SHORTCUT_HINT,
     ]), 0, 0));
   }
-  return componentPort(container, data => list.handleInput(data));
+  const port = componentPort(container, data => list.handleInput(data));
+  return standard ? { ...port, render: width => port.render(width).map(row => renderPiModalSelectedPrimary(` ${row}`, width + 1, options.options.map(option => option.label)).slice(1)) } : port;
 }
 
 export interface PiShellSettingsSelectorOptions {
@@ -144,6 +146,7 @@ export function createPiShellSettingsSelector(options: PiShellSettingsSelectorOp
 type PiModelSelectorArguments = ConstructorParameters<typeof ModelSelectorComponent>;
 
 export interface PiShellModelSelectorOptions {
+  readonly standardStyle?: boolean;
   readonly currentModel: unknown;
   readonly modelRuntime: unknown;
   readonly scopedModels: readonly unknown[];
@@ -172,7 +175,8 @@ export function createPiShellModelSelector(options: PiShellModelSelectorOptions)
   );
   adoptPiModalSearchInput(selector, selector.getSearchInput());
   adoptPiModalFrame(selector, { topIndex: 0, bottomIndex: selector.children.length - 1 });
-  return componentPort(selector);
+  const port = componentPort(selector);
+  return options.standardStyle ? standardInternalChoicePort(port, true) : port;
 }
 
 export interface PiShellScopedModelDescriptor {
@@ -254,7 +258,8 @@ export function createPiShellTrustSelector(options: {
   readonly onCancel: () => void;
 }): PiShellComponentPort {
   ensureTheme();
-  return componentPort(new TrustSelectorComponent(options));
+  return deferredSelector(() => import("./upstream/components/trust-selector.js")
+    .then(({ TrustSelectorComponent }) => componentPort(new TrustSelectorComponent(options))), options.onCancel);
 }
 
 /** Mirrors the pinned session manager's progress callback, including its partial results. */
@@ -317,6 +322,7 @@ export function createPiShellUserMessageSelector(
   onSelect: (id: string) => void,
   onCancel: () => void,
   initialSelectedId?: string,
+  standard = false,
 ): PiShellComponentPort {
   ensureTheme();
   const selector = new UserMessageSelectorComponent(
@@ -326,9 +332,11 @@ export function createPiShellUserMessageSelector(
     initialSelectedId,
   );
   const list = selector.getMessageList();
+  if (standard) selector.children[1] = new Text(piTheme().fg("accent", piTheme().bold("Fork from Message")), 1, 0);
   addPiModalSelectFooter(selector);
   adoptPiModalFrame(selector, { topIndex: 4, bottomIndex: selector.children.length - 1 });
-  return componentPort(selector, data => list.handleInput(data));
+  const port = componentPort(selector, data => list.handleInput(data));
+  return standard ? standardInternalChoicePort(port) : port;
 }
 
 export interface PiShellLoginDialogPort extends PiShellComponentPort {
@@ -348,9 +356,11 @@ export function createPiShellLoginDialog(
   onComplete: (success: boolean, message?: string) => void,
   providerName?: string,
   title?: string,
+  standard = false,
 ): PiShellLoginDialogPort {
   ensureTheme();
-  const dialog = new LoginDialogComponent(createTuiFacade(runtime), providerId, onComplete, providerName, title);
+  const heading = standard ? internalDialogTitle(title ?? `Login to ${providerName ?? providerId}`) : title;
+  const dialog = new LoginDialogComponent(createTuiFacade(runtime), providerId, onComplete, providerName, heading);
   const preInsetTitle = dialog.children[1]!;
   const content = dialog.children[2] as Container;
   dialog.children.splice(dialog.children.length - 1, 0,
@@ -432,6 +442,8 @@ export function createPiShellAuthProviderSelector(
   standardStyle = false,
 ): PiShellComponentPort {
   ensureTheme();
+  if (standardStyle) return deferredSelector(() => import("./upstream/components/oauth-selector.js")
+    .then(({ AuthProviderSelector }) => componentPort(new AuthProviderSelector(mode, providers, onSelect, onCancel, initialSearchInput))), onCancel);
   const selector = new OAuthSelectorComponent(mode, providers.map(provider => ({
     id: provider.providerId,
     name: provider.label,
@@ -441,18 +453,6 @@ export function createPiShellAuthProviderSelector(
     const selected = providers.find(provider => provider.providerId === providerId && provider.authType === authType);
     if (selected) onSelect(selected.id);
   }, onCancel, initialSearchInput);
-  if (standardStyle && mode === "login") {
-    // Adapt public chrome slots, retaining Pi's controller.
-    selector.children[2] = {
-      render: width => new TruncatedText(piTheme().fg("accent", piTheme().bold("Select Provider to Configure")), 1, 0).render(width),
-      invalidate: () => {},
-    };
-    const list = selector.children[6]!;
-    selector.children[6] = {
-      render: width => list.render(width).map(row => renderPiModalSelectedPrimary(row, width, providers.map(provider => provider.label))),
-      invalidate: () => list.invalidate(),
-    };
-  }
   // Provenance: OAuth selector slot is top rule, spacer, title, spacer, then its search Input.
   adoptPiModalSearchInput(selector, selector.children[4]!);
   addPiModalSelectFooter(selector);
@@ -475,7 +475,7 @@ export function createPiShellExtensionSelector(
   standardSelection = false,
 ): PiShellComponentPort {
   ensureTheme();
-  return componentPort(new ExtensionSelectorComponent(title, [...options], onSelect, onCancel, { standardSelection }));
+  return componentPort(new ExtensionSelectorComponent(standardSelection ? internalDialogTitle(title) : title, [...options], onSelect, onCancel, { standardSelection }));
 }
 
 export function createPiShellThemeSelector(
@@ -508,6 +508,7 @@ export function createPiShellShowImagesSelector(
 export function createPiShellDialog(
   dialog: OwnedUiDialog,
   handlers: { readonly onSelect?: (id: string) => void; readonly onCancel?: () => void } = {},
+  standard = false,
 ): PiShellComponentPort {
   ensureTheme();
   const selector = createPiShellSelector({
@@ -516,7 +517,7 @@ export function createPiShellDialog(
     maxVisible: 8,
     ...(handlers.onSelect === undefined ? {} : { onSelect: handlers.onSelect }),
     ...(handlers.onCancel === undefined ? {} : { onCancel: handlers.onCancel }),
-  });
+  }, standard);
   const box = new Box(1, 1);
   box.addChild(componentFromPort(selector));
   return componentPort(box, data => selector.handleInput?.(data));

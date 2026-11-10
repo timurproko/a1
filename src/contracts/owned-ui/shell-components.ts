@@ -531,8 +531,8 @@ export interface OwnedUiShellComponents {
   readonly dialogs: {
     dialog(dialog: OwnedUiDialog, handlers?: { readonly onSelect?: (id: string) => void; readonly onCancel?: () => void }): OwnedUiShellComponentPort;
     selector(options: OwnedUiShellSelectorOptions): OwnedUiShellComponentPort;
-    extensionSelector(title: string, options: readonly string[], onSelect: (value: string) => void, onCancel: () => void, standardSelection?: boolean): OwnedUiShellComponentPort;
-    authProviderSelector(mode: "login" | "logout", providers: readonly OwnedUiShellAuthProviderOption[], onSelect: (id: string) => void, onCancel: () => void, initialSearchInput?: string, standardStyle?: boolean): OwnedUiShellComponentPort;
+    extensionSelector(title: string, options: readonly string[], onSelect: (value: string) => void, onCancel: () => void): OwnedUiShellComponentPort;
+    authProviderSelector(mode: "login" | "logout", providers: readonly OwnedUiShellAuthProviderOption[], onSelect: (id: string) => void, onCancel: () => void, initialSearchInput?: string): OwnedUiShellComponentPort;
     loginDialog(runtime: OwnedUiShellRuntime, providerId: string, onComplete: (success: boolean, message?: string) => void, providerName?: string, title?: string): OwnedUiShellLoginDialogPort;
     skillsSelector(options: { readonly skills: readonly OwnedUiShellSkillSummary[]; readonly onSelect: (name: string) => void; readonly onCancel: () => void }): OwnedUiShellComponentPort;
     trustSelector(options: OwnedUiShellTrustSelectorOptions): OwnedUiShellComponentPort;

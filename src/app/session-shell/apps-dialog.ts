@@ -1,4 +1,4 @@
-import type { TerminalComponentPort } from "../../contracts/presentation/index.js";
+import { wrapChoiceIndex, type TerminalComponentPort } from "../../contracts/presentation/index.js";
 import { LineInput, handleLineInputKey, ShortcutRegistry, configureDialogChoiceCapacity, renderSteppedDialogPanel, type UiTheme } from "../../ui/components/index.js";
 
 const APPS = [
@@ -59,7 +59,7 @@ export class AppsDialog implements TerminalComponentPort {
       return;
     }
     if (action === "previous" || action === "next") {
-      this.#index = Math.max(0, Math.min(matches.length - 1, this.#index + (action === "next" ? 1 : -1)));
+      this.#index = wrapChoiceIndex(this.#index, action === "next" ? 1 : -1, matches.length);
     } else {
       handleLineInputKey(this.#input, key);
       this.#index = 0;

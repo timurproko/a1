@@ -688,6 +688,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     const title = bare ? "Select Authentication Method" : "Select authentication method:";
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain(title);
     terminal.input("\r");
+    await vi.dynamicImportSettled();
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("OpenAI");
     terminal.input("\x1b");
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain(title);
@@ -721,14 +722,15 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await shell.dispose();
   });
 
-  it("ports the nested provider authentication-method selector and restores its parent dialog", async () => {
-    const { engine, terminal, shell } = await fixture();
+  it.each([false, true])("styles nested authentication choices and restores their parent, bare=%s", async bare => {
+    const { engine, terminal, shell } = await fixture([], [], bare);
     await shell.submit("/login");
     terminal.input("\r");
+    await vi.dynamicImportSettled();
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
     const nested = stripTerminalSequences(shell.root.render(100).join("\n"));
-    expect(nested).toContain("Select OpenAI Codex login method:");
+    expect(nested).toContain(bare ? "Select OpenAI Codex Login Method" : "Select OpenAI Codex login method:");
     expect(nested).toContain("Browser login (default)");
     expect(nested).toContain("Device code login (headless)");
     expect(nested).not.toContain("Login to provider");

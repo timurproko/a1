@@ -1,12 +1,12 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
  * packages/coding-agent/src/modes/interactive/components/trust-selector.ts.
- * Modifications: Source-synchronized trust port with injected public trust options, owned themes,
- * shared shortcut rows, and compact framing; bare A1 opts into Title Case, item-bounded selected
- * backgrounds, aligned decision values and no saved-path suffix while comparison styling and trust
- * effects remain unchanged.
+ * Modifications: Source-synchronized trust port with injected public options and shared framing; bare
+ * A1 opts into Title Case, selected backgrounds, circular navigation, aligned decisions and no
+ * saved-path suffix while comparison styling and trust effects remain unchanged.
  * Deviations: owned-modal-shortcut-hints, standard-trust-dialog-styling.
  */
+import { wrapChoiceIndex } from "../../../../../contracts/presentation/index.js";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { Container, getKeybindings, Spacer, Text } from "@earendil-works/pi-tui";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
@@ -74,8 +74,8 @@ export class TrustSelectorComponent extends Container {
     this.updateList();
     this.handleInput = data => {
       const kb = getKeybindings();
-      if (kb.matches(data, "tui.select.up") || data === "k") this.selectedIndex = Math.max(0, this.selectedIndex - 1);
-      else if (kb.matches(data, "tui.select.down") || data === "j") this.selectedIndex = Math.min(this.trustOptions.length - 1, this.selectedIndex + 1);
+      if (kb.matches(data, "tui.select.up") || data === "k") this.selectedIndex = this.standardStyle ? wrapChoiceIndex(this.selectedIndex, -1, this.trustOptions.length) : Math.max(0, this.selectedIndex - 1);
+      else if (kb.matches(data, "tui.select.down") || data === "j") this.selectedIndex = this.standardStyle ? wrapChoiceIndex(this.selectedIndex, 1, this.trustOptions.length) : Math.min(this.trustOptions.length - 1, this.selectedIndex + 1);
       else if (kb.matches(data, "tui.select.confirm") || data === "\n") {
         const selected = this.trustOptions[this.selectedIndex];
         if (selected) options.onSelect({ trusted: selected.trusted, updates: selected.updates });

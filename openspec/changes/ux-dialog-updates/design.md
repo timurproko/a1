@@ -44,7 +44,7 @@ Selected choices use the shared semantic `selectedBg` surface, normal text for p
 
 In-session trust status values start at the same left-aligned value column: `Saved decision:  trusted` and `Current session: trusted`. Pad after the shorter label, not inside the decision value. Do not append a parenthesized saved-decision path; retain the separate project-path context row and the existing underlying trust resolution.
 
-Keep this adaptation in A1-owned presentation boundaries, profile-gated where a selector is shared. The provider adapter retains Pi's public controller and metadata, replacing its public heading/list presentation slots and repainting only the selected primary span through the shared modal boundary. Do not change generic extension-provided content merely to restyle these owned selectors, or remove comparison-profile parity assertions. Update parity tests to explicitly account for declared bare-A1 heading/selection differences while retaining status and action equivalence.
+Keep this adaptation in A1-owned presentation boundaries, profile-gated where a selector is shared. The original style-only adapter reused Pi's public provider controller. The navigation refinement now uses an attributed owned provider port so circular movement does not access private fields or synthesize hidden navigation. It preserves pinned option metadata, search, paging, partner markers and status formatting. Do not change generic extension-provided content merely to restyle these owned selectors, or remove comparison-profile parity assertions. Update parity tests to explicitly account for declared bare-A1 heading/selection differences while retaining status and action equivalence.
 
 ### Focus tests on observable boundaries
 
@@ -73,13 +73,17 @@ Use shared movement helpers where existing ownership permits it. Any necessary p
 
 Add focused boundary, filtered/empty/single-choice, profile-isolation, nested auth, Launcher, and Settings tests. Repair the four DOC005 comment-prefix failures reported by exact-head CI as part of this same refinement.
 
+## Approved Refinement: Session Info Value Alignment
+
+The maintainer requested left alignment of the Session Info values shown at different columns in the supplied report screenshot. Render report data as semantic label/value rows sharing one value column across identity, message, token, warming, and cost groups. Preserve nested label indentation, all calculations and status details, and complete file paths. Compute alignment from the rows actually present, and reduce optional alignment padding on constrained widths before wrapping any content; an impossible narrow rectangle must preserve complete source content rather than force a column that leaves no value space. Add explicit alignment and long-path/narrow-layout assertions.
+
 ## Implementation Evidence
 
-- Session Info uses a bounded input-route adapter with component-local pointer routing and shared reference rendering. Escape and Ctrl+C close even before its deferred document resolves.
-- Sign-in and trust styling is profile-gated; the pinned provider controller retains search, paging, status suffixes, and actions. Trust status values are aligned and the saved-path suffix is omitted without changing resolution.
-- Skills loading is deferred behind a presentation hold to keep the existing startup reachability limits; its same public behavior is covered by the unchanged content/navigation assertions plus early-input/disposal tests. Shared generated palette data now includes startup-safe selection backgrounds and is emitted compactly without changing its existing progress roles.
-- Build, typecheck, strict OpenSpec validation, architecture boundaries, pinned-source provenance, and palette synchronization passed. Eleven focused test files passed (198 tests), covering shell routes, report rendering, authentication, trust, and Skills.
-- No broad local regression suite was run; required finalized-head CI remains authoritative. Interactive terminal review remains optional and was not performed.
+- Session Info uses a bounded input-route adapter with component-local pointer routing and shared reference rendering. Escape and Ctrl+C close even before its deferred document resolves. Semantic identity/group rows share a left-aligned value column, reduce optional padding on narrow frames, and retain complete wrapped paths and values.
+- Internal styling is profile-gated at the shared component-factory boundary, including nested authentication, generic choices, retained model/fork pickers, and login headings. Provider, method, trust, Launcher and Settings choices wrap Up/Down; paging, section jumps and document scrolling retain their semantics. Trust values are aligned without the saved-path suffix.
+- Skills, provider and trust controllers are deferred behind a presentation hold to keep the existing startup reachability limits; unchanged controls/content and early-input/disposal remain covered. Shared generated palette data now includes startup-safe selection backgrounds and is emitted compactly without changing its existing progress roles.
+- Build, typecheck, strict OpenSpec validation, architecture boundaries, pinned-source provenance, and palette synchronization passed. The final refinement run passed fifteen focused test files (289 tests), covering shared choice movement, Launcher, Settings, nested authentication, provider parity, trust, report alignment/wrapping, routes, Skills, and extension isolation. Changed-file documentation checks pass after repairing the four CI-reported DOC005 comment prefixes.
+- No broad local regression suite was run; required finalized-head CI remains authoritative. Interactive terminal review remains optional; the agent did not perform it, and the maintainer supplied the refinement screenshots.
 
 ## Open Questions
 
@@ -87,4 +91,4 @@ None for the described Session Info, sign-in, and project-trust updates. Additio
 
 ## Known Gaps
 
-None identified in the previously implemented scope. The approved internal-dialog/navigation refinement remains in progress.
+None identified in the approved implemented scope.

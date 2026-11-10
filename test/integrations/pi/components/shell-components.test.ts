@@ -874,7 +874,13 @@ describe("Pi shell public component adapters", () => {
     const reference = renderPiShellSessionInfoReferenceDocument(presentation, 100);
     expect(reference.sections.map(section => section.title)).toEqual(["Messages", "Tokens", "Cache Warming", "Cost"]);
     expect(reference.sections.every(section => !section.title.includes("\u001b"))).toBe(true);
-    const preamble = stripTerminalSequences(reference.preamble.join("\n"));
+    const allReferenceRows = [...reference.preamble, ...reference.sections.flatMap(section => section.rows)].map(stripTerminalSequences);
+    const columns = allReferenceRows.flatMap(row => {
+      const match = /^(\s*[^:]+:)( +)\S/u.exec(row);
+      return match === null ? [] : [match[1]!.length + match[2]!.length];
+    });
+    expect(new Set(columns)).toEqual(new Set([21]));
+    const preamble = stripTerminalSequences(reference.preamble.join("\n")).replace(/: +/gu, ": ");
     expect(preamble).toMatch(/Name: Parity fixture\s*\n\s*File: C:\\sessions\\parity\.jsonl\s*\n\s*ID: session-1/);
 
     const longSessionFile = String.raw`C:\Users\Timur Prokopiev\.a1\agent\sessions\--E--Git-a1-.worktrees-session-tree-dialog-design--\2026-10-06T14-50-37-124Z_01a111b1-f2c3-76dc-a3f7-7b6e82c49ebb.jsonl`;
@@ -886,21 +892,22 @@ describe("Pi shell public component adapters", () => {
     const overflowRows = overflow.preamble.map(row => stripTerminalSequences(row).trimEnd());
     const fileIndex = overflowRows.findIndex(row => row.startsWith(" File:"));
     const idIndex = overflowRows.findIndex(row => row.startsWith(" ID:"));
-    expect(fileIndex).toBe(1);
+    expect(fileIndex).toBe(2);
     expect(idIndex).toBeGreaterThan(fileIndex + 1);
-    expect(overflowRows[fileIndex]).toBe(` File: ${longSessionFile.slice(0, 24)}`);
+    const pathColumn = 21;
+    expect(overflowRows[fileIndex]).toBe(` File:${" ".repeat(15)}${longSessionFile.slice(0, 10)}`);
     const pathRows = [
-      overflowRows[fileIndex]!.slice(" File: ".length),
+      overflowRows[fileIndex]!.slice(pathColumn),
       ...overflowRows.slice(fileIndex + 1, idIndex).map(row => row.slice(1)),
     ];
     expect(pathRows.join("")).toBe(longSessionFile);
-    expect(overflowRows[idIndex]).toBe(" ID: session-1");
+    expect(overflowRows[idIndex]).toBe(` ID:${" ".repeat(17)}session-1`);
     expect(overflow.preamble.every(row => visibleWidth(row) <= overflowWidth)).toBe(true);
 
-    const grouped = stripTerminalSequences(reference.sections.flatMap(section => section.rows).join("\n"));
+    const grouped = stripTerminalSequences(reference.sections.flatMap(section => section.rows).join("\n")).replace(/: +/gu, ": ");
     expect(grouped).toMatch(/Total: 6\s*\n\s*User: 2\s*\n\s*Assistant: 2\s*\n\s*Tools: 1 calls, 1 results/);
     expect(grouped).toMatch(/Input: 450\s*\n\s*Cached: 300 \(66\.7%\)\s*\n\s*Uncached: 150 \(50 written to cache\)/);
-    expect(grouped).toContain("Status: Decision now (50% continuation probability, expected savings 0.100 >= 0.050 -> warm)");
+    expect(grouped.replace(/\s*\n\s*/gu, " ")).toContain("Status: Decision now (50% continuation probability, expected savings 0.100 >= 0.050 -> warm)");
     expect(grouped).toContain("Cache miss penalty: $0.200");
     expect(grouped).toContain("Refresh cost: $0.010");
     expect(grouped).toContain("Cache Re-billed: $0.002 (2,048 tokens, 1 miss)");
@@ -919,6 +926,12 @@ describe("Pi shell public component adapters", () => {
     }, 100);
     expect(stripTerminalSequences(minimal.preamble.join("\n"))).not.toContain("Name:");
     expect(minimal.sections.map(section => section.title)).toEqual(["Messages", "Tokens", "Cache Warming"]);
+    const narrow = renderPiShellSessionInfoReferenceDocument({ ...presentation, stats: { ...presentation.stats, sessionFile: "C:/complete/path.jsonl" } }, 10);
+    const narrowPreamble = narrow.preamble.map(row => stripTerminalSequences(row).trimEnd());
+    const start = narrowPreamble.findIndex(row => row.startsWith(" File:"));
+    const end = narrowPreamble.findIndex(row => row.startsWith(" ID:"));
+    expect(narrowPreamble.slice(start, end).join("").replace(/^ File: */u, "").replaceAll(" ", "")).toBe("C:/complete/path.jsonl");
+    expect([...narrow.preamble, ...narrow.sections.flatMap(section => section.rows)].every(row => visibleWidth(row) <= 10)).toBe(true);
   });
 
   it("renders the complete keybinding-derived pinned hotkey tables", () => {

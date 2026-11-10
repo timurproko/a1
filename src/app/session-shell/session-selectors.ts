@@ -180,13 +180,12 @@ export class SessionSelectors implements WorkflowSelectors {
     }
     const close = this.#dialogs.closeInputSurface;
     const labels = method.options.map(option => option.label);
-    const title = this.#customViewport ? method.title.replace("authentication method", "Authentication Method").replace(/:$/u, "") : method.title;
-    const component = this.#presenters.components.dialogs.extensionSelector(title, labels, label => {
+    const component = this.#presenters.components.dialogs.extensionSelector(method.title, labels, label => {
       const selection = method.options.find(option => option.label === label)?.id;
       if (!selection) return;
       close();
       void this.#ports.runWorkflow({ command: "login", argument: "", selection });
-    }, close, this.#customViewport);
+    }, close);
     this.#present(component);
   }
 
@@ -200,14 +199,13 @@ export class SessionSelectors implements WorkflowSelectors {
     const close = this.#dialogs.closeInputSurface;
     const labels = ["Sign in with an account", "Sign in with an API key"];
     const component = this.#presenters.components.dialogs.extensionSelector(
-      this.#customViewport ? "Select Authentication Method" : "Select authentication method:",
+      "Select authentication method:",
       labels,
       label => {
         close();
         this.showLoginProviderSelector(label === labels[0] ? "oauth" : "api_key");
       },
       close,
-      this.#customViewport,
     );
     this.#present(component);
   }
@@ -226,7 +224,7 @@ export class SessionSelectors implements WorkflowSelectors {
     }, () => {
       close();
       if (authType !== undefined) this.showLoginAuthTypeSelector();
-    }, initialSearchInput, this.#customViewport);
+    }, initialSearchInput);
     this.#present(component);
   }
 
@@ -238,12 +236,11 @@ export class SessionSelectors implements WorkflowSelectors {
     this.#presenters.openSettingsSelector(this.#dialogHost);
   }
 
-  showTrustSelector(): void {
+  showTrustSelector(): Promise<void> | undefined {
     const context = this.#backend.catalog.pinnedProjectTrustContext();
     const close = this.#dialogs.closeInputSurface;
     const component = this.#presenters.components.dialogs.trustSelector({
       ...context,
-      standardStyle: this.#customViewport,
       onSelect: selection => {
         try {
           this.#backend.catalog.persistProjectTrust(selection.updates);
@@ -258,6 +255,7 @@ export class SessionSelectors implements WorkflowSelectors {
       onCancel: close,
     });
     this.#present(component);
+    return component.ready;
   }
 
   showScopedModelsSelector(): void {
@@ -313,7 +311,7 @@ export class SessionSelectors implements WorkflowSelectors {
     if (result.diagnostic === "Branch summarization cancelled") await this.showTreeSelector(entryId);
   }
 
-  // Retain the frame until a deferred selector is ready.
+  // Performance: retain the frame until a deferred selector is ready.
   #present(component: Parameters<SessionSelectorPorts["root"]["setInputSurface"]>[0]): void {
     const release = component?.ready === undefined ? undefined : this.#terminal.beginPresentationHold();
     this.#root.setInputSurface(component);

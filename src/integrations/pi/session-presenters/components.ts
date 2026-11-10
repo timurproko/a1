@@ -55,7 +55,7 @@ import { ProgramStatusReporter } from "../components/upstream/program-status-rep
 import { workflowCommandNames } from "../engine/workflows.js";
 
 /** The Pi components and helpers behind the shell's neutral component record. */
-export function createPiShellComponents(loadLazySelectors: () => Promise<OwnedUiShellLazySelectorLoader>): OwnedUiShellComponents {
+export function createPiShellComponents(loadLazySelectors: () => Promise<OwnedUiShellLazySelectorLoader>, bare = false): OwnedUiShellComponents {
   return {
     editor: { create: createPiShellEditor },
     chrome: {
@@ -88,14 +88,14 @@ export function createPiShellComponents(loadLazySelectors: () => Promise<OwnedUi
       reloadBox: createPiShellReloadBox,
     },
     dialogs: {
-      dialog: createPiShellDialog,
-      selector: createPiShellSelector,
-      extensionSelector: createPiShellExtensionSelector,
-      authProviderSelector: createPiShellAuthProviderSelector,
-      loginDialog: createPiShellLoginDialog,
+      dialog: (dialog, handlers) => createPiShellDialog(dialog, handlers, bare),
+      selector: options => createPiShellSelector(options, bare),
+      extensionSelector: (title, values, select, cancel) => createPiShellExtensionSelector(title, values, select, cancel, bare),
+      authProviderSelector: (mode, providers, select, cancel, query) => createPiShellAuthProviderSelector(mode, providers, select, cancel, query, bare),
+      loginDialog: (runtime, id, complete, name, title) => createPiShellLoginDialog(runtime, id, complete, name, title, bare),
       skillsSelector: createPiShellSkillsSelector,
-      trustSelector: createPiShellTrustSelector,
-      userMessageSelector: createPiShellUserMessageSelector,
+      trustSelector: options => createPiShellTrustSelector({ ...options, standardStyle: bare }),
+      userMessageSelector: (messages, select, cancel, initial) => createPiShellUserMessageSelector(messages, select, cancel, initial, bare),
       async shareProgress(runtime, message, style) {
         // Rationale: sharing is rare, so its progress surfaces stay off the startup graph.
         const surfaces = await import("../components/share-operation-dialog.js");

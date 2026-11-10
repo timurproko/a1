@@ -23,14 +23,19 @@
 
 ## 5. Internal dialog styling refinement
 
-- [ ] 5.1 Apply the standard internal title/selection policy at the shared built-in factory boundary, including nested authentication choices, while preserving extension content and comparison behavior; add nested auth and profile-isolation tests.
-- [ ] 5.2 Repair the four DOC005 comment prefixes reported by CI and pass changed-file documentation checks without weakening their rules.
+- [x] 5.1 Apply the standard internal title/selection policy at the shared built-in factory boundary, including nested authentication choices, while preserving extension content and comparison behavior; add nested auth and profile-isolation tests.
+- [x] 5.2 Repair the four DOC005 comment prefixes reported by CI and pass changed-file documentation checks without weakening their rules.
 
 ## 6. Continuous choice navigation
 
-- [ ] 6.1 Make account/API-key providers, authentication methods, and in-session trust choices wrap Up/Down through visible options; cover both ends, empty/single/filtered choices, configured metadata, and unchanged comparison behavior.
-- [ ] 6.2 Make Launcher and Settings model/level/value/structured/ordinary choice lists wrap Up/Down without changing paging, section jumps, editing or saves; add focused boundary and filtered-list tests.
-- [ ] 6.3 Run directly affected tests, typecheck, strict OpenSpec validation, documentation and architecture checks; reconcile evidence/gaps and current origin/develop before final progress completion.
+- [x] 6.1 Make account/API-key providers, authentication methods, and in-session trust choices wrap Up/Down through visible options; cover both ends, empty/single/filtered choices, configured metadata, and unchanged comparison behavior.
+- [x] 6.2 Make Launcher and Settings model/level/value/structured/ordinary choice lists wrap Up/Down without changing paging, section jumps, editing or saves; add focused boundary and filtered-list tests.
+- [x] 6.3 Run directly affected tests, typecheck, strict OpenSpec validation, documentation and architecture checks; reconcile evidence/gaps and current origin/develop before final progress completion.
+
+## 7. Session Info value alignment
+
+- [x] 7.1 Align Session Info key/value rows to a shared left-aligned value column without losing section structure, semantic roles, optional information or complete paths; add wide/narrow layout and content-preservation assertions.
+- [x] 7.2 Reconcile targeted evidence and current origin/develop, prepare final Acceptance, and pass final body and OpenSpec inspection before the final PR progress marker.
 
 ## Workflow follow-up
 

@@ -3,7 +3,7 @@
 ### Requirement: The session command opens a reference screen in bare A1
 Bare A1 SHALL declare `/session` as an A1-owned replacement for the pinned in-feed session-information document. The owned route host SHALL claim the route ahead of the pinned workflow table, obtain a fresh structured session-information snapshot for each invocation, and open Session Info in the Agent input dock using the established in-place Models and Skills presentation, not full screen or as a floating overlay. Invoking the command SHALL append no document, status, checkmark, error, or placeholder row to the feed.
 
-The screen SHALL use `Session Info` as its accent title. It SHALL present the optional session Name followed by File and ID as identity rows before the grouped report. When the session file value fits on its identity row, it SHALL begin immediately after `File:`. When the complete value does not fit, it SHALL use the remaining visible columns after `File:` before continuing the complete, untruncated value on subsequent rows; only a frame too narrow to leave any value column after the label MAY begin the value on the following row. `Messages`, `Tokens`, `Cache Warming`, and, when its existing condition is met, `Cost` SHALL be structured sections using the same shared bold yellow Markdown-heading role, one-cell left inset, content adjacency, inter-section spacing, and active-section pinning as the `Navigation` section of Keyboard Shortcuts and owned Settings. The report SHALL preserve the existing labels, values, calculations, conditional details, indentation, semantic label/value styles, wrapping outside this declared File-row refinement, and group order.
+The screen SHALL use `Session Info` as its accent title. It SHALL present the optional session Name followed by File and ID as identity rows before the grouped report. All report key/value rows SHALL share a left-aligned value column at feasible widths, including identity and grouped values, while preserving nested label indentation and semantic roles. Alignment SHALL use the labels actually present and SHALL reduce optional padding on narrow frames before wrapping content. The session file value SHALL begin on its labelled row at the aligned column when space permits. When the complete value does not fit, it SHALL use the remaining visible columns before continuing the complete, untruncated value on subsequent rows; only a frame too narrow to leave any value column after the label MAY begin the value on the following row. `Messages`, `Tokens`, `Cache Warming`, and, when its existing condition is met, `Cost` SHALL be structured sections using the same shared bold yellow Markdown-heading role, one-cell left inset, content adjacency, inter-section spacing, and active-section pinning as the `Navigation` section of Keyboard Shortcuts and owned Settings. The report SHALL preserve the existing labels, values, calculations, conditional details, indentation, semantic label/value styles, complete value content across aligned wrapping, and group order.
 
 The session screen SHALL retain the shared reference screen's keyboard, wheel, scrollbar rail, close, interrupt, resize, and viewport-restoration behavior within its input-dock rectangle. The transcript and ordinary session footer SHALL remain visible, and transcript pointer interaction outside the dialog SHALL remain available. Closing SHALL restore ordinary prompt input and focus without losing retained draft content or attachments. The `a1 pi` comparison profile SHALL keep the pinned `/session` workflow and chronological in-feed presentation and SHALL open no A1-owned session reference screen.
 
@@ -20,8 +20,14 @@ The session screen SHALL retain the shared reference screen's keyboard, wheel, s
 
 #### Scenario: Render a long session file path
 - **WHEN** the session file value is longer than the visible space remaining after `File:`
-- **THEN** the value SHALL begin directly after `File:` and fill that row's remaining visible columns
+- **THEN** the value SHALL begin at the aligned value column after `File:`, reducing optional padding on narrow frames, and fill that row's remaining visible columns
 - **AND** the rest of the complete value SHALL continue on following rows before the ID row without truncation or an intervening blank row
+
+#### Scenario: Align report values
+- **WHEN** Session Info presents identity, message, token, cache-warming, or cost label/value rows at a feasible width
+- **THEN** the values SHALL begin in the same left-aligned column without right-aligning numeric values
+- **AND** labels, nested indentation, semantic styles, calculations, optional details, and complete values SHALL remain intact
+- **AND** constrained widths SHALL reduce optional alignment padding and wrap rather than truncate source content
 
 #### Scenario: Omit conditional session information
 - **WHEN** the session has no name and its existing cost and cache-waste condition does not require a Cost group
@@ -92,7 +98,7 @@ These presentation requirements SHALL NOT change trust outcomes, persistence, po
 #### Scenario: Constrain or close a trust dialog
 
 - **WHEN** either trust surface is resized, navigated, confirmed, cancelled, exited, interrupted, or disposed
-- **THEN** its existing choices, responsive priority, key behavior, trust effects, and restoration lifecycle SHALL remain unchanged
+- **THEN** its existing choices, responsive priority, non-navigation key behavior, trust effects, and restoration lifecycle SHALL remain unchanged
 - **AND** selected spans SHALL remain within the available width without wrapping or background leakage
 - **AND** the `a1 pi` comparison presentation SHALL remain unchanged
 
