@@ -102,21 +102,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     });
   // Invariant: bare A1 owns the settings-driven ports; the comparison profile receives none of them.
   const bareSettings = bare ? settings : null;
-  const projectTrustPrompt = options.projectTrustPrompt;
   // Invariant: process-wide engine state has one owner. The host installs the HTTP dispatcher, applies
   // the theme singletons, and announces startup notices once; every session is created through it.
-  const host = await (options.createEngineHost ?? (async hostOptions => createPiEngineHost(hostOptions)))({
-    productMode,
-    availableThemes: () => getAvailablePiThemes().map(theme => theme.name),
-    announceStartupChangelog: !bare,
-    theme: {
-      base: bare ? "dark" : "engine-configured",
-      accentColor: bareSettings?.value("accentColor") ?? "purple",
-      packageBorderProjection: bare,
-      apply: { base: applyConfiguredPiTheme, accentColor: setPiAccentColor, packageBorderProjection: setPiPackageBorderProjectionEnabled },
-    },
-    ...(projectTrustPrompt === undefined ? {} : { projectTrustPrompt }),
-  });
+  const host = await (options.createEngineHost ?? createPiEngineHost)(engineHostOptions(options, productMode, bareSettings));
   const sessionForkPrompt = options.sessionForkPrompt;
   try {
     backend = await host.create({
@@ -310,6 +298,23 @@ function bareShellPorts(
       // Rationale: one listener covers both the A1 presentation choice and the engine skill-command toggle.
       onChange: (listener: () => void) => settings.onChange(() => listener()),
     },
+  };
+}
+
+function engineHostOptions(options: OwnedUiCompositionOptions, productMode: "bare" | "comparison", settings: OwnedSettingsManager | null): PiEngineHostOptions {
+  const bare = productMode === "bare";
+  return {
+    productMode,
+    availableThemes: () => getAvailablePiThemes().map(theme => theme.name),
+    ...(bare ? { workflowHost: { reserveExport: async (id: string, format: "html" | "jsonl") => (await import("../foundation/lifecycle/user-exports.js")).reserveUserExport(id, format) } } : {}),
+    announceStartupChangelog: !bare,
+    theme: {
+      base: bare ? "dark" : "engine-configured",
+      accentColor: settings?.value("accentColor") ?? "purple",
+      packageBorderProjection: bare,
+      apply: { base: applyConfiguredPiTheme, accentColor: setPiAccentColor, packageBorderProjection: setPiPackageBorderProjectionEnabled },
+    },
+    ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
   };
 }
 

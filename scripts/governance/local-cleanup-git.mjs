@@ -197,7 +197,7 @@ export async function statusBlockers(git, path, disposable, { ignored = true } =
 export async function inspectWorktree(identity, entry, {
   git = gitRunner(), cwd = process.cwd(), deadline = Infinity, now = Date.now,
   ordinaryEntryLimit = ORDINARY_CONTENT_ENTRY_LIMIT, generatedEntryLimit = GENERATED_CONTENT_ENTRY_LIMIT,
-  accepted = async () => false, remediationLink = null,
+  accepted = async () => false, remediationLink = null, remediationExport = null,
 } = {}) {
   const actual = await captureWorktree(identity, entry.path, git);
   if (["path", "filesystem", "ref"].some(key => actual[key] !== entry[key])) fail("worktree-identity-changed");
@@ -217,7 +217,14 @@ export async function inspectWorktree(identity, entry, {
     const modules = await readFile(join(entry.path, path), "utf8");
     if (/^\s*\[submodule\s+"[^"]+"\]\s*$/mi.test(modules) || /^\s*path\s*=\s*\S+/mi.test(modules)) fail("nested-repository");
   }
-  const blockers = await statusBlockers(git, entry.path, entry.disposable);
+  let blockers = await statusBlockers(git, entry.path, entry.disposable);
+  if (remediationExport !== null) {
+    if (typeof remediationExport !== "string" || !inside(entry.path, resolve(entry.path, remediationExport)) || !/\.(?:html|jsonl)$/iu.test(remediationExport)) fail("export-preservation-path");
+    const status = (await git(entry.path, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored", "--", remediationExport])).split("\0").filter(Boolean);
+    if (status.length !== 1 || !["??", "!!"].includes(status[0].slice(0, 2)) || status[0].slice(3) !== remediationExport) fail("export-preservation-not-untracked");
+    if (!(await lstat(join(entry.path, remediationExport))).isFile()) fail("export-preservation-not-file");
+    blockers = blockers.filter(path => path !== remediationExport);
+  }
   if (blockers.length) return { clean: false, reason: "worktree-content", paths: blockers.slice(0, 100), truncated: blockers.length > 100 };
   if (![ordinaryEntryLimit, generatedEntryLimit].every(value => Number.isSafeInteger(value) && value > 0)) fail("content-inspection-budget");
   let ordinaryVisited = 0, generatedVisited = 0;

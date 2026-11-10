@@ -1,7 +1,6 @@
 /** Pure helpers behind pinned Pi's workflows: result wording, session-info presentation, model matching, and option shaping. */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { readPinnedCommandChangelog } from "./changelog.js";
 import { dynamicObject, finiteNumber, isRecord, stringProperty, stringValue } from "./message-values.js";
 import { copyToClipboard, type AgentSessionServices } from "../startup-public.js";
 import type {
@@ -24,43 +23,44 @@ export const AUTH_REFRESH_TIMEOUT_MS = 15_000;
 // Provenance: the pinned engine's core/model-resolver.ts defaultModelPerProvider, which every
 // upgrade that adds a provider extends; the version this mirrors is the pin, not one named here.
 export const PINNED_DEFAULT_MODEL_BY_PROVIDER: Readonly<Record<string, string>> = Object.freeze({
-  "amazon-bedrock": "us.anthropic.claude-opus-4-6-v1",
+  "amazon-bedrock": "us.anthropic.claude-opus-5-5",
   "ant-ling": "Ring-2.6-1T",
-  anthropic: "claude-opus-4-8",
+  anthropic: "claude-opus-5-5",
   openai: "gpt-6.1-sol",
-  azure: "gpt-5.4",
+  azure: "gpt-6.1-sol",
   "openai-codex": "gpt-6.1-sol",
   radius: "balanced",
   nvidia: "nvidia/nemotron-3.5-super-vl-120b-a12b",
   deepseek: "deepseek-v4-pro",
-  google: "gemini-3.1-pro-preview",
-  "google-vertex": "gemini-3.1-pro-preview",
+  google: "gemini-4-argon",
+  "google-vertex": "gemini-4-argon",
   "github-copilot": "gpt-6.1-sol",
-  openrouter: "moonshotai/kimi-k2.6",
-  "vercel-ai-gateway": "zai/glm-5.1",
+  openrouter: "moonshotai/kimi-k2.7-code",
+  "vercel-ai-gateway": "zai/glm-5.3",
   xai: "grok-4.7",
   groq: "openai/gpt-oss-120b",
   cerebras: "gpt-oss-120b",
   zai: "glm-5.3",
   "zai-coding-cn": "glm-5.3",
   mistral: "devstral-medium-latest",
-  minimax: "MiniMax-M2.7",
-  "minimax-cn": "MiniMax-M2.7",
-  moonshotai: "kimi-k2.6",
-  "moonshotai-cn": "kimi-k2.6",
-  huggingface: "moonshotai/Kimi-K2.6",
+  minimax: "MiniMax-M3",
+  "minimax-cn": "MiniMax-M3",
+  moonshotai: "kimi-k2.7-code",
+  "moonshotai-cn": "kimi-k2.7-code",
+  huggingface: "moonshotai/Kimi-K2.7-Code",
   fireworks: "accounts/fireworks/models/kimi-k3",
   together: "moonshotai/Kimi-K3",
-  baseten: "zai-org/GLM-5.2",
-  opencode: "kimi-k2.6",
-  "opencode-go": "kimi-k3",
+  baseten: "zai-org/GLM-5.3",
+  opencode: "kimi-k2.7-code",
+  "opencode-go": "kimi-k3.1-pro",
   "kimi-coding": "kimi-for-coding",
   meta: "muse-spark-1.3",
-  "cloudflare-workers-ai": "@cf/moonshotai/kimi-k2.6",
-  "cloudflare-ai-gateway": "workers-ai/@cf/moonshotai/kimi-k2.6",
-  "qwen-token-plan": "qwen3.7-max",
-  "qwen-token-plan-cn": "qwen3.7-max",
+  "cloudflare-workers-ai": "@cf/moonshotai/kimi-k2.7-code",
+  "cloudflare-ai-gateway": "workers-ai/@cf/moonshotai/kimi-k2.7-code",
+  "qwen-token-plan": "qwen3.8-max",
+  "qwen-token-plan-cn": "qwen3.8-max",
   "qwen-token-plan-individual": "qwen3.8-max",
+  "qwen-token-plan-individual-cn": "qwen3.8-max",
   xiaomi: "mimo-v2.6-pro",
   "xiaomi-token-plan-cn": "mimo-v2.6-pro",
   "xiaomi-token-plan-ams": "mimo-v2.6-pro",
@@ -215,14 +215,17 @@ function pinnedCacheWaste(
   return totals;
 }
 
-export function defaultWorkflowHost(): PiWorkflowHost {
+/** Fill optional host services while retaining class methods and their original receiver. */
+export function resolveWorkflowHost(host?: Partial<PiWorkflowHost>): PiWorkflowHost {
   return {
-    copyText: copyToClipboard,
-    async runCommand(command, arguments_, options) {
+    copyText: host?.copyText?.bind(host) ?? copyToClipboard,
+    runCommand: host?.runCommand?.bind(host) ?? (async (command, arguments_, options) => {
       const result = await execFileAsync(command, [...arguments_], { encoding: "utf8", signal: options?.signal });
       return { stdout: result.stdout, stderr: result.stderr };
-    },
-    readChangelog: readPinnedCommandChangelog,
+    }),
+    readChangelog: host?.readChangelog?.bind(host) ?? (async since => (await import("./changelog.js")).readPinnedCommandChangelog(since)),
+    ...(host?.reserveExport === undefined ? {} : { reserveExport: host.reserveExport.bind(host) }),
+    ...(host?.fetch === undefined ? {} : { fetch: host.fetch.bind(host) }),
   };
 }
 
