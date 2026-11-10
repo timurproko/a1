@@ -27,5 +27,5 @@
 ## 5. Delivery preparation
 
 - [x] 5.1 Update cleanup runbook/agent guidance and implementation evidence with explicit known-gap disposition.
-- [ ] 5.2 Run bounded affected tests, typecheck, strict OpenSpec validation, and applicable architecture/documentation/provenance checks.
-- [ ] 5.3 Add plain acceptance outcomes, reconcile/push current origin/develop, and complete the final delivered PR outcome for trusted readiness.
+- [x] 5.2 Run bounded affected tests, typecheck, strict OpenSpec validation, and applicable architecture/documentation/provenance checks.
+- [x] 5.3 Add plain acceptance outcomes, reconcile/push current origin/develop, and complete the final delivered PR outcome for trusted readiness.

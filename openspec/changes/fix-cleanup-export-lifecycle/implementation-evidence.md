@@ -16,6 +16,7 @@
 - After reconciling `origin/develop` through Pi 1.5.1, 158 tests passed across ten affected process/preflight, lifecycle export, engine export/workflow/adapter/host, composition wiring, and autocomplete files.
 - The native Windows process fixture used a real private Node child and real process creation identity to demonstrate exact selection and shutdown. Windows inspection transports JSON as base64 to avoid console corruption, and reports never include the collected full command strings.
 - Build, typecheck, architecture/startup, session-writer, product-identity/package, pinned source-port provenance, changed-file documentation, and strict OpenSpec checks passed. The composition factory size ratchet was lowered after extracting its cohesive host-options builder; no budget or required gate was widened.
+- The complete committed-change naming audit inspected 25 files with zero violations. The additional CLI-authority and deferred-budget cases passed in the final focused cleanup rerun.
 - Required exact-head CI remains the post-ready authority. Local checks and private fixtures do not claim live cleanup of another worktree, manual acceptance, or successful renewed remote validation.
 
 ## Known gaps
