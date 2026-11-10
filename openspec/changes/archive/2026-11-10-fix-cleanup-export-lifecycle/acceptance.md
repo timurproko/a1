@@ -26,10 +26,10 @@ The maintainer integration decision accepts these scenarios:
     "A selected legacy export is durably preserved outside its worktree before source removal, and interrupted verified steps resume without overwriting files.",
     "Dirty, linked, active, unverifiable, and ineligible candidates remain protected; ordinary sweeps never stop processes or move exports."
   ],
-  "archiveDigest": "3eb3c726476d83eb6498c6469ca6ff8735af0bab3fe1d0578f4e671b4bffd73d",
+  "archiveDigest": "7663b22c42b81ec9dfae75efc2f44da7b3aca12ee000a4c960074764d7f865b3",
   "specDigest": "e6d4960c4e63a687030286051cb892776a25e7a538ba78300920b3b156847a41",
-  "tasksDigest": "9f1e064047aa52bb7a099ded30d9300fb7db50106f7b058f21d68c16d1a83d65",
-  "evidenceDigest": "7e5e2bfc8ce434bd2d43822e549a33591c8148ccc3e7e49eabf606fdb17832d0",
+  "tasksDigest": "98a514ab20075c1c1083b644d82f6e63ca33b5da628f5d55a75f9ab57ac39fe0",
+  "evidenceDigest": "becec552d28ea38799dc5f55bf01888b3651266625175c80c0a72136bd3124f0",
   "knownGaps": []
 }
 ```
