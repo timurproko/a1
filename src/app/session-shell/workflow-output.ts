@@ -76,6 +76,17 @@ export class WorkflowOutput {
   }
 
   appendResult(result: OwnedUiWorkflowResult, errorCode?: ImageAttachmentError["code"]): void {
+    // Model state already repaints the footer; only actionable diagnostics need another surface.
+    if (this.#ports.customViewport && result.outcome === "completed"
+      && result.presentation?.kind === "model-change") {
+      for (const message of result.messages ?? []) {
+        if (message.kind !== "status") this.appendMessage(message, errorCode);
+      }
+      if (result.messages === undefined && (result.messageKind === "warning" || result.messageKind === "error")) {
+        this.appendMessage({ kind: result.messageKind, message: result.message }, errorCode);
+      }
+      return;
+    }
     if (result.messages !== undefined) {
       for (const message of result.messages) this.appendMessage(message, errorCode);
       return;

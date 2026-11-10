@@ -11,6 +11,10 @@ Settings and Changelog are application surfaces, not Agent commands. A searchabl
 - Increase modal/background separation centrally: darken the complete underlying surface reliably and give floating panels a visibly contrasting opaque background, inspired by the supplied Commands reference. Include nested Settings selectors.
 - Suppress successful in-session model-switch acknowledgements in bare A1; the existing status bar remains the confirmation. Keep model failures and actionable warnings visible.
 
+## Pending Scope Refinement
+
+- Awaiting maintainer approval: separate the first-row pull-request link from path/branch with ` • `, matching the session-name separator, without moving the link or changing its click target.
+
 ## Capabilities
 
 ### Modified Capabilities

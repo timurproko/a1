@@ -1,4 +1,5 @@
 import type { OwnedUiShellComponents, OwnedUiShellSelectorOption } from "../../contracts/owned-ui/index.js";
+import type { ShellPresentationPorts, TerminalComponentPort } from "../../contracts/presentation/index.js";
 import type { TerminalOverlayHandle } from "../../contracts/presentation/index.js";
 import type { OwnedUiCommandResult, OwnedUiDialog } from "../../contracts/owned-ui/index.js";
 import type { UiRouteHost, UiRouteInput } from "../../ui/apps/contracts.js";
@@ -12,6 +13,8 @@ const STARTUP_ROUTE_RETRY_MS = 25;
 
 interface SessionDialogPorts {
   readonly terminal: Pick<OwnedUiPresenterTerminal, "running" | "hasOverlay" | "showOverlay" | "openRoute" | "requestRender">;
+  readonly presentation?: Pick<ShellPresentationPorts, "theme" | "terminalRuntime">;
+  readonly viewport?: () => { rows: number };
   readonly root: Pick<OwnedUiSessionShellRoot, "chrome" | "setInputSurface" | "usesDefaultInputSurface">;
   readonly routeHost: UiRouteHost | null;
   readonly dialogs: Pick<OwnedUiShellComponents["dialogs"], "dialog" | "selector">;
@@ -30,15 +33,75 @@ interface SessionDialogPorts {
  */
 export class SessionDialogCoordinator {
   readonly #ports: SessionDialogPorts;
-  #handle: { hide(): void } | undefined;
+  #handle: { hide(): void; close?(): void } | undefined;
   #id: string | undefined;
   #source: "route" | "local" | "backend" | undefined;
+  #route: string | undefined;
+  #apps: TerminalOverlayHandle | undefined;
   #startupRoute: StartupRoute | undefined;
   #startupRouteTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(ports: SessionDialogPorts) {
     this.#ports = ports;
     this.#startupRoute = ports.startupRoute;
+  }
+
+  /** Apps may cover a full-screen route, but never steal another dialog's local shortcuts. */
+  canOpenApps(): boolean {
+    return this.#apps === undefined && (this.#source === "route"
+      || !this.#ports.terminal.hasOverlay() && this.#ports.root.usesDefaultInputSurface());
+  }
+
+  showApps(): void {
+    const presentation = this.#ports.presentation;
+    if (presentation === undefined || !this.#ports.terminal.running || !this.canOpenApps()) return;
+    let dialog: TerminalComponentPort | undefined;
+    let closed = false;
+    let loading = "Loading Apps…";
+    const pending: string[] = [];
+    const cancel = () => { closed = true; pending.length = 0; this.#apps?.hide(); this.#apps = undefined; };
+    this.#apps = this.#ports.terminal.showOverlay({
+      render: width => dialog?.render(width) ?? [loading.slice(0, width)],
+      handleInput: data => {
+        if (dialog !== undefined) dialog.handleInput?.(data);
+        else if (presentation.terminalRuntime.legacyKeyInput(data) === "\u001b") cancel();
+        else if (pending.length < 32) pending.push(data);
+      },
+      invalidate: () => dialog?.invalidate(),
+      dispose: () => { closed = true; pending.length = 0; },
+    }, { width: 60, maxHeight: "100%", anchor: "center", inputCoordination: "owned", modal: true });
+    // Apps and its search/list controller are optional workflows, not eager startup dependencies.
+    void import("./apps-dialog.js").then(({ AppsDialog }) => {
+      if (closed || this.#ports.disposed()) return;
+      dialog = new AppsDialog({
+        theme: () => presentation.theme.current(),
+        height: () => this.#ports.viewport?.().rows ?? 24,
+        legacyKey: data => presentation.terminalRuntime.legacyKeyInput(data),
+        requestRender: () => this.#ports.terminal.requestRender(),
+        cancel,
+        select: route => {
+          cancel();
+          if (route === this.#route) return;
+          this.#handle?.close?.();
+          if (route === "agent") this.#close();
+          else {
+            const result = this.openRoute(route);
+            if (result.diagnostic !== null) this.#ports.root.chrome.setNotice({ kind: "error", message: result.diagnostic });
+          }
+        },
+      });
+      for (const key of pending.splice(0)) { if (!closed) dialog.handleInput?.(key); }
+      this.#ports.terminal.requestRender();
+    }).catch(() => { if (!closed && !this.#ports.disposed()) { loading = "Apps unavailable — Esc close"; this.#ports.terminal.requestRender(); } });
+  }
+
+  /** Presents the owned Models component as a floating modal rather than replacing the prompt. */
+  setFloatingInput(component: TerminalComponentPort | null): void {
+    this.#close();
+    if (component !== null) {
+      this.#source = "local";
+      this.#handle = this.#ports.terminal.showOverlay(component, { ...OVERLAY_OPTIONS, maxHeight: "100%", modal: true });
+    }
   }
 
   /** Clears the replacement input surface a selector put in the dock; the shared close action of every dock selector. */
@@ -60,15 +123,15 @@ export class SessionDialogCoordinator {
       title,
       options,
       onSelect: id => {
-        onSelect(id);
         this.#close();
+        onSelect(id);
       },
       onCancel: () => {
         this.#close();
         onCancel?.();
       },
     });
-    const handle = this.#ports.terminal.showOverlay(component, OVERLAY_OPTIONS);
+    const handle = this.#ports.terminal.showOverlay(component, { ...OVERLAY_OPTIONS, modal: true });
     this.#handle = handle;
     return handle;
   }
@@ -86,7 +149,7 @@ export class SessionDialogCoordinator {
     this.#handle?.hide();
     this.#source = "backend";
     const component = this.#ports.dialogs.dialog(dialog, { onSelect: () => this.#close(), onCancel: () => this.#close() });
-    this.#handle = this.#ports.terminal.showOverlay(component, OVERLAY_OPTIONS);
+    this.#handle = this.#ports.terminal.showOverlay(component, { ...OVERLAY_OPTIONS, modal: true });
     this.#id = dialog.id;
   }
 
@@ -98,6 +161,7 @@ export class SessionDialogCoordinator {
     this.#ports.root.chrome.dismissNotice();
     this.#handle?.hide();
     this.#source = "route";
+    this.#route = route;
     const handle = this.#ports.terminal.openRoute(surface, {
       exit: () => this.#ports.exit(),
       closed: rendered => {
@@ -146,10 +210,14 @@ export class SessionDialogCoordinator {
   dispose(): void {
     if (this.#startupRouteTimer !== undefined) clearTimeout(this.#startupRouteTimer);
     this.#startupRouteTimer = undefined;
+    this.#apps?.hide();
+    this.#apps = undefined;
     this.#handle?.hide();
   }
 
   #close(): void {
+    this.#apps?.hide();
+    this.#apps = undefined;
     this.#handle?.hide();
     this.#clear();
   }
@@ -158,5 +226,6 @@ export class SessionDialogCoordinator {
     this.#handle = undefined;
     this.#id = undefined;
     this.#source = undefined;
+    this.#route = undefined;
   }
 }

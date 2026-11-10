@@ -75,6 +75,28 @@ async function settled(): Promise<void> {
 }
 
 describe("unified Models dialog", () => {
+  it("reduces the choice window before clipping input, selected choice, warnings, or guidance on resize", () => {
+    withDialog((_unused, callbacks) => {
+      let height = 24;
+      const many = Array.from({ length: 40 }, (_, index) => ({ provider: "provider", id: `model-${index}`, name: `Model ${index}` }));
+      const dialog = new ModelsDialogComponent({ models: many, activeModelId: null, scopeIds: [], savedScopeIds: [] }, {
+        ...callbacks, viewportHeight: () => height,
+      });
+      dialog.setRefreshStatus("catalog offline", "warning");
+      for (const size of [24, 12, 8, 20, 40]) {
+        height = size;
+        for (let index = 0; index < 15; index++) dialog.handleInput(DOWN);
+        const lines = dialog.render(60);
+        const content = lines.map(stripTerminalSequences).join("\n");
+        expect(lines.length).toBeLessThanOrEqual(height);
+        expect(content).toContain("Models");
+        expect(content).toContain("> ");
+        expect(content).toContain("→ ○");
+        expect(content).toContain("catalog offline");
+        expect(content).toContain("Esc close");
+      }
+    });
+  });
   it("renders provider-ordered rows with the marker before the id and the checkmark after the provider badge", () => {
     withDialog(dialog => {
       const lines = dialog.render(200);

@@ -125,7 +125,7 @@ export class PiWorkflowRunner {
       const reasoning = result.model.reasoning === true;
       const thinking = this.#ports.thinkingLevel();
       const suffix = reasoning && thinking !== "off" ? ` (thinking: ${thinking})` : "";
-      return workflowResult("model", "completed", `Switched to ${modelName}${suffix}`, undefined, "status");
+      return { ...workflowResult("model", "completed", `Switched to ${modelName}${suffix}`, undefined, "status"), presentation: { kind: "model-change" } };
     } catch (error) {
       return workflowResult("model", "failed", error instanceof Error ? error.message : String(error));
     }
@@ -271,9 +271,10 @@ export class PiWorkflowRunner {
     this.#ports.setActiveModel({ providerId, modelId, displayName: stringProperty(model, "name") ?? modelId });
     this.#ports.emitView();
     const resultMessage: PiWorkflowMessage = { kind: "status", message: options.persist ? `Default model: ${providerId}/${modelId}` : `Model: ${modelId}` };
-    return messages.length === 0
+    const result = messages.length === 0
       ? workflowResult(request.command, "completed", resultMessage.message)
       : workflowResult(request.command, "completed", resultMessage.message, undefined, "status", [...messages, resultMessage]);
+    return { ...result, presentation: { kind: "model-change" } };
   }
 
   async #performWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {

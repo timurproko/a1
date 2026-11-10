@@ -1,7 +1,7 @@
 import { TuiAltScreen, isFocusable, type Component, type OverlayHandle, type OverlayOptions } from "@earendil-works/pi-tui";
 import type { PresentationComponentPort, PresentationPointerSurface } from "../../../contracts/presentation/index.js";
 import { samePointerSurfaces } from "../../../contracts/presentation/index.js";
-import type { TerminalOverlayOptions } from "../../../contracts/presentation/index.js";
+import type { TerminalOverlayOptions, TerminalRuntimeOptions } from "../../../contracts/presentation/index.js";
 
 /** Observes public component renders in compositor order, without accessing renderer state. */
 export class OverlayGeometryTracker {
@@ -11,9 +11,20 @@ export class OverlayGeometryTracker {
   #rows = 0;
 
   readonly ports = new WeakMap<Component, PresentationComponentPort>();
+  readonly modals = new WeakSet<PresentationComponentPort>();
+  readonly paintBackdrop: TerminalRuntimeOptions["paintModalBackdrop"];
+
+  paint(lines: string[], width: number, height: number): string[] {
+    const top = this.#frame?.at(-1);
+    return top !== undefined && this.modals.has(top.component) && this.paintBackdrop !== undefined
+      ? this.paintBackdrop(lines, width, height, top) : lines;
+  }
 
   readonly publish: (surfaces: readonly PresentationPointerSurface[] | null) => void;
-  constructor(publish: (surfaces: readonly PresentationPointerSurface[] | null) => void) { this.publish = publish; }
+  constructor(publish: (surfaces: readonly PresentationPointerSurface[] | null) => void, paintBackdrop?: TerminalRuntimeOptions["paintModalBackdrop"]) {
+    this.publish = publish;
+    this.paintBackdrop = paintBackdrop;
+  }
 
   invalidate(): void {
     if (this.#frame === null) return;
@@ -102,7 +113,7 @@ export class GeometryObservedAltScreen extends TuiAltScreen {
     this.geometry?.begin(width, height);
     const result = super.compositeOverlays(lines, width, height);
     this.geometry?.end();
-    return result;
+    return this.geometry?.paint(result, width, height) ?? result;
   }
 }
 

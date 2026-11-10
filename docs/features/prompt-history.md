@@ -85,7 +85,7 @@ must not appear in history diagnostics or test evidence.
 
 ## Settings and limits
 
-The History section in `/settings` provides:
+The History section in Settings (**Ctrl+P → Settings**) provides:
 
 - **Persistent history:** on by default; applies on the next start. Off disables
   storage and durable recall for subsequent launches, not current-session

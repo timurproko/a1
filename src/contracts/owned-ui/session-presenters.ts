@@ -89,6 +89,6 @@ export interface OwnedUiSessionPresenters {
     initialSelectedId?: string,
   ): Promise<void>;
   openSettingsSelector(host: OwnedUiDialogHost): void;
-  openModelsDialog(host: OwnedUiDialogHost, initialQuery?: string): void;
+  openModelsDialog(host: OwnedUiDialogHost, initialQuery?: string): void | Promise<void>;
   openScopedModelsSelector(host: OwnedUiDialogHost): void;
 }
