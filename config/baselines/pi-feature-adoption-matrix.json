@@ -2870,7 +2870,8 @@
       "version": "1.5.1",
       "summary": "requests send only new messages while the server continues the conversation, with full-request fallback when earlier context changes.",
       "since": "1.5.1",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "The public Pi session and model runtime own Anthropic transport, thread invalidation, gateway compatibility, and full-request fallback; A1 does not intercept provider requests."
     },
     {
       "id": "changelog:1.5.1:github-copilot-classifiers",
@@ -2879,7 +2880,8 @@
       "version": "1.5.1",
       "summary": "call Microsoft-Decision-1 through codemode `models.classify()` for typed decisions and probabilities.",
       "since": "1.5.1",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "Classifier discovery and execution remain inside the pinned model runtime and built-in codemode extension loaded through A1's public session factory."
     },
     {
       "id": "changelog:1.5.1:idle-prompt-cache-warming",
@@ -2888,7 +2890,8 @@
       "version": "1.5.1",
       "summary": "eligible caches now stay warm for up to 30 minutes between runs when a refresh is expected to pay for itself.",
       "since": "1.5.1",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "Pi's AgentSession owns idle warming policy, cost checks, and shutdown; existing profile settings continue to support cacheWarming overrides without an A1 timer."
     },
     {
       "id": "changelog:1.5.1:package-update-summaries",
@@ -2897,7 +2900,8 @@
       "version": "1.5.1",
       "summary": "`pi update --extensions` reports each package's npm version or git commit change and distinguishes unchanged, skipped, and warned updates.",
       "since": "1.5.1",
-      "disposition": "pending"
+      "disposition": "declined",
+      "reason": "A1 retains its existing profile-isolated package command outcomes and start-progress messages; Pi's process-owning CLI summary and new result events are not exposed as A1 output in this upgrade."
     },
     {
       "id": "changelog:1.5.1:richer-mermaid-diagrams",
@@ -2906,7 +2910,10 @@
       "version": "1.5.1",
       "summary": "pie charts, author-defined styles, clickable labels on supported terminals, and diagrams in expanded branch and compaction summaries.",
       "since": "1.5.1",
-      "disposition": "pending"
+      "disposition": "owned",
+      "behavior": "components.persistent-lifecycle",
+      "test": "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts",
+      "note": "The source-synchronized transformer uses lovely-mermaid 0.3.3 with Pi's warning, width, style, and hyperlink guards. A1 routes compaction summaries through it; branch-summary navigation retains A1's existing tree presentation."
     },
     {
       "id": "changelog:1.5.1:shell-login-and-logout",
@@ -2915,7 +2922,8 @@
       "version": "1.5.1",
       "summary": "use `pi auth login <provider>` and `pi auth logout <provider>` without starting a session, with API-key and no-browser sign-in options.",
       "since": "1.5.1",
-      "disposition": "pending"
+      "disposition": "declined",
+      "reason": "A1 exposes profile-isolated interactive /login and /logout workflows, not Pi's shell auth grammar; shell credential commands require a separately approved CLI surface."
     }
   ]
 }

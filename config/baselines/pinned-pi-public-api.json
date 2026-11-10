@@ -1699,7 +1699,8 @@
           "kind": "type",
           "hash": "29f821ed2e7308eb9169202d4072a63f5e0f89160013d9460c987442dee9ed4f",
           "consumers": [
-            "src/integrations/pi/components/upstream/components/mermaid.ts"
+            "src/integrations/pi/components/upstream/components/mermaid.ts",
+            "src/integrations/pi/components/upstream/components/skill-invocation-message.ts"
           ]
         },
         {
@@ -2689,6 +2690,7 @@
           "kind": "type",
           "hash": "562aefc46a9349dc8bc51c0161c0e6a2a89bcbfec0c352b014165343a6e96a3c",
           "consumers": [
+            "src/integrations/pi/components/upstream/components/mermaid.ts",
             "src/integrations/pi/components/upstream/theme/theme.ts"
           ]
         },
@@ -3259,7 +3261,6 @@
           "consumers": [
             "src/integrations/pi/components/owned-editor-ux.ts",
             "src/integrations/pi/components/upstream/components/owned-editor.ts",
-            "src/integrations/pi/components/upstream/components/tree-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]
         },
@@ -3405,6 +3406,7 @@
             "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/tool-image-presentation.ts",
+            "src/integrations/pi/components/upstream/components/mermaid.ts",
             "src/integrations/pi/components/upstream/theme/theme.ts"
           ]
         },

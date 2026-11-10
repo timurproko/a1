@@ -4,6 +4,28 @@
 
 The upgrade script bumps the pins, evaluates the candidate in isolation, three-way merges each vendored copy that follows upstream (old upstream, new upstream, A1 copy) and records the upstream delta of each copy A1 keeps, regenerates every derived artifact, and runs the gates. It never resolves a conflict, never drops an orphaned inventory entry, never records a feature disposition, and never merges; each of those is a review item in the sync report comment, and the pull request's generated implementation outcomes are checked as the reviewer completes them.
 
+## Upgrade decisions
+
+- Resolve selector conflicts by retaining A1's reviewed modal chrome and the owned search input, while adopting Pi's ten-option extension-selector window and active-editor focus transfer. The owned search input already supplies the cursor marker fixed upstream.
+- Replace the old direct grok-mermaid dependency with Pi's exact lovely-mermaid 0.3.3 renderer. Keep upstream width, streaming, warning, style, and hyperlink-capability guards; add summary rendering and skill-content transformer chaining without package-private imports.
+- The kept theme delta adds Dart, Groovy/Gradle, and Nix recognition to a helper A1 already obtains from Pi's public API; no local duplicate needs updating. The kept TUI utils delta fixes cursor-marker carryover in sliceWithWidth, which is likewise imported from the public TUI rather than copied into the minimal editor helper subset.
+- The seven consumed changed public exports retain compatible call sites: the new session cache-warming behavior is package-owned, component transformer parameters are optional, package-manager result progress is additive, and authentication remains behind the existing public adapter. No removed export requires a shim. Build and source typecheck compile against the new declarations; existing engine and transcript conformance tests remain the behavioral contracts.
+- Re-pin measured startup totals for this dependency release; optional modules and reviewed lazy boundaries remain unchanged.
+- Repair extension.overlay.close to anchor the new exact overlay handle's hide call. Record provider-brand.js as a stateless helper reached through the public OAuthSelectorComponent rather than inventing a local modal or nonexistent source copy; provider authentication parity remains its evidence.
+- Adopt Anthropic message threads, idle cache warming, and Copilot classifiers through the unchanged public session/model-runtime boundary. Adopt richer Mermaid rendering in assistant and expanded compaction-summary content. Retain A1's existing tree presentation for branch summaries.
+- Decline the new shell auth command surface and Pi CLI package-update summaries for this upgrade: A1 keeps its profile-isolated interactive authentication and existing package-command grammar/outcomes. These explicit dispositions do not promise unavailable CLI behavior.
+
+## Release-note input
+
+- Upgrade the pinned Pi engine and TUI to 1.5.1 (dd30101). Mermaid gains pie charts, author styles, terminal-supported clickable labels, and diagrams in expanded compaction summaries. Long extension selector lists now keep a ten-row window around the selection.
+- Provider requests inherit Anthropic message threads with full-context fallback, Copilot classifier support, newer provider/model defaults, and cost-aware idle cache warming for up to 30 minutes. Users wanting the previous warming behavior can retain `cacheWarming: "streaming"` in profile settings.
+- Upstream adds Dart, Nix, Groovy, and Gradle highlighting and fixes cursor-marker carryover through the public APIs A1 already reuses. Shell auth commands and Pi's CLI package-update summaries are not new A1 commands or output.
+- Diagnostic parity fixtures are refreshed, but their existing regression-only classification and historical invalidation remain unchanged; this upgrade makes no new physical-terminal acceptance claim.
+
+## Known gaps
+
+No unresolved upgrade blocker. The explicitly declined CLI additions and retained branch-summary tree presentation above are intentional scope decisions, not missing implementation. Existing diagnostic-fixture invalidation remains in force and does not stand in for independent parity evidence.
+
 ## Sync report at proposal
 
 - Vendored copies: 2 merged cleanly (src/integrations/pi/components/upstream/adjacent/core/keybindings.ts, src/integrations/pi/components/upstream/history/editor-core.ts); 4 with conflict markers to resolve (src/integrations/pi/components/upstream/components/extension-selector.ts, src/integrations/pi/components/upstream/components/mermaid.ts, src/integrations/pi/components/upstream/components/skill-invocation-message.ts, src/integrations/pi/components/upstream/components/tree-selector.ts); 22 unchanged upstream; 2 kept as A1's version (src/integrations/pi/components/upstream/theme/theme.ts: upstream changed, A1 version kept, 4 delta lines; src/integrations/pi/components/upstream/history/text-helpers.ts: upstream changed, A1 version kept, 4 delta lines).

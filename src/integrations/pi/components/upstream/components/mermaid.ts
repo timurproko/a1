@@ -5,25 +5,11 @@
  * types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.
  * Deviations: none.
  */
-<<<<<<< a1
-import { Marked, type Token } from "@earendil-works/pi-tui";
-import { type MermaidArt, render, type Span } from "grok-mermaid";
-import type { MarkdownTransformer, Theme } from "@earendil-works/pi-coding-agent";
-
-export type MermaidRenderingMode = "off" | "final" | "streaming";
-||||||| pi 1.5.0
-import { Marked, type Token } from "@earendil-works/pi-tui";
-import { type MermaidArt, render, type Span } from "grok-mermaid";
-import type { MarkdownTransformer } from "../../../core/extensions/types.ts";
-import type { MermaidRenderingMode } from "../../../core/settings-manager.ts";
-import type { Theme } from "../theme/theme.ts";
-=======
 import { getCapabilities, Marked, type Token } from "@earendil-works/pi-tui";
 import { type AnsiTheme, type MermaidArt, render, toAnsi } from "lovely-mermaid";
-import type { MarkdownTransformer } from "../../../core/extensions/types.ts";
-import type { MermaidRenderingMode } from "../../../core/settings-manager.ts";
-import type { Theme, ThemeColor } from "../theme/theme.ts";
->>>>>>> pi 1.5.1
+import type { MarkdownTransformer, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
+
+export type MermaidRenderingMode = "off" | "final" | "streaming";
 
 const markdownParser = new Marked();
 

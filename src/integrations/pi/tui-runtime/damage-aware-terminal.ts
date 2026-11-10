@@ -1,6 +1,6 @@
 import type { TerminalPort } from "../../../contracts/presentation/index.js";
 
-export const PINNED_PI_TUI_DAMAGE_GRAMMAR = "@earendil-works/pi-tui@1.5.0:tui-alt-screen-one-write-v1";
+export const PINNED_PI_TUI_DAMAGE_GRAMMAR = "@earendil-works/pi-tui@1.5.1:tui-alt-screen-one-write-v1";
 
 import type {
   TerminalDamageDecision,

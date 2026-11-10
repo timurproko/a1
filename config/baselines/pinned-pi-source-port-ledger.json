@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-10T04:41:13.739Z",
+  "recordedAt": "2026-11-10T13:11:59.559Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "dd30101cfc5b0609411dd80b6f93adbc14db14cf",
@@ -38,8 +38,8 @@
     "sourceModules": 128,
     "assets": 4,
     "classifications": {
-      "public-api-reuse": 66,
-      "owned-presentation": 32,
+      "public-api-reuse": 67,
+      "owned-presentation": 31,
       "host-adaptation": 34
     },
     "requiredBehaviorIds": 29,
@@ -968,7 +968,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Unchanged image bytes are losslessly encoded in an attributed owned JSON resource by scripts/pi/update-command-resources.mjs. Source bytes and digest are verified against this pinned asset authority; runtime reads only the owned resource, never the dependency directory.",
       "upgradeStrategy": "three-way",
-      "localSha256": "3a3b84e8d25393ed2574348af7fa5aa55e3e2d339c41d13045913391bbbc4cc6",
+      "localSha256": "1e486b0ec4c4701b7523037e2b95bd0b3ccef500432319ec5eb6d03e7ca7d302",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -1802,7 +1802,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded modal-frame components while preserving options, timeout, navigation, selection, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "fb0cab6b340e5369cc962acfaf4691cbab417bbeaef6dc48ad5af4b2ba1619ba",
+      "localSha256": "c1104993c9d0baa1f2c6223ead15c5241f4a9f04d409c24dc0acbe723b19aed7",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2091,7 +2091,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
       "upgradeStrategy": "three-way",
-      "localSha256": "49864e5298f3af962b8aab5b37d319c254f2608b26fa18243828276f9f3ccdea",
+      "localSha256": "ac3d6fbd4198ca8952af8441b53a50266441c2ce673523b22a9f840388d35ebd",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -2236,12 +2236,11 @@
       "sourceMap": "modes/interactive/components/provider-brand.js.map",
       "lines": 74,
       "sha256": "2065b21738e58c7fccec2abce53caaf0eabf81fd5b12f2a1cffb0b79df9f7bd3",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/components/provider-brand.ts",
-      "implementationStatus": "not-ported",
+      "classification": "public-api-reuse",
+      "localDestination": "src/integrations/pi/components/shell-selectors-dialogs.ts",
+      "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
-      "upgradeStrategy": "three-way",
+      "modifications": "Provider-brand styling is an internal helper of the public OAuthSelectorComponent reused by A1; it has no independent modal state or local copy.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -2253,8 +2252,7 @@
         "7.5"
       ],
       "tests": [
-        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/components/pinned-component-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/provider-auth-parity.test.ts"
       ]
     },
     {
@@ -2583,7 +2581,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port uses A1's public pi-tui instance, owned theme boundary, and root-instance keybinding registry because the public coding-agent component closes over a second nested pi-tui singleton and cannot observe A1's keybindings.",
       "upgradeStrategy": "three-way",
-      "localSha256": "bec2fca38a1ba6c35c64d59a68c5ce8736efca7ee79999ec9979ba0f3ba98b11",
+      "localSha256": "47bf5c7ff71b7778465fa3e581ad5c7a29f93fb4532a7dbab9cd3eaf106959f7",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components",
@@ -2909,7 +2907,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation excluding internal bookkeeping, a standard accent-marked search input, blue full-row menu-arrow selection that preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed timestamps, numeric result counters without duplicate label-time status, and a stateful time on/off shortcut, semantic role colors with session naming for the system root, standard paging/first-last/non-root containing-branch folding keys with a permanently expanded system session entry even behind hidden metadata, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic Type/search shortcut footers without a redundant select hint.",
       "upgradeStrategy": "three-way",
-      "localSha256": "0d9c6939dc688f99f04daa01d44c24a01651b3eebddaf89df103b08c1cba0a12",
+      "localSha256": "abe69d260b03db5418fcd9011fa35de4a7ef20205419ff93f81ba93e365f2dbb",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",

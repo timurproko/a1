@@ -3864,7 +3864,7 @@
       "to": "editor.root",
       "source": "interactive",
       "sourceAnchors": [
-        "this.ui.hideOverlay()"
+        "overlayHandle.hide()"
       ],
       "trigger": "close/disposal",
       "stateMutation": "hide/dispose overlay",
@@ -3876,8 +3876,7 @@
         "terminal:extension-modal-completion-chain",
         "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
         "authority:pinned-controller-transition"
-      ],
-      "status": "orphaned"
+      ]
     }
   ],
   "knownManualDivergences": [
@@ -3965,6 +3964,7 @@
     "model-selector.js",
     "oauth-selector.js",
     "pi-logo.js",
+    "provider-brand.js",
     "radius-login-selector.js",
     "scoped-models-selector.js",
     "session-selector-search.js",
