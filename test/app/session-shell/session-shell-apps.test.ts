@@ -16,23 +16,23 @@ const ESC = "\u001b";
 const ENTER = "\r";
 
 describe("session application switching", () => {
-  it("opens Apps over Agent and routes, retains the draft, closes replaced apps, and isolates modal input", async () => {
+  it("opens Apps over Agent and routes, retains the draft, closes replaced apps, and isolates keyboard and pointer input", async () => {
     const agentDir = await mkdtemp(join(tmpdir(), "a1-apps-"));
-    const engine = new Runtime();
+    const engine = new Runtime([{ role: "assistant", content: [{ type: "text", text: "transcript selection target\n\n".repeat(120) }] }]);
     const adapter = await createPiEngineAdapter({ cwd: "D:/work", agentDir, sessionId: "apps-test", createRuntime: async () => engine as unknown as AgentSessionRuntime });
     const terminal = new TestPresentationTerminal();
-    const surfaces: { route: string; input: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> }[] = [];
+    const surfaces: { route: string; input: ReturnType<typeof vi.fn>; mouse: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> }[] = [];
     const shell = new OwnedUiSessionShell({
       presenters: createPiSessionPresenters(adapter),
       engine: { backend: adapter, cwd: "D:/work", sessionLayout: "custom-viewport", routeHost: {
         claims: route => ["settings", "changelog"].includes(route),
         open: route => {
-          const state = { route, input: vi.fn(), close: vi.fn() };
+          const state = { route, input: vi.fn(), mouse: vi.fn(), close: vi.fn() };
           surfaces.push(state);
           let closed = false;
           const surface: UiRouteSurface = {
             id: route, render: (width, height) => Array.from({ length: height }, () => route.padEnd(width)),
-            handleInput: key => { state.input(key); return true; }, handleMouse: () => true,
+            handleInput: key => { state.input(key); return true; }, handleMouse: event => { state.mouse(event); return true; },
             close: () => { closed = true; state.close(); }, isClosed: () => closed,
             onRenderRequested() {}, onExitRequested() {},
           };
@@ -57,6 +57,14 @@ describe("session application switching", () => {
       terminal.input("set"); terminal.input(ENTER);
       expect(await text()).toContain("settings");
       expect(surfaces.map(surface => surface.route)).toEqual(["settings"]);
+      const scroll = shell.root.viewportPresentationEvidence().scrollTop;
+      const copiedAt = terminal.writes.length;
+      terminal.input("\u001b[<64;3;3M\u001b[<0;2;3M\u001b[<32;7;3M\u001b[<0;7;3m");
+      await new Promise(resolve => setImmediate(resolve));
+      expect(surfaces[0]!.mouse).toHaveBeenCalledTimes(4);
+      expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(scroll);
+      expect(terminal.writes.slice(copiedAt).join("")).not.toContain("\u001b]52;c;");
+      expect(shell.root.editor.getText()).toBe("unfinished draft");
       terminal.input(APPS);
       expect(await text()).toContain("Apps");
       terminal.input(ESC);

@@ -76,7 +76,7 @@ export class WorkflowOutput {
   }
 
   appendResult(result: OwnedUiWorkflowResult, errorCode?: ImageAttachmentError["code"]): void {
-    // Model state already repaints the footer; only actionable diagnostics need another surface.
+    // Rationale: model state already repaints the footer; only actionable diagnostics need another surface.
     if (this.#ports.customViewport && result.outcome === "completed"
       && result.presentation?.kind === "model-change") {
       for (const message of result.messages ?? []) {

@@ -18,6 +18,13 @@ Local checks passed on the implementation working tree:
 
 These are bounded local observations, not exact-head CI or maintainer visual acceptance. The draft remains implementation-bound; readiness and broad validation belong to trusted workflow automation once the final implementation marker is checked after current-target reconciliation and body validation.
 
+## CI repair
+
+- Development validation run `42794155320` exposed missing required `.openspec.yaml` archive metadata, two implementation comments without approved intent prefixes, and clipboard tests still assuming dock-based Models and Settings.
+- Added the change metadata in the existing archive and corrected the comment prefixes without changing product behavior or validation policy. The same-branch refinalization inspection rebuilds only the acceptance manifest for the updated archive bytes.
+- Retained every transcript scroll/copy assertion for floating Models and the remaining dock selectors, checking focused-overlay ownership instead of incorrectly requiring prompt replacement. Settings now exercises the actual Apps/fullscreen path, including wheel/drag ownership, no background transcript scroll or clipboard write, and retained Agent draft.
+- The exact CI-selected changed-file documentation check, typecheck, and four explicitly selected session-shell test files passed locally: 101 tests covering paste/clipboard, Apps/application switching, the dialog coordinator, and workflow output. These bounded repair observations do not claim renewed exact-head CI success.
+
 ## Known gaps
 
 No known implementation gaps within the approved scope. The following constraints are explicitly dispositioned:

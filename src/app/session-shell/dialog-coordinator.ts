@@ -70,7 +70,7 @@ export class SessionDialogCoordinator {
       invalidate: () => dialog?.invalidate(),
       dispose: () => { closed = true; pending.length = 0; },
     }, { width: 60, maxHeight: "100%", anchor: "center", inputCoordination: "owned", modal: true });
-    // Apps and its search/list controller are optional workflows, not eager startup dependencies.
+    // Performance: Apps and its search/list controller are optional workflows, not eager startup dependencies.
     void import("./apps-dialog.js").then(({ AppsDialog }) => {
       if (closed || this.#ports.disposed()) return;
       dialog = new AppsDialog({
