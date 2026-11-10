@@ -3,6 +3,7 @@ import { ensurePiTheme, getPiMarkdownTheme } from "../../../../src/integrations/
 import { SkillInvocationMessageComponent } from "../../../../src/integrations/pi/components/upstream/components/skill-invocation-message.js";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { createPiShellTranscriptComponent } from "../../../../src/integrations/pi/components/index.js";
+import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
 import { EarendilAnnouncementComponent } from "../../../../src/integrations/pi/components/upstream/components/earendil-announcement.js";
 import { createMermaidMarkdownTransformer } from "../../../../src/integrations/pi/components/upstream/components/mermaid.js";
 
@@ -38,6 +39,17 @@ describe("reconciled pinned source ports", () => {
     for (const messageType of ["custom", "assistant-thinking"] as const) {
       expect(transform(source, { messageType, isStreaming: false, availableWidth: 120 })).toBe(source);
     }
+  });
+
+  it.each([false, true])("links Mermaid labels only when the terminal supports hyperlinks (%s)", hyperlinks => {
+    withPiParityColorMode("truecolor", () => {
+      const transform = createMermaidMarkdownTransformer({ getMode: () => "final", theme: ensurePiTheme() });
+      const source = '```mermaid\nflowchart LR\nA[Alpha] --> B[Beta]\nclick A "https://example.com"\n```\n';
+      const result = transform(source, { messageType: "assistant", isStreaming: false, availableWidth: 120 });
+      expect(result).not.toContain("```mermaid");
+      expect(result.includes("\x1b]8;;https://example.com")).toBe(hyperlinks);
+      expect(stripTerminalSequences(result)).toContain("Alpha");
+    }, { hyperlinks });
   });
 
   it("chains skill content transformers without transforming the header or losing content on errors", () => {

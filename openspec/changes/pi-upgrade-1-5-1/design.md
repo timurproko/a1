@@ -20,7 +20,7 @@ The upgrade script bumps the pins, evaluates the candidate in isolation, three-w
 - Upgrade the pinned Pi engine and TUI to 1.5.1 (dd30101). Mermaid gains pie charts, author styles, terminal-supported clickable labels, and diagrams in expanded compaction summaries. Long extension selector lists now keep a ten-row window around the selection.
 - Provider requests inherit Anthropic message threads with full-context fallback, Copilot classifier support, newer provider/model defaults, and cost-aware idle cache warming for up to 30 minutes. Users wanting the previous warming behavior can retain `cacheWarming: "streaming"` in profile settings.
 - Upstream adds Dart, Nix, Groovy, and Gradle highlighting and fixes cursor-marker carryover through the public APIs A1 already reuses. Shell auth commands and Pi's CLI package-update summaries are not new A1 commands or output.
-- Diagnostic parity fixtures are refreshed, but their existing regression-only classification and historical invalidation remain unchanged; this upgrade makes no new physical-terminal acceptance claim.
+- Diagnostic parity fixtures are refreshed, but their existing regression-only classification and historical invalidation remain unchanged; this upgrade makes no new physical-terminal acceptance claim. The event-frame workload now explicitly declares image-free capabilities so running the generator inside an image-capable terminal cannot add an ambient cell-size query; focused tests cover null, Kitty, and iTerm2 ambient image modes without stripping any captured bytes.
 
 ## Known gaps
 
