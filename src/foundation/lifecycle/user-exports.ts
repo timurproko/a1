@@ -1,9 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { lstat, mkdir, open, unlink } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
-import { resolveUserExportsDirectory } from "./paths.js";
+/** Persistent user-owned exports; development data/config overrides never relocate user files. */
+function resolveUserExportsDirectory(home = process.env[PRODUCT_IDENTITY.environment.profileHome] ?? homedir()): string {
+  if (!isAbsolute(home) || home.includes("\0")) throw new TypeError("User export home must be absolute");
+  return resolve(home, dirname(PRODUCT_IDENTITY.state.piAgentProfile), "exports");
+}
 
 /** Exclusively reserve a default export; failure cleanup may remove only this same regular file. */
 export async function reserveUserExport(sessionId: string, format: "html" | "jsonl", home?: string): Promise<{

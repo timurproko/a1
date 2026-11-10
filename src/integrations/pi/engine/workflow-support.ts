@@ -1,7 +1,6 @@
 /** Pure helpers behind pinned Pi's workflows: result wording, session-info presentation, model matching, and option shaping. */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { readPinnedCommandChangelog } from "./changelog.js";
 import { dynamicObject, finiteNumber, isRecord, stringProperty, stringValue } from "./message-values.js";
 import { copyToClipboard, type AgentSessionServices } from "../startup-public.js";
 import type {
@@ -215,24 +214,15 @@ function pinnedCacheWaste(
   return totals;
 }
 
-function defaultWorkflowHost(): PiWorkflowHost {
-  return {
-    copyText: copyToClipboard,
-    async runCommand(command, arguments_, options) {
-      const result = await execFileAsync(command, [...arguments_], { encoding: "utf8", signal: options?.signal });
-      return { stdout: result.stdout, stderr: result.stderr };
-    },
-    readChangelog: readPinnedCommandChangelog,
-  };
-}
-
 /** Fill optional host services while retaining class methods and their original receiver. */
 export function resolveWorkflowHost(host?: Partial<PiWorkflowHost>): PiWorkflowHost {
-  const fallback = defaultWorkflowHost();
   return {
-    copyText: host?.copyText?.bind(host) ?? fallback.copyText,
-    runCommand: host?.runCommand?.bind(host) ?? fallback.runCommand,
-    readChangelog: host?.readChangelog?.bind(host) ?? fallback.readChangelog,
+    copyText: host?.copyText?.bind(host) ?? copyToClipboard,
+    runCommand: host?.runCommand?.bind(host) ?? (async (command, arguments_, options) => {
+      const result = await execFileAsync(command, [...arguments_], { encoding: "utf8", signal: options?.signal });
+      return { stdout: result.stdout, stderr: result.stderr };
+    }),
+    readChangelog: host?.readChangelog?.bind(host) ?? (async since => (await import("./changelog.js")).readPinnedCommandChangelog(since)),
     ...(host?.reserveExport === undefined ? {} : { reserveExport: host.reserveExport.bind(host) }),
     ...(host?.fetch === undefined ? {} : { fetch: host.fetch.bind(host) }),
   };

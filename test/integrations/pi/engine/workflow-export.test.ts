@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { reserveUserExport } from "../../../../src/foundation/lifecycle/index.js";
+import { reserveUserExport } from "../../../../src/foundation/lifecycle/user-exports.js";
 import { exportWorkflow } from "../../../../src/integrations/pi/engine/workflow-export.js";
 import { resolveWorkflowHost } from "../../../../src/integrations/pi/engine/workflow-support.js";
 
