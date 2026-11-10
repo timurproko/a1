@@ -106,7 +106,7 @@
       "lines": 156
     },
     "src/integrations/pi/session-presenters/presenters.ts::createPiSessionPresenters": {
-      "lines": 271
+      "lines": 267
     }
   }
 }

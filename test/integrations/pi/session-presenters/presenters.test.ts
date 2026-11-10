@@ -6,6 +6,7 @@ import { createPiSessionPresenters, type PiSessionPresenterBackend } from "../..
 // Rationale: the factories are replaced so each case drives a presenter's callbacks directly; the shell suites
 // cover the real components end to end.
 const created = vi.hoisted(() => new Map<string, { readonly options: any; readonly component: any }>());
+const modelsPreparation = vi.hoisted(() => ({ ready: undefined as Promise<void> | undefined }));
 vi.mock("../../../../src/integrations/pi/components/shell-selectors-dialogs.js", async importOriginal => {
   const original = await importOriginal<object>();
   const surface = (name: string, options: any, extra: object = {}) => {
@@ -19,7 +20,7 @@ vi.mock("../../../../src/integrations/pi/components/shell-selectors-dialogs.js",
     createPiShellModelSelector: (options: any) => surface("model", options),
     createPiShellSessionSelector: async (options: any) => surface("session", options),
     createPiShellSettingsSelector: (options: any) => surface("settings", options),
-    createPiShellModelsDialog: (options: any) => surface("models", options, refreshing()),
+    createPiShellModelsDialog: (options: any) => surface("models", options, { ...refreshing(), ready: modelsPreparation.ready }),
     createPiShellScopedModelsSelector: (options: any) => surface("scoped", options, refreshing()),
   };
 });
@@ -89,6 +90,7 @@ function treeLoader(): PiShellLazySelectorLoader & { readonly tree: ReturnType<t
 
 afterEach(() => {
   created.clear();
+  modelsPreparation.ready = undefined;
   vi.useRealTimers();
 });
 
@@ -215,6 +217,31 @@ describe("Pi session presenters", () => {
     await vi.waitFor(() => expect(switching.host.appendWorkflowResult).toHaveBeenCalledWith(failure));
     opened("settings").options.onChange("onCancel", undefined);
     expect(switching.surface()).toBeNull();
+  });
+
+  it.each([false, true])("holds Models presentation until its controller is ready, including early cancel=%s", async cancel => {
+    const gate = Promise.withResolvers<void>();
+    modelsPreparation.ready = gate.promise;
+    const { backend, refreshes } = fakeBackend();
+    const release = vi.fn();
+    const hold = vi.fn(() => release);
+    const { host, surface } = fakeHost({ beginPresentationHold: hold });
+    const opening = createPiSessionPresenters(backend).openModelsDialog(host);
+    const { options, component } = opened("models");
+    expect(hold).toHaveBeenCalledOnce();
+    expect(release).not.toHaveBeenCalled();
+    expect(surface()).not.toBeNull();
+    expect(options).not.toHaveProperty("refreshStatus");
+    expect(host.appendWorkflowStatus).not.toHaveBeenCalled();
+    if (cancel) {
+      options.onCancel();
+      expect(surface()).toBeNull();
+      expect(refreshes[0]!.signal.aborted).toBe(true);
+    }
+    gate.resolve();
+    await opening;
+    expect(release).toHaveBeenCalledOnce();
+    component.dispose();
   });
 
   it("drops a models refresh that settles after the dialog closed and aborts it on close", async () => {

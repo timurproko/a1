@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-10T09:43:18.287Z",
+  "recordedAt": "2026-11-10T11:48:01.242Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "f9a26365568127461c47a07a37dcb42c140a3ac5",
@@ -512,9 +512,9 @@
       "localDestination": "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, Ctrl+M model selection with ordinary Enter preserved, Ctrl+P Apps, unbound forward model cycling, Tab tree-filter cycling, tree-local navigation aliases, cross-platform Alt+Up queued-message restoration, and an implicit Ctrl+C selection-cancel alias omitted from shortcut labels.",
+      "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, Ctrl+M model cycling with ordinary Enter preserved, Ctrl+P Launcher, command-only model selection, Tab tree-filter cycling, tree-local navigation aliases, cross-platform Alt+Up queued-message restoration, and an implicit Ctrl+C selection-cancel alias omitted from shortcut labels.",
       "upgradeStrategy": "three-way",
-      "localSha256": "ef744467f120861547e7591fe18c0e679ebd1b64840689c0b1d651c90b074b95",
+      "localSha256": "09872bdd3a0f34b5258aa6e2591874fc5ebaf8af2ff7f04730049a4e212b5617",
       "approvedDeviations": [
         {
           "id": "keybindings-public-config-boundary",
@@ -524,13 +524,13 @@
         },
         {
           "id": "owned-level-cycle-shortcut",
-          "reason": "Accepted unify-prompt-input-ux assigns Ctrl+L to level cycling and leaves Shift+Tab unassigned; add-apps-launcher supersedes its unbound model-selector default with distinguishable Ctrl+M.",
+          "reason": "Accepted unify-prompt-input-ux assigns Ctrl+L to level cycling and leaves Shift+Tab unassigned; approved refine-launcher-model-shortcuts restores its unbound model-selector default.",
           "upstreamBehavior": "Pinned defaults, user override resolution, and modal-local bindings remain unchanged; bare A1 model selection remains reachable through /models.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         },
         {
           "id": "owned-apps-shortcuts",
-          "reason": "Approved add-apps-launcher reserves Ctrl+P for Apps across owned applications, unbinds default forward model cycling, and assigns distinguishable Ctrl+M to Models without consuming legacy Enter.",
+          "reason": "Approved refine-launcher-model-shortcuts retains Ctrl+P for Launcher across owned applications and assigns distinguishable Ctrl+M to existing scoped/unscoped forward model cycling without opening selection or consuming legacy Enter.",
           "upstreamBehavior": "Comparison defaults and explicit user override/conflict behavior remain unchanged.",
           "acceptanceTest": "test/app/session-shell/session-shell-apps.test.ts"
         },

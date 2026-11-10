@@ -50,18 +50,19 @@ async function editor(
 ) {
   const cycle = vi.fn();
   const select = vi.fn();
+  const modelCycle = vi.fn();
   const submit = vi.fn();
   const copy = vi.fn();
   const dequeue = vi.fn();
   const input = createPiShellEditor({
     agentDir: await agentDir(bindings), keybindingProfile: profile,
     getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit: submit,
-    onThinkingCycle: cycle, onModelSelect: select, onCopyText: copy, onDequeue: dequeue,
+    onThinkingCycle: cycle, onModelSelect: select, onModelCycle: modelCycle, onCopyText: copy, onDequeue: dequeue,
     promptPresentation: promptInputPresentation(),
     ...(inputCapabilities === undefined ? {} : { inputCapabilities }),
   });
   input.setFocused?.(true);
-  return { input, cycle, select, submit, copy, dequeue };
+  return { input, cycle, select, modelCycle, submit, copy, dequeue };
 }
 
 describe("owned shared input and status presentation", () => {
@@ -612,28 +613,45 @@ describe("owned level and model keybindings", () => {
     expect(cycle).toHaveBeenCalledOnce();
     expect(select).not.toHaveBeenCalled();
     expect(input.getText()).toBe("draft");
-    expect(input.keybindingConfig()["app.model.select"]).toBe("ctrl+m");
+    expect(input.keybindingConfig()["app.model.select"]).toEqual([]);
     expect(input.keybindingConfig()["app.thinking.cycle"]).toBe("ctrl+l");
     expect(PINNED_PI_BUILTIN_SLASH_COMMANDS.find(command => command.name === "model")).toBeDefined();
   });
 
-  it.each(["\u001b[109;5u", "\u001b[27;5;109~"])("opens Models for distinguishable Ctrl+M %j without stealing Enter", async key => {
-    const { input, select, cycle, submit } = await editor();
+  it.each(["\u001b[109;5u", "\u001b[27;5;109~"])("cycles models for distinguishable Ctrl+M %j without opening Models or stealing Enter", async key => {
+    const { input, select, modelCycle, cycle, submit } = await editor();
     input.setText("draft");
     input.handleInput?.(key);
-    expect(select).toHaveBeenCalledOnce();
+    expect(modelCycle).toHaveBeenCalledExactlyOnceWith("forward");
+    expect(select).not.toHaveBeenCalled();
     expect(input.getText()).toBe("draft");
     input.handleInput?.("\r");
     expect(submit).toHaveBeenCalledExactlyOnceWith("draft");
-    expect(select).toHaveBeenCalledOnce();
+    expect(modelCycle).toHaveBeenCalledOnce();
+    expect(select).not.toHaveBeenCalled();
     expect(cycle).not.toHaveBeenCalled();
     const keys = KeybindingsManager.fromOwnedBindings();
     expect(keys.getKeys("owned.apps.open")).toEqual(["ctrl+p"]);
-    expect(keys.getKeys("app.model.cycleForward")).toEqual([]);
+    expect(keys.getKeys("app.model.cycleForward")).toEqual(["ctrl+m"]);
     expect(keys.matches("\u0010", "app.model.cycleForward")).toBe(false);
     const custom = await editor("a1", { "owned.apps.open": "alt+a" });
     expect(custom.input.matchesAction?.("\u0010", "owned.apps.open")).toBe(false);
     expect(custom.input.matchesAction?.("\u001ba", "owned.apps.open")).toBe(true);
+  });
+
+  it("preserves explicit model-cycle overrides and comparison Ctrl+P cycling", async () => {
+    const custom = await editor("a1", { "app.model.cycleForward": "alt+n" });
+    custom.input.setText("draft");
+    custom.input.handleInput?.("\u001b[109;5u");
+    expect(custom.modelCycle).not.toHaveBeenCalled();
+    custom.input.handleInput?.("\u001bn");
+    expect(custom.modelCycle).toHaveBeenCalledExactlyOnceWith("forward");
+    expect(custom.select).not.toHaveBeenCalled();
+    expect(custom.input.getText()).toBe("draft");
+    const pinned = await editor("pi");
+    pinned.input.handleInput?.("\u0010");
+    expect(pinned.modelCycle).toHaveBeenCalledExactlyOnceWith("forward");
+    expect(pinned.select).not.toHaveBeenCalled();
   });
 
   it("dispatches bare-A1 Alt+Up across platforms while preserving overrides and pinned defaults", async () => {
@@ -684,6 +702,7 @@ describe("owned level and model keybindings", () => {
     custom.input.handleInput?.("\u001b[109;5u");
     expect(custom.cycle).toHaveBeenCalledOnce();
     expect(custom.select).toHaveBeenCalledOnce();
+    expect(custom.modelCycle).not.toHaveBeenCalled();
     const ownedKeys = KeybindingsManager.fromOwnedBindings({ "tui.select.cancel": "alt+x" });
     expect(ownedKeys.getKeys("app.tree.filter.labeledOnly")).toEqual(["ctrl+l"]);
     expect(ownedKeys.getKeys("app.tree.filter.cycleForward")).toEqual(["tab"]);
@@ -704,8 +723,9 @@ describe("owned level and model keybindings", () => {
     const header = createPiShellHeader({ expanded: true, getKeybindings: () => keys.getEffectiveConfig() });
     let lines = header.render(100).map(stripTerminalSequences);
     expect(lines.find(line => line.includes("to cycle thinking level"))).toContain("ctrl+l");
-    expect(lines.find(line => line.includes("to select model"))).toContain("ctrl+m");
-    expect(lines.find(line => line.includes("to open Apps"))).toContain("ctrl+p");
+    expect(lines.find(line => line.includes("to select model"))).toContain("/models");
+    expect(lines.find(line => line.includes("to open Launcher"))).toContain("ctrl+p");
+    expect(lines.find(line => line.includes("to cycle models"))).toContain("ctrl+m");
     expect(lines.find(line => line.includes("to cycle models"))).not.toContain("ctrl+p/");
     expect(lines.find(line => line.includes("to edit all queued messages")))
       .toContain(process.platform === "darwin" ? "option+up" : "alt+up");
@@ -716,17 +736,20 @@ describe("owned level and model keybindings", () => {
     expect(hotkeys).toContain("Ctrl+M");
     expect(hotkeys).toContain("Ctrl+P");
     expect(hotkeys).toContain("/models");
-    expect(hotkeys).toContain("Open Apps");
+    expect(hotkeys).toContain("Open Launcher");
+    expect(hotkeys).toContain("Open the in-place Models selector");
+    expect(hotkeys).toContain("keeps Enter behavior");
     expect(hotkeys).toContain("Models dialog");
     expect(hotkeys).toContain("Reorder the cycling scope");
     expect(stripTerminalSequences(createPiShellHotkeys(undefined, undefined, "pi").render(120).join("\n"))).not.toContain("Models dialog");
     expect(hotkeys).not.toContain("Shift+Tab");
     keys = KeybindingsManager.fromOwnedBindings({
-      "app.thinking.cycle": "ctrl+r", "app.model.select": "alt+m", "app.message.dequeue": "alt+d",
+      "app.thinking.cycle": "ctrl+r", "app.model.select": "alt+m", "app.model.cycleForward": "alt+n", "app.message.dequeue": "alt+d",
     });
     lines = header.render(100).map(stripTerminalSequences);
     expect(lines.find(line => line.includes("to cycle thinking level"))).toContain("ctrl+r");
     expect(keys.getKeys("app.model.select")).toEqual(["alt+m"]);
+    expect(lines.find(line => line.includes("to cycle models"))).toContain(process.platform === "darwin" ? "option+n" : "alt+n");
     expect(lines.find(line => line.includes("to select model"))).toContain(process.platform === "darwin" ? "option+m" : "alt+m");
     expect(lines.find(line => line.includes("to edit all queued messages")))
       .toContain(process.platform === "darwin" ? "option+d" : "alt+d");

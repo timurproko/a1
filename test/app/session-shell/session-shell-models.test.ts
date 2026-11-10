@@ -6,7 +6,6 @@ import { join } from "node:path";
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { fixture as sessionFixture, Runtime } from "./session-shell-fixture.js";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
-import type { TerminalComponentPort } from "../../../src/contracts/presentation/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
 import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
@@ -14,35 +13,13 @@ import { createPiShellEditor, OWNED_BUILTIN_SLASH_COMMANDS, PINNED_PI_BUILTIN_SL
 import { OWNED_WORKFLOW_COMMAND_NAMES, PINNED_PI_DECLINED_COMMAND_NAMES, PINNED_PI_WORKFLOW_COMMAND_NAMES, workflowCommandNames } from "../../../src/integrations/pi/engine/index.js";
 
 const ENTER = "\r", ESCAPE = "\u001b", DOWN = "\u001b[B", CTRL_S = "\u0013";
-const active = new WeakMap<OwnedUiSessionShell, () => TerminalComponentPort | undefined>();
-function observe(shell: OwnedUiSessionShell): void {
-  let component: TerminalComponentPort | undefined;
-  const show = shell.runtime.showOverlay.bind(shell.runtime);
-  vi.spyOn(shell.runtime, "showOverlay").mockImplementation((next, options) => {
-    const handle = show(next, options);
-    if (options?.modal) component = next;
-    return {
-      hide: () => { handle.hide(); if (component === next) component = undefined; },
-      setHidden: hidden => handle.setHidden(hidden), isHidden: () => handle.isHidden(),
-      focus: () => handle.focus(), unfocus: options => handle.unfocus(options),
-      isFocused: () => handle.isFocused(), getBounds: () => handle.getBounds(),
-    };
-  });
-  active.set(shell, () => component);
-}
-async function fixture(...args: Parameters<typeof sessionFixture>) {
-  const result = await sessionFixture(...args);
-  observe(result.shell);
-  return result;
-}
+const fixture = sessionFixture;
 const nextImmediate = () => new Promise(resolve => setImmediate(resolve));
 function frame(shell: OwnedUiSessionShell, width = 100): string {
-  return stripTerminalSequences([...shell.root.render(width), ...active.get(shell)?.()?.render(width) ?? []].join("\n"));
+  return stripTerminalSequences(shell.root.render(width).join("\n"));
 }
 function input(shell: OwnedUiSessionShell, data: string): void {
-  const component = active.get(shell)?.();
-  if (component !== undefined) component.handleInput?.(data);
-  else shell.root.handleInput(data);
+  shell.root.handleInput(data);
 }
 const defaultSurface = (shell: OwnedUiSessionShell) => !shell.runtime.hasOverlay() && shell.root.usesDefaultInputSurface();
 
@@ -51,11 +28,11 @@ describe("bare-A1 unified Models dialog", () => {
     const ownedBuiltIns = OWNED_BUILTIN_SLASH_COMMANDS.map(command => command.name);
     expect(ownedBuiltIns).toEqual(OWNED_WORKFLOW_COMMAND_NAMES);
     expect(ownedBuiltIns.slice(0, 3)).toEqual(["models", "thinking", "tree"]);
-    for (const removed of ["model", "scoped-models", "settings", "changelog"]) expect(ownedBuiltIns).not.toContain(removed);
-    expect(ownedBuiltIns).toHaveLength(PINNED_PI_BUILTIN_SLASH_COMMANDS.length - 3);
-    expect(OWNED_WORKFLOW_COMMAND_NAMES).toHaveLength(PINNED_PI_WORKFLOW_COMMAND_NAMES.length - 3);
+    for (const removed of ["model", "scoped-models", "settings", "changelog", "hotkeys"]) expect(ownedBuiltIns).not.toContain(removed);
+    expect(ownedBuiltIns).toHaveLength(PINNED_PI_BUILTIN_SLASH_COMMANDS.length - 4);
+    expect(OWNED_WORKFLOW_COMMAND_NAMES).toHaveLength(PINNED_PI_WORKFLOW_COMMAND_NAMES.length - 4);
     expect(workflowCommandNames("comparison")).toBe(PINNED_PI_WORKFLOW_COMMAND_NAMES);
-    for (const retained of ["model", "scoped-models", "settings", "changelog"]) expect(PINNED_PI_WORKFLOW_COMMAND_NAMES).toContain(retained);
+    for (const retained of ["model", "scoped-models", "settings", "changelog", "hotkeys"]) expect(PINNED_PI_WORKFLOW_COMMAND_NAMES).toContain(retained);
     for (const name of ["thinking", "login"]) {
       expect(OWNED_BUILTIN_SLASH_COMMANDS.find(command => command.name === name)).not.toHaveProperty("argumentHint");
       expect(PINNED_PI_BUILTIN_SLASH_COMMANDS.find(command => command.name === name)).toHaveProperty("argumentHint");
@@ -70,6 +47,7 @@ describe("bare-A1 unified Models dialog", () => {
       autocompleteCommands: [
         { name: "models", source: "builtin", argumentOptions: [{ id: "openai/gpt-5", label: "GPT-5" }] },
         { name: "model", source: "extension", description: "Extension command named model" },
+        { name: "hotkeys", source: "extension", description: "Extension Hotkeys action" },
       ],
     });
     for (const character of "/mod") editor.handleInput?.(character);
@@ -79,18 +57,49 @@ describe("bare-A1 unified Models dialog", () => {
     expect(rows).toContain("Extension command named model");
     expect(rows).not.toContain("scoped-models");
     expect(rows).not.toContain("Select model (opens selector UI)");
+    editor.setText("");
+    for (const character of "/hot") editor.handleInput?.(character);
+    await nextImmediate();
+    const extensionRows = editor.render(80).join("\n");
+    expect(extensionRows).toContain("Extension Hotkeys action");
+    expect(extensionRows).not.toContain("Show all keyboard shortcuts");
   });
 
-  it("opens /models as a floating dialog with argument seeding and preserves removed-command routing", async () => {
+  it("paints Models atomically without a loading or refresh-status frame", async () => {
+    const { shell, terminal } = await fixture([], [], true);
+    try {
+      shell.root.editor.setText("/models");
+      shell.runtime.renderNow(true);
+      const writesBefore = terminal.writes.length;
+      terminal.input(ENTER);
+      expect(shell.runtime.presentationHeld).toBe(true);
+      shell.runtime.renderNow(true);
+      expect(terminal.writes).toHaveLength(writesBefore);
+      await vi.dynamicImportSettled();
+      expect(shell.runtime.presentationHeld).toBe(false);
+      shell.runtime.renderNow(true);
+      const painted = stripTerminalSequences(terminal.writes.slice(writesBefore).join(""));
+      expect(painted).toContain("Models");
+      expect(painted).toContain("Filter: all | scoped");
+      expect(painted).not.toContain("Loading Models");
+      expect(painted).not.toContain("Refreshing model catalogs");
+      terminal.input(ESCAPE);
+      expect(defaultSurface(shell)).toBe(true);
+    } finally { await shell.dispose(); }
+  });
+
+  it("opens /models in place with argument seeding and preserves removed-command routing", async () => {
     const { engine, shell, adapter } = await fixture([], [], true);
     try {
       expect(adapter.workflows.workflowAutocompleteCommands().find(command => command.source === "builtin" && command.name.startsWith("model"))?.name).toBe("models");
+      expect(adapter.workflows.workflowAutocompleteCommands().filter(command => command.source === "builtin").map(command => command.name)).not.toContain("hotkeys");
       await shell.submit("/model"); await shell.submit("/scoped-models openai/gpt-5");
       expect(engine.session.calls).toContain("prompt:/model");
       expect(engine.session.calls).toContain("prompt:/scoped-models openai/gpt-5");
       await shell.submit("/models claude");
       expect(defaultSurface(shell)).toBe(false);
-      expect(shell.root.usesDefaultInputSurface()).toBe(true);
+      expect(shell.root.usesDefaultInputSurface()).toBe(false);
+      expect(shell.runtime.hasOverlay()).toBe(false);
       expect(frame(shell)).toContain("Filter: all | scoped");
       expect(frame(shell)).toContain("→ ○ claude [anthropic]");
       expect(frame(shell)).not.toContain("gpt-5 [openai]");
@@ -111,7 +120,7 @@ describe("bare-A1 unified Models dialog", () => {
     } finally { await shell.dispose(); }
   });
 
-  it("opens the floating dialog from an explicitly configured model-selection binding", async () => {
+  it("opens the in-place selector from an explicitly configured model-selection binding", async () => {
     const agentDir = await mkdtemp(join(tmpdir(), "a1-models-bindings-"));
     await writeFile(join(agentDir, "keybindings.json"), JSON.stringify({ "app.model.select": "ctrl+m" }));
     const engine = new Runtime();
@@ -119,7 +128,7 @@ describe("bare-A1 unified Models dialog", () => {
     const terminal = new TestPresentationTerminal();
     const shell = new OwnedUiSessionShell({ presenters: createPiSessionPresenters(adapter),
       engine: { backend: adapter, cwd: "D:/work", sessionLayout: "custom-viewport" }, presentation: { terminal, reload: { minVisibleMs: 0 } } });
-    observe(shell); shell.start(); shell.runtime.renderNow();
+    shell.start(); shell.runtime.renderNow();
     try {
       shell.root.editor.setText("retained draft");
       const open = vi.spyOn(shell.selectors, "showModelsDialog"), pinned = vi.spyOn(shell.selectors, "showModelSelector");
@@ -129,10 +138,36 @@ describe("bare-A1 unified Models dialog", () => {
       await vi.dynamicImportSettled();
       expect(pinned).not.toHaveBeenCalled();
       expect(defaultSurface(shell)).toBe(false);
+      expect(shell.runtime.hasOverlay()).toBe(false);
       expect(frame(shell)).toContain("→ ○ gpt-5 [openai] ✓");
       terminal.input(ESCAPE);
       expect(shell.root.editor.getText()).toBe("retained draft");
     } finally { await shell.dispose(); await rm(agentDir, { recursive: true, force: true }); }
+  });
+
+  it.each(["\u001b[109;5u", "\u001b[27;5;109~"])("dispatches Ctrl+M %j directly to the existing cycle workflow without a selector", async key => {
+    const { engine, shell, terminal, adapter } = await fixture([], [], true);
+    const next = { provider: "anthropic", id: "claude", name: "Claude" };
+    const cycle = vi.fn(async (_direction: string) => {
+      engine.session.model = next;
+      return { model: next, thinkingLevel: "medium" };
+    });
+    Object.assign(engine.session, { cycleModel: cycle });
+    const open = vi.spyOn(shell.selectors, "showModelsDialog");
+    try {
+      shell.root.editor.setText("retained draft");
+      terminal.input(key);
+      await vi.waitFor(() => expect(adapter.session.view().activeModel?.modelId).toBe("claude"));
+      expect(cycle).toHaveBeenCalledExactlyOnceWith("forward");
+      expect(open).not.toHaveBeenCalled();
+      expect(defaultSurface(shell)).toBe(true);
+      expect(shell.root.editor.getText()).toBe("retained draft");
+      expect(frame(shell)).not.toContain("Switched to");
+      cycle.mockRejectedValueOnce(new Error("Model cycle failed"));
+      terminal.input(key);
+      await vi.waitFor(() => expect(frame(shell)).toContain("Model cycle failed"));
+      expect(defaultSurface(shell)).toBe(true);
+    } finally { await shell.dispose(); }
   });
 
   it("switches only the current model on Enter and confirms solely through footer state", async () => {
@@ -173,7 +208,7 @@ describe("bare-A1 unified Models dialog", () => {
     } finally { await shell.dispose(); }
   });
 
-  it("keeps a failed switch visible in the still-open floating dialog", async () => {
+  it("keeps a failed switch visible beside the still-open in-place selector", async () => {
     const { engine, shell } = await fixture([], [], true);
     try {
       engine.session.setModel = async () => { throw new Error("No API key for anthropic/claude"); };

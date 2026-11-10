@@ -229,7 +229,6 @@ export function createPiSessionPresenters(adapter: PiSessionPresenterBackend, op
         scopeIds,
         savedScopeIds,
         ...(initialQuery === undefined ? {} : { initialQuery }),
-        refreshStatus: "Refreshing model catalogs…",
         requestRender: () => host.requestRender(),
         onSelect: modelId => {
           void host.runWorkflow({ command: "models", argument: "", selection: modelId }).then(result => {
@@ -260,10 +259,7 @@ export function createPiSessionPresenters(adapter: PiSessionPresenterBackend, op
           dialog.dispose?.();
         },
       };
-      host.setInputSurface(component);
-      host.requestRender();
-      refresh.run(host, component, signal => catalog.refreshModels(signal), refreshed => component.updateModels(refreshed.models));
-      await dialog.ready;
+      await presentModelsSurface(host, component, refresh, catalog);
     },
 
     openScopedModelsSelector(host) {
@@ -315,6 +311,18 @@ export function createPiSessionPresenters(adapter: PiSessionPresenterBackend, op
       });
     },
   };
+}
+
+async function presentModelsSurface(host: OwnedUiDialogHost, component: PiShellModelsDialogPort, refresh: ModelCatalogRefresh, catalog: PiSessionPresenterBackend["catalog"]): Promise<void> {
+  const releasePresentation = host.beginPresentationHold?.();
+  try {
+    host.setInputSurface(component);
+    host.requestRender();
+    refresh.run(host, component, signal => catalog.refreshModels(signal), refreshed => component.updateModels(refreshed.models));
+    await component.ready;
+  } finally {
+    releasePresentation?.();
+  }
 }
 
 /**

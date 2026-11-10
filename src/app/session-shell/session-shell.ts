@@ -953,7 +953,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     const separator = body.search(/\s/);
     const name = separator < 0 ? body : body.slice(0, separator);
     const argument = separator < 0 ? "" : body.slice(separator + 1).trimStart();
-    const applicationOnly = this.#customViewport && (name === "settings" || name === "changelog");
+    const applicationOnly = this.#customViewport && (name === "settings" || name === "changelog" || name === "hotkeys");
     if (!applicationOnly && this.#dialogs.claimsRoute(name)) return this.#dialogs.openRoute(name);
     if (this.#isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
     if (this.#skillsCollapsed()) {

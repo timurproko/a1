@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { getKeybindings, setKeybindings, stripTerminalSequences } from "@earendil-works/pi-tui";
-import { applyPiTheme, applyPiThemeInstance, piTheme } from "../../../../src/integrations/pi/components/index.js";
+import { applyPiTheme, applyPiThemeInstance, createPiShellModelsDialog, piTheme } from "../../../../src/integrations/pi/components/index.js";
 import { KeybindingsManager, type KeybindingsConfig } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { ModelsDialogComponent, type ModelsDialogConfig } from "../../../../src/integrations/pi/components/models-dialog.js";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
@@ -75,6 +75,21 @@ async function settled(): Promise<void> {
 }
 
 describe("unified Models dialog", () => {
+  it("never renders a loading status while deferring the controller and retains early search input", async () => {
+    const dialog = createPiShellModelsDialog({ models, activeModelId: ids.gpt5, scopeIds: [], savedScopeIds: [], ...spies() });
+    try {
+      expect(dialog.render(100)).toEqual([]);
+      dialog.handleInput?.("claude");
+      await dialog.ready;
+      const rendered = stripTerminalSequences(dialog.render(100).join("\n"));
+      expect(rendered).toContain("Models");
+      expect(rendered).toContain("claude [anthropic]");
+      expect(rendered).not.toContain("gpt-5 [openai]");
+      expect(rendered).not.toContain("Loading Models");
+      expect(rendered).not.toContain("Refreshing");
+    } finally { dialog.dispose?.(); }
+  });
+
   it("reduces the choice window before clipping input, selected choice, warnings, or guidance on resize", () => {
     withDialog((_unused, callbacks) => {
       let height = 24;

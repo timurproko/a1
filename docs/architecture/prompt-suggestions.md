@@ -51,7 +51,7 @@ Eligibility/presentation reasons include `disabled`, `disposed`, `early-conversa
 
 Writes are asynchronous and coalesced: at most one write and one pending latest snapshot. Sink failures do not affect generation, input, or rendering and do not appear in the UI. An unwritable destination may therefore produce no file; check the destination locally rather than diagnosing the model from that absence. Disposal clears in-memory capture and pending writes; a write already in progress can finish. Exported local files remain until you remove them.
 
-To disable capture, omit/unset `A1_SUGGESTION_DIAGNOSTICS` before the next launch and remove the dedicated snapshot if no longer needed. This does not disable suggestions; Apps (`Ctrl+P`) -> Settings -> Agent -> Prompt suggestions controls generation independently.
+To disable capture, omit/unset `A1_SUGGESTION_DIAGNOSTICS` before the next launch and remove the dedicated snapshot if no longer needed. This does not disable suggestions; Launcher (`Ctrl+P`) -> Settings -> Agent -> Prompt suggestions controls generation independently.
 
 ## Verification and evidence limits
 

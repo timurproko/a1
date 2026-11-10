@@ -95,7 +95,7 @@ export const OWNED_BUILTIN_SLASH_COMMANDS = PINNED_PI_BUILTIN_SLASH_COMMANDS.fla
   if (command.name === "model") {
     return [{ name: "models", description: "Switch models and manage scoped model cycling" }, OWNED_THINKING_SLASH_COMMAND];
   }
-  if (command.name === "thinking" || command.name === "scoped-models" || command.name === "settings" || command.name === "changelog") return [];
+  if (command.name === "thinking" || command.name === "scoped-models" || command.name === "settings" || command.name === "changelog" || command.name === "hotkeys") return [];
   if (command.name === "login") return [OWNED_LOGIN_SLASH_COMMAND];
   return [command];
 });
