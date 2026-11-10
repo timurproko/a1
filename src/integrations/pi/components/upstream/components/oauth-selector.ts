@@ -2,10 +2,9 @@
  * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
  * packages/coding-agent/src/modes/interactive/components/oauth-selector.ts.
  * Modifications: Adapt the provider controller to injected neutral options, shared framing, live
- * roles, Title Case and circular navigation. Configured status uses a muted dot, success-green text
- * and trailing checkmark with alternate-method qualifiers instead of storage-source labels. Omit
- * decorative preferred-partner badges while retaining filtering, paging, actions and comparison
- * presentation.
+ * roles, Title Case and circular navigation. Configured status uses a muted dot, success-green
+ * configured text and trailing checkmark without method/source qualifiers. Omit decorative
+ * preferred-partner badges while retaining filtering, paging, actions and comparison presentation.
  * Deviations: standard-sign-in-dialog-styling.
  */
 import { Container, fuzzyFilter, getKeybindings, getSelectPageIndex, Input, Spacer, Text, TruncatedText } from "@earendil-works/pi-tui";
@@ -115,6 +114,5 @@ function providerStatus(provider: Provider): string {
   const theme = piTheme();
   const separator = theme.fg("muted", " • ");
   if (provider.status === undefined) return separator + theme.fg("muted", "not configured");
-  const method = provider.status.type === provider.authType ? "" : provider.status.type === "api_key" ? "API key " : "subscription ";
-  return separator + theme.fg("success", `${method}configured ✓`);
+  return separator + theme.fg("success", "configured ✓");
 }

@@ -83,9 +83,7 @@ describe("provider authentication selector presentation", () => {
       expected.splice(1, 1);
       if (state.standardStyle) {
         expected[1] = " Select Provider to Configure".padEnd(width);
-        const status = state.option.status;
-        const qualifier = status === undefined || status.type === state.option.authType ? "" : status.type === "oauth" ? "subscription " : "API key ";
-        expected[5] = ` → ${state.option.label} • ${status === undefined ? "not configured" : `${qualifier}configured ✓`}`;
+        expected[5] = ` → ${state.option.label} • ${state.option.status === undefined ? "not configured" : "configured ✓"}`;
       }
       // Compatibility: the pinned title/list already own one cell; only its zero-inset search input moves.
       expected[3] = ` ${expected[3]!.slice(0, -1)}`;

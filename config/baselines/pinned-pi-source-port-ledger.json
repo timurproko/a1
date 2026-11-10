@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-10T19:11:15.403Z",
+  "recordedAt": "2026-11-10T19:19:12.289Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "dd30101cfc5b0609411dd80b6f93adbc14db14cf",
@@ -2201,9 +2201,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/oauth-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Adapt the provider controller to injected neutral options, shared framing, live roles, Title Case and circular navigation. Configured status uses a muted dot, success-green text and trailing checkmark with alternate-method qualifiers instead of storage-source labels. Omit decorative preferred-partner badges while retaining filtering, paging, actions and comparison presentation.",
+      "modifications": "Adapt the provider controller to injected neutral options, shared framing, live roles, Title Case and circular navigation. Configured status uses a muted dot, success-green configured text and trailing checkmark without method/source qualifiers. Omit decorative preferred-partner badges while retaining filtering, paging, actions and comparison presentation.",
       "upgradeStrategy": "three-way",
-      "localSha256": "ceda8b846a313a75fecb396a5b0305c6f6f03b67e64403560772db9134836c4e",
+      "localSha256": "903593c224bef6f10a79e7c0c7f39354645585c3ffe7055500ce2b9853813aa1",
       "approvedDeviations": [
         {
           "id": "standard-sign-in-dialog-styling",

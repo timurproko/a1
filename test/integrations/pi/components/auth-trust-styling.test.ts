@@ -28,8 +28,8 @@ describe("standard sign-in and trust presentation", () => {
       { authType: "oauth" as const, status: { type: "oauth" as const, source: "stored" }, text: "configured ✓" },
       { authType: "api_key" as const, status: { type: "api_key" as const, source: "stored credential" }, text: "configured ✓" },
       { authType: "api_key" as const, status: { type: "api_key" as const, source: "EXAMPLE_API_KEY" }, text: "configured ✓" },
-      { authType: "api_key" as const, status: { type: "oauth" as const, source: "stored" }, text: "subscription configured ✓" },
-      { authType: "oauth" as const, status: { type: "api_key" as const, source: "stored" }, text: "API key configured ✓" },
+      { authType: "api_key" as const, status: { type: "oauth" as const, source: "stored" }, text: "configured ✓" },
+      { authType: "oauth" as const, status: { type: "api_key" as const, source: "stored" }, text: "configured ✓" },
     ];
     const options = states.map((state, index) => ({ id: `${state.authType}:provider-${index}`, providerId: `provider-${index}`, label: `Provider ${index}`, authType: state.authType, status: state.status }));
     const select = vi.fn();
@@ -44,6 +44,7 @@ describe("standard sign-in and trust presentation", () => {
           expect(stripTerminalSequences(row).trimEnd()).toContain(` • ${state.text}`);
           expect(cellStyle(row, "•")).toEqual(cellStyle(piTheme().fg("muted", "•"), "•"));
           const status = sliceByColumn(row, stripTerminalSequences(row).indexOf(" • ") + 3, 100);
+          expect(stripTerminalSequences(status).trim()).toBe("configured ✓");
           expect(cellStyle(status, "c")).toEqual(cellStyle(piTheme().fg("success", "c"), "c"));
           expect(cellStyle(row, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
           expect((stripTerminalSequences(row).match(/✓/gu) ?? []).length).toBe(1);

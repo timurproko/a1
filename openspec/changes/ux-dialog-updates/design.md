@@ -101,6 +101,10 @@ The maintainer requested that the session-name truncation symbol match the name'
 
 Keep clipping as plain text at the session-name adapter boundary, then apply dim styling to settled names and markers. During truecolor reveals, keep the inserted ellipsis dim while ordinary name graphemes retain the existing secondary-accent animation. Preserve complete authoritative names, animation timing, width allocation, model position, gutters and comparison presentation. Add settled and animated clipping assertions across widths, themes and terminal color modes.
 
+## Approved Refinement: Only Configured Wording
+
+The maintainer clarified that the green suffix must say only `configured`, including the pictured previously qualified `subscription configured` case. This supersedes the earlier alternate-method qualifier decision: every configured bare-A1 provider suffix is exactly ` • configured ✓`. Keep the muted dot and success-green text/checkmark, omit both method and source qualifiers from this suffix, and retain actual auth-method metadata and IDs for workflows. Unconfigured rows and pinned comparison presentation remain unchanged.
+
 ## Implementation Evidence
 
 - Session Info uses a bounded input-route adapter with component-local pointer routing and shared reference rendering. Escape and Ctrl+C close even before its deferred document resolves. Semantic identity/group rows share a left-aligned value column, reduce optional padding on narrow frames, and retain complete wrapped paths and values.
@@ -135,6 +139,12 @@ Keep clipping as plain text at the session-name adapter boundary, then apply dim
 - Regression assertions reproduced default-white session-name ellipses before the fix in both truecolor and 256-color modes. The adapter now strips truncator control sequences before styling/segmentation and paints reveal ellipses through the existing dim role.
 - Width/phase tests cover dark/light themes, multiple accents, settled names and shimmer/reveal/settle frames, asserting dim markers, stable model columns, bounded widths and no exposed reset fragments. Existing reveal timing/grapheme and comparison assertions remain intact.
 - Build, typecheck, strict OpenSpec validation, architecture/startup limits, provenance and changed-file documentation passed. Three focused files passed (58 tests); required finalized-head CI remains authoritative.
+
+## Simplified Configured Label Evidence
+
+- Every configured bare-A1 suffix is exactly ` • configured ✓`, including alternate configured methods and environment-backed credentials. The separate provider/method metadata and workflow IDs are unchanged.
+- Matching and alternate method style cases assert the exact suffix plus muted-dot/success-text/checkmark roles. Pinned comparison fixtures retain their original qualified/status-source wording.
+- Build, typecheck, strict OpenSpec validation, architecture, provenance and changed-file documentation passed. Two focused provider test files passed (29 tests); finalized-head CI remains authoritative.
 
 ## Open Questions
 

@@ -59,6 +59,11 @@
 - [x] 11.1 Keep settled and animated session-name ellipses in the existing dim role without exposing truncator resets to grapheme reveals; add width, style, live-theme and palette regression assertions while retaining comparison behavior.
 - [x] 11.2 Finish targeted checks, evidence/gap reconciliation, current origin/develop reconciliation and final body/finalization inspection before completing the final PR marker.
 
+## 12. Simplify configured wording
+
+- [x] 12.1 Use exactly configured in every configured provider suffix without method/source qualifiers, keeping real workflow metadata, dot/checkmark roles and comparison behavior; update matching/alternate-method parity and semantic-style assertions.
+- [x] 12.2 Finish targeted checks and gap/evidence updates, reconcile current origin/develop, and pass final body/finalization inspection before completing the affected PR outcome.
+
 ## Workflow follow-up
 
 - Trusted automation owns readiness and in-branch finalization after implementation completion; required exact-head CI follows.

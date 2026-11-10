@@ -213,15 +213,15 @@ Bare A1's sign-in method and provider selectors SHALL use accent-bold Title Case
 
 - **WHEN** a provider has a configured authentication status in a bare-A1 provider selector
 - **THEN** its status suffix SHALL retain a muted separator dot followed by success-green `configured` text and a success-green checkmark immediately after that text
-- **AND** an alternate configured method SHALL retain the `subscription configured` or `API key configured` qualifier using the same success role rather than warning yellow
-- **AND** raw storage/environment source labels SHALL NOT replace the configured wording in the bare-A1 suffix
+- **AND** the configured-status wording SHALL be exactly `configured`, even when a different authentication method is configured
+- **AND** authentication-method and storage/environment qualifiers SHALL NOT appear in the bare-A1 status suffix
 - **AND** unconfigured providers SHALL retain muted `not configured` text without a checkmark, and comparison presentation SHALL remain pinned
 
 #### Scenario: Omit decorative provider partner badges
 
 - **WHEN** bare A1 renders a provider choice, including OpenRouter or Radius
 - **THEN** it SHALL NOT append a decorative preferred-partner badge to the provider label
-- **AND** provider names, order, configuration status dots/checkmarks, auth-type qualifiers, filtering and actions SHALL remain intact
+- **AND** provider names, order, configuration status dots/checkmarks, separately displayed auth-type labels, filtering and actions SHALL remain intact
 - **AND** comparison presentation SHALL retain its pinned partner badges
 
 #### Scenario: Move or clip selection

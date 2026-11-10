@@ -9,7 +9,7 @@ Session Info currently takes over the terminal as a full-screen reference docume
 - Keep the transcript and session footer visible and restore ordinary prompt input on close without appending report or status rows to the feed.
 - Align Session Info key/value data to one shared left-aligned value column, reducing optional padding on narrow frames while retaining complete report values and file paths.
 - Give sign-in method and provider selectors accent-bold Title Case headings without trailing colons, and standard selected-background rows with normal label text instead of accent-colored labels.
-- Show configured provider status using a muted separator dot, success-green configured text and a trailing green checkmark; retain an alternate-method qualifier when applicable, while unconfigured rows remain muted.
+- Show configured provider status as a muted dot followed by success-green `configured` text and a trailing green checkmark, without authentication-method or storage-source qualifiers; unconfigured rows remain muted.
 - Omit the decorative preferred-partner badges beside OpenRouter and Radius in bare-A1 provider choices; retain provider names, real configuration status and actions, and leave comparison presentation pinned.
 - Apply the same heading and selected-row hierarchy to project-trust dialogs, preserving startup-safe rendering before trust resolves. Align the in-session Saved decision and Current session values to one left-aligned column and omit the parenthesized folder suffix from Saved decision.
 - Extend the same styling to every internal dialog, including nested provider authentication-method pickers, with Title Case headings without trailing colons and standard selected backgrounds.
