@@ -1234,6 +1234,52 @@ describe("Pi engine adapter", () => {
     ]);
   });
 
+  it("keeps large history usable through model, thinking, scope, notice and settlement updates", async () => {
+    const session = new FakeSession("large");
+    session.setMessages(Array.from({ length: 1000 }, (_, index) => ({ role: "user", timestamp: index + 1, content: `marker-${index} ${"x".repeat(6000)}` })));
+    const runtime = new FakeRuntime(session);
+    const { adapter } = await adapterWithRuntime(runtime);
+    await expect(adapter.flushEvents()).resolves.toBeUndefined();
+    const original = adapter.view().transcript;
+    for (let n = 0; n < 20; n++) adapter.extensions.announceReleaseUpdate({ status: "installed", version: "9.0.0" });
+    await expect(adapter.flushEvents()).resolves.toBeUndefined();
+    expect(await adapter.execute(command("set-model", "large-model", { model: { providerId: "openai", modelId: "gpt-5.1", displayName: "GPT" } }))).toMatchObject({ outcome: "completed" });
+    expect(await adapter.executeWorkflow({ command: "models", argument: "", selection: "openai/gpt-5" })).toMatchObject({ outcome: "completed" });
+    expect(session.calls.filter(call => call === "setModel")).toHaveLength(2);
+    expect(await adapter.executeWorkflow({ command: "thinking", argument: "high" })).toMatchObject({ outcome: "completed" });
+    session.emit({ type: "session_info_changed" });
+    session.emit({ type: "agent_settled", aborted: false });
+    await expect(adapter.flushEvents()).resolves.toBeUndefined();
+    expect(adapter.view().transcript.map(block => block.text)).toEqual(original.map(block => block.text));
+    expect(adapter.view().editor.submitEnabled).toBe(true);
+    expect(session.calls).not.toContain("abort");
+    expect(adapter.deliveryDiagnostics()).toMatchObject({ overloads: 0, pending: 0, bytes: 0 });
+    await adapter.dispose();
+  });
+
+  it("does not abort active work when an installed notice arrives with large history", async () => {
+    const session = new FakeSession("busy-large");
+    session.setMessages([{ role: "user", content: "x".repeat(5 * 1024 * 1024), timestamp: 1 }]);
+    let finish!: () => void;
+    session.prompt = async () => new Promise<void>(resolve => { finish = resolve; });
+    const { adapter } = await adapterWithRuntime(new FakeRuntime(session));
+    await adapter.flushEvents();
+    const pending = adapter.execute(command("prompt", "busy", { text: "continue" }));
+    adapter.extensions.announceReleaseUpdate({ status: "installed", version: "9.0.0" });
+    expect(await adapter.executeWorkflow({ command: "models", argument: "", selection: "openai/gpt-5" })).toMatchObject({ outcome: "completed" });
+    expect(session.calls.filter(call => call === "setModel")).toHaveLength(1);
+    await adapter.flushEvents();
+    expect(session.calls).not.toContain("abort");
+    expect(adapter.deliveryDiagnostics().pendingCommands).toBe(1);
+    finish();
+    expect(await pending).toMatchObject({ outcome: "completed" });
+    await adapter.flushEvents();
+    expect(adapter.view().editor.submitEnabled).toBe(true);
+    session.prompt = async () => {};
+    expect(await adapter.execute(command("prompt", "next-input", { text: "next" }))).toMatchObject({ outcome: "completed" });
+    await adapter.dispose();
+  });
+
   it("yields terminal-input turns between agent events", async () => {
     const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
     const { adapter, events } = await adapterWithRuntime(runtime);
@@ -1256,7 +1302,6 @@ describe("Pi engine adapter", () => {
     await adapter.flushEvents();
     for (let index = 0; index < 2_048; index += 1) session.emit({ type: "agent_start" });
     expect(await adapter.execute(command("abort", "during-overload"))).toEqual({ outcome: "rejected", diagnostic: null });
-    expect(await adapter.executeWorkflow({ command: "quit", argument: "" })).toMatchObject({ outcome: "cancelled", message: "", messageKind: "silent" });
     await expect(adapter.flushEvents()).rejects.toThrow("Engine delivery did not complete");
 
     expect(events.length).toBeLessThanOrEqual(1_100);
@@ -1308,6 +1353,23 @@ describe("Pi engine adapter", () => {
     await adapter.flushEvents();
     expect(adapter.deliveryDiagnostics().pendingCommands).toBe(0);
     expect(adapter.deliveryDiagnostics().reservedOutcomes).toBe(0);
+    expect(adapter.view().lifecycle).toBe("ready");
+    expect(adapter.view().editor.submitEnabled).toBe(true);
+    expect(session.listeners.size).toBe(1);
+    expect(await adapter.execute(command("set-thinking-level", "after-recovery", { thinkingLevel: "high" }))).toMatchObject({ outcome: "completed" });
+    await adapter.dispose();
+  });
+
+  it("allows safe quit after failed recovery", async () => {
+    const session = new FakeSession("stalled");
+    session.abort = async () => { throw new Error("offline cancellation failure"); };
+    const { adapter } = await adapterWithRuntime(new FakeRuntime(session));
+    await adapter.flushEvents();
+    for (let index = 0; index < 2048; index++) session.emit({ type: "agent_start" });
+    await expect(adapter.flushEvents()).rejects.toThrow("Engine delivery did not complete");
+    expect(adapter.view().lifecycle).toBe("failed");
+    expect(await adapter.executeWorkflow({ command: "quit", argument: "" })).toMatchObject({ outcome: "completed" });
+    expect(session.disposed).toBe(true);
   });
 
   it("invalidates queued state and settles old operations when a session is replaced", async () => {

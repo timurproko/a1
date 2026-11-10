@@ -234,13 +234,26 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
       throw error;
     }
   };
-  const runtime = await createAgentSessionRuntime(createRuntime, {
-    cwd: sessionManager.getCwd(),
-    agentDir: options.agentDir,
-    sessionManager,
-  });
-  runtimeSessionWriters.set(runtime, sessionWriters);
-  return runtime;
+  try {
+    const runtime = await createAgentSessionRuntime(createRuntime, {
+      cwd: sessionManager.getCwd(),
+      agentDir: options.agentDir,
+      sessionManager,
+    });
+    runtimeSessionWriters.set(runtime, sessionWriters);
+    const dispose = runtime.dispose.bind(runtime);
+    let disposal: Promise<void> | undefined;
+    // Every public runtime consumer uses the writer-owning teardown, including the adapter.
+    runtime.dispose = () => disposal ??= (async () => {
+      try { await dispose(); }
+      finally { sessionWriters.release(); runtimeSessionWriters.delete(runtime); }
+    })();
+    return runtime;
+  } catch (error) {
+    takeSelectedSessionWriter(sessionManager)?.release();
+    sessionWriters.release();
+    throw error;
+  }
 }
 
 function defaultStartupPhaseMarker(phase: StartupPhase): Promise<void> {

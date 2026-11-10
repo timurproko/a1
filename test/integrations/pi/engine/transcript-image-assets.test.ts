@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { PendingEngineDelivery } from "../../../../src/integrations/pi/engine/pending-delivery.js";
 import type { OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
 import { assertTranscriptBlock } from "../../../support/owned-ui-contract-fixtures.js";
 import { TranscriptImageAssets } from "../../../../src/integrations/pi/engine/transcript-image-assets.js";
@@ -7,6 +8,24 @@ import { toolRenderingInput } from "../../../../src/integrations/pi/engine/tool-
 const image = { type: "image", mimeType: "image/png", data: "AQID" };
 
 describe("bounded transcript image assets", () => {
+  it("shares authoritative image leases and charges retired delivery-only assets", () => {
+    const assets = new TranscriptImageAssets();
+    const reference = assets.reference({ ...image, data: "AAAA".repeat(2 * 1024 * 1024) }, "tool-result")!;
+    const block: OwnedUiTranscriptBlock = { id: "image", kind: "tool-result", status: "finalized", revision: 1,
+      title: "image", text: "", payload: {}, imageReferences: [reference] };
+    assets.retain(block);
+    let current = [block];
+    const queue = new PendingEngineDelivery(event => assets.retainEvent(event), () => current, () => assets.pendingBytes);
+    for (let sequence = 1; sequence < 20; sequence++) expect(queue.push({ type: "transcript-block", block, sequence, sessionId: "s" }, 1)).toBe(true);
+    expect(assets.pendingBytes).toBe(32);
+    assets.release(block); current = [];
+    expect(assets.pendingBytes).toBeGreaterThan(8 * 1024 * 1024);
+    expect(queue.push({ type: "agent-run-started", sequence: 20, sessionId: "s", runId: "r" }, 1)).toBe(false);
+    queue.discardObsolete(2);
+    expect(assets.pendingBytes).toBe(0);
+    expect(assets.resolve(reference.assetId)).toBeNull();
+  });
+
   it("deduplicates assets, counts repeated references, and discards unadmitted data", () => {
     const assets = new TranscriptImageAssets();
     const reference = assets.reference(image, "tool-result")!;

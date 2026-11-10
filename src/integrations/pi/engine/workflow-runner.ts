@@ -106,6 +106,12 @@ export class PiWorkflowRunner {
     for (const pending of this.#pending) if (pending.command !== except) pending.cancel();
   }
 
+  /** Presentation pressure must not cancel an independently applied state mutation. */
+  cancelForDelivery(): void {
+    const mutations = new Set<PiWorkflowRequest["command"]>(["model", "models", "thinking", "scoped-models", "name"]);
+    for (const pending of this.#pending) if (!mutations.has(pending.command)) pending.cancel();
+  }
+
   #requireSession(): PiSessionApi {
     const session = this.#ports.session();
     if (this.#ports.disposed() || !this.#ports.runtime() || !session) throw new Error("engine adapter is not running");
@@ -171,6 +177,7 @@ export class PiWorkflowRunner {
 
   async executeWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
     const cancelled = workflowResult(request.command, "cancelled", "", undefined, "silent");
+    if (request.command === "quit") return this.#runWorkflow(request);
     if (this.#ports.admissionStopped() || this.#ports.pendingCommandCount() + this.#pending.size >= MAX_PENDING_WORK) return cancelled;
     let cancel!: () => void;
     const cancellation = new Promise<PiWorkflowResult>(resolve => { cancel = () => resolve(cancelled); });
@@ -268,11 +275,14 @@ export class PiWorkflowRunner {
       const failure: PiWorkflowMessage = { kind: "error", message: error instanceof Error ? error.message : String(error) };
       return workflowResult(request.command, "failed", failure.message, undefined, "error", messages.length === 0 ? undefined : [...messages, failure]);
     }
-    if (!current()) return workflowResult(request.command, "cancelled", "Model selection cancelled", undefined, "silent");
     const providerId = stringProperty(model, "provider") ?? "unknown";
     const modelId = stringProperty(model, "id") ?? reference;
-    this.#ports.setActiveModel({ providerId, modelId, displayName: stringProperty(model, "name") ?? modelId });
-    this.#ports.emitView();
+    // Selection already applied. A delivery-generation change cannot undo it; a replaced
+    // session must not receive its view, but the operation result remains truthful.
+    if (!this.#ports.disposed() && session === this.#ports.session()) {
+      this.#ports.setActiveModel({ providerId, modelId, displayName: stringProperty(model, "name") ?? modelId });
+      this.#ports.emitView();
+    }
     const resultMessage: PiWorkflowMessage = { kind: "status", message: options.persist ? `Default model: ${providerId}/${modelId}` : `Model: ${modelId}` };
     const result = messages.length === 0
       ? workflowResult(request.command, "completed", resultMessage.message)

@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, realpathSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, statSync, readFileSync, writeFileSync, unlinkSync, rmdirSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import lockfile from "proper-lockfile";
 
 /** One held authority; `bindCreated` moves a reservation onto the file it created. */
@@ -34,8 +34,8 @@ export interface SessionWriterHandle {
 }
 
 /**
- * A crashed writer is not released by the kernel; its lock becomes stale once its holder stops
- * refreshing it. The bound keeps resume after a crash a matter of seconds.
+ * Heartbeats diagnose ownership loss, but never authorize takeover of a live writer.
+ * Dead owners are recovered by process absence; legacy or uncertain owners stay protected.
  */
 export const SESSION_WRITER_STALE_MS = 10_000;
 
@@ -58,15 +58,30 @@ export function lockfileBackend(root = join(tmpdir(), "a1-session-writer-locks")
   };
   const acquireAuthority = (path: string): (() => void) => {
     mkdirSync(root, { recursive: true, mode: 0o700 });
-    // Rationale: the lock directory is the authority; no target file exists or is needed.
-    return lockfile.lockSync(path, {
-      realpath: false,
-      lockfilePath: path,
-      stale: staleMs,
-      // Rationale: a missed refresh means this process stalled; the next writer takes over, and the
-      // stalled one must not crash for it.
-      onCompromised: () => {},
+    // The nonempty owner record also prevents legacy heartbeat-only clients from reclaiming
+    // a stalled live writer: proper-lockfile removes directories non-recursively.
+    reclaimDeadWriter(path);
+    const release = lockfile.lockSync(path, {
+      realpath: false, lockfilePath: path, stale: staleMs,
+      onCompromised: () => { throw new Error("Session writer ownership was lost; execution has been stopped."); },
     });
+    const owner = { pid: process.pid, token: randomUUID() };
+    const stamp = statSync(path).mtime;
+    try {
+      writeFileSync(join(path, "owner.json"), JSON.stringify(owner), { flag: "wx", mode: 0o600 });
+      // Creating the owner record must not masquerade as a foreign heartbeat.
+      utimesSync(path, stamp, stamp);
+    } catch (error) {
+      try { unlinkSync(join(path, "owner.json")); release(); } catch { /* Retain uncertain ownership. */ }
+      throw error;
+    }
+    return () => {
+      if (readWriterOwner(path)?.token !== owner.token) throw new Error("Session writer ownership was lost");
+      // A legacy contender must not reclaim the short empty-directory release interval.
+      const now = new Date(); utimesSync(path, now, now);
+      unlinkSync(join(path, "owner.json"));
+      release();
+    };
   };
   return {
     acquire(requested: string): WriterLock {
@@ -108,6 +123,40 @@ export function lockfileBackend(root = join(tmpdir(), "a1-session-writer-locks")
       };
     },
   };
+}
+
+function readWriterOwner(path: string): { pid: number; token: string } | null {
+  try {
+    const source = readFileSync(join(path, "owner.json"), "utf8");
+    if (source.length > 1024) return null;
+    const value = JSON.parse(source) as { pid?: unknown; token?: unknown };
+    return Number.isSafeInteger(value.pid) && (value.pid as number) > 0 && typeof value.token === "string"
+      && /^[a-f0-9-]{36}$/.test(value.token) ? value as { pid: number; token: string } : null;
+  } catch { return null; }
+}
+
+function writerAbsent(pid: number): boolean {
+  try { process.kill(pid, 0); return false; }
+  catch (error) { return error instanceof Error && "code" in error && error.code === "ESRCH"; }
+}
+
+function reclaimDeadWriter(path: string): void {
+  if (!existsSync(path)) return;
+  const owner = readWriterOwner(path);
+  // Age and malformed/legacy records cannot prove that a writer is absent.
+  if (owner === null || !writerAbsent(owner.pid)) throw new Error("Session writer is live or unverifiable");
+  const gate = join(path, ".reclaim");
+  mkdirSync(gate);
+  try {
+    if (readWriterOwner(path)?.token !== owner.token || !writerAbsent(owner.pid)) throw new Error("Session writer changed during recovery");
+    const now = new Date(); utimesSync(path, now, now);
+    unlinkSync(join(path, "owner.json"));
+    rmdirSync(gate);
+    rmdirSync(path);
+  } catch (error) {
+    try { rmdirSync(gate); } catch { /* A partial recovery remains conservatively blocked. */ }
+    throw error;
+  }
 }
 
 function backend(): LockBackend {

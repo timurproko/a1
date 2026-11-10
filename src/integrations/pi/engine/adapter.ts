@@ -56,7 +56,10 @@ export type { PiSessionPresentationSource } from "./ports.js";
 
 /** Explicit flush failure when required delivery was interrupted rather than completed. */
 export class EngineDeliveryError extends Error {
-  constructor() { super("Engine delivery did not complete"); this.name = "EngineDeliveryError"; }
+  readonly deliveryFailure: import("./event-delivery.js").DeliveryFailure | null;
+  constructor(failure: import("./event-delivery.js").DeliveryFailure | null = null) {
+    super("Engine delivery did not complete"); this.name = "EngineDeliveryError"; this.deliveryFailure = failure;
+  }
 }
 
 
@@ -115,15 +118,21 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
   readonly #delivery = new PiEventDelivery({
     sessionId: () => this.#sessionId,
     sessionGeneration: () => this.#engine.generation,
+    authoritativeTranscript: () => this.#projection.snapshot(),
+    retainedAssetBytes: () => this.#projection.assets.pendingBytes,
     transcriptBlock: id => this.#projection.block(id),
     retainEvent: event => this.#projection.assets.retainEvent(event),
     isPendingCommand: correlationId => this.#commands.isPending(correlationId),
     cancelForOverload: () => this.#cancelForOverload(),
     reconcileOverload: cancelled => this.#reconcileOverload(cancelled),
     listenerFailed: message => { this.#recordDiagnostic("warning", "event-listener", message, true); },
+    recoveryDrained: () => { this.#resumeAfterQuiescence(); },
+    incident: failure => { this.#engineHost.deliveryIncident?.(failure); },
   });
   #admissionStopped = false;
   #runningCommands = 0;
+  #recoveryGeneration: number | undefined;
+  #cancellationSettled = false;
   readonly #commands: PiCommandDispatch;
   readonly #events = new PiSessionEvents(this.#projection, {
     sessionGeneration: () => this.#engine.generation,
@@ -216,7 +225,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
       admissionStopped: () => this.#delivery.overloaded || this.#admissionStopped || this.#disposed,
       pendingCommandCount: () => this.#commands.pendingCount,
       beginRunning: () => { this.#runningCommands++; },
-      endRunning: () => { this.#runningCommands--; },
+      endRunning: () => { this.#runningCommands--; this.#resumeAfterQuiescence(); },
       activeModel: () => this.#state.activeModel,
       setActiveModel: model => { this.#state.activeModel = model; },
       thinkingLevel: () => this.#state.thinkingLevel,
@@ -235,7 +244,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
       pendingWorkflowCount: () => this.#workflows.pendingCount,
       sessionGeneration: () => this.#engine.generation,
       beginRunning: () => { this.#runningCommands++; },
-      endRunning: () => { this.#runningCommands--; },
+      endRunning: () => { this.#runningCommands--; this.#resumeAfterQuiescence(); },
       perform: command => performEngineCommand(command, this.#commandContext()),
       emit: value => { this.#emitEvent(value); },
       emitView: () => { this.#emitView(); },
@@ -323,7 +332,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     const failed = this.#delivery.failed;
     await this.#delivery.settle();
     if (failed || this.#delivery.failed || this.#disposed && this.#state.lifecycle !== "stopped") {
-      this.#delivery.clearFailure(); throw new EngineDeliveryError();
+      this.#delivery.clearFailure(); throw new EngineDeliveryError(this.#delivery.failure);
     }
   }
 
@@ -518,16 +527,21 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
 
   // Concurrency: cancellation runs synchronously so the overload reservation already guards reentrant outcomes.
   #cancelForOverload(): Promise<void> {
-    this.#commands.cancelPending();
-    this.#workflows.cancelPending();
+    this.#cancellationSettled = false;
+    this.#commands.cancelPending(["set-model", "set-thinking-level", "resize-surface"]);
+    this.#workflows.cancelForDelivery();
     const session = this.#engine.session;
-    return Promise.resolve().then(() => session?.abort()).then(() => undefined);
+    return Promise.resolve().then(() => session?.abort()).then(() => {
+      this.#cancellationSettled = true;
+      this.#resumeAfterQuiescence();
+    });
   }
 
   async #reconcileOverload(cancelled: boolean): Promise<void> {
     const canResume = cancelled === true && this.#runningCommands === 0;
     this.#admissionStopped = !canResume;
     this.#engine.suspend();
+    this.#recoveryGeneration = canResume ? undefined : this.#engine.generation;
     this.#events.abandonRun();
     this.#state.settleOverload(canResume, this.#disposed);
     // Invariant: overload publishes one authoritative view; settle tool phases before finalizing other live blocks.
@@ -542,6 +556,18 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     this.#delivery.deliverNow(this.#delivery.stamp({ type: "session-view", view: this.view() }));
     if (this.#disposed) this.#delivery.deliverNow(this.#delivery.stamp({ type: "session-lifecycle", lifecycle: "stopped", reason: null }));
     if (canResume && !this.#disposed) this.#engine.resume();
+  }
+
+  #resumeAfterQuiescence(): void {
+    if (this.#recoveryGeneration === undefined || this.#delivery.overloaded || this.#disposed
+      || !this.#cancellationSettled || this.#runningCommands !== 0) return;
+    const generation = this.#recoveryGeneration;
+    this.#recoveryGeneration = undefined;
+    if (generation !== this.#engine.generation) return;
+    this.#admissionStopped = false;
+    this.#state.settleOverload(true, false);
+    this.#engine.resume();
+    this.#emitView();
   }
 
   #recordDiagnostic(

@@ -16,11 +16,43 @@ function coalesces(first: OwnedUiEvent, second: OwnedUiEvent): boolean {
 }
 function drain(queue: PendingEngineDelivery): OwnedUiEvent[] {
   const events: OwnedUiEvent[] = [];
-  while (queue.size) events.push(queue.shift()!.event);
+  while (queue.size) { const pending = queue.shift()!; events.push(pending.event); pending.release?.(); }
   return events;
 }
 
 describe("semantic pending engine delivery", () => {
+  it("shares large authoritative revisions while charging delivery-exclusive obsolete content", () => {
+    const first = (block("a", "x".repeat(5 * 1024 * 1024), 1, "finalized") as Extract<OwnedUiEvent, { type: "transcript-block" }>).block;
+    let current: readonly OwnedUiTranscriptBlock[] = Object.freeze([first]);
+    const queue = new PendingEngineDelivery(undefined, () => current);
+    const view = (sequence: number) => ({ ...base, sequence, type: "session-view", view: { transcript: current } }) as OwnedUiEvent;
+    for (let sequence = 1; sequence <= 30; sequence++) expect(queue.push(view(sequence), 1)).toBe(true);
+    expect(queue.diagnostics().bytes).toBeLessThan(32 * 1024);
+    expect(drain(queue)).toHaveLength(30);
+    expect(queue.diagnostics().bytes).toBe(0);
+    expect(queue.push(view(31), 1)).toBe(true);
+    current = Object.freeze([{ ...first, revision: 2, text: "new" }]);
+    // The large old revision is now genuinely retained only by the pending event.
+    expect(queue.push(view(32), 1)).toBe(false);
+    const consumed = queue.shift()!;
+    const old = consumed.event as Extract<OwnedUiEvent, { type: "session-view" }>;
+    expect(old.view.transcript[0]).toBe(first);
+    consumed.release?.();
+    expect(queue.push(view(33), 1)).toBe(true);
+    drain(queue);
+    expect(queue.diagnostics().bytes).toBe(0);
+  });
+
+  it("delivers a large finalized authoritative block and preserves barriers without lazy substitution", () => {
+    const event = block("a", "x".repeat(5 * 1024 * 1024), 1, "finalized") as Extract<OwnedUiEvent, { type: "transcript-block" }>;
+    const current = [event.block];
+    const queue = new PendingEngineDelivery(undefined, () => current);
+    expect(queue.push(event, 1)).toBe(true);
+    expect(queue.push(barrier(2), 1)).toBe(true);
+    expect(drain(queue)).toEqual([event, barrier(2)]);
+    expect(queue.diagnostics().bytes).toBe(0);
+  });
+
   it("classifies every owned event kind conservatively using listener side effects", () => {
     const kinds: Record<OwnedUiEvent["type"], boolean> = {
       "transcript-block": true, "session-view": false, status: false, "editor-state": false,
@@ -83,7 +115,9 @@ describe("semantic pending engine delivery", () => {
     expect(queue.diagnostics().bytes).toBe(128);
     expect(queue.push(barrier(2), 1)).toBe(true);
     current = block("a", "later", 3);
-    expect((queue.shift()!.event as Extract<OwnedUiEvent, { type: "transcript-block" }>).block.text).toHaveLength(100_000);
+    const consumed = queue.shift()!;
+    expect((consumed.event as Extract<OwnedUiEvent, { type: "transcript-block" }>).block.text).toHaveLength(100_000);
+    consumed.release?.();
     drain(queue);
     current = block("a", "x".repeat((8 * 1024 * 1024)), 4);
     expect(queue.push(current, 1, () => current)).toBe(true);

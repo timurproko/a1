@@ -65,6 +65,23 @@ describe("session writer lock", () => {
 });
 
 describe("session writer lockfile backend", () => {
+  it("recovers a proven-dead owner but retains unknown legacy ownership", async () => {
+    const root = await mkdtemp(join(tmpdir(), "session-writer-")); roots.push(root);
+    const path = join(root, "session.jsonl"), locks = join(root, "locks");
+    writeFileSync(path, "{}\n");
+    const backend = lockfileBackend(locks);
+    const held = backend.acquire(path);
+    const directory = join(locks, readdirSync(locks)[0]!);
+    held.release();
+    mkdirSync(directory);
+    const stale = new Date(Date.now() - 120_000); utimesSync(directory, stale, stale);
+    expect(() => backend.acquire(path)).toThrow("unverifiable");
+    writeFileSync(join(directory, "owner.json"), JSON.stringify({ pid: 2147483647, token: "00000000-0000-0000-0000-000000000001" }));
+    const recovered = backend.acquire(path);
+    expect(recovered.bound).toBe(true);
+    recovered.release();
+  });
+
   it("excludes a second writer, then admits it after release", async () => {
     const root = await mkdtemp(join(tmpdir(), "session-writer-")); roots.push(root);
     const path = join(root, "session.jsonl");
@@ -86,17 +103,16 @@ describe("session writer lockfile backend", () => {
     held.release();
   });
 
-  it("reclaims a lock whose holder stopped refreshing it", async () => {
+  it("retains a live writer even when its heartbeat is stale", async () => {
     const root = await mkdtemp(join(tmpdir(), "session-writer-")); roots.push(root);
     const path = join(root, "session.jsonl");
     writeFileSync(path, "{}\n");
     const locks = join(root, "locks");
-    lockfileBackend(locks, 60_000).acquire(path);
-    // Invariant: an abandoned lock directory ages past the bound because nothing refreshes it.
+    const held = lockfileBackend(locks, 60_000).acquire(path);
+    // A stalled process is not an absent process.
     const stale = new Date(Date.now() - 120_000);
     for (const name of readdirSync(locks)) utimesSync(join(locks, name), stale, stale);
-    const reclaimed = lockfileBackend(locks, 60_000).acquire(path);
-    expect(reclaimed.bound).toBe(true);
-    reclaimed.release();
+    expect(() => lockfileBackend(locks, 60_000).acquire(path)).toThrow("live or unverifiable");
+    held.release();
   });
 });

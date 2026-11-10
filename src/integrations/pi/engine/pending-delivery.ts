@@ -1,4 +1,5 @@
 import type { OwnedUiEvent } from "../../../contracts/owned-ui/index.js";
+import { DeliveryRetention } from "./delivery-retention.js";
 
 const MAX_PENDING_EVENTS = 1024;
 const MAX_PENDING_EVENT_BYTES = 8 * 1024 * 1024;
@@ -20,7 +21,7 @@ type Node = {
   previous?: Node | undefined; next?: Node | undefined;
   key: string | null; generation: number;
   event?: OwnedUiEvent; resolve?: (() => OwnedUiEvent) | undefined;
-  bytes: number;
+  charge?: (() => void) | undefined;
   release?: (() => void) | undefined;
 };
 
@@ -30,17 +31,23 @@ export class PendingEngineDelivery {
   #head: Node | undefined;
   #tail: Node | undefined;
   #size = 0;
-  #bytes = 0;
+  readonly #retention = new DeliveryRetention();
   #protected = 0;
   #generation = -1;
   #superseded = 0;
   #peakNodes = 0;
   #peakBytes = 0;
+  rejection: "event-count" | "retained-bytes" | null = null;
 
   private readonly retain: ((event: OwnedUiEvent) => () => void) | undefined;
-  constructor(retain?: (event: OwnedUiEvent) => () => void) { this.retain = retain; }
+  private readonly current: (() => unknown) | undefined;
+  private readonly externalBytes: (() => number) | undefined;
+  constructor(retain?: (event: OwnedUiEvent) => () => void, current?: () => unknown, externalBytes?: () => number) {
+    this.retain = retain; this.current = current; this.externalBytes = externalBytes;
+  }
 
   get size(): number { return this.#size; }
+  get #bytes(): number { return this.#retention.bytes + this.#size * 128 + (this.externalBytes?.() ?? 0); }
   diagnostics() {
     return { pending: this.#size, bytes: this.#bytes, protected: this.#protected,
       superseded: this.#superseded, peakNodes: this.#peakNodes, peakBytes: this.#peakBytes };
@@ -48,23 +55,33 @@ export class PendingEngineDelivery {
 
   /** False means not admitted. The caller must enter its reserved recovery protocol, never evict. */
   push(event: OwnedUiEvent, generation: number, reconcile?: () => OwnedUiEvent): boolean {
+    this.rejection = null;
+    if (this.current) this.#retention.baseline(this.current());
     const key = replaceableEventKey(event);
     if (generation !== this.#generation || key === null) {
       if (!this.seal()) return false;
       this.#generation = generation;
     }
     const prior = key === null ? undefined : this.#replaceable.get(key);
-    let bytes = retainedEventBytes(event);
-    const marker = key !== null && bytes > 64 * 1024 && reconcile !== undefined;
-    if (marker) bytes = 128;
+    // Production owns exact immutable revisions through the ledger. Legacy standalone
+    // queues retain the compact-marker contract when no authoritative owner is supplied.
+    const marker = this.current === undefined && key !== null && retainedEventBytes(event) > 64 * 1024 && reconcile !== undefined;
+    const charge = marker ? undefined : this.#retention.retain(event);
+    const release = marker ? undefined : this.retain?.(event);
+    prior?.charge?.();
     if (this.#size - (prior === undefined ? 0 : 1) >= MAX_PENDING_EVENTS
-      || this.#bytes - (prior?.bytes ?? 0) + bytes > MAX_PENDING_EVENT_BYTES) return false;
-    const node: Node = { key, generation, bytes, ...(marker ? { resolve: reconcile } : { event, release: this.retain?.(event) }) };
+      || this.#bytes + (prior === undefined ? 128 : 0) > MAX_PENDING_EVENT_BYTES) {
+      this.rejection = this.#size - (prior === undefined ? 0 : 1) >= MAX_PENDING_EVENTS ? "event-count" : "retained-bytes";
+      charge?.(); release?.();
+      if (prior?.event) prior.charge = this.#retention.retain(prior.event);
+      return false;
+    }
+    const node: Node = { key, generation, charge, ...(marker ? { resolve: reconcile } : { event, release }) };
     if (prior !== undefined) { this.#unlink(prior); this.#superseded = Math.min(Number.MAX_SAFE_INTEGER, this.#superseded + 1); }
     node.previous = this.#tail;
     if (this.#tail !== undefined) this.#tail.next = node; else this.#head = node;
     this.#tail = node;
-    this.#size++; this.#bytes += bytes;
+    this.#size++;
     if (key === null) this.#protected++; else this.#replaceable.set(key, node);
     this.#peakNodes = Math.max(this.#peakNodes, this.#size); this.#peakBytes = Math.max(this.#peakBytes, this.#bytes);
     return true;
@@ -88,9 +105,14 @@ export class PendingEngineDelivery {
     if (node === undefined) return undefined;
     const event = node.event ?? node.resolve!();
     const release = node.release ?? this.retain?.(event);
+    const charge = node.charge;
     this.#unlink(node, false);
-    // Invariant: a consumed snapshot retains its assets through synchronous listener delivery, including reentrant production.
-    return { event, generation: node.generation, ...(release === undefined ? {} : { release }) };
+    // Keep the exact revision and assets charged through reentrant listener production.
+    let released = false;
+    return { event, generation: node.generation, release: () => {
+      if (released) return;
+      released = true; charge?.(); release?.();
+    } };
   }
 
   // Invariant: a barrier freezes lazy authoritative markers before a later segment can change them.
@@ -98,10 +120,11 @@ export class PendingEngineDelivery {
     for (const node of this.#replaceable.values()) {
       if (node.resolve === undefined) continue;
       const event = node.resolve();
-      const bytes = retainedEventBytes(event);
-      if (this.#bytes - node.bytes + bytes > MAX_PENDING_EVENT_BYTES) return false;
-      this.#bytes += bytes - node.bytes; node.bytes = bytes; node.event = event; node.resolve = undefined;
-      node.release = this.retain?.(event);
+      const charge = this.#retention.retain(event);
+      const release = this.retain?.(event);
+      if (this.#bytes > MAX_PENDING_EVENT_BYTES) { this.rejection = "retained-bytes"; charge(); release?.(); return false; }
+      node.charge = charge; node.event = event; node.resolve = undefined;
+      node.release = release;
       this.#peakBytes = Math.max(this.#peakBytes, this.#bytes);
     }
     this.#replaceable.clear();
@@ -109,10 +132,10 @@ export class PendingEngineDelivery {
   }
 
   #unlink(node: Node, release = true): void {
-    if (release) node.release?.();
+    if (release) { node.charge?.(); node.release?.(); }
     if (node.previous !== undefined) node.previous.next = node.next; else this.#head = node.next;
     if (node.next !== undefined) node.next.previous = node.previous; else this.#tail = node.previous;
-    this.#size--; this.#bytes -= node.bytes;
+    this.#size--;
     if (node.key === null) this.#protected--;
     else if (this.#replaceable.get(node.key) === node) this.#replaceable.delete(node.key);
   }
