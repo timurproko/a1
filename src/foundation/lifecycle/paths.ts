@@ -2,6 +2,13 @@ import { homedir, platform } from "node:os";
 import { posix, win32 } from "node:path";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
+/** Persistent user-owned exports; temporary development config/data overrides do not relocate user files. */
+export function resolveUserExportsDirectory(home = process.env[PRODUCT_IDENTITY.environment.profileHome] ?? homedir()): string {
+  const path = platform() === "win32" ? win32 : posix;
+  if (!path.isAbsolute(home) || home.includes("\0")) throw new TypeError("User export home must be absolute");
+  return path.resolve(home, path.dirname(PRODUCT_IDENTITY.state.piAgentProfile), "exports");
+}
+
 export interface ProductPaths {
   readonly configDir: string;
   readonly dataDir: string;

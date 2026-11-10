@@ -80,6 +80,14 @@ The central disposable policy is `node_modules`, `dist`, `.builds`, `.artifacts`
 
 Each approved root must be an ignored regular file, directory, symbolic link, or Windows junction at that exact path inside the exact worktree. An exact-root link may target an external generated-content directory; cleanup records its link classification, filesystem identity, and canonical target, revalidates all three immediately before deletion, and removes only the link entry through a non-recursive primitive. It never traverses, removes, or mutates the external target. A descendant link remains stricter: its canonical target must stay inside that same exact disposable root. Escapes by descendant links, drift, replacements, unresolved/cyclic targets, special files, and nested repository boundaries remain blocking. Authority is component-exact: near matches such as `.artifacts-user`, `artifacts`, or `pi-settings-metadata-user.json`, arbitrary `target` directories, and sibling native projects remain blocking. Tracked/staged/unstaged/untracked content and every unknown ignored path still block. A tracked regular `.gitmodules` file alone is ordinary content; actual nested `.git` metadata, gitlinks, configured submodules, and submodule changes block. Ordinary content and these approved generated paths are traversed under separate finite entry allowances, so a normal dependency installation does not consume the ordinary source-tree allowance; both allowances retain the same deadline and content-boundary checks. Once those checks pass, cleanup deletes the declared disposable roots or files itself with a bounded retry for transient Windows sharing violations before handing the worktree to Git, so non-force Git removal only has to delete tracked content. A disposable path that stays locked after the retry budget reports `blocked` with `disposable-path-locked` (or `disposable-link-locked` for a link entry) and the path; the worktree, its `.git` pointer, and its journal are untouched, so stop the process holding the handle and rerun the same command.
 
+Eligible candidates now receive a combined local preflight before purge. JSON reports retain the primary `reason` and add `blockers` plus `developmentProcesses`, so an export and a running development instance are reported together. Only paths, PIDs, parent/start identities, and script paths are reported; file contents and full command lines are never included. Process-inspection failure is a named blocker, not an empty inventory.
+
+An exact `complete` invocation may additionally use `--stop-dev-processes`. This is explicit candidate-scoped authority, available only after merged/released eligibility and clean-content checks. It rechecks exact checkout code and process-start identity before stopping, protects the caller and its ancestors, bounds settlement, and repeats ordinary cleanup checks. Other worktrees, installed releases, unverifiable processes, and genuine local changes remain protected. Ordinary sweeps and previews never stop processes. Example:
+
+```bash
+cd /d/Git/a1 && node scripts/governance/local-worktree-cleanup.mjs complete --repo D:/Git/a1 --path D:/Git/a1/.worktrees/example-task --change example-change --pr 123 --stop-dev-processes
+```
+
 Agents do not manually remove generated content, call `git worktree remove`, or delete the local branch after delivery. The JSON result is authoritative: report success only for `removed` or verified `already-absent`; otherwise retain the worktree and report the exact blocker. A handed-off entry whose worktree was deleted by hand completes through its journal, and its branch is deleted under the accepted-ancestry rule. Legacy roles can supply separate `--source-pr`, `--candidate-pr`, and `--role` values.
 
 ## Explicit closed-unmerged discard
@@ -110,6 +118,22 @@ cd /d/Git/a1 && node scripts/governance/local-worktree-cleanup.mjs discard --rep
 Branch mode verifies the named same-repository PR is still closed-unmerged into `develop`, its implementation association matches the requested change, no other open PR uses the branch, no Git worktree has it checked out, and no nonterminal registration owns the ref. Protected/reserved refs, advanced local or remote tips, malformed evidence, conflicting journals, and scoped lock contention block. It never creates a checkout, invents a filesystem identity, deletes a directory, or adopts a worktree.
 
 A branch-scoped `branch-discard-<ref-digest>.json` journal beside the ordinary cleanup state pins the repository, exact ref, change, PR, expected head, and deletion step without changing existing worktree records. After local preflight, the command journals intent, revalidates live evidence, expected-head deletes only the remote ref, verifies remote absence, and compare-and-deletes the unchanged local ref. Absent refs support resumption. Repeated completed requests report `already-discarded` only while both refs remain absent; a recreated ref is retained as `discard-ref-recreated`. Command reports, not the worktree-only registration list, describe this branch-scoped state. Sweep and queue never invoke branch-only discard.
+
+## Explicit named-export preservation
+
+Default bare-A1 exports now live in the persistent user directory `~/.a1/exports/`; see [session exports](features/session-exports.md). Existing exports in a worktree remain user data, not cleanup disposables. Adding a filename pattern to `.gitignore` or the disposable policy is not a preservation operation.
+
+After the maintainer explicitly chooses one named legacy export to preserve, run the integrated repository operation from primary:
+
+```bash
+cd /d/Git/a1 && node scripts/governance/local-worktree-cleanup.mjs preserve-export --repo D:/Git/a1 --path D:/Git/a1/.worktrees/example-task --change example-change --pr 123 --file session.html --confirm-preserve-export
+```
+
+The exact candidate must already be registered and released, with verified merged/archive/CI evidence and absent remote topic refs. The selected path must be a regular untracked HTML/JSONL file with real non-link ancestors. Tracked/staged/modified selected content, another unknown-content blocker, active/foreign ownership, links, path escapes, or unverifiable evidence retain the worktree and source.
+
+The operation exclusively creates a private destination in `~/.a1/exports/`, flushes and verifies its bytes, journals identities and hashes outside the worktree, revalidates the source/candidate/destination, then removes only the selected original pathname. It does not remove the worktree, delete refs, stop processes, enable automation, or widen ordinary cleanup authority. Reports contain metadata only. An interrupted verified copy or source-unlink step resumes through the same exact command and journal; changed or unverifiable source/destination paths remain protected. A partial or conflicting unverified copy is retained for inspection, never overwritten.
+
+After `preserved`, run ordinary `complete` or a sweep again. Only those commands can remove the checkout, and they repeat all normal safeguards. Do not run an unmerged worktree's new cleanup tooling against live worktrees; use integrated policy from primary.
 
 ## Explicit disposable-link remediation
 

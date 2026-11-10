@@ -147,6 +147,8 @@ export type PiModelsContext = OwnedUiModelsContext;
 export type PiModelsRefreshResult = OwnedUiModelsRefreshResult;
 
 export interface PiWorkflowHost {
+  /** Product-owned persistent storage; integrations never choose the user's home or disposable roots. */
+  reserveExport?(sessionId: string, format: "html" | "jsonl"): Promise<{ readonly path: string; failed(): Promise<void> }>;
   copyText(text: string): Promise<void>;
   // Protocol: resolve only on exit zero; reject process failures with their native code,
   // signal and stderr. Stderr content alone does not indicate a failed command.

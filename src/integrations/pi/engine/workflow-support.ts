@@ -215,7 +215,7 @@ function pinnedCacheWaste(
   return totals;
 }
 
-export function defaultWorkflowHost(): PiWorkflowHost {
+function defaultWorkflowHost(): PiWorkflowHost {
   return {
     copyText: copyToClipboard,
     async runCommand(command, arguments_, options) {
@@ -223,6 +223,18 @@ export function defaultWorkflowHost(): PiWorkflowHost {
       return { stdout: result.stdout, stderr: result.stderr };
     },
     readChangelog: readPinnedCommandChangelog,
+  };
+}
+
+/** Fill optional host services while retaining class methods and their original receiver. */
+export function resolveWorkflowHost(host?: Partial<PiWorkflowHost>): PiWorkflowHost {
+  const fallback = defaultWorkflowHost();
+  return {
+    copyText: host?.copyText?.bind(host) ?? fallback.copyText,
+    runCommand: host?.runCommand?.bind(host) ?? fallback.runCommand,
+    readChangelog: host?.readChangelog?.bind(host) ?? fallback.readChangelog,
+    ...(host?.reserveExport === undefined ? {} : { reserveExport: host.reserveExport.bind(host) }),
+    ...(host?.fetch === undefined ? {} : { fetch: host.fetch.bind(host) }),
   };
 }
 
