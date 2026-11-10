@@ -43,6 +43,12 @@
 - [x] 8.2 Preserve prompt/manual-code/optional answers, prior auth context, submitted text, URL-copy/browser/device actions, info/details, waiting/progress, nested return, cancel/completion, and comparison behavior; cover focused interaction transitions and safe links.
 - [x] 8.3 Finish targeted checks and gap disposition, reconcile current origin/develop, and pass final body/finalization inspection before checking the final implementation item.
 
+## 9. Configured provider status
+
+- [x] 9.1 Render configured status with a muted dot, success-green text and trailing green checkmark for matching and alternate methods; cover selection, theme modes, clipping, unconfigured and comparison behavior without changing provider actions.
+- [x] 9.2 Update the CI-reported shell-host title expectation for the approved Title Case presentation while retaining its overlay visibility and terminal-write assertions.
+- [x] 9.3 Finish targeted checks, evidence/gap reconciliation, current origin/develop reconciliation and final delivery-body/finalization inspection before completing the final PR marker.
+
 ## Workflow follow-up
 
 - Trusted automation owns readiness and in-branch finalization after implementation completion; required exact-head CI follows.

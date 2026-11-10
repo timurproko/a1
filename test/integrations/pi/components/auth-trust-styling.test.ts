@@ -1,4 +1,4 @@
-import { stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
+import { stripTerminalSequences, visibleWidth, sliceByColumn } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { applyPiTheme, createPiShellAuthProviderSelector, createPiShellExtensionSelector, createPiShellSelector, createPiShellTrustSelector, createPiShellUserMessageSelector, createPiShellModelSelector, piTheme, setPiAccentColor } from "../../../../src/integrations/pi/components/index.js";
 import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
@@ -23,6 +23,46 @@ function assertSelected(row: string, label: string): void {
 afterEach(() => { setPiAccentColor("blue"); applyPiTheme("dark", false, "truecolor"); });
 
 describe("standard sign-in and trust presentation", () => {
+  it.each(["truecolor", "256color"] as const)("shows configured states in success green with a dot and trailing checkmark in %s", async mode => {
+    const states = [
+      { authType: "oauth" as const, status: { type: "oauth" as const, source: "stored" }, text: "configured ✓" },
+      { authType: "api_key" as const, status: { type: "api_key" as const, source: "stored credential" }, text: "configured ✓" },
+      { authType: "api_key" as const, status: { type: "api_key" as const, source: "EXAMPLE_API_KEY" }, text: "configured ✓" },
+      { authType: "api_key" as const, status: { type: "oauth" as const, source: "stored" }, text: "subscription configured ✓" },
+      { authType: "oauth" as const, status: { type: "api_key" as const, source: "stored" }, text: "API key configured ✓" },
+    ];
+    const options = states.map((state, index) => ({ id: `${state.authType}:provider-${index}`, providerId: `provider-${index}`, label: `Provider ${index}`, authType: state.authType, status: state.status }));
+    const select = vi.fn();
+    const component = createPiShellAuthProviderSelector("login", options, select, () => {}, undefined, true);
+    await component.ready;
+    for (const appearance of ["dark", "light"] as const) for (const accent of ["blue", "pink"] as const) {
+      applyPiTheme(appearance, false, mode); setPiAccentColor(accent);
+      for (let selection = 0; selection < 2; selection++) {
+        const rows = component.render(100);
+        for (const [index, state] of states.entries()) {
+          const row = rows.find(row => stripTerminalSequences(row).includes(`Provider ${index}`))!;
+          expect(stripTerminalSequences(row).trimEnd()).toContain(` • ${state.text}`);
+          expect(cellStyle(row, "•")).toEqual(cellStyle(piTheme().fg("muted", "•"), "•"));
+          const status = sliceByColumn(row, stripTerminalSequences(row).indexOf(" • ") + 3, 100);
+          expect(cellStyle(status, "c")).toEqual(cellStyle(piTheme().fg("success", "c"), "c"));
+          expect(cellStyle(row, "✓")).toEqual(cellStyle(piTheme().fg("success", "✓"), "✓"));
+          expect((stripTerminalSequences(row).match(/✓/gu) ?? []).length).toBe(1);
+          expect(row).not.toContain(piTheme().getFgAnsi("warning"));
+          expect(stripTerminalSequences(row)).not.toMatch(/stored|EXAMPLE_API_KEY|env:/u);
+        }
+        component.handleInput?.("\u001b[B");
+      }
+      for (const width of [24, 50, 100]) expect(component.render(width).every(row => visibleWidth(row) <= width)).toBe(true);
+    }
+    component.handleInput?.("\r"); expect(select).toHaveBeenCalledWith(expect.stringMatching(/^(oauth|api_key):provider-/u));
+    const unconfigured = createPiShellAuthProviderSelector("login", [{ id: "oauth:empty", providerId: "empty", label: "Empty", authType: "oauth" }], () => {}, () => {}, undefined, true);
+    await unconfigured.ready;
+    const row = unconfigured.render(100).find(row => stripTerminalSequences(row).includes("Empty"))!;
+    expect(stripTerminalSequences(row)).toContain(" • not configured");
+    expect(stripTerminalSequences(row)).not.toContain("✓");
+    expect(cellStyle(row, "n")).toEqual(cellStyle(piTheme().fg("muted", "n"), "n"));
+  });
+
   it("standardizes the retained internal fork picker while preserving its wraparound controller", () => {
     const chosen = vi.fn();
     const fork = createPiShellUserMessageSelector([{ id: "first", label: "First" }, { id: "last", label: "Last" }], chosen, () => {}, "first", true);
@@ -132,7 +172,7 @@ describe("standard sign-in and trust presentation", () => {
     auth.handleInput?.("\u001b[B");
     const rows = auth.render(80);
     assertSelected(rows.find(row => stripTerminalSequences(row).includes("→ "))!, "OpenRouter");
-    expect(stripTerminalSequences(rows.join("\n"))).toContain("OpenRouter ✦ ✓ stored");
+    expect(stripTerminalSequences(rows.join("\n"))).toContain("OpenRouter ✦ • configured ✓");
     expect(rows.find(row => stripTerminalSequences(row).includes("Anthropic"))).not.toContain(piTheme().getBgAnsi("selectedBg"));
     auth.handleInput?.("\r");
     expect(selected).toHaveBeenLastCalledWith("oauth:openrouter");

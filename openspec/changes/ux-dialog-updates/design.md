@@ -85,6 +85,12 @@ Apply one shared login renderer to every provider and every state: API-key/promp
 
 Use a deferred attributed owned login presenter with the same behavioral contract as the pinned component if public presentation slots cannot provide the consistent layout. Retain the pinned component for comparison. Add theme-role and geometry assertions across all state transitions and multiple synthetic provider names, plus interaction tests for prompt/cancel, device actions, URL-copy, nested restoration, and live theme changes.
 
+## Approved Refinement: Configured Provider Status
+
+The maintainer requested success-green configured status for an alternate configured method and requested replacing `✓ stored` with configured wording, a retained separator dot, and a right-hand checkmark. Bare-A1 rows now display ` • configured ✓` for the matching method or ` • subscription configured ✓` / ` • API key configured ✓` for an alternate configured method. The dot remains muted; status and trailing checkmark use the same live success role. Storage/environment source labels are no longer rendered in the bare-A1 status suffix, but the authoritative status, configured method, provider identity, selection actions and credentials are unchanged. Unconfigured rows remain ` • not configured` without a checkmark, and comparison presentation stays pinned.
+
+The preceding exact-head CI failure was an obsolete `Detached choice` expectation in the shell-host overlay test; the approved internal title policy correctly renders `Detached Choice`. Update only that expectation, retaining the attachment, overlay visibility, and terminal-write assertions.
+
 ## Implementation Evidence
 
 - Session Info uses a bounded input-route adapter with component-local pointer routing and shared reference rendering. Escape and Ctrl+C close even before its deferred document resolves. Semantic identity/group rows share a left-aligned value column, reduce optional padding on narrow frames, and retain complete wrapped paths and values.
@@ -100,6 +106,13 @@ Use a deferred attributed owned login presenter with the same behavioral contrac
 - Title, chevron, description, links, rules and shortcut roles resolve at render time. Tests cover three synthetic provider names, dark/light appearances, several accents and truecolor/256-color modes without provider-specific code.
 - Deferred state calls and early input replay in order; early cancellation rejects pending answers and prevents resurrection. Copy feedback/device-confirm actions are lifetime-guarded. Safe web URLs use encoded hyperlinks and best-effort shell-free browser argv without a project cwd; non-web targets/control payloads do not get execution or raw terminal control authority.
 - The final login refinement passed build, typecheck, architecture/startup budgets, pinned-source provenance, changed-file documentation, strict OpenSpec validation and eight focused test files (146 tests). Existing prompt, optional blank answer, nested flow, cancel, comparison and extension-isolation assertions remain in place. No broad local regression suite or agent-driven interactive provider login was performed; required CI remains authoritative.
+
+## Configured Status Evidence
+
+- Bare-A1 configured suffixes retain the muted dot and render matching or alternate configured-method text plus the trailing checkmark through the live success role. Unconfigured rows remain muted with no checkmark; raw storage/environment labels are omitted only from this owned status suffix.
+- Both truecolor and 256-color tests cover dark/light themes, multiple accents, selected/unselected rows, matching OAuth/API-key status, environment-backed credentials, alternate configured methods, clipping and unchanged selection actions. Comparison parity assertions retain the pinned source-label format.
+- The CI-reported overlay failure was repaired by updating only the expected approved title casing to `Detached Choice`. The shell-host test retains its visibility and terminal-write assertions and passes.
+- Build, typecheck, strict OpenSpec validation, architecture, provenance and changed-file documentation passed. Four focused test files passed (53 tests); finalized-head CI remains authoritative.
 
 ## Open Questions
 

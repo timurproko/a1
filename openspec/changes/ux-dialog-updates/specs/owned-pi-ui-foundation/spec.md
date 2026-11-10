@@ -178,6 +178,14 @@ Bare A1's sign-in method and provider selectors SHALL use accent-bold Title Case
 - **AND** the active provider SHALL use the shared selected background with normal primary text and muted configuration metadata
 - **AND** configured-state markers, provider names, search, result counts, navigation, and nested cancel/back behavior SHALL retain their existing meaning
 
+#### Scenario: Show configured provider status
+
+- **WHEN** a provider has a configured authentication status in a bare-A1 provider selector
+- **THEN** its status suffix SHALL retain a muted separator dot followed by success-green `configured` text and a success-green checkmark immediately after that text
+- **AND** an alternate configured method SHALL retain the `subscription configured` or `API key configured` qualifier using the same success role rather than warning yellow
+- **AND** raw storage/environment source labels SHALL NOT replace the configured wording in the bare-A1 suffix
+- **AND** unconfigured providers SHALL retain muted `not configured` text without a checkmark, and comparison presentation SHALL remain pinned
+
 #### Scenario: Move or clip selection
 
 - **WHEN** a sign-in selection changes, is filtered, or is rendered at a narrow width

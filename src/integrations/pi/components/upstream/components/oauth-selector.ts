@@ -2,9 +2,9 @@
  * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
  * packages/coding-agent/src/modes/interactive/components/oauth-selector.ts.
  * Modifications: Adapt the provider controller to injected neutral options, shared modal framing, live
- * semantic roles, Title Case headings and circular Up/Down navigation. Preserve pinned filtering,
- * paging, partner markers, status formatting and actions; keep the public package selector for
- * comparison.
+ * roles, Title Case and circular navigation. Configured status uses a muted dot, success-green text
+ * and trailing checkmark with alternate-method qualifiers instead of storage-source labels; filtering,
+ * paging, partner markers, actions and comparison presentation remain unchanged.
  * Deviations: standard-sign-in-dialog-styling.
  */
 import { Container, fuzzyFilter, getKeybindings, getSelectPageIndex, Input, Spacer, Text, TruncatedText } from "@earendil-works/pi-tui";
@@ -114,13 +114,8 @@ export class AuthProviderSelector extends Container {
 
 function providerStatus(provider: Provider): string {
   const theme = piTheme();
-  if (provider.status === undefined) return theme.fg("muted", " • not configured");
-  if (provider.status.type !== provider.authType) {
-    const type = provider.status.type === "api_key" ? "API key" : "subscription";
-    return theme.fg("muted", " • ") + theme.fg("warning", `${type} configured`);
-  }
-  const source = provider.status.source;
-  if (!source || source === "OAuth" || source === "stored credential") return theme.fg("success", " ✓ configured");
-  const label = /^[A-Z][A-Z0-9_]*(?:, [A-Z][A-Z0-9_]*)*$/u.test(source) ? `env: ${source}` : source;
-  return theme.fg("success", ` ✓ ${label}`);
+  const separator = theme.fg("muted", " • ");
+  if (provider.status === undefined) return separator + theme.fg("muted", "not configured");
+  const method = provider.status.type === provider.authType ? "" : provider.status.type === "api_key" ? "API key " : "subscription ";
+  return separator + theme.fg("success", `${method}configured ✓`);
 }
