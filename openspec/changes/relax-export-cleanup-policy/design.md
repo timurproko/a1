@@ -1,30 +1,35 @@
 # Design
 
-## Delivery status
+## Approval and refinement
 
-This is a planning-only draft. The maintainer requested removing the export rule; implementation begins after approval of this concrete plan and an explicit implementation request. No export-policy changes are delivered by this planning commit.
+The maintainer first requested removing the export-preservation rule. After reviewing a table of cleanup protections and workflow overhead, the maintainer explicitly requested simplifying the rules as recommended. That approves implementation and the refinement in the same worktree, branch, and PR: remove mandatory preservation and duplicate confirmation, consolidate guidance, and leave actual data-loss checks intact. The refined plan and PR outcomes are reconciled before corresponding implementation edits.
 
-## Policy boundary
+## Export decision
 
-Remove the special requirement that a legacy export must always be copied to `~/.a1/exports/` before cleanup. An explicit deletion request for an identified export is sufficient authority for that one file; do not ask the maintainer to approve preservation instead. The file may be identified by an exact path or an unambiguous previously reported blocker in the same interaction.
+An explicit deletion request for an identified regular untracked worktree export is sufficient authority for that file; do not request preservation instead. Identification may be an exact path or an unambiguous previously reported blocker in the same interaction. Verify the exact candidate, ownership, regular-file identity, untracked status, and real non-link ancestors before removal. Recheck before unlinking; do not follow links or recursively delete a directory.
 
-This is not permission for broad deletion. A generic cleanup request still does not classify arbitrary HTML/JSONL files as disposable. Before acting on a named deletion, establish the exact candidate and regular untracked export identity; tracked changes, links, path escapes, unknown files, foreign ownership, and unverifiable identities remain protected. A deletion request does not authorize following links, deleting a directory, adopting another session's worktree, or overriding another blocker.
+This is not permission for broad deletion. A generic cleanup request does not classify arbitrary HTML/JSONL files as disposable. Tracked content, unknown files, conflicting ownership, links, escapes, and unverifiable identities remain protected. Subsequent worktree and branch removal is still owned by integrated cleanup tooling and repeats all normal eligibility and content checks.
 
-The subsequent worktree and branch removal remains owned by the integrated cleanup tooling and repeats its normal eligibility and content checks. Agent guidance will distinguish this narrow, explicitly requested file removal from prohibited ad hoc worktree or unrelated user-file deletion.
+The cleanup runbook owns this decision: delete when explicitly requested, preserve with the existing confirmed operation when selected, otherwise retain an unknown file and ask only what is missing. Session-export documentation links to that decision. Persistent product export defaults and preservation-command behavior remain unchanged.
 
-## Documentation alignment
+## One procedure owner per subject
 
-Update the delivery skill and workflow config together so neither continues to demand preservation after deletion has been explicitly chosen. Describe `preserve-export` in the local cleanup and session-export documentation as an optional safe-copy route, retaining its existing confirmation and durability semantics when selected. Add a capability delta describing the authorization distinction without changing the existing preservation command's requirements.
+Use existing owners rather than introducing another rules document:
 
-## Unchanged behavior
+- `docs/openspec-archive-automation.md`: lifecycle, approval, PR structure, bounded validation, readiness, finalization, handoff, integration, and legacy exceptions.
+- `docs/architecture/project-structure.md#development-worktrees`: worktree creation, identity, ownership, and environment adapters.
+- `docs/local-worktree-cleanup.md`: cleanup authorization, commands, blockers, and recovery.
 
-- Implicit product exports still default to the persistent user export directory.
-- `preserve-export` remains supported and keeps every current safety check.
-- Sweep, preview, and ordinary completed cleanup still do not delete unknown exports automatically.
-- No blanket export glob is added to the generated-content policy.
-- Ownership, merge/archive/CI/ref eligibility, content, process, link, non-force removal, and compare-and-delete branch safeguards remain intact.
-- No historical archive or already preserved export is changed.
+`AGENTS.md` is the entry point, the delivery skill is a short operational checklist/router, and OpenSpec context links to those owners instead of repeating the detailed lifecycle. Retain the existing no-attribution and pasteable-command requirements. Do not weaken executable PR-format or lifecycle gates in the name of shorter prose. Move any currently context-only instruction needed by agents into its procedure owner before removing the duplicate.
 
-## Validation and gaps
+## Authorization without confirmation loops
 
-Review every active export-policy reference for contradictory mandatory wording, validate the OpenSpec delta strictly, and run applicable bounded policy/documentation checks. Existing cleanup tests remain unchanged because no executable behavior changes. CI after trusted readiness remains authoritative. No known implementation gap is accepted in this plan; any discovered scope expansion must return for approval.
+When a concrete plan has already been presented, one explicit message approving it and requesting implementation satisfies both requirements. Do not demand separate messages or a specific phrase. Planning-only requests still authorize no implementation; scope ambiguity still requires clarification; refinements are reconciled before edits. Implementation authorization never grants merge, unrelated-file deletion, foreign-worktree takeover, or background cleanup authority. Named deletion requests need no separate preservation approval; optional preservation and remote discard keep their applicable tool confirmations.
+
+## Validation
+
+Add focused tests for procedure routing, YAML parsing, and local link/anchor integrity, asserting stable destinations rather than exact explanatory prose. Review the shortened guidance against existing lifecycle and cleanup safeguards. Run strict OpenSpec validation, bounded affected tests, typecheck, and documentation checks. CI after trusted readiness remains authoritative.
+
+## Unchanged checks and gap disposition
+
+All cleanup-tool merge/archive/CI/ref, ownership, identity, content, process, link, non-force removal, journal, and compare-and-delete checks remain unchanged. Their implementation stays in tooling and their operational detail stays in the runbooks. Removing delivery-audit gates or redesigning the planning/PR machinery is explicitly outside scope, not an implementation gap. Known gaps: none in the approved guidance change.
