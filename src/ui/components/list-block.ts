@@ -4,6 +4,8 @@
  * the first rendered row, so the reader always knows which group is on screen.
  */
 
+import { wrapChoiceIndex } from "../../contracts/presentation/index.js";
+
 export type ListRow<T> =
   | { readonly kind: "group"; readonly group: string; readonly title: string }
   | { readonly kind: "element"; readonly group: string; readonly key: string; readonly selectable: boolean; readonly value: T }
@@ -35,13 +37,13 @@ export function indexOfKey<T>(rows: readonly ListRow<T>[], key: string | undefin
   return selectableIndexes(rows)[0] ?? -1;
 }
 
-/** Clamped movement between selectable rows. No wrap-around. */
-export function moveSelection<T>(rows: readonly ListRow<T>[], current: number, delta: number): number {
+/** Moves between selectable rows; choice lists can opt into circular navigation. */
+export function moveSelection<T>(rows: readonly ListRow<T>[], current: number, delta: number, wrap = false): number {
   const selectable = selectableIndexes(rows);
   if (selectable.length === 0) return -1;
   const position = selectable.indexOf(current);
   if (position < 0) return selectable[0] ?? -1;
-  const next = Math.min(Math.max(position + delta, 0), selectable.length - 1);
+  const next = wrap ? wrapChoiceIndex(position, delta, selectable.length) : Math.min(Math.max(position + delta, 0), selectable.length - 1);
   return selectable[next] ?? current;
 }
 

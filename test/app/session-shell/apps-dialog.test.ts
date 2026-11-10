@@ -13,6 +13,23 @@ function fixture(height = 24) {
 }
 
 describe("Launcher dialog", () => {
+  it("wraps at both ends of the current results without opening until confirmed", () => {
+    const { dialog, select, text } = fixture();
+    dialog.handleInput("\u001b[A");
+    expect(text()).toContain("→ Hotkeys");
+    expect(select).not.toHaveBeenCalled();
+    dialog.handleInput("\u001b[B");
+    expect(text()).toContain("→ Agent");
+    dialog.handleInput("g");
+    dialog.handleInput("\u001b[A");
+    expect(text()).toContain("→ Changelog");
+    dialog.handleInput("\u001b[B");
+    expect(text()).toContain("→ Agent");
+    dialog.handleInput("\u007f"); dialog.handleInput("SET");
+    dialog.handleInput("\u001b[A"); dialog.handleInput("\u001b[B");
+    dialog.handleInput("\r");
+    expect(select).toHaveBeenCalledExactlyOnceWith("settings");
+  });
   it("renders all applications with searchable compact-selector chrome", () => {
     const { dialog, text } = fixture();
     expect(text()).toContain("Launcher");
@@ -45,7 +62,7 @@ describe("Launcher dialog", () => {
     expect(select).toHaveBeenCalledExactlyOnceWith(id);
   });
 
-  it("navigates matching choices, clamps, and cancels without selecting", () => {
+  it("navigates matching choices and cancels without selecting", () => {
     const { dialog, select, cancel } = fixture();
     dialog.handleInput("\u001b[B");
     dialog.handleInput("\r");
@@ -59,6 +76,7 @@ describe("Launcher dialog", () => {
     const { dialog, select, text } = fixture();
     dialog.handleInput("zzz");
     expect(text()).toContain("No apps found");
+    dialog.handleInput("\u001b[A"); dialog.handleInput("\u001b[B");
     dialog.handleInput("\r");
     expect(select).not.toHaveBeenCalled();
     for (let index = 0; index < 3; index++) dialog.handleInput("\u007f");

@@ -64,14 +64,14 @@ export function createPiSessionPresenters(adapter: PiSessionPresenterBackend, op
     getShortcuts: bindings => source().pinnedShortcutDescriptions(bindings as Parameters<PiSessionPresentationSource["pinnedShortcutDescriptions"]>[0]),
   };
 
-  return { ...PI_SHELL_PRESENTATION, components: createPiShellComponents(loadLazySelectors),
+  return { ...PI_SHELL_PRESENTATION, components: createPiShellComponents(loadLazySelectors, adapter.settings.productMode === "bare"),
     transcriptRenderers: () => renderers,
 
     openModelSelector(host, initialSearchInput) {
       const context = source().pinnedModelSelectorContext();
       const close = closeSurface(host);
       const component = createPiShellModelSelector({
-        ...context,
+        ...context, standardStyle: adapter.settings.productMode === "bare",
         runtime: {
           getColumns: () => host.viewport().columns,
           getRows: () => host.viewport().rows,

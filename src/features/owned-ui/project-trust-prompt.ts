@@ -99,7 +99,7 @@ export function createConsoleProjectTrustPrompt(
     const render = (): void => {
       const width = Math.max(renderBareDialog ? 1 : 20, output.columns ?? 80);
       const rows = Math.max(1, output.rows ?? 24);
-      const lines = (renderBareDialog?.(cwd, choices.map(choice => choice.label), selected, width, rows, palette!.accent, palette!.border) ?? [
+      const lines = (renderBareDialog?.(cwd, choices.map(choice => choice.label), selected, width, rows, palette!.accent, palette!.border, palette!.selectedBg) ?? [
         `${BOLD}${ACCENT}Trust project folder?${RESET_FG}${RESET_BOLD}`,
         cwd,
         "",
@@ -235,5 +235,5 @@ function clipAnsiSafe(line: string, width: number): string {
     index += 1;
     visible += 1;
   }
-  return `${output}${RESET_FG}${RESET_BOLD}`;
+  return `${output}${RESET_FG}${RESET_BOLD}${line.includes("\u001b[48;") ? "\u001b[49m" : ""}`;
 }

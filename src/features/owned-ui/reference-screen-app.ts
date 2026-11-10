@@ -95,6 +95,8 @@ export interface ReferenceScreenOptions {
   readonly id: string;
   readonly title: string;
   readonly document: ReferenceDocumentProvider;
+  /** In-place documents put their shortcut row inside the bottom rule like other dock dialogs. */
+  readonly presentation?: "screen" | "dialog";
   /** The reader's scroll settings, read on every frame so a live change is honored. */
   readonly scrollSettings: () => OwnedUiViewportSettings;
   /** Enables owned text selection for document routes that explicitly opt in. */
@@ -111,6 +113,7 @@ export interface ReferenceScreenOptions {
 export class ReferenceScreenApp implements UiApp {
   readonly id: string;
   readonly #title: string;
+  readonly #dialog: boolean;
   readonly #document: ReferenceDocumentProvider;
   readonly #scrollSettings: () => OwnedUiViewportSettings;
   readonly #selection: ReferenceDocumentSelection | undefined;
@@ -131,6 +134,7 @@ export class ReferenceScreenApp implements UiApp {
   constructor(options: ReferenceScreenOptions) {
     this.id = options.id;
     this.#title = options.title;
+    this.#dialog = options.presentation === "dialog";
     this.#document = options.document;
     this.#scrollSettings = options.scrollSettings;
     this.#selection = options.selection === undefined ? undefined : new ReferenceDocumentSelection(options.selection);
@@ -221,7 +225,8 @@ export class ReferenceScreenApp implements UiApp {
     // Compatibility: the v2 reference screen frames its document between two border-coloured rules.
     const rule = theme.fg("border", "─".repeat(rect.width));
     // Invariant: dialog chrome shares the title's one-cell inset; document content keeps its own layout.
-    const frame = [rule, ...withRail, rule, padToWidth(hint, rect.width)];
+    const footer = padToWidth(hint, rect.width);
+    const frame = this.#dialog ? [rule, ...withRail, footer, rule] : [rule, ...withRail, rule, footer];
     // Invariant: a rectangle too small for the chrome still gets exactly its rows, top first.
     return frame.slice(0, rect.height).concat(Array(Math.max(0, rect.height - frame.length)).fill(""));
   }

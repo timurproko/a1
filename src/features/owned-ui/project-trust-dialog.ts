@@ -15,12 +15,13 @@ export function renderProjectTrustDialog(
   terminalRows: number,
   accent: string,
   border: string,
+  selectedBg: string,
 ): readonly string[] {
   const width = Math.max(1, terminalWidth);
   const rule = `${border}${"─".repeat(width)}${RESET_FG}`;
-  const title = ` ${BOLD}${accent}Trust project folder?${RESET_FG}${RESET_BOLD}`;
+  const title = ` ${BOLD}${accent}Trust Project Folder?${RESET_FG}${RESET_BOLD}`;
   const path = ` ${MUTED}${sanitize(cwd)}${RESET_FG}`;
-  const choices = options.map((label, index) => choice(label, selected === index, accent));
+  const choices = options.map((label, index) => choice(label, selected === index, accent, selectedBg));
   const closeKey = displayShortcutKeyLabel(DIALOG_CLOSE_SHORTCUT_HINT.key);
   const hint = ` ${DIM}↑↓${MUTED} navigate  ${DIM}Enter${MUTED} select  ${DIM}${closeKey}${MUTED} ${DIALOG_CLOSE_SHORTCUT_HINT.action}${RESET_FG}`;
   const explanation = wrap(EXPLANATION, Math.max(1, width - 2)).map(line => ` ${line}`);
@@ -37,8 +38,8 @@ export function renderProjectTrustDialog(
   return [choices[selected] ?? choices[0] ?? ""];
 }
 
-function choice(label: string, selected: boolean, accent: string): string {
-  return selected ? ` ${accent}→ ${label}${RESET_FG}` : `   ${label}`;
+function choice(label: string, selected: boolean, accent: string, selectedBg: string): string {
+  return selected ? ` ${selectedBg}${accent}→ ${RESET_FG}${label}\u001b[49m` : `   ${label}`;
 }
 
 function choiceWindow(choices: readonly string[], selected: number, capacity: number): readonly string[] {

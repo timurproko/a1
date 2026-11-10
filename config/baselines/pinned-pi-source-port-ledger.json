@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-10T13:13:42.196Z",
+  "recordedAt": "2026-11-10T19:19:12.289Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "dd30101cfc5b0609411dd80b6f93adbc14db14cf",
@@ -38,8 +38,8 @@
     "sourceModules": 128,
     "assets": 4,
     "classifications": {
-      "public-api-reuse": 67,
-      "owned-presentation": 31,
+      "public-api-reuse": 64,
+      "owned-presentation": 34,
       "host-adaptation": 34
     },
     "requiredBehaviorIds": 29,
@@ -1131,12 +1131,21 @@
       "sourceMap": "modes/interactive/components/auth-url.js.map",
       "lines": 40,
       "sha256": "a4b3531e947746ca1bc2319b717ff79b37898366d282d02f9fc0b955481fc913",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/shell-selectors-dialogs.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/components/auth-url.ts",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Reached transitively through the public LoginDialogComponent; A1 passes its TUI facade to that component, which owns the sign-in URL, click hint, copy action, and feedback.",
-      "approvedDeviations": [],
+      "modifications": "Adapt sign-in URL/copy feedback to live semantic roles, shared zero-inset login content and canonical shortcut hints. Preserve safe hyperlinks, copy results and lifetime guards; the comparison profile keeps the public component.",
+      "upgradeStrategy": "three-way",
+      "localSha256": "c0cf3b6d72f7da38462fd694150b133d1c94917d71be6d9c45765d149596dc41",
+      "approvedDeviations": [
+        {
+          "id": "shared-login-template",
+          "reason": "Every provider login state shares the live themed title, description, spacing, chevron and footer template.",
+          "upstreamBehavior": "Authentication effects, safe link targets, copy behavior and comparison presentation remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/login-template.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "stateful-components"
       ],
@@ -1806,9 +1815,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/extension-selector.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded modal-frame components while preserving options, timeout, navigation, selection, cancellation, and disposal behavior.",
+      "modifications": "Mechanical port with public imports, private fields, shared shortcut rows and compact framing; internal choices opt into normal labels over selected backgrounds and circular navigation while preserving extension/comparison styling, timeout, cancellation, and disposal.",
       "upgradeStrategy": "three-way",
-      "localSha256": "c1104993c9d0baa1f2c6223ead15c5241f4a9f04d409c24dc0acbe723b19aed7",
+      "localSha256": "64ba4ba2523922bb6163414e35b385938a380304dc53bbc45d7fa332e2f46eef",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1896,9 +1905,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Owned UI/routing; A1 level color, linked PRs after a dim dot separator, dim ellipsis, model priority, and secondary-accent name reveals after stats; Pi unchanged.",
+      "modifications": "A1 PR links, model priority, level colors, secondary-accent name reveals, dim name/row clipping; Pi intact.",
       "upgradeStrategy": "three-way",
-      "localSha256": "a3aa9c829990b15581b0567bc8a4ee340ee7d9d122be4f46ff8a4a988f2f016c",
+      "localSha256": "b0f6d50650a678b37604be5c2c55c3722cd032f25941e37ebf5a4f6ce886760a",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1914,7 +1923,7 @@
         },
         {
           "id": "owned-footer-ellipsis",
-          "reason": "Approved improve-tab-overflow-menu uses one dim ellipsis for clipped A1 path, usage, and extension rows.",
+          "reason": "Clipped A1 path, usage, extension and session-name markers use one dim ellipsis, including markers shown during name reveals.",
           "upstreamBehavior": "The pinned comparison footer retains its three-dot suffix; A1 PR hyperlinks and untruncated rows remain unchanged.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         },
@@ -2024,12 +2033,21 @@
       "sourceMap": "modes/interactive/components/login-dialog.js.map",
       "lines": 331,
       "sha256": "4baa766d4fbb1ace9afd61272bd8342c7f897edaabb2394e8c78ffe541e1f437",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/components/login-dialog.ts",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
-      "approvedDeviations": [],
+      "modifications": "Adapt all provider login states to shared live-themed framing: title, immediate muted description, blank row before accent-chevron input and one-cell inset. Preserve prompt, callback, device/copy, browser, cancellation and nested lifecycle contracts through neutral runtime ports; retain the public component for comparison.",
+      "upgradeStrategy": "three-way",
+      "localSha256": "6599401d572b44634f8b8c478a82590a155899ad68564b773175eb9c5c1625ec",
+      "approvedDeviations": [
+        {
+          "id": "shared-login-template",
+          "reason": "Every provider login state shares the live themed title, description, spacing, chevron and footer template.",
+          "upstreamBehavior": "Authentication effects, safe link targets, copy behavior and comparison presentation remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/login-template.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "stateful-components"
       ],
@@ -2137,8 +2155,15 @@
       "localDestination": "src/integrations/pi/components/index.ts",
       "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
-      "approvedDeviations": [],
+      "modifications": "Retain the public controller; standardize bare-A1 selected primary rows through the shared painter while preserving model/provider metadata and independent current/default indicators.",
+      "approvedDeviations": [
+        {
+          "id": "standard-internal-choice-styling",
+          "reason": "Internal choices use normal labels over item-bounded selected backgrounds without selection-induced bold.",
+          "upstreamBehavior": "Comparison presentation, navigation, metadata, selection, and persistence remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/auth-trust-styling.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "selectors",
         "settings",
@@ -2172,12 +2197,21 @@
       "sourceMap": "modes/interactive/components/oauth-selector.js.map",
       "lines": 266,
       "sha256": "ddb495b82f9cfce2a14133b937bd93f7e264f41e026dfd02f7113ae37a7d8e63",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/components/oauth-selector.ts",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
-      "approvedDeviations": [],
+      "modifications": "Adapt the provider controller to injected neutral options, shared framing, live roles, Title Case and circular navigation. Configured status uses a muted dot, success-green configured text and trailing checkmark without method/source qualifiers. Omit decorative preferred-partner badges while retaining filtering, paging, actions and comparison presentation.",
+      "upgradeStrategy": "three-way",
+      "localSha256": "903593c224bef6f10a79e7c0c7f39354645585c3ffe7055500ce2b9853813aa1",
+      "approvedDeviations": [
+        {
+          "id": "standard-sign-in-dialog-styling",
+          "reason": "Internal provider selectors use Title Case, standard selection, circular navigation, success-green configured status and no decorative preferred-partner badges.",
+          "upstreamBehavior": "Pinned comparison titles/navigation, provider metadata, configured status, search, paging, actions, and cancellation remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/provider-auth-parity.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "selectors",
         "settings",
@@ -2970,15 +3004,21 @@
       "localDestination": "src/integrations/pi/components/upstream/components/trust-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical source-synchronized trust selector port with injected public ProjectTrustStore-derived options, remapped owned theme imports, the shared bare-A1 modal shortcut row and compact padded modal frame, and standard semantic trust styling with marker-free choice geometry.",
+      "modifications": "Source-synchronized trust port with injected public options and shared framing; bare A1 opts into Title Case, selected backgrounds, circular navigation, aligned decisions and no saved-path suffix while comparison styling and trust effects remain unchanged.",
       "upgradeStrategy": "three-way",
-      "localSha256": "d02b76005b1c37c62beb818217ee143f5363f821c731b5c3aade1fd345c7da2e",
+      "localSha256": "2e68c36fe383d3020ed2e583400b5e508dc0570c62934518e009a88a364cda56",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
           "reason": "Bare A1 distinguishes shortcut keys from action names and separates modal hint entries with whitespace instead of dots.",
           "upstreamBehavior": "The comparison profile retains pinned components while bare-A1 bindings, wording, and modal behavior remain unchanged.",
           "acceptanceTest": "test/integrations/pi/engine/project-trust-context.test.ts"
+        },
+        {
+          "id": "standard-trust-dialog-styling",
+          "reason": "Bare A1 uses Title Case, normal-text selected labels over shared backgrounds, aligned status values and no saved-decision path suffix.",
+          "upstreamBehavior": "Comparison styling and all trust decisions, persistence, and lifecycle behavior remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/auth-trust-styling.test.ts"
         }
       ],
       "behaviorCategories": [
@@ -3017,8 +3057,15 @@
       "localDestination": "src/integrations/pi/components/index.ts",
       "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
-      "approvedDeviations": [],
+      "modifications": "Retain the public fork controller and metadata; bare A1 uses an accent-bold heading, standard accent arrow, normal selected message text, and shared selected background.",
+      "approvedDeviations": [
+        {
+          "id": "standard-internal-choice-styling",
+          "reason": "Internal choices use normal labels over item-bounded selected backgrounds without selection-induced bold.",
+          "upstreamBehavior": "Comparison presentation, navigation, metadata, and fork/cancel behavior remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/auth-trust-styling.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "selectors",
         "settings",

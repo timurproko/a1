@@ -344,6 +344,63 @@ afterEach(() => {
 });
 
 describe("the settings screen", () => {
+  it("wraps ordinary settings and structured choices while keeping edits explicit", async () => {
+    const backing = port();
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", agent: backing.port });
+    await session.load();
+    const target = settingsApp(session);
+    const active = () => screen(target).find(row => row.trimStart().startsWith("→"))?.trim().split(/\s{2,}/u)[0];
+    target.onInput?.(CTRL_HOME, HOST); const first = active();
+    target.onInput?.(CTRL_END, HOST); const last = active();
+    expect(last).not.toBe(first);
+    target.onInput?.(DOWN, HOST); expect(active()).toBe(first);
+    target.onInput?.(`${ESC}[A`, HOST); expect(active()).toBe(last);
+    selectRow(target, "Warnings"); target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[A`, HOST);
+    expect(modalScreen(target).find(row => row.includes("→"))).toContain("Unknown tools");
+    target.onInput?.(DOWN, HOST);
+    expect(modalScreen(target).find(row => row.includes("→"))).toContain("Anthropic extra usage");
+    expect(backing.writes).toEqual([]);
+    target.onInput?.(ESC, HOST);
+  });
+
+  it("wraps Default Model choices and keeps empty/single-result searches safe", async () => {
+    const backing = defaultModelDialogPort();
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", agent: backing.port });
+    await session.load();
+    const target = settingsApp(session);
+    selectRow(target, "Default model"); target.onInput?.(ENTER, HOST);
+    const active = () => modalScreen(target).find(row => row.includes("→"));
+    target.onInput?.(`${ESC}[A`, HOST); expect(active()).toContain("spark");
+    target.onInput?.(DOWN, HOST); expect(active()).toContain("gpt-5 [openai]");
+    for (const key of "spark") target.onInput?.(key, HOST);
+    target.onInput?.(`${ESC}[A`, HOST); target.onInput?.(DOWN, HOST);
+    expect(active()).toContain("spark");
+    for (const key of "zzz") target.onInput?.(key, HOST);
+    target.onInput?.(`${ESC}[A`, HOST); target.onInput?.(DOWN, HOST); target.onInput?.(ENTER, HOST);
+    expect(backing.writes).toEqual([]);
+    expect(modalScreen(target).join("\n")).toContain("No models found");
+    target.onInput?.(ESC, HOST);
+  });
+
+  it("wraps both Thinking Level steps without changing an override until confirmed", async () => {
+    const backing = modelDialogPort();
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", agent: backing.port });
+    await session.load();
+    const target = settingsApp(session);
+    selectRow(target, "Default thinking level per model"); target.onInput?.(ENTER, HOST);
+    const active = () => modalScreen(target).find(row => row.includes("→"));
+    target.onInput?.(`${ESC}[A`, HOST); expect(active()).toContain("spark");
+    target.onInput?.(DOWN, HOST); expect(active()).toContain("gpt-5 [openai]");
+    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[A`, HOST); expect(active()).toContain("low");
+    target.onInput?.(`${ESC}[A`, HOST); expect(active()).toContain("clear override");
+    target.onInput?.(DOWN, HOST); expect(active()).toContain("low");
+    target.onInput?.(ESC, HOST);
+    expect(modalScreen(target).join("\n")).toContain("step 1/2");
+    expect(backing.writes).toEqual([]);
+    target.onInput?.(ESC, HOST);
+  });
   it("frames settings chrome in border, accent, and heading roles", async () => {
     const { app: target } = await app();
     const lines = target.render({ width: 80, height: 24 }, BOLD_NAMING_HOST);
@@ -1407,16 +1464,17 @@ describe("the value dropdown behind the screen", () => {
     expect(writes).toHaveLength(1);
   });
 
-  it("navigates and confirms a keyboard-opened menu", async () => {
+  it("wraps both ends and confirms a keyboard-opened menu", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Thinking level");
     target.onInput?.(ENTER, HOST);
     expect(writes).toEqual([]);
 
     target.onInput?.(`${ESC}[A`, HOST);
-    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes(" low"))).toContain("<highlight>");
-    target.onInput?.(DOWN, HOST);
     expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes(" high"))).toContain("<highlight>");
+    target.onInput?.(DOWN, HOST);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).find(line => line.includes(" low"))).toContain("<highlight>");
+    target.onInput?.(`${ESC}[A`, HOST);
     target.onInput?.(ENTER, HOST);
 
     expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
