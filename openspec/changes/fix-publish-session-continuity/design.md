@@ -1,6 +1,6 @@
 ## Extended analysis and approval boundary
 
-See [the incident audit](analysis.md) for the broader analysis requested after the initial proposal. It adds reproduced shared-snapshot overcounting, delayed-recovery failure, operation-outcome inconsistency, writer ownership/disposal hazards, and the separate age-based release-retention gap. Its recommended ownership-ledger and recovery architecture supersedes the earlier open-ended design direction below. Additional writer, diagnostics, recovery, and release-lifetime outcomes remain proposed scope refinements, not approved implementation. The original two PR checklist items have not been rewritten or checked.
+See [the incident audit](analysis.md) for the broader analysis requested after the initial proposal. It adds reproduced shared-snapshot overcounting, delayed-recovery failure, operation-outcome inconsistency, writer ownership/disposal hazards, and the separate age-based release-retention gap. Its recommended ownership-ledger and recovery architecture supersedes the earlier open-ended design direction below. The maintainer explicitly approved implementation of all audit fixes. The existing two PR outcomes are preserved and three unchecked outcomes now cover recovery/diagnostics, writer safety, and process-lifetime release protection.
 
 ## Context and investigation
 
@@ -41,6 +41,6 @@ After approval, run only changed queue/event-delivery/adapter tests, the relevan
 
 - No live session or installed immutable release is patched during planning. An already running affected binary cannot acquire this code fix automatically.
 - No personal session mutation, truncation, forced compaction, migration, credential access, or automatic model request is needed.
-- The existing age-based release cleanup intentionally does not inventory all live processes. Its seven-day retention boundary is separate from this same-day failure and is unchanged; this repair does not claim indefinite retention for processes outliving that window.
+- Age-based cleanup is separate from the same-day delivery failure. The approved expansion adds process-lifetime release protection and conservative legacy retention so age alone cannot remove an executing root.
 - The original interruption's exact initiating event is not recoverable from the metadata-only records. The two failure paths above were independently reproduced against installed production code.
-- No implementation or regression tests have been changed before approval.
+- Investigation preceded explicit approval; implementation now proceeds under the expanded approved outcomes.

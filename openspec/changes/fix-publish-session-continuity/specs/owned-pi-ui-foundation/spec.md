@@ -1,5 +1,21 @@
 ## ADDED Requirements
 
+### Requirement: Delivery recovery follows operation quiescence
+Exceptional delivery recovery SHALL coordinate cancellation with actual admitted-operation settlement, fence stale generations, and resubscribe once it is safe even when settlement occurs after the initial recovery check. Applied mutations SHALL NOT be reported cancelled solely because their presentation failed. An unsafe non-quiescent session SHALL retain an explicit safe stop path, never automatically replay work. Recovery diagnostics SHALL use bounded allowlisted classifications and counters without conversation text, arguments, credentials, or raw exception messages.
+
+#### Scenario: Delayed operation settles
+- **WHEN** overload cancellation completes before a still-admitted operation finishes cleanup
+- **THEN** recovery SHALL re-evaluate after settlement and reopen admission only when all old work is quiescent
+- **AND** a newer generation or disposal SHALL prevent stale recovery from reopening the session
+
+#### Scenario: Applied model selection survives presentation recovery
+- **WHEN** model selection has applied before a delivery incident
+- **THEN** its operation outcome SHALL preserve that application without retrying the mutation or pretending it never occurred
+
+#### Scenario: Diagnose an incident privately
+- **WHEN** a delivery incident is recorded or propagated to fatal handling
+- **THEN** its allowlisted reason and bounded counters SHALL distinguish saturation from listener failure without recording private payloads
+
 ### Requirement: Authoritative history size is not pending event backlog
 The owned UI SHALL deliver authoritative session views whose accumulated transcript exceeds the ordinary pending-event payload allowance without entering overload solely because of that history size. Delivery SHALL share authoritative immutable state rather than copy history per announcement, and SHALL bound event count and state retained solely for pending delivery, including distinct obsolete snapshots and image assets. Snapshot delivery SHALL preserve emitted revisions, semantic source ordering, generation isolation, and balanced asset lifetime. This SHALL NOT disable genuine protected-work saturation recovery, silently truncate history, broadly coalesce side-effect-bearing views, or substitute newer state across a semantic barrier.
 

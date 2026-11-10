@@ -1,3 +1,28 @@
+## MODIFIED Requirements
+
+### Requirement: Immutable release retention is age-based
+Release retention SHALL keep active and selected releases, releases approved within seven days, and every release with a live or unverifiable process-lifetime use claim. Launch selection and claim acquisition SHALL exclude cleanup detachment until ownership is established. The claim SHALL protect release files, required certification evidence, and dependency layers until the process exits. Cleanup SHALL revalidate ownership before destructive boundaries, conservatively retain legacy releases lacking lifetime-claim support, and collect expired unclaimed releases only when safety is established. No supervisor or hot-swapping is required.
+
+#### Scenario: An old release is collected
+- **WHEN** an expired claim-capable release is not selected and all its recorded owners are proven absent
+- **THEN** its release and unreferenced dependency layers MAY be collected without affecting another executing release
+
+#### Scenario: A recent release is kept
+- **WHEN** a release was approved within the last seven days but is no longer active
+- **THEN** it SHALL remain on disk
+
+#### Scenario: The record cannot be read
+- **WHEN** approval or lifetime ownership cannot be established safely
+- **THEN** retention SHALL keep the affected content and continue conservatively
+
+#### Scenario: An old process survives several publications
+- **WHEN** a process uses an expired release while newer releases activate
+- **THEN** its root and dependency layers SHALL remain available for later lazy imports and helper launches until it exits
+
+#### Scenario: Launch races cleanup
+- **WHEN** a launch selects a retained release while cleanup considers it
+- **THEN** claim acquisition and collection SHALL be mutually excluded so the launch never enters a detached root
+
 ## ADDED Requirements
 
 ### Requirement: Restart-ready announcements preserve large-session execution
