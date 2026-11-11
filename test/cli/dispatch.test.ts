@@ -48,6 +48,11 @@ describe("A1 CLI dispatch", () => {
     [["pi", "update", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "update", source: "npm:pi-mcp-adapter" } }],
     [["update", "--models"], { kind: "packages", request: { verb: "refresh-models", source: null } }],
     [["pi", "update", "--models"], { kind: "packages", request: { verb: "refresh-models", source: null } }],
+    [["worktree", "enter", "fix/task"], { kind: "session-context", request: { action: "enter-worktree", branch: "fix/task" } }],
+    [["worktree", "enter", "fix/task", "--base", "develop"], { kind: "session-context", request: { action: "enter-worktree", branch: "fix/task", base: "develop" } }],
+    [["worktree", "attach", "D:/worktree"], { kind: "session-context", request: { action: "link-worktree", path: "D:/worktree" } }],
+    [["worktree", "detach"], { kind: "session-context", request: { action: "unlink-worktree" } }],
+    [["worktree", "list"], { kind: "session-context", request: { action: "worktrees" } }],
     [["session", "worktrees"], { kind: "session-context", request: { action: "worktrees" } }],
     [["session", "link-worktree", "D:/worktree"], { kind: "session-context", request: { action: "link-worktree", path: "D:/worktree" } }],
     [["session", "unlink-worktree"], { kind: "session-context", request: { action: "unlink-worktree" } }],
@@ -59,12 +64,21 @@ describe("A1 CLI dispatch", () => {
     expect(parseCliCommand(arguments_, PRERELEASE)).toEqual(expected);
   });
 
+  it.each([
+    [], ["enter"], ["attach"], ["enter", "fix/task", "--base"], ["enter", "fix/task", "--force"],
+    ["attach", "D:/task", "extra"], ["detach", "extra"], ["list", "extra"], ["remove", "D:/task"],
+  ])("rejects incomplete or unsupported worktree arguments %j", (...args) => {
+    expect(parseCliCommand(["worktree", ...args], PRERELEASE)).toMatchObject({ kind: "error" });
+  });
+
   it("dispatches session repository context without launching a nested UI", async () => {
     const commands = handlers();
     const transcript = output();
     await expect(dispatchCli(["session", "link-worktree", "D:/delivery"], commands, transcript, PRERELEASE)).resolves.toBe(0);
     expect(commands.sessionContext).toHaveBeenCalledExactlyOnceWith({ action: "link-worktree", path: "D:/delivery" });
     expect(commands.launch).not.toHaveBeenCalled();
+    expect(cliHelp(PRERELEASE)).toContain("worktree enter <branch>");
+    expect(cliHelp(PRERELEASE)).toContain("detach preserves files");
     expect(cliHelp(PRERELEASE)).toContain("session worktrees");
     expect(cliHelp(PRERELEASE)).toContain("session unlink-worktree");
     expect(cliHelp(PRERELEASE)).not.toContain("solo");

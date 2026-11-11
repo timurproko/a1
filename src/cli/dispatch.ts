@@ -47,6 +47,10 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "uninstall [--yes] [--purge]",
     "uninstall <source>",
     "list",
+    "worktree enter <branch> [--base <branch>]",
+    "worktree attach <path>",
+    "worktree detach",
+    "worktree list",
     "session worktrees",
     "session link-worktree <path>",
     "session unlink-worktree",
@@ -79,7 +83,13 @@ export function cliHelp(capabilities: CliCapabilities): string {
     `  ${command} uninstall <source>`,
     `  ${command} list`,
     "",
-    "Session context:",
+    "Worktrees (successful enter/attach is authoritative; detach preserves files):",
+    `  ${command} worktree enter <branch> [--base <branch>]`,
+    `  ${command} worktree attach <path>`,
+    `  ${command} worktree detach`,
+    `  ${command} worktree list`,
+    "",
+    "Session context (compatibility aliases):",
     `  ${command} session worktrees`,
     `  ${command} session link-worktree <path>`,
     `  ${command} session unlink-worktree`,
@@ -161,12 +171,28 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
     return capabilities.developmentComparison ? { kind: "launch", profileId: "pi" } : { kind: "noop" };
   }
   if (command === "update") return parseUpdate(rest, capabilities.runningChannel ?? "stable");
+  if (command === "worktree") return parseWorktree(rest);
   if (command === "session") return parseSessionContext(rest);
   if (command?.startsWith("update:")) return { kind: "noop" };
 
   // Rationale: unsupported and reserved command spaces are deliberately quiet. Help is
   // explicit, and a typo must never start an interactive or maintenance path.
   return { kind: "noop" };
+}
+
+function parseWorktree(rest: readonly string[]): CliCommand {
+  const [action, value, flag, base, extra] = rest;
+  if (action === "enter" && value !== undefined && !value.startsWith("-")
+    && (flag === undefined || (flag === "--base" && base !== undefined && !base.startsWith("-"))) && extra === undefined) {
+    return { kind: "session-context", request: { action: "enter-worktree", branch: value, ...(base === undefined ? {} : { base }) } };
+  }
+  if (action === "attach" && value !== undefined && flag === undefined) {
+    return { kind: "session-context", request: { action: "link-worktree", path: value } };
+  }
+  if ((action === "detach" || action === "list") && value === undefined) {
+    return { kind: "session-context", request: { action: action === "detach" ? "unlink-worktree" : "worktrees" } };
+  }
+  return { kind: "error", message: PRODUCT_TEXT.diagnostic("worktree accepts enter <branch> [--base <branch>], attach <path>, detach, or list.") };
 }
 
 function parseSessionContext(rest: readonly string[]): CliCommand {

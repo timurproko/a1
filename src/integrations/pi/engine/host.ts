@@ -49,6 +49,7 @@ export interface PiEngineSessionRequest extends OwnedUiSessionRequest {
   readonly sessionSelection?: PiSessionSelection;
   readonly sessionForkPrompt?: PiSessionForkPrompt;
   readonly repositoryContextReader?: PiRepositoryContextReader;
+  readonly worktreeCwdReader?: import("./worktree-tools.js").PiWorktreeCwdReader;
 }
 
 /** The dispatcher policy in force for the process and the session that put it there. */
@@ -153,6 +154,7 @@ class ProcessPiEngineHost implements PiEngineHost {
       ...(request.sessionSelection === undefined ? {} : { sessionSelection: request.sessionSelection }),
       ...(request.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: request.sessionForkPrompt }),
       ...(request.repositoryContextReader === undefined ? {} : { repositoryContextReader: request.repositoryContextReader }),
+      ...(request.worktreeCwdReader === undefined ? {} : { worktreeCwdReader: request.worktreeCwdReader }),
     });
     this.#sessions.set(sessionId, adapter);
     try {

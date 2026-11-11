@@ -10,9 +10,11 @@ import type { OwnedUiDiagnostics } from "../../../contracts/owned-ui/index.js";
 import type { PiSessionResumeMetadata, PiWorkflowHost } from "./workflows.js";
 import type { PiPullRequestProbe } from "./repository-pr.js";
 import { RepositoryMetadataPoller, type PiRepositoryContextReader } from "./repository-metadata.js";
+import type { PiWorktreeCwdReader } from "./worktree-tools.js";
 
 export interface PiEngineRuntimeFactoryInput {
   readonly cwd: string;
+  readonly worktreeCwdReader?: PiWorktreeCwdReader;
   readonly agentDir: string;
   readonly sessionId: string;
   readonly sessionPath?: string;
@@ -46,6 +48,7 @@ interface PiEngineRuntimeOptions {
   readonly pullRequestRefreshMs?: number;
   readonly repositoryContextPollMs?: number;
   readonly repositoryContextReader?: PiRepositoryContextReader;
+  readonly worktreeCwdReader?: PiWorktreeCwdReader;
   readonly gitBranchReader?: (cwd: string, signal: AbortSignal) => Promise<string | null>;
   readonly host: PiWorkflowHost;
 }
@@ -159,6 +162,7 @@ export class PiEngineRuntime {
       sessionId: this.#options.sessionId,
       signal: this.#options.signal,
       markStartupPhase: this.#options.markStartupPhase,
+      ...(this.#options.worktreeCwdReader === undefined ? {} : { worktreeCwdReader: this.#options.worktreeCwdReader }),
       ...(this.#options.sessionPath === undefined ? {} : { sessionPath: this.#options.sessionPath }),
       ...(this.#options.sessionSelection === undefined ? {} : { sessionSelection: this.#options.sessionSelection }),
       ...(this.#options.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: this.#options.sessionForkPrompt }),
@@ -359,6 +363,7 @@ async function createDefaultPiRuntime(input: PiEngineRuntimeFactoryInput): Promi
     agentDir: input.agentDir,
     signal: input.signal,
     markStartupPhase: input.markStartupPhase,
+    ...(input.worktreeCwdReader === undefined ? {} : { worktreeCwdReader: input.worktreeCwdReader }),
     ...(input.sessionPath === undefined ? {} : { sessionPath: input.sessionPath }),
     ...(input.sessionSelection === undefined ? {} : { sessionSelection: input.sessionSelection }),
     ...(input.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: input.sessionForkPrompt }),

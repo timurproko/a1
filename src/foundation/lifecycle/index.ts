@@ -10,12 +10,16 @@ export {
   activateSessionRepositoryContext,
   clearSessionRepositoryContext,
   listSessionRepositoryWorktrees,
+  readActiveSessionRepositoryContext,
+  readSessionStartupRoot,
   readSessionRepositoryContext,
   registerSessionRepositoryRuntime,
   releaseSessionRepositoryRuntime,
   setSessionRepositoryContext,
   withSessionRepositoryObservation,
 } from "./session-repository-context.js";
+export { retrySessionCoordination } from "./session-context-retry.js";
+export { enterSessionRepositoryWorktree } from "./session-worktree-entry.js";
 export type {
   SessionRepositoryContext,
   SessionRepositoryContextOptions,

@@ -1,13 +1,13 @@
 ## 1. Product operations
 
-- [ ] 1.1 Add enter/attach/detach/list dispatch with legacy aliases and canonical successful path/branch output; verify CLI grammar and outcome tests.
-- [ ] 1.2 Implement bounded Git worktree creation/resumption and atomic attachment without overwrites or deletion; verify Git fixtures for bases, edited resumes, collisions, foreign paths, locks, and competing owners.
-- [ ] 1.3 Separate ordinary transient coordination from real ownership failures and make inventory consistent; verify contention and preserved-prior-association tests.
+- [x] 1.1 Add enter/attach/detach/list dispatch with legacy aliases and canonical successful path/branch output; verify CLI grammar and outcome tests.
+- [x] 1.2 Implement bounded Git worktree creation/resumption and atomic attachment without overwrites or deletion; verify Git fixtures for bases, edited resumes, collisions, foreign paths, locks, and competing owners.
+- [x] 1.3 Separate ordinary transient coordination from real ownership failures and make inventory consistent; verify contention and preserved-prior-association tests.
 
 ## 2. Runtime integration
 
-- [ ] 2.1 Activate once per session binding and observe without rewriting claims on each poll; verify registry polling, startup recovery, switch, and disposal tests.
-- [ ] 2.2 Resolve built-in tool cwd from the verified attachment at invocation time; verify attach/detach, failed verification, absolute path, and comparison isolation tests.
+- [x] 2.1 Activate once per session binding and observe without rewriting claims on each poll; verify registry polling, startup recovery, switch, and disposal tests.
+- [x] 2.2 Resolve built-in tool cwd from the verified attachment at invocation time; verify attach/detach, failed verification, absolute path, and comparison isolation tests.
 
 ## 3. Guidance and handoff
 
