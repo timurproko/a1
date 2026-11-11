@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-11-preserve-task-worktree/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-11-preserve-task-worktree/acceptance.md",
   "finalizedDate": "2026-11-11",
-  "specBaseSha": "79f6f484dbef3e47f6fdb09645f4c545838fd108",
+  "specBaseSha": "7ded4b4ce37e96f098fac413fc4ac55ee96f7293",
   "acceptanceScenarios": [
     "Implementation completion and review handoff keep the task worktree attached for follow-up fixes.",
     "Subsequent built-in tools and PR discovery retain the task checkout until an explicit detach or task switch.",
