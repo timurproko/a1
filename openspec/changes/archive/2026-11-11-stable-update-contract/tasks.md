@@ -31,6 +31,10 @@
 
 - [x] 6.1 Record focused checks and gap disposition, reconcile current develop, and prepare acceptance outcomes.
 
+## 7. CI predecessor repair
+
+- [x] 7.1 Record the candidate with each predecessor's own store before its warmup, matching the real update order. Published 0.2.7-dev.1285 reserves a launch claim during warmup and refused the unrecorded candidate with "Selected release is no longer available for launch" (reproduced locally, fixed by the record).
+
 ## Focused checks and gap disposition
 
 - Typecheck reports no errors in changed files. The only errors are in `test/features/owned-ui/event-frame-clock.ts`, which this change does not touch.

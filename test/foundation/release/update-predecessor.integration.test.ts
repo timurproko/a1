@@ -63,6 +63,7 @@ describe("update from every recent published release", () => {
       // Protocol: the predecessor copies the candidate payload and then imports the candidate's own
       // startup graph in a child process, exactly as `a1 update` does.
       const materialized = await fixture.measure("materialize", version, () => release.materializeRelease(candidateRoot, environment.A1_DATA_DIR));
+      await recordCandidate(release, environment.A1_DATA_DIR, materialized);
       phaseSignal.throwIfAborted();
       await expect(
         fixture.measure("warm", version, () => release.warmMaterializedRelease(materialized, environment, 120_000)),
@@ -100,6 +101,17 @@ describe("update from every recent published release", () => {
     await fixture.discard(bridgeRoot);
   }, signal), 1_800_000);
 });
+
+/**
+ * Protocol: a predecessor activates a tree in the order materialize, record, certify, warm. Since
+ * 0.2.7-dev.1285 warmup reserves a launch claim against the recorded release, so the gate records the
+ * candidate with the predecessor's own store, as its update does. Older predecessors ignore the record.
+ */
+async function recordCandidate(release: unknown, dataDir: string, materialized: unknown): Promise<void> {
+  const Store = (release as { ReleaseStateStore?: new (dataDir: string) => { recordCandidate?(candidate: unknown): Promise<unknown> } }).ReleaseStateStore;
+  const store = Store ? new Store(dataDir) : undefined;
+  if (store?.recordCandidate) await store.recordCandidate(materialized);
+}
 
 /** The predecessor exports the post-activation path needs; absent members mean the predecessor cannot drive it. */
 interface PredecessorStateContract {
@@ -266,6 +278,7 @@ async function exerciseProtectedReplacement(
     A1_CONFIG_DIR: resolve(root, "config"),
   };
   const materialized = await release.materializeRelease(packageRoot, dataDir);
+  await recordCandidate(release, dataDir, materialized);
   await release.warmMaterializedRelease(materialized, activationEnvironment, 120_000);
   const command = await runCandidateCommand(resolve(packageRoot, "bin", "cli.js"), activationEnvironment);
   expect(command.code, command.stderr).toBe(0);
