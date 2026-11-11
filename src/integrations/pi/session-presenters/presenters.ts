@@ -5,7 +5,7 @@ import type {
   OwnedUiSessionPresenters,
   OwnedUiTranscriptRendererPort,
 } from "../../../contracts/owned-ui/index.js";
-import type { ShellPresentationPorts } from "../../../contracts/presentation/index.js";
+import type { ProgressSpinnerSource, ShellPresentationPorts } from "../../../contracts/presentation/index.js";
 import type { PiSessionPresentationSource } from "../engine/adapter.js";
 import type { PiShellLazySelectorLoader } from "../components/lazy-selectors.js";
 import {
@@ -39,6 +39,8 @@ export interface PiSessionPresenterBackend extends OwnedUiSessionBackend {
 export interface PiSessionPresentersOptions {
   /** Test seam for pending and failed optional selector-module preparation. */
   readonly lazySelectors?: PiShellLazySelectorLoader;
+  /** Live owned appearance choice; the comparison component factories never consume it. */
+  readonly spinner?: ProgressSpinnerSource;
 }
 
 /**
@@ -64,7 +66,7 @@ export function createPiSessionPresenters(adapter: PiSessionPresenterBackend, op
     getShortcuts: bindings => source().pinnedShortcutDescriptions(bindings as Parameters<PiSessionPresentationSource["pinnedShortcutDescriptions"]>[0]),
   };
 
-  return { ...PI_SHELL_PRESENTATION, components: createPiShellComponents(loadLazySelectors, adapter.settings.productMode === "bare"),
+  return { ...PI_SHELL_PRESENTATION, components: createPiShellComponents(loadLazySelectors, adapter.settings.productMode === "bare", options.spinner),
     transcriptRenderers: () => renderers,
 
     openModelSelector(host, initialSearchInput) {

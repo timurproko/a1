@@ -33,6 +33,7 @@ describe("owned UI setting declarations", () => {
       "accentColor",
       "backgroundStyle",
       "quitAnimation",
+      "spinnerStyle",
       "scrollbarAppearance",
       "scrollbarStyle",
       "scrollbarSpeed",
@@ -64,6 +65,10 @@ describe("owned UI setting declarations", () => {
       application: "live",
       defaultValue: "transparent",
       allowedValues: ["transparent", "accent", "dark"],
+    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "spinnerStyle")).toMatchObject({
+      label: "Spinner style", section: { id: "appearance", title: "Appearance" },
+      application: "live", defaultValue: "current", allowedValues: ["none", "current", "circle", "diamond", "square"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "skillsPresentation")).toMatchObject({
       label: "Skills",

@@ -1,4 +1,5 @@
 import type { OwnedUiBackgroundStyle, UiAccentColor } from "../../contracts/owned-ui/index.js";
+import type { ProgressSpinnerStyle } from "../../contracts/presentation/index.js";
 
 const UI_ACCENT_COLOR_CHOICES = Object.freeze([
   "blue", "purple", "cyan", "green", "orange", "pink",
@@ -69,6 +70,15 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     application: "live",
     defaultValue: true,
     allowedValues: Object.freeze([true, false] as const),
+  }),
+  spinnerStyle: Object.freeze({
+    id: "spinnerStyle",
+    label: "Spinner style",
+    section: APPEARANCE_SECTION,
+    description: "Indicator beside working and operation progress text. None keeps text only; Current keeps the dot spinner.",
+    application: "live",
+    defaultValue: "current",
+    allowedValues: Object.freeze(["none", "current", "circle", "diamond", "square"] as const satisfies readonly ProgressSpinnerStyle[]),
   }),
   scrollbarAppearance: Object.freeze({
     id: "scrollbarAppearance",

@@ -486,6 +486,61 @@ describe("the settings screen", () => {
     expect(lines.join("\n")).not.toContain("When the session transcript scrollbar is visible.");
   });
 
+  it("previews spinner choices in aligned accent cells without applying navigation and stops on close", async () => {
+    const declaration = OWNED_UI_SETTING_DECLARATIONS.find(entry => entry.id === "spinnerStyle")!;
+    const { app: target, session, writes } = await app(false, undefined, [declaration]);
+    vi.useFakeTimers();
+    const requestRender = vi.fn();
+    const host = { ...PANEL_HOST, requestRender, theme: { ...PANEL_THEME, highlight: PANEL_THEME.panel,
+      fg: (role: UiThemeToken, text: string) => role === "accent" ? `${ESC}[32m${text}${ESC}[39m` : text,
+    } };
+    const labels = ["None", "Current", "Circle", "Diamond", "Rotating square"];
+    const menu = () => target.render({ width: 80, height: 24 }, host).filter(line => line.includes(MENU_BACKGROUND));
+    try {
+      selectRow(target, "Spinner style");
+      target.onInput(ENTER, host);
+      const first = menu();
+      expect(first).toHaveLength(5);
+      expect(first.map(stripTerminalSequences).map(line => labels.find(label => line.includes(label)))).toEqual(labels);
+      const columns = first.map((line, index) => stripTerminalSequences(line).indexOf(labels[index]!));
+      expect(new Set(columns).size).toBe(1);
+      for (const glyph of ["⠋", "◐", "◇", "◧"]) expect(first.join("\n")).toContain(`${ESC}[32m${glyph}${ESC}[39m`);
+      expect(vi.getTimerCount()).toBe(1);
+      vi.advanceTimersByTime(80);
+      expect(menu().join("\n")).toContain(`${ESC}[32m⠙${ESC}[39m`);
+      expect(requestRender).toHaveBeenCalled();
+      target.onInput(DOWN, host);
+      const circle = menu();
+      vi.advanceTimersByTime(80);
+      expect(menu()[2]).not.toBe(circle[2]);
+      expect(menu().map((line, index) => stripTerminalSequences(line).indexOf(labels[index]!))).toEqual(columns);
+      expect(session.value("spinnerStyle")).toBe("current");
+      target.onInput(ESC, host);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(session.value("spinnerStyle")).toBe("current");
+      target.onInput(ENTER, host); menu();
+      target.onInput(DOWN, host); menu();
+      target.onInput(ENTER, host);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(session.value("spinnerStyle")).toBe("circle");
+      expect(vi.getTimerCount()).toBe(0);
+      expect(writes).toEqual([]);
+      target.onInput(ENTER, host); menu();
+      expect(vi.getTimerCount()).toBe(1);
+      target.onMouse({ kind: "press", button: 0, row: 24, column: 1 }, host);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(session.value("spinnerStyle")).toBe("circle");
+      target.onInput(ENTER, host); menu();
+      for (const width of [1, 2, 12, 24, 40]) {
+        const rect = { width, height: 24 };
+        const frame = target.render(rect, host);
+        expect(() => finalizeFrame(frame, rect, "spinner-preview")).not.toThrow();
+      }
+      target.onClose(host);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { target.onClose(host); vi.useRealTimers(); }
+  });
+
   it("changes and undoes the profile accent without writing Pi settings", async () => {
     const { app: target, session, writes } = await app();
     screen(target);

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -90,6 +90,41 @@ afterEach(() => {
 });
 
 describe("owned settings manager", () => {
+  it.each(["none", "current", "circle", "diamond", "square"] as const)("persists live spinner choice %s without touching Pi settings", async style => {
+    writeFileSync(path.join(root, "settings.json"), JSON.stringify({ theme: "light", a1: { futureSetting: 42 } }));
+    const target = new OwnedSettingsManager({ profileDir: root, profileId: "a1" });
+    const seen: string[] = [];
+    const unsubscribe = target.onChange(current => seen.push(current.value("spinnerStyle")));
+    expect(target.value("spinnerStyle")).toBe("current");
+    const outcome = await target.change("a1", "spinnerStyle", style);
+    expect(outcome).toMatchObject({ status: "applied", application: "live", effectiveValue: style });
+    expect(seen).toEqual([style]);
+    const saved = JSON.parse(readFileSync(target.file, "utf8"));
+    expect(saved.theme).toBe("light");
+    expect(saved.a1.futureSetting).toBe(42);
+    expect(saved.a1.spinnerStyle).toBe(style === "current" ? undefined : style);
+    expect(saved.spinnerStyle).toBeUndefined();
+    const restarted = new OwnedSettingsManager({ profileDir: root, profileId: "a1" });
+    expect(restarted.value("spinnerStyle")).toBe(style);
+    const otherProfile = new OwnedSettingsManager({ profileDir: path.join(root, "other"), profileId: "a1" });
+    expect(otherProfile.value("spinnerStyle")).toBe("current");
+    unsubscribe();
+  });
+
+  it.each([undefined, "unsupported", true, 42])("falls back to Current for stored spinner choice %s", value => {
+    writeFileSync(path.join(root, "settings.json"), JSON.stringify({ a1: { spinnerStyle: value, accentColor: "green" } }));
+    const target = new OwnedSettingsManager({ profileDir: root, profileId: "a1" });
+    expect(target.value("spinnerStyle")).toBe("current");
+    expect(target.value("accentColor")).toBe("green");
+  });
+
+  it("retains the effective spinner choice if its settings file cannot be written", async () => {
+    const target = new OwnedSettingsManager({ profileDir: root, profileId: "a1" });
+    mkdirSync(target.file);
+    const outcome = await target.change("a1", "spinnerStyle", "circle");
+    expect(outcome.status).toBe("failed");
+    expect(target.value("spinnerStyle")).toBe("current");
+  });
   it("omits hidden owned settings from sections while keeping their values readable", () => {
     const manager = new OwnedSettingsManager({
       configDir: root,
@@ -223,6 +258,7 @@ describe("owned settings manager", () => {
         { id: "accentColor", backend: "a1", value: "orange", effectiveValue: "orange" },
         { id: "backgroundStyle", backend: "a1", value: "dark", effectiveValue: "dark" },
         { id: "quitAnimation", backend: "a1", value: true, effectiveValue: true },
+        { id: "spinnerStyle", backend: "a1", value: "current", effectiveValue: "current" },
       ]);
       expect((await restarted.change("agent", "promptSuggestions", true)).status).toBe("failed");
       expect((await restarted.change("agent", "skillsPresentation", "collapse")).status).toBe("failed");

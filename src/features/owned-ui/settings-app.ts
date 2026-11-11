@@ -60,6 +60,8 @@ import type {
   OwnedSettingsManager,
 } from "../../ui/settings/index.js";
 import { SettingsScrollRail } from "./settings-scroll-rail.js";
+import { SettingsSpinnerPreview, progressSpinnerLabel } from "./settings-spinner-preview.js";
+import { isProgressSpinnerStyle } from "../../ui/components/index.js";
 import { SettingsEdits, replaceRecord, sameRecord } from "./settings-edits.js";
 import { SETTINGS_APP_ID } from "./settings-route.js";
 import type { SettingsSearchInput, SettingsSearchInputFactory } from "./settings-search-input.js";
@@ -149,6 +151,7 @@ interface ValueMenu {
   readonly anchorKey: string;
   readonly choices: readonly OwnedUiSettingValue[];
   readonly keyboardOpened: boolean;
+  readonly preview: SettingsSpinnerPreview | null;
   index: number;
 }
 
@@ -208,6 +211,8 @@ export class SettingsApp implements UiApp {
   }
 
   onClose(_host: AppHostServices): void {
+    this.#menu?.preview?.dispose();
+    this.#menu = null;
     this.#edits.close();
     this.#search.input?.setFocused(false);
     this.#search.input = null;
@@ -335,7 +340,7 @@ export class SettingsApp implements UiApp {
         const row = rows[selected];
         if (row?.kind === "element" && (row.value.structured || isDefaultModelEntry(row.value))) this.#openStructured(row.value);
         else if (row?.kind === "element" && typeof this.#edits.shown(row.value) === "number") this.#cycle(rows, selected, 1);
-        else this.#openMenu(rows, selected, true);
+        else this.#openMenu(rows, selected, host, true);
         return { consumed: true };
       }
       case "move-up":
@@ -375,7 +380,7 @@ export class SettingsApp implements UiApp {
     }
   }
 
-  onMouse(event: PaneMouseEvent, _host: AppHostServices): PaneInputResult {
+  onMouse(event: PaneMouseEvent, host: AppHostServices): PaneInputResult {
     const searchPointer = handleSettingsSearchPointer(this.#search, event, this.#panelTopForFrame);
     if (searchPointer !== null) return searchPointer;
 
@@ -460,7 +465,7 @@ export class SettingsApp implements UiApp {
         // Rationale: the pointer acts where it points; the arrow belongs to the keyboard.
         if (this.#hoverRegion === "minus") this.#cycle(rows, index, -1);
         else if (this.#hoverRegion === "plus") this.#cycle(rows, index, 1);
-        else if (this.#hoverRegion === "value") this.#openMenu(rows, index);
+        else if (this.#hoverRegion === "value") this.#openMenu(rows, index, host);
       }
       return { consumed: true };
     }
@@ -468,7 +473,7 @@ export class SettingsApp implements UiApp {
     return { consumed: event.kind !== "motion", render: changed };
   }
 
-  #openMenu(rows: readonly Row[], selected: number, selectCurrent = false): void {
+  #openMenu(rows: readonly Row[], selected: number, host: AppHostServices, selectCurrent = false): void {
     const row = rows[selected];
     if (row === undefined || row.kind !== "element") return;
     const entry = row.value;
@@ -497,11 +502,13 @@ export class SettingsApp implements UiApp {
       anchorKey,
       choices: entry.choices,
       keyboardOpened: selectCurrent,
+      preview: entry.backend === "a1" && entry.id === "spinnerStyle" ? new SettingsSpinnerPreview(() => host.requestRender()) : null,
       index: current,
     };
   }
 
   #closeMenu(menu: ValueMenu): void {
+    menu.preview?.dispose();
     this.#menu = null;
     if (!menu.keyboardOpened || this.#hoverKey !== menu.anchorKey) return;
     this.#hoverKey = null;
@@ -826,15 +833,17 @@ export class SettingsApp implements UiApp {
     const menu = this.#menu;
     const anchor = menu === null ? undefined : this.#frameRows.find(candidate => candidate.key === menu.anchorKey);
     if (menu === null || anchor === undefined) {
+      menu?.preview?.dispose();
       this.#menuFrame = null;
       return lines;
     }
 
     const state = {
       choices: menu.choices.map(choice => displaySettingValue(menu.entry, choice)),
-      ...(menu.entry.id === "accentColor" ? {
-        previews: menu.choices.map(choice => theme.accentPreview?.(String(choice), "■") ?? ""),
-      } : {}),
+      ...(menu.preview !== null ? { previews: menu.preview.frames(menu.choices, menu.index, theme) }
+        : menu.entry.id === "accentColor" ? {
+          previews: menu.choices.map(choice => theme.accentPreview?.(String(choice), "■") ?? ""),
+        } : {}),
       current: this.#edits.shown(menu.entry) === null ? null : displaySettingValue(menu.entry, this.#edits.shown(menu.entry)!),
       index: menu.index,
     };
@@ -946,6 +955,7 @@ function rangeOf(entry: OwnedUiSettingsEntry): NumericRange {
 /** Scalar choices use their readable presentation without changing stored values. */
 function displaySettingValue(entry: OwnedUiSettingsEntry, value: OwnedUiSettingValue): string {
   if (typeof value === "boolean") return value ? "yes" : "no";
+  if (entry.backend === "a1" && entry.id === "spinnerStyle" && isProgressSpinnerStyle(value)) return progressSpinnerLabel(value);
   if (entry.backend === "a1" && entry.id === "sessionNameFormat") {
     if (value === "kebab") return "Kebab case";
     if (value === "sentence") return "Sentence case";

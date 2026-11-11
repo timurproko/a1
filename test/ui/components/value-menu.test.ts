@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   menuRowAt,
+  displayWidth,
   renderValueMenu,
   valueMenuFrame,
   type UiTheme,
@@ -108,6 +109,18 @@ describe("shared value menu", () => {
       surfaceWidth: 30,
       reservedRight: 2,
     })).toEqual({ top: 2, column: 6, width: 10, rows: 3 });
+  });
+
+  it.each([0, 1, 2, 8, 16, 24])("keeps spinner previews inside a %s-column surface", width => {
+    const state = {
+      choices: ["None", "Current", "Circle", "Diamond", "Rotating square"],
+      previews: ["", "\u001b[32m⠋\u001b[39m", "\u001b[32m◐\u001b[39m", "\u001b[32m◇\u001b[39m", "\u001b[32m◧\u001b[39m"],
+      current: "Current", index: 1,
+    };
+    const frame = valueMenuFrame(state, { screenRow: 2, valueColumn: 12 }, { surfaceWidth: width, bodyHeight: 8, reservedRight: width > 0 ? 1 : 0 });
+    expect(frame.column + frame.width).toBeLessThanOrEqual(width);
+    const rendered = renderValueMenu(Array(8).fill(" ".repeat(width)), state, frame, PLAIN_THEME);
+    expect(rendered.every(row => displayWidth(row) <= width)).toBe(true);
   });
 
   it("keeps pointer hit testing inside the visible menu cells", () => {

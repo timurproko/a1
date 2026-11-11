@@ -37,8 +37,15 @@ Focused evidence will cover declared choices and fallback, persistence/reload, l
 
 ## Implementation observations
 
-Planning only. No product implementation has been changed.
+- Added the live `spinnerStyle` declaration after Quit animation in Appearance, retaining the requested five choices and Current default/fallback. The existing manager owns persistence, peer refresh, failed-write rollback, and profile isolation.
+- Composition supplies one profile-scoped source to bare-A1 presenter factories. Shared working/retry/compaction/extension status and the owned Share operation loader read the same policy; comparison factories discard the source. Installed packages and source-synchronized components were not modified.
+- Existing loader clocks still own actual status updates. Current delegates to each loader's supplied dot frame; alternate single-cell glyphs use the same update stream. None returns an empty glyph while preserving text and its existing highlight animation. Live source notifications invalidate the current component without restarting work or creating another status timer.
+- The dropdown reuses ValueMenu's preview column. Only the focused animated choice borrows one 80 ms preview clock; None/no selection, cancel, outside click, missing anchor, and app/menu disposal stop it. Native previews use the active semantic accent. Long preview labels are clipped inside the available menu width rather than overflowing compact terminals.
+- Kept the frame policy in the existing progress-status component, avoiding another eager runtime module. Extracted the unchanged presentation-options interface into a type-only session-shell module so the feature remains inside the existing startup file/byte budgets. No architecture size threshold, startup budget, or baseline was relaxed.
+- Focused validation passed: 324 tests across 15 directly affected component, settings, presenter, composition, and shell test files. Build, complete typecheck, architecture/session-writer/identity/source-ledger checks, changed-code documentation, strict OpenSpec validation, and whitespace checks passed.
+- Tests cover complete frame cycles and fixed label columns, None spacing, saved/default/invalid choices, profile isolation, failed persistence, native preview color and focus animation, accept/cancel/outside click/teardown, compact menu widths, live operation-loader changes, cancellation, and pinned comparison behavior.
+- Physical-terminal inspection remains optional. Glyph ink shapes vary with the terminal font; automated checks establish a stable display-cell slot rather than identical pixels on every font.
 
 ## Known gaps
 
-None identified in the proposed scope. Terminal fonts may give different ink shapes to the same glyph; the contract guarantees a stable cell slot rather than identical glyph pixels on every font.
+None identified in the approved scope.
