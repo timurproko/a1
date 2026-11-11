@@ -60,8 +60,7 @@ import type {
   OwnedSettingsManager,
 } from "../../ui/settings/index.js";
 import { SettingsScrollRail } from "./settings-scroll-rail.js";
-import { SettingsSpinnerPreview, progressSpinnerLabel } from "./settings-spinner-preview.js";
-import { isProgressSpinnerStyle } from "../../ui/components/index.js";
+import { SettingsSpinnerPreview } from "./settings-spinner-preview.js";
 import { SettingsEdits, replaceRecord, sameRecord } from "./settings-edits.js";
 import { SETTINGS_APP_ID } from "./settings-route.js";
 import type { SettingsSearchInput, SettingsSearchInputFactory } from "./settings-search-input.js";
@@ -955,7 +954,6 @@ function rangeOf(entry: OwnedUiSettingsEntry): NumericRange {
 /** Scalar choices use their readable presentation without changing stored values. */
 function displaySettingValue(entry: OwnedUiSettingsEntry, value: OwnedUiSettingValue): string {
   if (typeof value === "boolean") return value ? "yes" : "no";
-  if (entry.backend === "a1" && entry.id === "spinnerStyle" && isProgressSpinnerStyle(value)) return progressSpinnerLabel(value);
   if (entry.backend === "a1" && entry.id === "sessionNameFormat") {
     if (value === "kebab") return "Kebab case";
     if (value === "sentence") return "Sentence case";

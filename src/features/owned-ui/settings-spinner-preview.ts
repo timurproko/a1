@@ -1,18 +1,10 @@
 import type { UiTheme } from "../../ui/components/index.js";
-import type { ProgressSpinnerStyle } from "../../contracts/presentation/index.js";
 import {
   isProgressSpinnerStyle,
   progressSpinnerFrame,
   PROGRESS_SPINNER_INTERVAL_MS,
 } from "../../ui/components/index.js";
 import type { OwnedUiSettingValue } from "../../ui/settings/index.js";
-
-const LABELS: Readonly<Record<ProgressSpinnerStyle, string>> = {
-  none: "None", current: "Current", circle: "Circle", diamond: "Diamond", square: "Rotating square",
-};
-
-/** Readable Settings labels retain the declared persisted identities. */
-export function progressSpinnerLabel(style: ProgressSpinnerStyle): string { return LABELS[style]; }
 
 /** One dropdown's focused spinner animation; unselected choices keep their representative frame. */
 export class SettingsSpinnerPreview {

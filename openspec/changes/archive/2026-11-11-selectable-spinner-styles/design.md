@@ -6,11 +6,11 @@ The maintainer requested a Settings choice after comparing real terminal glyph f
 
 | Display label | Stored value | Frames |
 | --- | --- | --- |
-| None | `none` | No glyph or glyph separator; keep status text |
-| Current | `current` | Existing spinner frames and cadence |
-| Circle | `circle` | `◐`, `◓`, `◑`, `◒` |
-| Diamond | `diamond` | `◇`, `◈`, `◆`, `◈` |
-| Rotating square | `square` | `◧`, `◩`, `◨`, `◪` |
+| none | `none` | No glyph or glyph separator; keep status text |
+| current | `current` | Existing spinner frames and cadence |
+| circle | `circle` | `◐`, `◓`, `◑`, `◒` |
+| diamond | `diamond` | `◇`, `◈`, `◆`, `◈` |
+| square | `square` | `◧`, `◩`, `◨`, `◪` |
 
 Proposed declaration: `spinnerStyle`, Appearance, live, default `current`. Use the normal settings manager for accepted values, profile-local storage, live updates, cancellation, failed-write rollback, and cross-surface consistency.
 
@@ -52,6 +52,10 @@ Focused evidence will cover declared choices and fallback, persistence/reload, l
 - Merged current develop's contextual session-name changes and resolved the shared composition-test fixture to retain both its new Sentence case fallback and the spinner source/listener checks.
 - The combined current-target graph exceeded the unchanged startup byte budget. Extended the existing type-only options extraction to engine options, grouped in `shell-options.ts`, while preserving both public type re-exports and all runtime behavior. No budget, baseline, or architecture rule was relaxed.
 - Post-reconciliation repair checks passed: 222 focused tests across 10 affected settings, spinner, composition, shell, and startup-policy files; build; complete typecheck; all architecture gates; naming audit with zero violations; changed-code documentation; and whitespace validation.
+
+## Approved lowercase-value refinement
+
+The maintainer requested lowercase spinner values to match surrounding settings. The maintainer also requested the concise name `square`, not `rotating square`. Both the row and dropdown now show `none`, `current`, `circle`, `diamond`, and `square` through ordinary scalar-value formatting; the special capitalized-label mapping was removed. Stored identifiers, default resolution, previews, and behavior remain unchanged. Focused row/dropdown, preview, persistence, and status checks passed (129 tests), as did build, typecheck, architecture, naming, changed-code documentation, and whitespace checks.
 
 ## Known gaps
 

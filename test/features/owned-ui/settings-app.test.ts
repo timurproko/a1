@@ -494,10 +494,11 @@ describe("the settings screen", () => {
     const host = { ...PANEL_HOST, requestRender, theme: { ...PANEL_THEME, highlight: PANEL_THEME.panel,
       fg: (role: UiThemeToken, text: string) => role === "accent" ? `${ESC}[32m${text}${ESC}[39m` : text,
     } };
-    const labels = ["None", "Current", "Circle", "Diamond", "Rotating square"];
+    const labels = ["none", "current", "circle", "diamond", "square"];
     const menu = () => target.render({ width: 80, height: 24 }, host).filter(line => line.includes(MENU_BACKGROUND));
     try {
       selectRow(target, "Spinner style");
+      expect(find(target, "Spinner style")).toMatch(/Spinner style\s+current/u);
       target.onInput(ENTER, host);
       const first = menu();
       expect(first).toHaveLength(5);
@@ -523,6 +524,7 @@ describe("the settings screen", () => {
       target.onInput(ENTER, host);
       await vi.advanceTimersByTimeAsync(0);
       expect(session.value("spinnerStyle")).toBe("circle");
+      expect(find(target, "Spinner style")).toMatch(/Spinner style\s+circle/u);
       expect(vi.getTimerCount()).toBe(0);
       expect(writes).toEqual([]);
       target.onInput(ENTER, host); menu();

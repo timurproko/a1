@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SettingsSpinnerPreview, progressSpinnerLabel } from "../../../src/features/owned-ui/settings-spinner-preview.js";
+import { SettingsSpinnerPreview } from "../../../src/features/owned-ui/settings-spinner-preview.js";
 import { displayWidth, PLAIN_THEME } from "../../../src/ui/components/index.js";
 
 const choices = ["none", "current", "circle", "diamond", "square"] as const;
@@ -32,11 +32,10 @@ describe("Settings spinner dropdown preview", () => {
     } finally { preview.dispose(); }
   });
 
-  it("retains readable labels and releases its clock idempotently", () => {
+  it("releases its clock idempotently", () => {
     vi.useFakeTimers();
     const render = vi.fn();
     const preview = new SettingsSpinnerPreview(render);
-    expect(choices.map(progressSpinnerLabel)).toEqual(["None", "Current", "Circle", "Diamond", "Rotating square"]);
     preview.frames(choices, 1, theme);
     preview.dispose(); preview.dispose();
     vi.advanceTimersByTime(500);

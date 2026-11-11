@@ -4,7 +4,7 @@ The current small dot spinner is difficult to see. The maintainer selected a sho
 
 ## What Changes
 
-- Add a live Appearance setting, Spinner style, with exactly None, Current, Circle (A), Diamond (C), and Rotating square (G), in that order.
+- Add a live Appearance setting, Spinner style, with exactly lowercase none, current, circle (A), diamond (C), and square (G), in that order, matching other settings values.
 - Show native, active-accent spinner previews in the dropdown using the existing accent-color preview column; animate the focused option in place and keep labels aligned, including None.
 - Preserve Current as the default and fallback for missing or invalid stored choices.
 - Use the selected style across bare-A1 working, retry, compaction, extension-provided working text, and A1-owned operation progress loaders through one shared presentation policy.

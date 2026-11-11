@@ -1,6 +1,6 @@
 ## 1. Live spinner-style setting
 
-- [x] 1.1 Declare Spinner style in Appearance with exactly None, Current, Circle, Diamond, and Rotating square; preserve Current as the default and invalid-value fallback.
+- [x] 1.1 Declare Spinner style in Appearance with exactly lowercase none, current, circle, diamond, and square; preserve current as the default and invalid-value fallback.
 - [x] 1.2 Wire typed resolution and existing profile-local persistence/live updates through settings and shell composition, retaining normal accept, cancel, and failed-change rollback behavior.
 
 - [x] 1.3 Add accent-colored native dropdown previews through the shared value-menu preview column, animate the focused style without label movement, and preserve normal accept/cancel and preview teardown.
@@ -20,3 +20,7 @@
 
 - [x] 4.1 Use the shared product identity for settings-fixture namespace properties without changing persisted bytes or weakening naming validation.
 - [x] 4.2 Reconcile current develop, retain both merged fixture behaviors, and move unchanged shell engine-option types off the eager startup graph without relaxing the startup budget.
+
+## 5. Lowercase value labels
+
+- [x] 5.1 Show lowercase spinner values in the main settings row and dropdown while preserving saved identifiers, previews, selection, and behavior; update focused presentation assertions.
