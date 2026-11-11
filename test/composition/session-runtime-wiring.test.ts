@@ -19,7 +19,7 @@ import type { PiEngineHostOptions } from "../../src/integrations/pi/engine/host.
 
 type RepositoryContextReader = (sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<unknown>;
 
-const observed = vi.hoisted(() => ({ hosts: [] as PiEngineHostOptions[], readers: [] as Array<RepositoryContextReader | undefined>, autoName: true, nameFormat: "kebab" as "kebab" | "sentence" | "title" }));
+const observed = vi.hoisted(() => ({ hosts: [] as PiEngineHostOptions[], readers: [] as Array<RepositoryContextReader | undefined>, autoName: true, nameFormat: "sentence" as "kebab" | "sentence" | "title" | undefined }));
 // Rationale: run the real composition, registry, and lifecycle store without provider, terminal, or user-file effects.
 vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async importOriginal => ({
   ...await importOriginal<object>(), applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {} }));
@@ -65,7 +65,7 @@ afterEach(async () => {
   observed.readers = [];
   observed.hosts = [];
   observed.autoName = true;
-  observed.nameFormat = "kebab";
+  observed.nameFormat = "sentence";
   vi.unstubAllEnvs();
   await rm(root, { recursive: true, force: true });
 });
@@ -137,8 +137,8 @@ describe("session runtime composition wiring", () => {
   }
 
   it.each([
-    ["kebab", "fix-cache"], ["sentence", "Fix cache"], ["title", "Fix Cache"],
-  ] as const)("uses the %s setting for first naming and regeneration after unseen same-path re-entry", async (format, expected) => {
+    ["kebab", "fix-cache"], ["sentence", "Fix cache"], ["title", "Fix Cache"], [undefined, "Fix cache"],
+  ] as const)("uses the %s format or Sentence case fallback for naming and context regeneration", async (format, expected) => {
     observed.nameFormat = format;
     const file = await sessionFile(sessionId);
     const backend = namingBackend(file);

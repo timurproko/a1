@@ -40,6 +40,10 @@ function fixture(initial?: Partial<OwnedUiSessionNameState>, initialFormat: Name
   return { controller, complete, apply, emit, get state() { return state; },
     prompt(text = "Fix the cache invalidation", id = `prompt-${blocks.length}`) { const block = { id, kind: "user", text }; blocks.push(block); emit({ type: "transcript-block", block }); },
     start() { emit({ type: "agent-run-started" }); },
+    discuss(kind: "user" | "assistant" | "tool-result" | "thinking", text: string) {
+      const block = { id: `history-${blocks.length}`, kind, text }; blocks.push(block); emit({ type: "transcript-block", block });
+    },
+    repository(branch: string, revision = "task") { context = { cwd: `/repo/${branch.split("/").at(-1)}`, branch, revision }; emit({ type: "session-view", view: view() }); },
     context(revision: string, notify = true) { context = { ...context, revision }; if (notify) emit({ type: "session-view", view: view() }); },
     rename(name = "my-task") { state = { ...state, name, nameEntryId: "manual", source: "user" }; },
     disable() { enabled = false; controller.settingsChanged(); },
@@ -50,6 +54,74 @@ function fixture(initial?: Partial<OwnedUiSessionNameState>, initialFormat: Name
 }
 
 describe("automatic session naming", () => {
+  it("resolves approvals against relevant task discussion and verified branch hints", async () => {
+    const f = fixture(undefined, "sentence");
+    f.repository("feature/spinner-style-settings");
+    f.discuss("user", "Add selectable spinner style settings");
+    f.discuss("assistant", "The plan adds spinner style settings to Agent settings. Shall I implement it?");
+    f.complete.mockResolvedValue("Spinner style settings");
+    f.start(); f.prompt("ok do it"); await settle();
+    const request = f.complete.mock.calls[0]![0].prompt;
+    expect(request).toContain("spinner style settings");
+    expect(request).toContain("feature/spinner-style-settings");
+    expect(request).not.toContain("Old unrelated task");
+    expect(f.state.name).toBe("Spinner style settings");
+  });
+
+  it("uses recent discussion for an approval without concrete repository hints", async () => {
+    const f = fixture(undefined, "sentence");
+    f.discuss("user", "Add spinner style settings");
+    f.discuss("assistant", "I will add selectable styles. Proceed?");
+    f.complete.mockResolvedValue("");
+    f.start(); f.prompt("yes please"); await settle();
+    expect(f.complete.mock.calls[0]![0].prompt).toContain("Add spinner style settings");
+    expect(f.state.name).toBe("Spinner style settings");
+  });
+
+  it("rejects generic provider labels and falls back to the concrete branch subject", async () => {
+    const f = fixture(undefined, "sentence"); f.repository("feature/spinner-style-settings");
+    f.complete.mockResolvedValue("Implement task");
+    f.start(); f.prompt("ok do it"); await settle();
+    expect(f.complete).toHaveBeenCalledTimes(2);
+    expect(f.state.name).toBe("Spinner style settings");
+  });
+
+  it("does not carry an unrelated task across repository-context regeneration", async () => {
+    const f = fixture(undefined, "sentence");
+    f.start(); f.prompt("Fix the cache invalidation"); await settle();
+    f.discuss("assistant", "The cache invalidation fix is complete");
+    f.repository("feature/spinner-style-settings");
+    f.complete.mockResolvedValue(""); f.start(); f.prompt("ok do it"); await settle();
+    const request = f.complete.mock.calls[1]![0].prompt;
+    expect(request).not.toContain("cache invalidation");
+    expect(f.state.name).toBe("Spinner style settings");
+  });
+
+  it("bounds discussion and excludes tools, thinking, and attachment paths", async () => {
+    const f = fixture(undefined, "sentence"); f.repository("feature/spinner-style-settings");
+    for (let index = 0; index < 20; index++) f.discuss("assistant", `spinner style settings ${"discussion ".repeat(500)}`);
+    f.discuss("tool-result", "SECRET_TOOL_CONTENT"); f.discuss("thinking", "PRIVATE_REASONING");
+    f.complete.mockResolvedValue("");
+    f.start(); f.prompt("Add spinner style settings C:\\Users\\person\\herdr-paste-123.png"); await settle();
+    const request = f.complete.mock.calls[0]![0].prompt;
+    expect(request.length).toBeLessThan(10_000);
+    expect(request).not.toMatch(/SECRET_TOOL_CONTENT|PRIVATE_REASONING|herdr-paste|Users/);
+    expect(f.state.name).toBe("Spinner style settings");
+  });
+
+  it("rejects provider attachment paths instead of saving a filename", async () => {
+    const f = fixture(undefined, "sentence"); f.complete.mockResolvedValue("C:\\Users\\person\\herdr-paste-123.png");
+    f.start(); f.prompt("Add spinner style settings"); await settle();
+    expect(f.state.name).toBe("Spinner style settings");
+  });
+
+  it.each(["kebab", "sentence", "title"] as const)("keeps three explanatory words without the former cap in %s", async format => {
+    const f = fixture(undefined, format); f.complete.mockResolvedValue("spinner style settings and colors");
+    f.start(); f.prompt(); await settle();
+    expect(f.state.name).toBe(format === "kebab" ? "spinner-style-settings" : format === "title" ? "Spinner Style Settings" : "Spinner style settings");
+    expect(f.state.name!.split(/[- ]/u)).toHaveLength(3);
+  });
+
   it.each([
     ["kebab", "fix-api-cache", "lowercase hyphenated"],
     ["sentence", "Fix API cache", "sentence case"],
@@ -72,20 +144,20 @@ describe("automatic session naming", () => {
   });
 
   it.each([
-    ["kebab", "fix-typescript"], ["sentence", "Fix TypeScript"], ["title", "Fix TypeScript"],
+    ["kebab", "resolve-extraordinary"], ["sentence", "Resolve extraordinary"], ["title", "Resolve Extraordinary"],
   ] as const)("bounds %s names at a whole word", async (format, expected) => {
-    const f = fixture(undefined, format); f.complete.mockResolvedValue("fix TypeScript errors");
-    f.start(); f.prompt(); await settle(); expect(f.state.name).toBe(expected); expect(f.state.name!.length).toBeLessThanOrEqual(16);
+    const f = fixture(undefined, format); f.complete.mockResolvedValue("resolve extraordinary performance errors");
+    f.start(); f.prompt(); await settle(); expect(f.state.name).toBe(expected); expect(f.state.name!.length).toBeLessThanOrEqual(32);
   });
 
   it.each(["kebab", "sentence", "title"] as const)("bounds an oversized single word in %s", async format => {
-    const f = fixture(undefined, format); f.complete.mockResolvedValue("abcdefghijklmnopqrs");
-    f.start(); f.prompt(); await settle(); expect(f.state.name).toHaveLength(16);
-    expect(f.state.name).toBe(format === "kebab" ? "abcdefghijklmnop" : "Abcdefghijklmnop");
+    const f = fixture(undefined, format); f.complete.mockResolvedValue("abcdefghijklmnopqrstuvwxyzabcdefghijk");
+    f.start(); f.prompt(); await settle(); expect(f.state.name).toHaveLength(32);
+    expect(f.state.name).toBe(format === "kebab" ? "abcdefghijklmnopqrstuvwxyzabcdef" : "Abcdefghijklmnopqrstuvwxyzabcdef");
   });
 
   it.each([
-    ["kebab", "fix-api-cache", "new-task"], ["sentence", "Fix API cache", "New task"], ["title", "Fix API Cache", "New Task"],
+    ["kebab", "api-cache", "new-task"], ["sentence", "API cache", "New task"], ["title", "API Cache", "New Task"],
   ] as const)("formats prompt and empty-word fallback as %s", async (format, expected, empty) => {
     const f = fixture(undefined, format); f.complete.mockResolvedValue("!!!");
     f.start(); f.prompt("fix API cache later"); await settle();
@@ -110,7 +182,7 @@ describe("automatic session naming", () => {
     f.complete.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; })).mockResolvedValue("");
     f.start(); f.prompt("fix API cache"); await settle();
     f.setFormat("sentence"); answer(""); await settle();
-    expect(f.state.name).toBe("Fix API cache"); expect(f.complete).toHaveBeenCalledTimes(2);
+    expect(f.state.name).toBe("API cache"); expect(f.complete).toHaveBeenCalledTimes(2);
   });
 
   it("keeps completed names on format changes and uses the choice at the next context regeneration", async () => {
@@ -209,7 +281,7 @@ describe("automatic session naming", () => {
     expect(f.complete.mock.calls.map(call => call[0])).toEqual([
       expect.objectContaining({ maxTokens: 4096 }), expect.objectContaining({ maxTokens: 32768 }),
     ]);
-    expect(f.state.name).toBe("build-useful");
+    expect(f.state.name).toBe("useful-session-names");
   });
 
   it("times out uncooperative providers and never falls back after cancellation", async () => {

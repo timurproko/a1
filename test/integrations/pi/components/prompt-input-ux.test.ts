@@ -346,8 +346,46 @@ describe("owned shared input and status presentation", () => {
       const named = footer.render(width);
       const unnamed = createPiShellFooter(base, "/WORK", "a1").render(width);
       expect(named.every(row => visibleWidth(row) <= width)).toBe(true);
-      if (width <= 20) expect(named).toEqual(unnamed);
+      if (width === 1) expect(named).toEqual(unnamed);
+      if (width >= 12) expect(stripTerminalSequences(named[1]!)).toContain("new");
     }
+    footer.dispose?.();
+  });
+
+  it("shrinks detailed statistics before session names across constrained widths", () => {
+    applyPiTheme("dark", false, "truecolor");
+    const base = view();
+    const name = "Spinner style settings";
+    const state: OwnedUiSessionViewModel = { ...base, status: { ...base.status,
+      footer: { ...base.status.footer!, sessionName: name },
+      usage: { ...base.status.usage!, input: 1401000, output: 51000, cacheRead: 17000000, cacheWrite: 10000,
+        latestCacheHitRate: 100, cost: 3.019, usingSubscription: true, contextPercent: 4.4, contextWindow: 500000 },
+    } };
+    const footer = createPiShellFooter(state, "/WORK", "a1");
+    const wide = stripTerminalSequences(footer.render(160)[1]!);
+    expect(wide).toContain("↑1.4M ↓51k R17M W10k CH100.0% $3.019 (sub) 4.4%/500k");
+    expect(wide).toContain(name);
+    for (let width = 0; width <= 120; width++) {
+      const rows = footer.render(width);
+      const line = stripTerminalSequences(rows[1]!);
+      expect(rows).toHaveLength(2);
+      expect(rows.every(row => visibleWidth(row) <= width)).toBe(true);
+      expect(line).not.toMatch(/^\s*•|•\s*$/u);
+      if (width >= name.length + "MODEL • medium".length + 2) expect(line).toContain(name);
+    }
+    const constrained = stripTerminalSequences(footer.render(60)[1]!);
+    expect(constrained).toContain(name);
+    expect(constrained).toContain("…");
+    expect(constrained).not.toContain("$3.019");
+    const minimal = stripTerminalSequences(footer.render(38)[1]!);
+    expect(minimal).toBe(`${name}  MODEL • medium`);
+    expect(minimal).not.toContain("(PROVIDER)");
+    const modelColumn = constrained.indexOf("MODEL");
+    footer.setNameReveal?.({ from: "Previous task name", elapsed: 700 });
+    const animated = stripTerminalSequences(footer.render(60)[1]!);
+    expect(animated.indexOf("MODEL")).toBe(modelColumn);
+    expect(animated.slice(0, constrained.indexOf(" • "))).toBe(constrained.slice(0, constrained.indexOf(" • ")));
+    expect(state.status.footer!.sessionName).toBe(name);
     footer.dispose?.();
   });
 

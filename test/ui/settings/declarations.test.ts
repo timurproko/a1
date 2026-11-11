@@ -86,7 +86,7 @@ describe("owned UI setting declarations", () => {
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "sessionNameFormat")).toMatchObject({
       label: "Session name format", section: { id: "agent", title: "Agent" },
-      application: "live", defaultValue: "kebab", allowedValues: ["kebab", "sentence", "title"],
+      application: "live", defaultValue: "sentence", allowedValues: ["sentence", "kebab", "title"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptSuggestions")).toMatchObject({
       label: "Prompt suggestions",

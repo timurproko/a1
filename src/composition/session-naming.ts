@@ -8,7 +8,7 @@ export function bindAutomaticSessionNaming(backend: ComposedSessionBackend, sett
   const naming = new SessionNamingController({
     backend, naming: backend.naming,
     enabled: () => settings?.value("sessionAutoName") ?? true,
-    format: () => settings?.value("sessionNameFormat") ?? "kebab",
+    format: () => settings?.value("sessionNameFormat") ?? "sentence",
     withContext: async (consume, signal) => {
       const sessionId = backend.identity.currentHistorySessionId();
       const sessionFile = backend.identity.currentSessionFile();
