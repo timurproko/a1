@@ -19,7 +19,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-11-selectable-spinner-styles/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-11-selectable-spinner-styles/acceptance.md",
   "finalizedDate": "2026-11-11",
-  "specBaseSha": "911ec01eb031c68e1f76faf55222d197f3134f52",
+  "specBaseSha": "79f6f484dbef3e47f6fdb09645f4c545838fd108",
   "acceptanceScenarios": [
     "Appearance offers exactly None, Current, Circle, Diamond, and Rotating square, with Current as the saved-choice default and invalid-value fallback.",
     "The dropdown shows native accent-colored previews, animates the focused choice without shifting labels, and cancels without changing the saved setting.",
@@ -28,9 +28,9 @@ The maintainer integration decision accepts these scenarios:
     "Closing or replacing a dropdown or progress surface stops its preview or status resources without leaving animation timers behind.",
     "Measured install and update bars, progress calculations, custom extension renderers, and the pinned comparison profile remain unchanged."
   ],
-  "archiveDigest": "f5218c437fcc0a7f9aa8d54b43f964442fd1caea2e17b689b9e36cb39b6291fd",
-  "specDigest": "2cc4354130d955ae73902d36df1086a59a6ec274fa7ca7f5cf6f81414c221346",
-  "tasksDigest": "a6d2e1256ef61faf00840dba72b4ea3c546c4766491b1b74b3ee469b1898c60f",
+  "archiveDigest": "077f13fb34fe0b10734fdf5e5f9946fa78e08004a07d7b90d9f606ebc4a44e40",
+  "specDigest": "150c0dd3e910ba85da6b5e418ff4693f3277ce668eb738fa4471b436d5206a82",
+  "tasksDigest": "b4f1392023b6dcd1d0e736be6f1275b38ae09d563230231844ab0801060bac69",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
