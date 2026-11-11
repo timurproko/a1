@@ -6,7 +6,7 @@ The upgrade script bumps the pins, evaluates the candidate in isolation, three-w
 
 ## Proposed implementation decisions
 
-This section is a plan awaiting maintainer approval; the generated sync report below remains historical proposal evidence, not a report of completed repairs.
+The maintainer approved this plan and requested implementation in the delivery session. The generated sync report below remains historical proposal evidence, not a report of completed repairs.
 
 ### Missing-folder recovery
 
@@ -26,9 +26,19 @@ Refresh current-pin provenance and derived parity records through their owning g
 
 ### Delivery and bounded validation
 
-Continue branch chore/pi-1.5.2 and PR 906 in this worktree. Reconcile current origin/develop, including the already integrated session-continuity repair, before final evidence generation. Preserve the four generated Implementation outcomes; add detailed bookkeeping beneath them rather than rewriting them. No product implementation edits precede approval of this plan.
+Continue branch chore/pi-1.5.2 and PR 906 in this worktree. Reconcile current origin/develop, including the already integrated session-continuity repair, before final evidence generation. Preserve the four generated Implementation outcomes; add detailed bookkeeping beneath them rather than rewriting them. Implementation began only after approval of this plan.
 
 After approval, use typecheck, strict validation of this OpenSpec change, and explicit test files covering session selection/recovery, workflow requests, shell dialogs, modal inventory, feature adoption, deprecated dependencies, and parity generation. Do not rerun directory-wide suites locally. Regenerate the affected component/event-frame fixtures and inspect every changed baseline. Leave unresolved failures and substantive gaps visible; final readiness and exact-head validation remain owned by trusted automation.
+
+## Release-note text
+
+### Breaking Changes
+
+- Missing-folder recovery replaces its Yes/No confirmation with Continue, Fork, and Cancel. Continue retains the original stored cwd and asks again on a later resume; Fork preserves the original and creates a new session ID in the current folder. Startup selection, resume, import, and extension switching share these recovery choices.
+
+### Changed
+
+- Pin Pi 1.5.2 at b4afdddf44e059c67ccf5097e5317d913521b470, including the upstream import-copy cleanup and Anthropic OAuth client-version correction. Existing cross-project fork confirmation and session-writer exclusion remain in place.
 
 ## Sync report at proposal
 

@@ -83,6 +83,7 @@
           "kind": "class",
           "hash": "1d775993cc8b926be47a67bd36199812ed6540527411e79b49dddd615ea464a8",
           "consumers": [
+            "src/integrations/pi/engine/extension-ui-binding.ts",
             "src/integrations/pi/engine/prompt-suggestions.ts",
             "src/integrations/pi/engine/provider-authentication.ts",
             "src/integrations/pi/engine/resource-catalog.ts",

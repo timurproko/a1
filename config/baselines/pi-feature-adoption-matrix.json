@@ -2932,7 +2932,9 @@
       "version": "1.5.2",
       "summary": "when a session's original folder was moved or deleted, you can now fork it into the current folder instead of only continuing, so later resumes no longer ask.",
       "since": "1.5.2",
-      "disposition": "pending"
+      "disposition": "owned",
+      "behavior": "sessions.new-resume",
+      "test": "test/integrations/pi/engine/session-cwd-recovery.test.ts"
     }
   ]
 }

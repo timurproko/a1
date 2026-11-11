@@ -435,11 +435,17 @@ describe("pinned Pi command and input workflows", () => {
 
     runtime.resumeMissingCwd = true;
     await expect(adapter.executeWorkflow({ command: "resume", argument: "D:/sessions/missing.jsonl" })).resolves.toMatchObject({
-      outcome: "requires-confirmation",
-      message: "cwd from session file does not exist\nD:/missing\n\ncontinue in current cwd\nD:/work",
+      outcome: "requires-selection",
+      message: "Session cwd does not exist: D:/missing",
+      cwdRecovery: { fallbackCwd: "D:/work" },
+      options: [
+        { id: "continue", label: "Continue in D:/work (asks again next time)" },
+        { id: "fork", label: "Fork into D:/work (new session ID, original kept)" },
+        { id: "cancel", label: "Cancel" },
+      ],
     });
-    await expect(adapter.executeWorkflow({ command: "resume", argument: "D:/sessions/missing.jsonl", confirmed: false })).resolves.toMatchObject({ outcome: "cancelled" });
-    await expect(adapter.executeWorkflow({ command: "resume", argument: "D:/sessions/missing.jsonl", confirmed: true })).resolves.toMatchObject({ outcome: "completed", message: "Resumed session in current cwd" });
+    await expect(adapter.executeWorkflow({ command: "resume", argument: "D:/sessions/missing.jsonl", cwdRecoveryChoice: "cancel" })).resolves.toMatchObject({ outcome: "cancelled" });
+    await expect(adapter.executeWorkflow({ command: "resume", argument: "D:/sessions/missing.jsonl", cwdRecoveryChoice: "continue" })).resolves.toMatchObject({ outcome: "completed", message: "Resumed session in D:/work" });
     expect(runtime.calls).toContain("resume:D:/sessions/missing.jsonl:D:/work");
 
     const editorBeforeTreeNavigation = adapter.view().editor;
@@ -946,12 +952,13 @@ describe("pinned Pi command and input workflows", () => {
     const { adapter, runtime } = await fixture();
     runtime.importMissingCwd = true;
     await expect(adapter.executeWorkflow({ command: "import", argument: "session.jsonl", confirmed: true })).resolves.toMatchObject({
-      outcome: "requires-confirmation",
-      message: "cwd from session file does not exist\nD:/missing\n\ncontinue in current cwd\nD:/work",
-      detail: "D:/work",
+      outcome: "requires-selection",
+      message: "Session cwd does not exist: D:/missing",
+      cwdRecovery: { fallbackCwd: "D:/work" },
+      options: expect.arrayContaining([{ id: "fork", label: "Fork into D:/work (new session ID, original kept)" }]),
     });
     await expect(adapter.executeWorkflow({
-      command: "import", argument: "session.jsonl", confirmed: true, cwdOverride: "D:/work",
+      command: "import", argument: "session.jsonl", confirmed: true, cwdRecoveryChoice: "continue", cwdOverride: "D:/work",
     })).resolves.toMatchObject({ outcome: "completed", message: "Session imported from: session.jsonl" });
     expect(runtime.calls).toContain("import:session.jsonl:D:/work");
 
