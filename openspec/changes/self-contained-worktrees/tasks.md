@@ -11,6 +11,6 @@
 
 ## 3. Guidance and handoff
 
-- [ ] 3.1 Replace duplicated A1 worktree rules with the shared minimal guidance and document command semantics; verify documentation and policy regressions.
-- [ ] 3.2 Prepare the same guidance migration in XR Build while retaining private setup and cleanup protections; verify its focused instruction tests and record the installation prerequisite.
-- [ ] 3.3 Reconcile specs, focused checks, acceptance outcomes, and known gaps; verify strict OpenSpec validation, typecheck, and final PR body validation.
+- [x] 3.1 Replace duplicated A1 worktree rules with the shared minimal guidance and document command semantics; verify documentation and policy regressions.
+- [x] 3.2 Prepare the same guidance migration in XR Build while retaining private setup and cleanup protections; verify its focused instruction tests and record the installation prerequisite.
+- [x] 3.3 Reconcile specs, focused checks, acceptance outcomes, and known gaps; verify strict OpenSpec validation, typecheck, and final PR body validation.
