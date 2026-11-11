@@ -23,4 +23,5 @@ A display label must never replace the stored identifier when handling selection
 - Focused settings-app tests cover aligned animated previews, cancellation and timer cleanup, every existing saved selection, accepting dots and reloading its persisted representation, and bidirectional row cycling.
 - Passed 130 tests across test/ui/settings/declarations.test.ts, test/ui/settings/manager.test.ts, and test/features/owned-ui/settings-app.test.ts using the pinned local dependencies.
 - Passed npm run build, npm run typecheck, strict OpenSpec validation for name-dot-spinner, and git diff --check.
+- Initial exact-head CI passed affected unit owners and rendering validation, but finalized delivery validation reported delivery-artifact-missing because the planning artifacts lacked .openspec.yaml. Added the required spec-driven change metadata to the existing archive; trusted automation will regenerate its manifest and validate the repaired candidate.
 - No known implementation gaps. Interactive manual validation remains optional; required exact-head CI is owned by trusted automation.
