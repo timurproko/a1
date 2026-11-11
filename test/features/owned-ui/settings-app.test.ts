@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +15,7 @@ import { createSettingsSearchInputFactory } from "../../../src/composition/setti
 import type { AppHostServices } from "../../../src/ui/apps/index.js";
 import { configureDialogWidth, displayWidth, finalizeFrame, type UiTheme, type UiThemeToken } from "../../../src/ui/components/index.js";
 import { firstVisibleTextColumn } from "../../support/dialog-alignment.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
 const ESC = String.fromCharCode(27);
 const DOWN = `${ESC}[B`;
@@ -494,11 +495,11 @@ describe("the settings screen", () => {
     const host = { ...PANEL_HOST, requestRender, theme: { ...PANEL_THEME, highlight: PANEL_THEME.panel,
       fg: (role: UiThemeToken, text: string) => role === "accent" ? `${ESC}[32m${text}${ESC}[39m` : text,
     } };
-    const labels = ["none", "current", "circle", "diamond", "square"];
+    const labels = ["dots", "circle", "diamond", "square", "none"];
     const menu = () => target.render({ width: 80, height: 24 }, host).filter(line => line.includes(MENU_BACKGROUND));
     try {
       selectRow(target, "Spinner style");
-      expect(find(target, "Spinner style")).toMatch(/Spinner style\s+current/u);
+      expect(find(target, "Spinner style")).toMatch(/Spinner style\s+dots/u);
       target.onInput(ENTER, host);
       const first = menu();
       expect(first).toHaveLength(5);
@@ -513,7 +514,7 @@ describe("the settings screen", () => {
       target.onInput(DOWN, host);
       const circle = menu();
       vi.advanceTimersByTime(80);
-      expect(menu()[2]).not.toBe(circle[2]);
+      expect(menu()[1]).not.toBe(circle[1]);
       expect(menu().map((line, index) => stripTerminalSequences(line).indexOf(labels[index]!))).toEqual(columns);
       expect(session.value("spinnerStyle")).toBe("current");
       target.onInput(ESC, host);
@@ -541,6 +542,58 @@ describe("the settings screen", () => {
       target.onClose(host);
       expect(vi.getTimerCount()).toBe(0);
     } finally { target.onClose(host); vi.useRealTimers(); }
+  });
+
+  it.each(["current", "circle", "diamond", "square", "none"] as const)("preserves saved spinner choice %s and accepts dots using its existing identifier", async style => {
+    const file = path.join(root, "settings.json");
+    const original = JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { spinnerStyle: style } });
+    writeFileSync(file, original);
+    const declaration = OWNED_UI_SETTING_DECLARATIONS.find(entry => entry.id === "spinnerStyle")!;
+    const session = new OwnedSettingsManager({ profileDir: root, profileId: PRODUCT_IDENTITY.commandName, declarations: [declaration] });
+    await session.load();
+    const target = settingsApp(session);
+    const label = style === "current" ? "dots" : style;
+    try {
+      selectRow(target, "Spinner style");
+      expect(find(target, "Spinner style")).toMatch(new RegExp(`Spinner style\\s+${label}$`, "u"));
+      expect(session.value("spinnerStyle")).toBe(style);
+      target.onInput(ENTER, PANEL_HOST);
+      const menu = () => target.render({ width: 80, height: 24 }, PANEL_HOST).map(stripTerminalSequences);
+      expect(menu().find(line => line.includes("✓"))?.trim()).toMatch(new RegExp(`${label}$`, "u"));
+      target.onInput(DOWN, PANEL_HOST);
+      target.onInput(ESC, PANEL_HOST);
+      expect(session.value("spinnerStyle")).toBe(style);
+      expect(readFileSync(file, "utf8")).toBe(original);
+      target.onInput(ENTER, PANEL_HOST);
+      const index = ["current", "circle", "diamond", "square", "none"].indexOf(style);
+      for (let step = 0; step < index; step++) target.onInput(`${ESC}[A`, PANEL_HOST);
+      target.onInput(ENTER, PANEL_HOST);
+      await settleChanges();
+      expect(session.value("spinnerStyle")).toBe("current");
+      expect(find(target, "Spinner style")).toMatch(/Spinner style\s+dots/u);
+      const reloaded = new OwnedSettingsManager({ profileDir: root, profileId: PRODUCT_IDENTITY.commandName, declarations: [declaration] });
+      expect(reloaded.value("spinnerStyle")).toBe("current");
+      const saved = JSON.parse(readFileSync(file, "utf8"));
+      expect([undefined, "current"]).toContain(saved[PRODUCT_IDENTITY.commandName]?.spinnerStyle);
+    } finally { target.onClose(PANEL_HOST); }
+  });
+
+  it("cycles spinner choices with dots first and none last", async () => {
+    const declaration = OWNED_UI_SETTING_DECLARATIONS.find(entry => entry.id === "spinnerStyle")!;
+    const { app: target, session } = await app(false, undefined, [declaration]);
+    try {
+      selectRow(target, "Spinner style");
+      expect(find(target, "Spinner style")).toMatch(/Spinner style\s+dots/u);
+      for (const style of ["circle", "diamond", "square", "none", "current"]) {
+        target.onInput(`${ESC}[C`, HOST);
+        await settleChanges();
+        expect(session.value("spinnerStyle")).toBe(style);
+        expect(find(target, "Spinner style")).toContain(style === "current" ? "dots" : style);
+      }
+      target.onInput(`${ESC}[D`, HOST);
+      await settleChanges();
+      expect(session.value("spinnerStyle")).toBe("none");
+    } finally { target.onClose(HOST); }
   });
 
   it("changes and undoes the profile accent without writing Pi settings", async () => {
