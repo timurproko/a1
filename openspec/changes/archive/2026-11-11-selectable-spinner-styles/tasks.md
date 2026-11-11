@@ -15,3 +15,8 @@
 
 - [x] 3.1 Add focused settings, frame geometry, live-change, spacing, loader lifecycle, and profile-isolation assertions for all five choices.
 - [x] 3.2 Run targeted tests, typecheck, architecture, and strict OpenSpec validation; record actual outcomes and any explicit gap disposition before final acceptance/body completion.
+
+## 4. CI repair
+
+- [x] 4.1 Use the shared product identity for settings-fixture namespace properties without changing persisted bytes or weakening naming validation.
+- [x] 4.2 Reconcile current develop, retain both merged fixture behaviors, and move unchanged shell engine-option types off the eager startup graph without relaxing the startup budget.

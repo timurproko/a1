@@ -3,7 +3,6 @@ import type { TerminalComponentPort, TerminalInputSurfaceKind, TerminalLayoutNod
 import type { ShellPresentationPorts, ThemeSource } from "../../contracts/presentation/index.js";
 import type {
   OwnedUiPromptSuggestionGeneratorPort,
-  OwnedUiSessionBackend,
   OwnedUiSessionPresenters,
   OwnedUiSessionViewModel,
   OwnedUiTranscriptRendererPort,
@@ -11,7 +10,6 @@ import type {
   SuggestionDecision,
   SuggestionDiagnosticObserver,
 } from "../../contracts/owned-ui/index.js";
-import type { UiRouteHost, UiRouteInput } from "../../ui/apps/contracts.js";
 import { promptArrow } from "../../ui/components/prompt-input.js";
 import {
   composeSubmittedPromptRows,
@@ -41,27 +39,8 @@ import { InputSurfaceSwitch } from "./input-surface-switch.js";
 import { PinnedLayout, type DockLayout, type ShellLayout, type ShellLayoutPorts } from "./shell-layout.js";
 import { ViewportLayout } from "./viewport-layout.js";
 import { transcriptLinkColor, TranscriptDocument } from "./transcript-document.js";
-import type { OwnedUiShellPresentationOptions } from "./shell-presentation-options.js";
-export type { OwnedUiShellPresentationOptions } from "./shell-presentation-options.js";
-
-/** The engine session the shell presents and the composition's decisions about it. */
-export interface OwnedUiShellEngineOptions {
-  readonly backend: OwnedUiSessionBackend;
-  readonly cwd: string;
-  /**
-   * Declared A1-owned routes. A route this host claims resolves to its app;
-   * every other route continues to the pinned workflow table unchanged.
-   */
-  readonly routeHost?: UiRouteHost;
-  /** One product-owned route presented after the first usable frame and any startup modal. */
-  readonly startupRoute?: {
-    readonly route: string;
-    readonly input?: UiRouteInput;
-    readonly onClosed?: () => void | Promise<void>;
-  };
-  /** Bare A1 selects the owned bounded viewport; comparison profiles stay pinned. */
-  readonly sessionLayout?: "pinned" | "custom-viewport";
-}
+import type { OwnedUiShellEngineOptions, OwnedUiShellPresentationOptions } from "./shell-options.js";
+export type { OwnedUiShellEngineOptions, OwnedUiShellPresentationOptions } from "./shell-options.js";
 
 /** Persistent prompt history: its store, its bound, the editor that recalls it, and the image sidecar. */
 export interface OwnedUiShellHistoryOptions {

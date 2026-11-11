@@ -91,7 +91,7 @@ afterEach(() => {
 
 describe("owned settings manager", () => {
   it.each(["none", "current", "circle", "diamond", "square"] as const)("persists live spinner choice %s without touching Pi settings", async style => {
-    writeFileSync(path.join(root, "settings.json"), JSON.stringify({ theme: "light", a1: { futureSetting: 42 } }));
+    writeFileSync(path.join(root, "settings.json"), JSON.stringify({ theme: "light", [PRODUCT_IDENTITY.commandName]: { futureSetting: 42 } }));
     const target = new OwnedSettingsManager({ profileDir: root, profileId: "a1" });
     const seen: string[] = [];
     const unsubscribe = target.onChange(current => seen.push(current.value("spinnerStyle")));
@@ -101,8 +101,8 @@ describe("owned settings manager", () => {
     expect(seen).toEqual([style]);
     const saved = JSON.parse(readFileSync(target.file, "utf8"));
     expect(saved.theme).toBe("light");
-    expect(saved.a1.futureSetting).toBe(42);
-    expect(saved.a1.spinnerStyle).toBe(style === "current" ? undefined : style);
+    expect(saved[PRODUCT_IDENTITY.commandName].futureSetting).toBe(42);
+    expect(saved[PRODUCT_IDENTITY.commandName].spinnerStyle).toBe(style === "current" ? undefined : style);
     expect(saved.spinnerStyle).toBeUndefined();
     const restarted = new OwnedSettingsManager({ profileDir: root, profileId: "a1" });
     expect(restarted.value("spinnerStyle")).toBe(style);
@@ -112,7 +112,7 @@ describe("owned settings manager", () => {
   });
 
   it.each([undefined, "unsupported", true, 42])("falls back to Current for stored spinner choice %s", value => {
-    writeFileSync(path.join(root, "settings.json"), JSON.stringify({ a1: { spinnerStyle: value, accentColor: "green" } }));
+    writeFileSync(path.join(root, "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { spinnerStyle: value, accentColor: "green" } }));
     const target = new OwnedSettingsManager({ profileDir: root, profileId: "a1" });
     expect(target.value("spinnerStyle")).toBe("current");
     expect(target.value("accentColor")).toBe("green");

@@ -46,6 +46,13 @@ Focused evidence will cover declared choices and fallback, persistence/reload, l
 - Tests cover complete frame cycles and fixed label columns, None spacing, saved/default/invalid choices, profile isolation, failed persistence, native preview color and focus animation, accept/cancel/outside click/teardown, compact menu widths, live operation-loader changes, cancellation, and pinned comparison behavior.
 - Physical-terminal inspection remains optional. Glyph ink shapes vary with the terminal font; automated checks establish a stable display-cell slot rather than identical pixels on every font.
 
+## CI naming repair and current-target reconciliation
+
+- Naming CI identified four branded test-fixture property declarations/accesses. They now use `PRODUCT_IDENTITY.commandName`, preserving exactly the same persisted JSON namespace and assertions without adding naming exceptions.
+- Merged current develop's contextual session-name changes and resolved the shared composition-test fixture to retain both its new Sentence case fallback and the spinner source/listener checks.
+- The combined current-target graph exceeded the unchanged startup byte budget. Extended the existing type-only options extraction to engine options, grouped in `shell-options.ts`, while preserving both public type re-exports and all runtime behavior. No budget, baseline, or architecture rule was relaxed.
+- Post-reconciliation repair checks passed: 222 focused tests across 10 affected settings, spinner, composition, shell, and startup-policy files; build; complete typecheck; all architecture gates; naming audit with zero violations; changed-code documentation; and whitespace validation.
+
 ## Known gaps
 
 None identified in the approved scope.

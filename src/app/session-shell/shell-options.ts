@@ -1,5 +1,6 @@
 import type {
   OwnedUiBackgroundSettingsPort,
+  OwnedUiSessionBackend,
   OwnedUiShellHeaderOptions,
   OwnedUiViewportSettingsPort,
   OwnedUiQuitOutroSettingsPort,
@@ -10,6 +11,26 @@ import type {
   TerminalPort,
 } from "../../contracts/presentation/index.js";
 import type { StreamPresentationScheduler } from "./stream-presentation-coalescer.js";
+import type { UiRouteHost, UiRouteInput } from "../../ui/apps/index.js";
+
+/** The engine session the shell presents and the composition's decisions about it. */
+export interface OwnedUiShellEngineOptions {
+  readonly backend: OwnedUiSessionBackend;
+  readonly cwd: string;
+  /**
+   * Declared A1-owned routes. A route this host claims resolves to its app;
+   * every other route continues to the pinned workflow table unchanged.
+   */
+  readonly routeHost?: UiRouteHost;
+  /** One product-owned route presented after the first usable frame and any startup modal. */
+  readonly startupRoute?: {
+    readonly route: string;
+    readonly input?: UiRouteInput;
+    readonly onClosed?: () => void | Promise<void>;
+  };
+  /** Bare A1 selects the owned bounded viewport; comparison profiles stay pinned. */
+  readonly sessionLayout?: "pinned" | "custom-viewport";
+}
 
 /** Terminal, startup, viewport, and presentation-cadence seams; production leaves most at their defaults. */
 export interface OwnedUiShellPresentationOptions {
