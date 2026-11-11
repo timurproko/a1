@@ -3,7 +3,7 @@ import { realpath } from "node:fs/promises";
 import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { basename, dirname, resolve } from "node:path";
 import { resolveProductPaths } from "../lifecycle/index.js";
-import { ReleaseStateStore, releaseUseIsLive, type ReleaseUseClaim } from "./release-state.js";
+import { ReleaseStateStore, isReleaseStateNewerError, releaseUseIsLive, type ReleaseUseClaim } from "./release-state.js";
 
 /** Mutable installed entries are not GC-managed; immutable helper processes need their own claim. */
 async function claimReleaseEntry(entry: string, environment: NodeJS.ProcessEnv) {
@@ -11,7 +11,14 @@ async function claimReleaseEntry(entry: string, environment: NodeJS.ProcessEnv) 
   const root = await realpath(dirname(dirname(resolve(entry))));
   const storeRoot = await realpath(resolve(dataDir, "releases")).catch(() => undefined);
   if (dirname(root) !== storeRoot) return undefined;
-  return acquireReleaseUse(dataDir, basename(root));
+  try {
+    return await acquireReleaseUse(dataDir, basename(root));
+  } catch (error) {
+    // Compatibility: a newer release owns state this code may not write. It retains releases it
+    // cannot prove unused, so the launch proceeds without a claim rather than failing.
+    if (isReleaseStateNewerError(error)) return undefined;
+    throw error;
+  }
 }
 
 export async function spawnReleaseEntry(entry: string, args: readonly string[], options: SpawnOptions): Promise<ChildProcess & { releaseSettled: Promise<void> }> {
@@ -53,10 +60,15 @@ export async function acquireReleaseUse(dataDir: string, releaseId: string) {
     },
     async release(): Promise<void> {
       if (released) return;
-      await store.update(state => {
-        const uses = { ...state.uses }; delete uses[token];
-        return { ...state, uses };
-      });
+      try {
+        await store.update(state => {
+          const uses = { ...state.uses }; delete uses[token];
+          return { ...state, uses };
+        });
+      } catch (error) {
+        // Compatibility: once a newer release owns the state, it settles this claim by process liveness.
+        if (!isReleaseStateNewerError(error)) throw error;
+      }
       released = true;
     },
   };
