@@ -47,9 +47,34 @@ let stdout = "";
 let stderr = "";
 process.stdout.write = chunk => { stdout += String(chunk); return true; };
 process.stderr.write = chunk => { stderr += String(chunk); return true; };
-let pinned, owned, packages;
+// Security: synthetic update events replace only the network/package-manager effect;
+// both independent CLI presenters still render their real outcomes unchanged.
+async function installPackageUpdateBoundary() {
+  const { DefaultPackageManager } = await import("@earendil-works/pi-coding-agent");
+  const progressCallbacks = new WeakMap();
+  const setProgressCallback = DefaultPackageManager.prototype.setProgressCallback;
+  DefaultPackageManager.prototype.setProgressCallback = function(callback) {
+    progressCallbacks.set(this, callback);
+    return setProgressCallback.call(this, callback);
+  };
+  const update = DefaultPackageManager.prototype.update;
+  DefaultPackageManager.prototype.update = async function(source) {
+    const scenario = JSON.parse(process.env.PACKAGE_MESSAGE_SCENARIO);
+    if (scenario.kind !== "package-update") return await update.call(this, source);
+    const emit = progressCallbacks.get(this);
+    emit?.({ type: "start", action: "update", source: source ?? "fixture", message: "Updating fixture packages..." });
+    for (const message of scenario.warnings ?? []) emit?.({ type: "progress", action: "update", source: "fixture", message });
+    for (const message of scenario.changes ?? []) emit?.({ type: "result", action: "update", source: "fixture", message });
+    emit?.({ type: "complete", action: "update", source: source ?? "fixture" });
+  };
+}
+let pinned, owned, packages, updateBoundaryInstalled = false;
 async function capture(directory, cases) {
   selectHome(directory);
+  if (!updateBoundaryInstalled) {
+    await installPackageUpdateBoundary();
+    updateBoundaryInstalled = true;
+  }
   pinned ??= producer === "pinned"
     ? await import(pathToFileURL(join(repository, "node_modules/@earendil-works/pi-coding-agent/dist/package-manager-cli.js")).href) : undefined;
   owned ??= producer === "owned" ? await import(pathToFileURL(join(repository, "src/cli/index.ts")).href) : undefined;
@@ -60,6 +85,7 @@ async function capture(directory, cases) {
     stderr = "";
     process.exitCode = 0;
     process.env.PACKAGE_MESSAGE_SCENARIO = JSON.stringify(entry.scenario ?? {});
+    process.env.PI_OFFLINE = entry.scenario?.offline ?? "1";
     if (entry.settings) {
       await mkdir(join(directory, ".a1", "agent"), { recursive: true });
       await writeFile(join(directory, ".a1", "agent", "settings.json"), `${JSON.stringify(entry.settings, null, 2)}\n`);

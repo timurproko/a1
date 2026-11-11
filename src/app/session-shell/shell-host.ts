@@ -360,8 +360,8 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
       },
       requestHyperlinkCleanup: rows => { if (attached()) this.#damageTerminal?.requestHyperlinkCleanup(rows); },
       openRoute: (surface, callbacks) => this.#openRoute(presenter, surface, callbacks),
-      // Invariant: an inactive presenter must never hold the active presenter's frames.
-      beginPresentationHold: () => attached() ? runtime.beginPresentationHold() : () => {},
+      // Invariant: only an attached presenter on a running runtime can hold frames.
+      beginPresentationHold: () => attached() && runtime.active ? runtime.beginPresentationHold() : () => {},
       switchMode: mode => runtime.switchMode(mode),
       setTitle: title => { if (attached()) runtime.setTitle(title); },
       setProgramStatus: status => { if (attached() && runtime.active) runtime.setProgramStatus(status); },

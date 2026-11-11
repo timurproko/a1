@@ -59,7 +59,7 @@ export async function runPackageCommand(
   const port = environment.createPort({
     profileRoot,
     cwd,
-    onProgress: progress => stdout(style.dim(`${progress.message}\n`)),
+    onProgress: progress => stdout((progress.severity === "warning" ? style.yellow : style.dim)(`${progress.message}\n`)),
     onDiagnostic: diagnostic => {
       stderr(`${style.yellow(diagnostic.message)}\n`);
       if (diagnostic.detail) stderr(`${style.dim(diagnostic.detail)}\n`);
@@ -99,10 +99,26 @@ export function renderPackageOutcome(
     case "remove":
       return `${style.green(`Removed ${outcome.source}`)}\n`;
     case "update":
-      return `${style.green(outcome.source === null ? "Updated packages" : `Updated ${outcome.source}`)}\n`;
+      return renderPackageUpdate(outcome, style);
     case "list":
       return renderPackageList(outcome, style);
   }
+}
+
+function renderPackageUpdate(outcome: AgentPackageOutcome, style: PackageCommandStyle): string {
+  const summary = outcome.updateSummary;
+  if (summary?.offline) return `${style.yellow("Skipped package updates (offline mode)")}\n`;
+  const changes = summary?.changes ?? [];
+  if (changes.length > 0) {
+    const heading = `Updated ${changes.length} package${changes.length === 1 ? "" : "s"}:`;
+    return `${style.green(heading)}\n${changes.map(change => `  ${change}\n`).join("")}`;
+  }
+  if (summary?.warningCount) {
+    return `${style.yellow(outcome.source
+      ? `${outcome.source} was not updated, see the warnings above`
+      : "No packages were updated, see the warnings above")}\n`;
+  }
+  return `${style.green(outcome.source ? `${outcome.source} is already up to date` : "Packages are already up to date")}\n`;
 }
 
 function renderPackageList(outcome: AgentPackageOutcome, style: PackageCommandStyle): string {
