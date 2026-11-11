@@ -20,12 +20,16 @@ const fixture = new PredecessorFixture();
 let candidateRoot = "";
 let retainedDirectRoot = "";
 let predecessors: string[] = [];
+let candidateVersion = "";
+/** Protocol: the frozen control-state family; see RELEASE_STATE_SCHEMA. */
+const CURRENT_STATE_FAMILY = "a1-release-cohort-v2";
 
 beforeAll(async () => fixture.phase(900_000, async () => {
   const candidate = await loadValidationCandidate();
   // Performance: the package shard already installed and authenticated these exact candidate bytes. Reusing
   // that bounded root removes a second npm reification while preserving pre/post owner checks.
   candidateRoot = (await verifyExactPackagePreparation({ candidatePath: candidate.path, consumer: "update-predecessor" })).packageRoot;
+  candidateVersion = candidate.manifest.version;
   predecessors = await fixture.publishedVersions(candidate.manifest.version);
   expect(predecessors.length, "no published release is available to update from").toBeGreaterThan(0);
 }), 900_000);
@@ -64,10 +68,11 @@ describe("update from every recent published release", () => {
         fixture.measure("warm", version, () => release.warmMaterializedRelease(materialized, environment, 120_000)),
         `published ${version} cannot activate the candidate`,
       ).resolves.toBeUndefined();
+      await fixture.discard(sandbox);
+      await exercisePostActivationState(release as unknown as PredecessorStateContract, version, candidateVersion);
       // Performance: each predecessor leaves a global installation and a materialized release store behind,
       // and the warmed child has closed by now, so both are released under this phase's own budget.
       // Holding all of them until the teardown hook instead made removal outgrow that hook's limit.
-      await fixture.discard(sandbox);
       if (process.platform === "win32" && version === predecessors[0]) {
         // Invariant: the direct replacement owner needs this same immutable predecessor tree. Fixture
         // ownership continues across the sequential test boundary and teardown remains fail-safe.
@@ -95,6 +100,52 @@ describe("update from every recent published release", () => {
     await fixture.discard(bridgeRoot);
   }, signal), 1_800_000);
 });
+
+/** The predecessor exports the post-activation path needs; absent members mean the predecessor cannot drive it. */
+interface PredecessorStateContract {
+  readonly RELEASE_STATE_SCHEMA?: string;
+  readonly ReleaseStateStore?: new (dataDir: string) => {
+    read(): Promise<{ references: { active: string | null }; releases: Record<string, { packageVersion: string }> }>;
+    update(operation: (state: unknown) => unknown): Promise<unknown>;
+  };
+  readonly delegateActivation?: (
+    request: { packageRoot: string; dataDir: string; targetVersion: string; environment: NodeJS.ProcessEnv },
+    callbacks: { phase(phase: string): Promise<void> },
+  ) => Promise<void>;
+  readonly scheduleReleaseCleanup?: (dataDir: string, paths: { dataDir: string; runtimeDir: string; configDir: string }) => Promise<void>;
+}
+
+/**
+ * An updater keeps running its own code after the tree it installed has activated itself and
+ * rewritten the control state. This is the step that failed from 1276 to 1285: the predecessor
+ * could no longer read what the candidate wrote. Each predecessor that reads the current state
+ * family must still read, update, and maintain the candidate's state with its own code.
+ */
+async function exercisePostActivationState(release: PredecessorStateContract, version: string, targetVersion: string): Promise<void> {
+  const { RELEASE_STATE_SCHEMA: family, ReleaseStateStore, delegateActivation, scheduleReleaseCleanup } = release;
+  // Rationale: releases before the frozen state family, or without these exports, cannot run this path;
+  // they are identified by what they export, never by version number.
+  if (family !== CURRENT_STATE_FAMILY || !ReleaseStateStore || !delegateActivation || !scheduleReleaseCleanup) return;
+  const sandbox = await fixture.temporaryRoot("a1-predecessor-state-");
+  const paths = { dataDir: resolve(sandbox, "data"), runtimeDir: resolve(sandbox, "runtime"), configDir: resolve(sandbox, "config") };
+  const environment = { ...process.env, A1_DATA_DIR: paths.dataDir, A1_RUNTIME_DIR: paths.runtimeDir, A1_CONFIG_DIR: paths.configDir };
+  await mkdir(paths.dataDir, { recursive: true });
+  const store = new ReleaseStateStore(paths.dataDir);
+  await store.update(state => state);
+  const phases: string[] = [];
+  await expect(
+    delegateActivation({ packageRoot: candidateRoot, dataDir: paths.dataDir, targetVersion, environment }, { phase: async phase => { phases.push(phase); } }),
+    `published ${version} cannot delegate activation to the candidate`,
+  ).resolves.toBeUndefined();
+  expect(phases).toContain("active-reference-committed");
+  const state = await store.read().catch((error: unknown) => {
+    throw new Error(`published ${version} cannot read control state the candidate wrote: ${String(error)}`);
+  });
+  expect(state.releases[state.references.active ?? ""]?.packageVersion, `published ${version} sees the candidate as active`).toBe(targetVersion);
+  await expect(store.update(current => current), `published ${version} cannot update the candidate's control state`).resolves.toBeDefined();
+  await expect(scheduleReleaseCleanup(paths.dataDir, paths), `published ${version} cannot maintain the candidate's control state`).resolves.toBeUndefined();
+  await fixture.discard(sandbox);
+}
 
 async function exerciseProtectedReplacement(
   predecessorRoot: string,
