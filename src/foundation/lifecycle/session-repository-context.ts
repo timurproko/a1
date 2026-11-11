@@ -6,7 +6,7 @@ import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import type { ProcessIdentity } from "./model.js";
 import { inspectLiveProcess } from "./process-liveness.js";
 import { resolveProductPaths } from "./paths.js";
-import { claimMutationPending, withSessionClaimLock } from "./session-claim-lock.js";
+import { withSessionClaimSnapshot, withSessionClaimLock } from "./session-claim-lock.js";
 
 const CONTEXT_SCHEMA = "a1-session-repository-context-v1";
 const RUNTIME_SCHEMA = "a1-session-runtime-v1";
@@ -192,9 +192,26 @@ export async function setSessionRepositoryContext(
   if (!samePath(startup.commonDir, selected.commonDir)) {
     throw contextError("associated worktree belongs to a different Git repository", "worktree-foreign-repository");
   }
+  if (samePath(selected.gitDir, selected.commonDir)) {
+    throw contextError("task attachment requires a linked worktree, not the primary checkout", "worktree-primary-checkout");
+  }
+  const registered = await listGitWorktrees(startup.root, startup.commonDir, options.signal);
+  if (!registered.some(entry => !("stale" in entry) && samePath(entry.root, selected.root) && samePath(entry.gitDir, selected.gitDir))) {
+    throw contextError("selected path is not a registered worktree", "worktree-not-registered");
+  }
+  if (await lstat(join(selected.gitDir, "locked")).then(() => true, error => { if (isMissingPathError(error)) return false; throw error; })) {
+    throw contextError("selected worktree is locked in Git", "worktree-git-locked");
+  }
   const owner = { runtimeId: requireRuntimeId(options), agentId: requireAgentId(options) };
   return await withClaimLock(options, async () => {
     const runtime = await requireLiveRuntime(header, owner, options);
+    const current = await readGitWorktreeIdentity(selected.root, true, options.signal);
+    if (!samePath(current.gitDir, selected.gitDir) || !samePath(current.commonDir, selected.commonDir) || current.branch !== selected.branch) {
+      throw contextError("worktree changed while attaching", "worktree-context-changed");
+    }
+    if (await lstat(join(selected.gitDir, "locked")).then(() => true, error => { if (isMissingPathError(error)) return false; throw error; })) {
+      throw contextError("selected worktree is locked in Git", "worktree-git-locked");
+    }
     const status = await claimAvailability(selected, owner, options);
     if (status === "busy") throw contextError("worktree is active in another session", "worktree-active-in-another-session");
     if (status === "unverifiable") throw contextError("worktree ownership cannot be verified", "worktree-owner-unverifiable");
@@ -308,7 +325,46 @@ export async function withSessionRepositoryObservation<T>(
   });
 }
 
-/** List same-repository worktrees without acquiring, releasing, or repairing a claim. */
+/** Validate the command's existing runtime before any Git worktree creation. */
+export async function assertSessionRepositoryRuntime(identity: SessionRepositoryIdentity, options: SessionRepositoryContextOptions): Promise<void> {
+  await requireLiveRuntime(await readSessionHeader(identity), { runtimeId: requireRuntimeId(options), agentId: requireAgentId(options) }, options);
+}
+
+/** Startup root used by product worktree operations; the durable session header stays unchanged. */
+export async function readSessionStartupRoot(identity: SessionRepositoryIdentity): Promise<string> {
+  return (await readSessionHeader(identity)).cwd;
+}
+
+/** Read a live attachment without activating or rewriting its claim. Invalid state never means detached. */
+export async function readActiveSessionRepositoryContext(
+  identity: SessionRepositoryIdentity,
+  options: SessionRepositoryContextOptions,
+): Promise<SessionRepositoryObservation | null> {
+  const header = await readSessionHeader(identity);
+  const owner = { runtimeId: requireRuntimeId(options), agentId: requireAgentId(options) };
+  await requireLiveRuntime(header, owner, options);
+  const path = contextRecordPath(header, options);
+  const metadata = await lstat(path).catch(error => { if (isMissingPathError(error)) return null; throw error; });
+  if (metadata === null) return null;
+  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > MAX_RECORD_BYTES) {
+    throw contextError("repository attachment cannot be verified", "worktree-owner-unverifiable");
+  }
+  const record = await readContextRecord(header, options);
+  if (record === null) throw contextError("repository attachment cannot be verified", "worktree-owner-unverifiable");
+  const selected = await validateContextRecord(header, record, options.signal);
+  const claim = await readClaim(selected, options);
+  if (claim === undefined) throw contextError("the editing claim needs reactivation", "worktree-context-changed");
+  if (claim === null || !claimMatchesWorktree(claim, selected) || !ownedBy(claim, owner)) {
+    throw contextError("the session no longer owns its attached worktree", "worktree-owner-unverifiable");
+  }
+  const after = await readContextRecord(header, options);
+  if (after === null || after.revision !== record.revision || !samePath(after.worktreeGitDir, record.worktreeGitDir)) {
+    throw contextError("repository attachment changed during observation", "worktree-context-changed");
+  }
+  return { cwd: selected.root, branch: requireBranch(selected), revision: record.revision ?? "legacy" };
+}
+
+/** List same-repository worktrees without acquiring, releasing, or repairing an editing claim. */
 export async function listSessionRepositoryWorktrees(
   identity: SessionRepositoryIdentity,
   options: SessionRepositoryContextOptions = {},
@@ -319,22 +375,23 @@ export async function listSessionRepositoryWorktrees(
   const startup = await readGitWorktreeIdentity(header.cwd, false, options.signal);
   const worktrees = await listGitWorktrees(startup.root, startup.commonDir, options.signal);
   if (worktrees.length > MAX_WORKTREES) throw contextError("worktree inventory exceeds its bounded limit", "worktree-inventory-limit");
-  const contended = await mutationLockExists(options);
-  const entries: SessionWorktreeInventoryEntry[] = [];
-  for (const selected of worktrees) {
-    if ("stale" in selected) {
-      entries.push({ cwd: selected.root, branch: selected.branch ?? "(detached)", status: "unverifiable", agentId: null });
-      continue;
+  return await withSessionClaimSnapshot(claimStoreRoot(options), options, async () => {
+    const entries: SessionWorktreeInventoryEntry[] = [];
+    for (const selected of worktrees) {
+      if ("stale" in selected) {
+        entries.push({ cwd: selected.root, branch: selected.branch ?? "(detached)", status: "unverifiable", agentId: null });
+        continue;
+      }
+      if (selected.branch === null) {
+        entries.push({ cwd: selected.root, branch: "(detached)", status: "unverifiable", agentId: null });
+        continue;
+      }
+      const status = await claimAvailability(selected, owner, options);
+      const claim = status === "current" || status === "busy" ? await readClaim(selected, options) : null;
+      entries.push({ cwd: selected.root, branch: selected.branch, status, agentId: claim?.agentId ?? null });
     }
-    if (selected.branch === null) {
-      entries.push({ cwd: selected.root, branch: "(detached)", status: "unverifiable", agentId: null });
-      continue;
-    }
-    const status = contended ? "unverifiable" : await claimAvailability(selected, owner, options);
-    const claim = status === "current" || status === "busy" ? await readClaim(selected, options) : null;
-    entries.push({ cwd: selected.root, branch: selected.branch, status, agentId: claim?.agentId ?? null });
-  }
-  return entries.sort((left, right) => pathKey(left.cwd).localeCompare(pathKey(right.cwd)));
+    return entries.sort((left, right) => pathKey(left.cwd).localeCompare(pathKey(right.cwd)));
+  });
 }
 
 async function requireLiveRuntime(
@@ -623,19 +680,29 @@ async function listGitWorktrees(
   }
   if (current !== null) records.push(current);
   return await Promise.all(records.map(async (record): Promise<GitWorktreeIdentity | StaleGitWorktree> => {
-    const root = await realpath(record.root).catch(error => { if (isMissingPathError(error)) return null; throw error; });
-    if (root === null) return { stale: true, root: resolve(record.root), branch: record.branch };
-    const dotGit = join(root, ".git");
-    const metadata = await lstat(dotGit).catch(error => { if (isMissingPathError(error)) return null; throw error; });
-    if (metadata === null) return { stale: true, root, branch: record.branch };
-    let gitDir: string;
-    if (metadata.isDirectory() && !metadata.isSymbolicLink()) gitDir = await realpath(dotGit);
-    else if (metadata.isFile() && !metadata.isSymbolicLink() && metadata.size > 0 && metadata.size <= MAX_RECORD_BYTES) {
-      const pointer = (await readFile(dotGit, { signal })).toString("utf8").trim();
-      if (!pointer.startsWith("gitdir: ")) throw new Error("worktree Git pointer is invalid");
-      gitDir = await realpath(resolve(root, pointer.slice("gitdir: ".length)));
-    } else throw new Error("worktree Git identity is invalid");
-    return { root, commonDir, gitDir, branch: record.branch };
+    try {
+      const root = await realpath(record.root).catch(error => { if (isMissingPathError(error)) return null; throw error; });
+      if (root === null) return { stale: true, root: resolve(record.root), branch: record.branch };
+      const dotGit = join(root, ".git");
+      const metadata = await lstat(dotGit).catch(error => { if (isMissingPathError(error)) return null; throw error; });
+      if (metadata === null) return { stale: true, root, branch: record.branch };
+      let gitDir: string;
+      if (metadata.isDirectory() && !metadata.isSymbolicLink()) gitDir = await realpath(dotGit);
+      else if (metadata.isFile() && !metadata.isSymbolicLink() && metadata.size > 0 && metadata.size <= MAX_RECORD_BYTES) {
+        const pointer = (await readFile(dotGit, { signal })).toString("utf8").trim();
+        if (!pointer.startsWith("gitdir: ")) throw new Error("worktree Git pointer is invalid");
+        gitDir = await realpath(resolve(root, pointer.slice("gitdir: ".length)));
+      } else throw new Error("worktree Git identity is invalid");
+      if (!samePath(gitDir, commonDir)) {
+        const common = await realpath(resolve(gitDir, (await readFile(join(gitDir, "commondir"), "utf8")).trim()));
+        if (!samePath(common, commonDir)) throw new Error("registered worktree points to a different repository");
+      }
+      return { root, commonDir, gitDir, branch: record.branch };
+    } catch {
+      signal?.throwIfAborted();
+      // Invariant: a broken unrelated registration is one unverifiable row, not a repository-wide veto.
+      return { stale: true, root: resolve(record.root), branch: record.branch };
+    }
   }));
 }
 
@@ -653,10 +720,6 @@ async function executeGit(
   const { execFile } = await import("node:child_process");
   const execute = promisify(execFile);
   return await execute("git", [...arguments_], { cwd, windowsHide: true, timeout: GIT_TIMEOUT_MS, maxBuffer, encoding: "utf8", signal });
-}
-
-async function mutationLockExists(options: SessionRepositoryContextOptions): Promise<boolean> {
-  return await claimMutationPending(claimStoreRoot(options));
 }
 
 async function withClaimLock<T>(options: SessionRepositoryContextOptions, operation: () => Promise<T>): Promise<T> {

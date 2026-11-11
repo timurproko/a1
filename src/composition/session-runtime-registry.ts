@@ -14,6 +14,7 @@ type SessionIdentity = { readonly sessionId: string; readonly sessionFile: strin
 export class SessionRuntimeRegistry {
   readonly #options: SessionRuntimeRegistryOptions;
   readonly #identities = new Map<string | undefined, SessionIdentity>();
+  readonly #activated = new Map<string | undefined, SessionIdentity>();
   readonly #abort = new AbortController();
   #owner: Promise<ProcessIdentity | null> | null = null;
   #timer: NodeJS.Timeout | null = null;
@@ -28,27 +29,62 @@ export class SessionRuntimeRegistry {
     return async (sessionId: string, sessionFile: string, signal: AbortSignal) => {
       const { runtimeId, inspectProcess } = this.#options;
       if (this.#disposed || runtimeId === undefined || inspectProcess === undefined) return null;
-      const identity = { sessionId, sessionFile };
+      const previous = this.#identities.get(agentId);
+      const identity = previous?.sessionId === sessionId && previous.sessionFile === sessionFile
+        ? previous : { sessionId, sessionFile };
       this.#identities.set(agentId, identity);
       // Invariant: initial activation or inspection failure must not disable retries.
       this.#arm();
       return await this.#enqueue(async () => {
         const owner = await this.#ownerIdentity();
         if (owner === null || !this.#current(agentId, identity)) return null;
-        const { activateSessionRepositoryContext, withSessionRepositoryObservation } = await import("../foundation/lifecycle/session-repository-context.js");
+        const { activateSessionRepositoryContext, readActiveSessionRepositoryContext } = await import("../foundation/lifecycle/session-repository-context.js");
         if (!this.#current(agentId, identity)) return null;
         const options = {
+          runtimeId,
           signal: AbortSignal.any([signal, this.#abort.signal]),
           inspectProcess,
           ...(agentId === undefined ? {} : { agentId }),
         };
-        const selected = await activateSessionRepositoryContext(identity, runtimeId, owner, options);
-        if (selected === null) return null;
-        return await withSessionRepositoryObservation(identity, context => {
+        if (this.#activated.get(agentId) !== identity) {
+          await activateSessionRepositoryContext(identity, runtimeId, owner, options);
+          if (!this.#current(agentId, identity)) return null;
+          this.#activated.set(agentId, identity);
+        }
+        try {
+          const context = await readActiveSessionRepositoryContext(identity, options);
+          if (context === null) return null;
           if (context.branch === null) throw new Error("associated branch unavailable");
           return { cwd: context.cwd, branch: context.branch, revision: context.revision };
-        }, options);
+        } catch (error) {
+          const code = error instanceof Error && "code" in error ? error.code : null;
+          if ((code === "session-runtime-unavailable" || code === "worktree-context-changed") && this.#current(agentId, identity)) {
+            this.#activated.delete(agentId);
+          }
+          throw error;
+        }
       });
+    };
+  }
+
+  /** Strict tool cwd lookup: transient startup failure never redirects a write to primary. */
+  toolReaderFor(agentId: string | undefined) {
+    const read = this.readerFor(agentId);
+    return async (sessionId: string, sessionFile: string, signal: AbortSignal): Promise<string> => {
+      const { retrySessionCoordination } = await import("../foundation/lifecycle/session-context-retry.js");
+      return await retrySessionCoordination(async () => {
+        signal.throwIfAborted();
+        if (this.#disposed || this.#options.runtimeId === undefined) throw new Error("worktree runtime is not active");
+        const context = await read(sessionId, sessionFile, signal);
+        if (this.#disposed) throw new Error("worktree runtime is not active");
+        const active = this.#activated.get(agentId);
+        if (active?.sessionId !== sessionId || active.sessionFile !== sessionFile) {
+          throw Object.assign(new Error("worktree runtime registration is still recovering"), { code: "session-runtime-unavailable" });
+        }
+        if (context !== null) return context.cwd;
+        const { readSessionStartupRoot } = await import("../foundation/lifecycle/session-repository-context.js");
+        return await readSessionStartupRoot({ sessionId, sessionFile });
+      }, 8_000, signal);
     };
   }
 
@@ -91,7 +127,7 @@ export class SessionRuntimeRegistry {
 
   #arm(): void {
     if (this.#timer !== null) return;
-    this.#timer = setInterval(() => this.#queueRefresh(), this.#options.refreshMs ?? 30_000);
+    this.#timer = setInterval(() => this.#queueRefresh(), this.#options.refreshMs ?? 1_000);
     this.#timer.unref();
   }
 
@@ -104,7 +140,7 @@ export class SessionRuntimeRegistry {
       if (owner === null || this.#disposed) return;
       const { registerSessionRepositoryRuntime } = await import("../foundation/lifecycle/session-repository-context.js");
       for (const [agentId, identity] of this.#identities) {
-        if (!this.#current(agentId, identity)) continue;
+        if (!this.#current(agentId, identity) || this.#activated.get(agentId) === identity) continue;
         await registerSessionRepositoryRuntime(identity, runtimeId, owner, {
           inspectProcess,
           signal: this.#abort.signal,

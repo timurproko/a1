@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, open, readFile, readdir, rm, symlink, writeFile } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { claimMutationPending, withSessionClaimLock } from "../../../src/foundation/lifecycle/session-claim-lock.js";
+import { withSessionClaimSnapshot, withSessionClaimLock } from "../../../src/foundation/lifecycle/session-claim-lock.js";
 
 const gates = vi.hoisted(() => ({ held: new Set<string>(), acquire: vi.fn() }));
 vi.mock("../../../src/foundation/lifecycle/claim-gate.js", () => ({ tryAcquireClaimGate: (path: string) => {
@@ -21,7 +21,25 @@ async function fixture() {
   return root;
 }
 
+// Rationale: test publication metadata directly; it is not an editing-ownership status.
+async function claimMutationPending(root: string): Promise<boolean> {
+  return (await readdir(join(root, "mutation.lock"))).some(name => name !== "recovery.json");
+}
+
 describe("crash-recoverable claim coordination", () => {
+  it("bounds snapshot contention without publishing or repairing metadata", async () => {
+    const root = await fixture();
+    await withSessionClaimLock(root, {}, async () => {
+      const before = await readFile(join(root, "mutation.lock", "owner.json"));
+      const read = vi.fn();
+      await expect(withSessionClaimSnapshot(root, { lockTimeoutMs: 5 }, read)).rejects.toMatchObject({ code: "worktree-claim-busy" });
+      expect(read).not.toHaveBeenCalled();
+      expect(await readFile(join(root, "mutation.lock", "owner.json"))).toEqual(before);
+    });
+    await writeFile(join(root, "mutation.lock", "owner.json"), "abandoned");
+    expect(await withSessionClaimSnapshot(root, {}, async () => "snapshot")).toBe("snapshot");
+    expect(await readFile(join(root, "mutation.lock", "owner.json"), "utf8")).toBe("abandoned");
+  });
   it.each([Buffer.alloc(0), Buffer.from('{"generation":'), Buffer.alloc(155), Buffer.alloc(20_000), Buffer.from('{"generation":"old"}')])("recovers abandoned owner bytes without parsing them (%#)", async bytes => {
     const root = await fixture();
     const barrier = join(root, "mutation.lock");

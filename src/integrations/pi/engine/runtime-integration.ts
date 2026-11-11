@@ -20,6 +20,7 @@ import {
 import { openSelectedPiSession, resolveSessionArgumentPath, takeSelectedSessionWriter, type PiSessionForkPrompt, type PiSessionSelection } from "./session-selection.js";
 import { markStartupPhase, type StartupPhase } from "../../../foundation/startup/startup-runtime.js";
 import { createWindowsNulCleanupExtension } from "./windows-filesystem-hygiene.js";
+import { createSessionWorktreeTools, type PiWorktreeCwdReader } from "./worktree-tools.js";
 import {
   acquireSessionWriter,
   type SessionWriterHandle,
@@ -27,6 +28,8 @@ import {
 
 export interface PiRuntimeIntegrationOptions {
   readonly cwd: string;
+  /** Only the bare claim-owning product supplies this; comparison tools keep their ordinary cwd. */
+  readonly worktreeCwdReader?: PiWorktreeCwdReader;
   readonly agentDir: string;
   readonly sessionDir?: string;
   readonly sessionPath?: string;
@@ -214,6 +217,12 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
       const created = await createAgentSessionFromServices({
         services,
         sessionManager: targetSessionManager,
+        ...(options.worktreeCwdReader === undefined ? {} : {
+          customTools: createSessionWorktreeTools(cwd, signal => options.worktreeCwdReader!(
+            targetSessionManager.getSessionId(), targetSessionManager.getSessionFile()!,
+            signal ?? options.signal ?? new AbortController().signal,
+          )).filter(tool => !services.resourceLoader.getExtensions().extensions.some(extension => extension.tools.has(tool.name))),
+        }),
         ...(sessionStartEvent ? { sessionStartEvent } : {}),
         ...(modelScope.model && !hasExistingSession ? { model: modelScope.model } : {}),
         ...(modelScope.thinkingLevel && !hasExistingSession ? { thinkingLevel: modelScope.thinkingLevel } : {}),

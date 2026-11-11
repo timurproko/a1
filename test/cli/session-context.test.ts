@@ -45,6 +45,17 @@ describe("session context command", () => {
     expect(stderr.mock.calls[0]?.[0]).not.toMatch(/private-session|secret-token|pid=/);
   });
 
+  it("returns the canonical path and branch as the complete attachment result", async () => {
+    launch.outcome = { kind: "linked", cwd: "D:/repo/.worktrees/task", branch: "fix/task" };
+    const stdout = vi.fn(), stderr = vi.fn();
+    expect(await runSessionContextCommand({ action: "enter-worktree", branch: "fix/task" }, {
+      environment: { PI_SESSION_ID: "session", PI_SESSION_FILE: "D:/session.jsonl", A1_SESSION_RUNTIME_ID: "runtime" },
+      stdout, stderr,
+    })).toBe(0);
+    expect(stdout).toHaveBeenCalledExactlyOnceWith("Session worktree context linked: D:/repo/.worktrees/task (fix/task)\n");
+    expect(stderr).not.toHaveBeenCalled();
+  });
+
   it("names a claiming agent only when it is not the runtime's primary agent", async () => {
     launch.outcome = { kind: "worktrees", entries: [
       { cwd: "D:/primary", branch: "develop", status: "available", agentId: null },

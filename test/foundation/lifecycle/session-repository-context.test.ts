@@ -222,7 +222,7 @@ describe("session repository context and live worktree claims", () => {
       .find(entry => entry.cwd === canonicalWorktree)?.status).toBe("busy");
   });
 
-  it("reports contended claim state without mutating it", async () => {
+  it("does not mistake abandoned mutation diagnostics for unverifiable editing ownership", async () => {
     const fixture = await repositoryFixture();
     const canonicalWorktree = await realpath(fixture.worktree);
     await register(fixture, fixture.identity, fixture.firstRuntime);
@@ -230,7 +230,7 @@ describe("session repository context and live worktree claims", () => {
     await writeFile(lockPath, "contended\n");
 
     expect((await listSessionRepositoryWorktrees(fixture.identity, runtimeOptions(fixture, fixture.firstRuntime)))
-      .find(entry => entry.cwd === canonicalWorktree)?.status).toBe("unverifiable");
+      .find(entry => entry.cwd === canonicalWorktree)?.status).toBe("available");
     await expect(readFile(lockPath, "utf8")).resolves.toBe("contended\n");
   });
 

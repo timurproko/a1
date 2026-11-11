@@ -37,7 +37,6 @@ import { renderPiShellChangelogLines } from "../integrations/pi/components/shell
 import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
-import { SessionRuntimeRegistry } from "./session-runtime-registry.js";
 import { bindAutomaticSessionNaming } from "./session-naming.js";
 import { deferStartupReleaseUpdateObservation, readPackageVersion, StartupReleaseNote } from "./startup-route.js";
 import { createOwnedSettingsManager, watchSharedSettings } from "./owned-settings.js";
@@ -80,6 +79,12 @@ export interface OwnedUiComposition {
 const inspectLiveProcessOnDemand = async (pid: number) =>
   (await import("../foundation/lifecycle/process-liveness.js")).inspectLiveProcess(pid);
 
+/** Load coordination only when composing a session, not while evaluating the startup facade. */
+async function createSessionRuntimes(bare: boolean, inspectProcess: (pid: number) => Promise<ProcessIdentity | null>) {
+  const { SessionRuntimeRegistry } = await import("./session-runtime-registry.js");
+  return new SessionRuntimeRegistry({ runtimeId: bare ? process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] : undefined, inspectProcess });
+}
+
 export async function composeOwnedUiApplication(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiApplicationPort> {
   return (await composeOwnedUi(options)).application;
 }
@@ -87,10 +92,7 @@ export async function composeOwnedUiApplication(options: OwnedUiCompositionOptio
 export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiComposition> {
   const cwd = options.cwd ?? process.cwd();
   const productMode = options.productMode ?? "bare", bare = productMode === "bare";
-  const sessionRuntimes = new SessionRuntimeRegistry({
-    runtimeId: bare ? process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] : undefined,
-    inspectProcess: options.inspectProcess ?? inspectLiveProcessOnDemand,
-  });
+  const sessionRuntimes = await createSessionRuntimes(bare, options.inspectProcess ?? inspectLiveProcessOnDemand);
   const productPaths = resolveProductPaths();
   // Rationale: the manager reads the engine's settings port lazily, after the session exists.
   let backend: ComposedSessionBackend;
@@ -110,6 +112,8 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     backend = await host.create({
       cwd,
       ...(bare ? { repositoryContextReader: sessionRuntimes.readerFor(undefined) } : {}),
+      ...(bare && process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] !== undefined
+        ? { worktreeCwdReader: sessionRuntimes.toolReaderFor(undefined) } : {}),
       ...(options.sessionPath === undefined ? {} : { sessionPath: options.sessionPath }),
       ...(options.sessionSelection === undefined ? {} : { sessionSelection: options.sessionSelection }),
       ...(sessionForkPrompt === undefined ? {} : { sessionForkPrompt }),

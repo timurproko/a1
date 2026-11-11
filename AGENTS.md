@@ -6,6 +6,10 @@
 - Ask only about a genuinely missing decision. One explicit instruction can approve a presented plan and request implementation; it does not authorize merge or unrelated deletion.
 - Keep delivery progress truthful. Trusted automation owns implementation-PR readiness and finalization; protected integration still requires a separate current exact-candidate maintainer decision.
 
+## Worktrees
+
+In an active A1 session, use `a1 worktree enter <branch>` or `a1 worktree attach <absolute-path>`. Work in the returned directory; successful completion is the attachment confirmation. Use `a1 worktree detach` when handing off or finishing; it preserves files and branches. A1 owns coordination, retries, and recovery; `a1 worktree list` is informational. Outside A1, use ordinary Git worktrees.
+
 ## No AI attribution in git
 
 - Never add `Co-Authored-By` / `Co-authored-by` trailers naming Claude, Anthropic, or any model to commit messages.

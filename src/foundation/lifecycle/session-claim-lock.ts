@@ -7,16 +7,36 @@ import { tryAcquireClaimGate } from "./claim-gate.js";
 interface ClaimLockOptions { readonly signal?: AbortSignal; readonly lockTimeoutMs?: number }
 const FILES = new Set(["owner.json", "owner.next", "recovery.json", "recovery.next"]);
 
-/** Inventory is advisory and read-only, including when abandoned metadata needs recovery. */
-export async function claimMutationPending(directory: string): Promise<boolean> {
+/** Read a consistent claim snapshot without publishing or repairing mutation metadata. */
+export async function withSessionClaimSnapshot<T>(directory: string, options: ClaimLockOptions, operation: () => Promise<T>): Promise<T> {
+  let canonical: string;
   try {
-    const barrier = join(directory, "mutation.lock");
-    const metadata = await lstat(barrier);
-    if (!metadata.isDirectory() || metadata.isSymbolicLink()) return true;
-    const files = await readdir(barrier);
-    return files.some(name => name !== "recovery.json");
-  } catch (error) {
-    return !hasCode(error, "ENOENT");
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    canonical = await realpath(directory);
+  } catch (cause) {
+    throw failure("worktree-coordination-io", "cannot access worktree coordination; check permissions and filesystem availability", cause);
+  }
+  const deadline = Date.now() + (options.lockTimeoutMs ?? 5_000);
+  for (;;) {
+    options.signal?.throwIfAborted();
+    const gate = tryAcquireClaimGate(join(canonical, "mutation.authority"));
+    if (gate !== null) {
+      try {
+        const barrier = await lstat(join(canonical, "mutation.lock")).catch(error => {
+          if (hasCode(error, "ENOENT")) return null;
+          throw error;
+        });
+        if (barrier !== null && (!barrier.isDirectory() || barrier.isSymbolicLink())) {
+          throw failure("worktree-legacy-recovery-required", "older coordination state requires recovery before a consistent inventory can be read");
+        }
+        return await operation();
+      } catch (error) {
+        if (error instanceof Error && (error.name === "AbortError" || ("code" in error && String(error.code).startsWith("worktree-")))) throw error;
+        throw failure("worktree-coordination-io", "cannot read worktree coordination; check permissions and filesystem availability", error);
+      } finally { gate.release(); }
+    }
+    if (Date.now() >= deadline) throw failure("worktree-claim-busy", "worktree coordination did not settle within the operation budget; no worktree ownership was changed");
+    await delay(20, undefined, { signal: options.signal });
   }
 }
 

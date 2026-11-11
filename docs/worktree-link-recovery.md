@@ -8,9 +8,9 @@ Updated A1 holds a `proper-lockfile` gate, the `mutation.authority.gate` lock di
 
 The next mutation safely recovers abandoned owner/pending metadata after taking the gate. Empty, truncated, NUL-filled, or otherwise malformed metadata does not prevent this recovery. One bounded `recovery.json` records the recovery reason/time, not the original bytes or session contents. A live gate holder remains protected. Acquisition waits at most two seconds by default and honors cancellation.
 
-If startup registration fails temporarily, the running session retries on its 30-second refresh interval. Slow attempts are coalesced rather than queued indefinitely. Once registration succeeds, retry the explicit worktree link in the same session. Switching an agent's session replaces its publication identity, and disposal drains publication before releasing claims.
+Worktree commands own bounded retries; agents do not implement a recovery preflight or confirm success through a second inventory command. If startup registration fails temporarily, the running session retries on its one-second recovery interval. Healthy registrations and claims are not rewritten by background polls. Slow recovery attempts are coalesced rather than queued indefinitely. Switching an agent's session replaces its publication identity, and disposal drains publication before releasing claims.
 
-Inventory remains read-only. It can conservatively show unverifiable status until a mutation has recovered abandoned state; inventory does not perform repair.
+Inventory reads editing claims under a bounded consistent snapshot and does not repair or acquire them. Ordinary global coordination contention produces internal waiting or an operation-level contention diagnostic, never a blanket unverifiable-ownership result for every worktree.
 
 ## Older lock files and mixed versions
 
