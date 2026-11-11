@@ -24,10 +24,10 @@ The maintainer integration decision accepts these scenarios:
     "Sentence case is first and default while valid saved format choices and manual names remain unchanged.",
     "Narrow footers reduce detailed statistics before shortening session names and keep model text aligned without wrapping."
   ],
-  "archiveDigest": "354bbfd9767439bc46181ed6f4a25786f219b7fe4bdd1159ecea03474679a8b9",
+  "archiveDigest": "34cead0bd007de56b89d1bfe51e988afc33a1f89e7bd919974758447666c4a5e",
   "specDigest": "e8c0957fc412a636954f6c79ee3ac09c5d9e4ff1afe4350111e2b13e5ee594b2",
   "tasksDigest": "7b523a8269aba5b015f95ebe3f09a12e864ad6d1bf1e392b4e43f52ca47d932e",
-  "evidenceDigest": "bc3bd2e7b0b3a49b32c5501f4ffb843c0877bff42f27fa0c02a818d9471d65b7",
+  "evidenceDigest": "0f635b3e44c4527f5b7f98151792d7066b9200f71f93b21733661a4416dcedac",
   "knownGaps": []
 }
 ```
