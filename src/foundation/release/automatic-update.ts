@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawnReleaseEntry } from "./release-use.js";
 import { randomUUID } from "node:crypto";
 import { watch, type FSWatcher } from "node:fs";
 import { mkdir, open, readFile, rename, rm, stat } from "node:fs/promises";
@@ -319,7 +319,7 @@ async function recordAutomaticPreflightFailure(parsed: WorkerArguments, dataDir:
 }
 
 async function spawnAutomaticUpdateWorker(entry: string, arguments_: readonly string[], environment: NodeJS.ProcessEnv): Promise<void> {
-  const child = spawn(process.execPath, [entry, ...arguments_], {
+  const child = await spawnReleaseEntry(entry, arguments_, {
     detached: true,
     env: environment,
     stdio: "ignore",

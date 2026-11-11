@@ -1,3 +1,4 @@
+import type { DeliveryFailure } from "./event-delivery.js";
 import { PiEngineAdapter } from "./adapter.js";
 import { configureOwnedHttpDispatcher } from "./http-dispatcher.js";
 import { markStartupPhase, type StartupPhase } from "../../../foundation/startup/startup-runtime.js";
@@ -26,6 +27,7 @@ export interface PiEngineHostTheme {
 
 export interface PiEngineHostOptions {
   readonly productMode: "bare" | "comparison";
+  readonly deliveryIncident?: (failure: DeliveryFailure) => void;
   readonly theme: PiEngineHostTheme;
   /** Themes installed on this machine, listed by the component adapter that owns the theme unit. */
   readonly availableThemes?: () => readonly string[];
@@ -104,6 +106,7 @@ class ProcessPiEngineHost implements PiEngineHost {
     this.#markStartupPhase = options.markStartupPhase ?? (phase => markStartupPhase(process.env, phase));
     this.#sessionPorts = {
       signal: this.#abort.signal,
+      deliveryIncident: failure => options.deliveryIncident?.(failure),
       markStartupPhase: phase => this.#tracePhase(phase),
       httpPolicyLoaded: (timeoutMs, sessionId) => { this.#applyHttpPolicy(timeoutMs, sessionId, "startup"); },
       httpPolicyChanged: (timeoutMs, sessionId) => { this.#applyHttpPolicy(timeoutMs, sessionId, "setting"); },

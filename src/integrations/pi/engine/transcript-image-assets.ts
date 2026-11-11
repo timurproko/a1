@@ -5,7 +5,24 @@ const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
 // Security: current blocks and admitted delivery snapshots own assets independently; superseded state owns none.
 export class TranscriptImageAssets {
-  readonly #assets = new Map<string, { asset: OwnedUiImageAttachment; byteLength: number; owners: number }>();
+  readonly #assets = new Map<string, { asset: OwnedUiImageAttachment; byteLength: number; owners: number; pending: number }>();
+  readonly #events = new WeakMap<object, { owners: number; release(): void; exclusiveBytes(): number }>();
+  #captureBytes = 0;
+
+  /** Encoded assets held only by delivery, plus shared pending lease metadata. */
+  pendingBytesExcluding(event?: OwnedUiEvent): number {
+    const key = event === undefined ? undefined : event.type === "transcript-block" ? event.block : event.type === "session-view" ? event.view.transcript : undefined;
+    const shared = key === undefined ? undefined : this.#events.get(key);
+    return this.pendingBytes - (shared?.owners === 1 ? shared.exclusiveBytes() : 0);
+  }
+
+  get pendingBytes(): number {
+    let bytes = this.#captureBytes;
+    for (const entry of this.#assets.values()) {
+      if (entry.pending > 0 && entry.owners === entry.pending) bytes += 64 + entry.asset.data.length * 2;
+    }
+    return bytes;
+  }
   readonly #byData = new Map<string, Map<string, string>>();
   readonly #unowned = new Set<string>();
 
@@ -25,7 +42,7 @@ export class TranscriptImageAssets {
     if (byteLength < 1 || byteLength > MAX_IMAGE_BYTES) return;
     const assetId = `image-${createHash("sha256").update(value.mimeType).update("\0").update(value.data).digest("hex").slice(0, 24)}`;
     if (!this.#assets.has(assetId)) {
-      this.#assets.set(assetId, { asset: { type: "image", data: value.data, mimeType: value.mimeType }, byteLength, owners: 0 });
+      this.#assets.set(assetId, { asset: { type: "image", data: value.data, mimeType: value.mimeType }, byteLength, owners: 0, pending: 0 });
       let byData = this.#byData.get(value.mimeType);
       if (byData === undefined) this.#byData.set(value.mimeType, byData = new Map());
       byData.set(value.data, assetId);
@@ -51,19 +68,47 @@ export class TranscriptImageAssets {
   }
 
   retainEvent(event: OwnedUiEvent): () => void {
-    const blocks = event.type === "transcript-block" ? [event.block] : event.type === "session-view" ? event.view.transcript : [];
-    // Concurrency: capture entries, not ids; an obsolete generation's release cannot decrement a replacement asset.
-    const entries = blocks.flatMap(block => (block.imageReferences ?? []).map(ref => [ref.assetId, this.#assets.get(ref.assetId)] as const));
-    for (const [id, entry] of entries) {
-      if (entry === undefined) continue;
-      entry.owners++;
-      this.#unowned.delete(id);
-    }
-    return () => {
+    const key = event.type === "transcript-block" ? event.block : event.type === "session-view" ? event.view.transcript : undefined;
+    if (key === undefined) return () => {};
+    let shared = this.#events.get(key);
+    if (shared === undefined) {
+      const blocks = event.type === "transcript-block" ? [event.block] : event.type === "session-view" ? event.view.transcript : [];
+      // Concurrency: capture entries, not ids: obsolete generations cannot decrement replacement assets.
+      const entries = blocks.flatMap(block => (block.imageReferences ?? []).map(ref => [ref.assetId, this.#assets.get(ref.assetId)] as const));
+      this.#captureBytes += entries.length * 32;
       for (const [id, entry] of entries) {
-        if (entry !== undefined && this.#assets.get(id) === entry && --entry.owners === 0) this.#delete(id);
+        if (entry === undefined) continue;
+        entry.owners++; entry.pending++;
+        this.#unowned.delete(id);
       }
-      entries.length = 0;
+      shared = { owners: 0, exclusiveBytes: () => {
+        let bytes = entries.length * 32;
+        const counts = new Map<string, number>();
+        for (const [id, entry] of entries) if (entry !== undefined && this.#assets.get(id) === entry) counts.set(id, (counts.get(id) ?? 0) + 1);
+        for (const [id, count] of counts) {
+          const entry = this.#assets.get(id)!;
+          if (entry.owners === count && entry.pending === count) bytes += 64 + entry.asset.data.length * 2;
+        }
+        return bytes;
+      }, release: () => {
+        this.#captureBytes -= entries.length * 32;
+        for (const [id, entry] of entries) {
+          if (entry !== undefined && this.#assets.get(id) === entry) {
+            entry.pending--;
+            if (--entry.owners === 0) this.#delete(id);
+          }
+        }
+        entries.length = 0;
+        this.#events.delete(key);
+      } };
+      this.#events.set(key, shared);
+    }
+    shared.owners++;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      if (--shared.owners === 0) shared.release();
     };
   }
 

@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawnReleaseEntry } from "./release-use.js";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -111,7 +111,7 @@ export async function readActivationContracts(packageRoot: string, read: (path: 
  */
 export async function delegateActivation(request: UpdateActivationRequest, callbacks: UpdateActivationCallbacks): Promise<void> {
   const entry = resolve(request.packageRoot, UPDATE_ACTIVATION_ENTRY);
-  const child = spawn(process.execPath, [entry, "--data-dir", request.dataDir, "--target-version", request.targetVersion], {
+  const child = await spawnReleaseEntry(entry, ["--data-dir", request.dataDir, "--target-version", request.targetVersion], {
     env: request.environment,
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,

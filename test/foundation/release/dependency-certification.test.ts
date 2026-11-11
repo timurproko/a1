@@ -9,6 +9,7 @@ import {
   legacyDependencyLayerCertificationPath, materializeRelease, readCertifiedDependencyLayer,
   readRestartCertifiedRelease, restartSealDigest, runBoundedReleaseCleanup,
 } from "../../../src/foundation/release/index.js";
+import { acquireReleaseUse } from "../../../src/foundation/release/release-use.js";
 import { dependencyCertificationProtection } from "../../../src/foundation/release/dependency-certification-retention.js";
 
 vi.mock("node:fs/promises", async importOriginal => ({ ...await importOriginal<typeof fs>() }));
@@ -176,6 +177,21 @@ describe("dependency certification directory migration", () => {
 const expired = { retentionMs: 1, wallClock: () => Date.now() + 1_000 } as const;
 
 describe("dependency certification retention integration", () => {
+  it("retains expired executing release dependencies and certification until its final owner exits", async () => {
+    const fixture = await legacyFixture();
+    await readCertifiedDependencyLayer(fixture.dataDir, fixture.layer.layerId);
+    const use = await acquireReleaseUse(fixture.dataDir, fixture.release.releaseId);
+    await use.started(process.pid);
+    await fixture.store.update(state => ({ ...state, references: { active: null, pending: null, approved: null, rollback: null, retention: [] } }));
+    const layerRoot = resolve(fixture.dataDir, "dependency-layers", fixture.layer.layerId);
+    const preserved = [fixture.release.releaseRoot, layerRoot, fixture.record.diagnosticsPath, fixture.canonical, fixture.legacy];
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, ...expired, ownReleaseIds: [] });
+    for (const path of preserved) await expect(fs.lstat(path)).resolves.toBeTruthy();
+    await use.release();
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, ...expired, ownReleaseIds: [] });
+    for (const path of preserved) await expect(fs.lstat(path)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("preserves old rollback/live evidence, seals new releases canonically, then removes the legacy duplicate", async () => {
     const fixture = await legacyFixture();
     const oldMetadata = await fs.lstat(fixture.legacy, { bigint: true });
@@ -293,9 +309,11 @@ async function certifiedFixture() {
   await fs.mkdir(resolve(packageRoot, "bin"), { recursive: true });
   await fs.mkdir(resolve(packageRoot, "node_modules", "fixture-dependency"), { recursive: true });
   await fs.writeFile(resolve(packageRoot, "package.json"), JSON.stringify({
-    name: "@timurproko/a1", privateLaunchContract: "neutral-launch-v1", version: "2.0.0", files: ["bin"], dependencies: { "fixture-dependency": "1.0.0" },
+    name: "@timurproko/a1", privateLaunchContract: "neutral-launch-v1", version: "2.0.0", files: ["bin", "dist"], dependencies: { "fixture-dependency": "1.0.0" },
   }));
   await fs.writeFile(resolve(packageRoot, "bin", "ui.js"), "ui");
+  await fs.mkdir(resolve(packageRoot, "dist/foundation/release"), { recursive: true });
+  await fs.writeFile(resolve(packageRoot, "dist/foundation/release/release-use.js"), "// claim-capable fixture\n");
   await fs.writeFile(resolve(packageRoot, "node_modules", "fixture-dependency", "package.json"), JSON.stringify({ name: "fixture-dependency", version: "1.0.0", main: "index.js" }));
   await fs.writeFile(resolve(packageRoot, "node_modules", "fixture-dependency", "index.js"), "dependency");
   const release = await materializeRelease(packageRoot, dataDir);

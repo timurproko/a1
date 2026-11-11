@@ -12,7 +12,7 @@ import {
   workflowConfirmation,
   workflowResult,
 } from "./workflow-support.js";
-import { PiProviderAuthentication } from "./provider-authentication.js";
+import type { PiProviderAuthentication } from "./provider-authentication.js";
 import type { PiWorkflowContexts } from "./workflow-contexts.js";
 import type { OwnedUiModelInfo, OwnedUiSnapshot, OwnedUiThinkingLevel } from "../../../contracts/owned-ui/index.js";
 import type {
@@ -74,7 +74,7 @@ export class PiWorkflowRunner {
   readonly #agentDir: string;
   readonly #bare: boolean;
   readonly #host: PiWorkflowHost;
-  readonly #authentication: PiProviderAuthentication;
+  readonly #authentication: () => Promise<PiProviderAuthentication>;
   readonly #ports: PiWorkflowRunnerPorts;
   readonly #pending = new Set<{ command: PiWorkflowRequest["command"]; cancel(): void }>();
   #clipboardWriter: ((text: string) => Promise<boolean>) | undefined;
@@ -84,7 +84,8 @@ export class PiWorkflowRunner {
     this.#bare = options.productMode === "bare";
     this.#host = options.host;
     this.#ports = ports;
-    this.#authentication = new PiProviderAuthentication({ agentDir: options.agentDir, contexts: options.contexts }, {
+    let authentication: Promise<PiProviderAuthentication> | undefined;
+    this.#authentication = () => authentication ??= import("./provider-authentication.js").then(({ PiProviderAuthentication }) => new PiProviderAuthentication({ agentDir: options.agentDir, contexts: options.contexts }, {
       runtime: () => ports.runtime(),
       requireSession: () => this.#requireSession(),
       disposed: () => ports.disposed(),
@@ -93,7 +94,7 @@ export class PiWorkflowRunner {
       setActiveModel: model => { ports.setActiveModel(model); },
       reconcileActiveModelAvailability: () => { ports.reconcileActiveModelAvailability(); },
       emitView: () => { ports.emitView(); },
-    });
+    }));
   }
 
   /** Workflows admitted and not yet settled. */
@@ -104,6 +105,12 @@ export class PiWorkflowRunner {
   /** Resolve every admitted workflow as cancelled, except the named command. */
   cancelPending(except?: PiWorkflowRequest["command"]): void {
     for (const pending of this.#pending) if (pending.command !== except) pending.cancel();
+  }
+
+  /** Presentation pressure must not cancel an independently applied state mutation. */
+  cancelForDelivery(): void {
+    const mutations = new Set<PiWorkflowRequest["command"]>(["model", "models", "thinking", "scoped-models", "name"]);
+    for (const pending of this.#pending) if (!mutations.has(pending.command)) pending.cancel();
   }
 
   #requireSession(): PiSessionApi {
@@ -171,7 +178,7 @@ export class PiWorkflowRunner {
 
   async executeWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
     const cancelled = workflowResult(request.command, "cancelled", "", undefined, "silent");
-    if (this.#ports.admissionStopped() || this.#ports.pendingCommandCount() + this.#pending.size >= MAX_PENDING_WORK) return cancelled;
+    if (request.command !== "quit" && (this.#ports.admissionStopped() || this.#ports.pendingCommandCount() + this.#pending.size >= MAX_PENDING_WORK)) return cancelled;
     let cancel!: () => void;
     const cancellation = new Promise<PiWorkflowResult>(resolve => { cancel = () => resolve(cancelled); });
     const pending = { command: request.command, cancel };
@@ -268,11 +275,14 @@ export class PiWorkflowRunner {
       const failure: PiWorkflowMessage = { kind: "error", message: error instanceof Error ? error.message : String(error) };
       return workflowResult(request.command, "failed", failure.message, undefined, "error", messages.length === 0 ? undefined : [...messages, failure]);
     }
-    if (!current()) return workflowResult(request.command, "cancelled", "Model selection cancelled", undefined, "silent");
     const providerId = stringProperty(model, "provider") ?? "unknown";
     const modelId = stringProperty(model, "id") ?? reference;
-    this.#ports.setActiveModel({ providerId, modelId, displayName: stringProperty(model, "name") ?? modelId });
-    this.#ports.emitView();
+    // Invariant: selection already applied. A delivery-generation change cannot undo it; a replaced
+    // session must not receive its view, but the operation result remains truthful.
+    if (!this.#ports.disposed() && session === this.#ports.session()) {
+      this.#ports.setActiveModel({ providerId, modelId, displayName: stringProperty(model, "name") ?? modelId });
+      this.#ports.emitView();
+    }
     const resultMessage: PiWorkflowMessage = { kind: "status", message: options.persist ? `Default model: ${providerId}/${modelId}` : `Model: ${modelId}` };
     const result = messages.length === 0
       ? workflowResult(request.command, "completed", resultMessage.message)
@@ -307,8 +317,14 @@ export class PiWorkflowRunner {
       case "clone": return cloneWorkflow(call);
       case "tree": return treeWorkflow(call);
       case "trust": return trustWorkflow(call);
-      case "login": return await this.#authentication.login(request, session, runtime, argument, selection);
-      case "logout": return selection ? await this.#authentication.logout(request, runtime, selection) : workflowResult(command, "failed", "Logout requires the owned authentication controller");
+      case "login":
+      case "logout": {
+        const generation = this.#ports.sessionGeneration();
+        const authentication = await this.#authentication();
+        if (this.#ports.disposed() || generation !== this.#ports.sessionGeneration() || this.#ports.admissionStopped()) return workflowResult(command, "cancelled", "", undefined, "silent");
+        return command === "login" ? authentication.login(request, session, runtime, argument, selection)
+          : selection ? authentication.logout(request, runtime, selection) : workflowResult(command, "failed", "Logout requires the owned authentication controller");
+      }
       case "new": return newSessionWorkflow(call);
       case "compact": return compactWorkflow(call);
       case "resume": return resumeWorkflow(call);

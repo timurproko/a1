@@ -21,6 +21,24 @@ async function run(mode: string, directory: string) {
 }
 
 describe("owned terminal failure cleanup", () => {
+  it("persists only classified delivery metadata for live and fatal failures", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "a1-delivery-diagnostic-"));
+    try {
+      const failure = { reason: "retained-bytes", event: "session-view", generation: 3, pending: 8, bytes: 12345 };
+      const error = Object.assign(new Error("PRIVATE TOOL RESULT"), { deliveryFailure: { ...failure, transcript: "PRIVATE CONVERSATION", path: "PRIVATE SESSION PATH" } });
+      for (const origin of ["delivery", "entry"]) {
+        const path = await writeFatalDiagnostic(directory, origin, error, "test-release");
+        const source = await readFile(path!, "utf8");
+        expect(JSON.parse(source)).toMatchObject({ origin, deliveryFailure: failure });
+        expect(source).not.toContain("PRIVATE");
+        expect(JSON.parse(source).deliveryFailure).toEqual(failure);
+      }
+      error.deliveryFailure.reason = "PRIVATE BAD REASON";
+      const path = await writeFatalDiagnostic(directory, "delivery", error);
+      expect(JSON.parse(await readFile(path!, "utf8"))).not.toHaveProperty("deliveryFailure");
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  });
+
   it.each(["exception", "rejection", "stall", "dispose-error", "duplicate", "owner", "owner-signal"])("restores after %s without leaking private errors", async mode => {
     const directory = await mkdtemp(join(tmpdir(), "a1-fatal-"));
     try {

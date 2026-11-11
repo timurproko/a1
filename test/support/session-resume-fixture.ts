@@ -3,6 +3,7 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 /** Fresh offline history persisted by the same public Pi API used in production. */
 export async function writeResumeFixture(directory: string, cwd: string, options: {
   readonly compacted?: boolean;
+  readonly largeMessages?: number;
 } = {}): Promise<{ path: string; id: string; marker: string }> {
   const manager = SessionManager.create(cwd, directory);
   const id = manager.getSessionId();
@@ -20,6 +21,9 @@ export async function writeResumeFixture(directory: string, cwd: string, options
   }
   const kept = manager.appendMessage({ role: "user", content: marker, timestamp: 3 });
   if (options.compacted) manager.appendCompaction("Saved resume checkpoint", kept, 1000);
+  for (let index = 0; index < (options.largeMessages ?? 0); index++) {
+    manager.appendMessage({ role: "user", content: `history-${index}-${marker} ${"x".repeat(6000)}`, timestamp: index + 4 });
+  }
   assistant(`Restored ${marker}`);
   const path = manager.getSessionFile();
   if (!path) throw new Error("Pi did not assign the disposable session file");

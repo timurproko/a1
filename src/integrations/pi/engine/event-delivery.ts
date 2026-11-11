@@ -1,4 +1,5 @@
 import type { OwnedUiEvent, OwnedUiTranscriptBlock } from "../../../contracts/owned-ui/index.js";
+import { OverloadRecovery } from "./view-state.js";
 import { PendingEngineDelivery } from "./pending-delivery.js";
 
 /**
@@ -32,9 +33,20 @@ interface ReservedCommandOutcome {
   readonly diagnostic: Extract<OwnedUiEvent, { type: "command-outcome" }>["diagnostic"];
 }
 
+export interface DeliveryFailure {
+  readonly reason: "event-count" | "retained-bytes" | "listener";
+  readonly event: OwnedUiEvent["type"] | "snapshot";
+  readonly generation: number;
+  readonly pending: number;
+  readonly bytes: number;
+}
+
 export interface PiEventDeliveryPorts {
   sessionId(): string;
   sessionGeneration(): number;
+  /** Immutable history already owned by the engine, not additional pending payload. */
+  authoritativeTranscript?(): readonly OwnedUiTranscriptBlock[];
+  retainedAssetBytes?(excluding?: OwnedUiEvent): number;
   /** The current block for a lazily materialized transcript event. */
   transcriptBlock(id: string): OwnedUiTranscriptBlock | undefined;
   /** Retain the image assets an event references until the returned release runs. */
@@ -47,6 +59,9 @@ export interface PiEventDeliveryPorts {
   reconcileOverload(cancelled: boolean): Promise<void>;
   /** A listener threw; the adapter records the warning. */
   listenerFailed(message: string): void;
+  canResume?(): boolean;
+  resume?(): void;
+  incident?(failure: DeliveryFailure): void;
 }
 
 /**
@@ -66,10 +81,17 @@ export class PiEventDelivery {
   #overloads = 0;
   #deliveryFailed = false;
   #invalidatedEvents = 0;
+  #failure: DeliveryFailure | null = null;
+  #reported = 0;
+  readonly recovery: OverloadRecovery;
+
+  get failure(): DeliveryFailure | null { return this.#failure; }
 
   constructor(ports: PiEventDeliveryPorts) {
     this.#ports = ports;
-    this.#queue = new PendingEngineDelivery(event => ports.retainEvent(event));
+    this.recovery = new OverloadRecovery({ generation: () => ports.sessionGeneration(), busy: () => this.overloaded,
+      canResume: () => ports.canResume?.() ?? false, resume: () => ports.resume?.() });
+    this.#queue = new PendingEngineDelivery(event => ports.retainEvent(event), ports.authoritativeTranscript, ports.retainedAssetBytes);
   }
 
   /** The sequence number of the most recently stamped event. */
@@ -127,7 +149,7 @@ export class PiEventDelivery {
     }
     if (!this.#queue.push(event, this.#ports.sessionGeneration(), event.type === "transcript-block"
       ? this.#blockReconciliation(event.block.id, event.sequence) : undefined)) {
-      this.beginOverload();
+      this.beginOverload(event.type);
       if (event.type === "command-outcome" && event.outcome !== "accepted" && this.#ports.isPendingCommand(event.correlationId)
         && !this.#reservedOutcomes.has(event.correlationId)) {
         this.#reservedOutcomes.set(event.correlationId, { outcome: event.outcome, diagnostic: event.diagnostic });
@@ -152,17 +174,20 @@ export class PiEventDelivery {
   }
 
   /** Enter the bounded overload transition; a no-op while one is already in progress. */
-  beginOverload(): void {
+  beginOverload(event: DeliveryFailure["event"] = "snapshot"): void {
     if (this.#overload !== undefined) return;
+    this.#recordFailure(this.#queue.rejection ?? "retained-bytes", event);
     this.#overloads = Math.min(Number.MAX_SAFE_INTEGER, this.#overloads + 1);
     this.#deliveryFailed = true;
     // Concurrency: reserve before cancellation; outcomes produced reentrantly must not enter the saturated queue.
     this.#overload = Promise.resolve(false);
+    this.recovery.begin();
     const cancellation = this.#ports.cancelForOverload();
     this.#overload = new Promise<boolean>(resolve => {
       const timer = setTimeout(() => resolve(false), OVERLOAD_CANCELLATION_TIMEOUT_MS);
       cancellation.then(() => {
         clearTimeout(timer); resolve(true);
+        this.recovery.settled();
       }, () => { clearTimeout(timer); resolve(false); });
     });
   }
@@ -174,8 +199,17 @@ export class PiEventDelivery {
       try { listener(event); }
       catch (error) {
         this.#deliveryFailed = true;
+        this.#recordFailure("listener", event.type);
         this.#ports.listenerFailed(error instanceof Error ? error.message : String(error));
       }
+    }
+  }
+
+  #recordFailure(reason: DeliveryFailure["reason"], event: DeliveryFailure["event"]): void {
+    const { pending, bytes } = this.#queue.diagnostics();
+    this.#failure = { reason, event, generation: this.#ports.sessionGeneration(), pending, bytes };
+    if (this.#reported++ < 10) {
+      try { this.#ports.incident?.(this.#failure); } catch { /* Invariant: diagnostics never own recovery. */ }
     }
   }
 
@@ -219,6 +253,7 @@ export class PiEventDelivery {
         // Invariant: an outcome reserved while reconciliation replayed the earlier ones is dropped with the overload.
         this.#reservedOutcomes.clear();
         this.#overload = undefined;
+        this.recovery.resume();
       }
     } finally {
       this.#processing = undefined;

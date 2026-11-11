@@ -4,6 +4,7 @@ import { deliverExitNotice, restoreAfterOwnedExit } from "../terminal-cleanup/in
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
+import { acquireReleaseUse } from "./release-use.js";
 import { ReleaseStateStore, type ReleaseState } from "./release-state.js";
 import { assertLaunchProfileId, resolveProductPaths, sessionSelectionArguments, type SessionSelection, type LaunchProfileId } from "../lifecycle/index.js";
 import { UpdateTransactionStore } from "./update-transaction.js";
@@ -46,7 +47,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
   await mkdir(paths.runtimeDir, { recursive: true, mode: 0o700 });
 
   const launchSelected = async (release: MaterializedRelease): Promise<number> => {
-    const result = await launchUi(release, environment, sessionArgs, paths.runtimeDir);
+    const result = await launchUi(release, environment, sessionArgs, paths.runtimeDir, paths.dataDir);
     if (!result.releaseSuperseded) return result.code;
     if (retriesRemaining > 0) return await runBootstrapAttempt(options, retriesRemaining - 1);
     output.write(`${PRODUCT_TEXT.diagnostic("active release changed repeatedly during startup; launch could not converge")}\n`);
@@ -233,6 +234,16 @@ async function launchUi(
   environment: NodeJS.ProcessEnv,
   sessionArgs: readonly string[],
   runtimeDir: string,
+  dataDir: string,
+): Promise<{ readonly code: number; readonly releaseSuperseded: boolean }> {
+  const use = await acquireReleaseUse(dataDir, release.releaseId);
+  try { return await launchClaimedUi(release, environment, sessionArgs, runtimeDir, use); }
+  finally { await use.release().catch(() => undefined); }
+}
+
+async function launchClaimedUi(
+  release: MaterializedRelease, environment: NodeJS.ProcessEnv, sessionArgs: readonly string[], runtimeDir: string,
+  use: Awaited<ReturnType<typeof acquireReleaseUse>>,
 ): Promise<{ readonly code: number; readonly releaseSuperseded: boolean }> {
   await markStartupPhase(environment, "bootstrap-selected");
   const entry = await resolveReleaseEntryPoint(release, "bin/ui.js");
@@ -249,13 +260,19 @@ async function launchUi(
       stdio: ["inherit", "inherit", "inherit", "ipc"],
       windowsHide: false,
     });
+    let handoff = Promise.resolve();
+    child.once("spawn", () => {
+      // Security: failure keeps the durable launching reservation rather than guessing the child dead.
+      handoff = use.started(child.pid!).catch(() => undefined);
+    });
     child.on("message", message => {
       if (message && typeof message === "object" && "type" in message && message.type === RELEASE_RESELECTION_MESSAGE) {
         releaseSuperseded = true;
       }
     });
     child.once("error", rejectPromise);
-    child.once("close", (code, signal) => {
+    child.once("close", async (code, signal) => {
+      await handoff;
       const outcome = releaseSuperseded ? code ?? 1 : restoreAfterOwnedExit(ownsTerminal, code, signal);
       // Invariant: the UI removes its notice on a clean exit; one still armed means the UI died.
       if (ownsTerminal) deliverExitNotice(noticePath, message => process.stderr.write(message));

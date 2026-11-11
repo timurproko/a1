@@ -104,7 +104,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const bareSettings = bare ? settings : null;
   // Invariant: process-wide engine state has one owner. The host installs the HTTP dispatcher, applies
   // the theme singletons, and announces startup notices once; every session is created through it.
-  const host = await (options.createEngineHost ?? createPiEngineHost)(engineHostOptions(options, productMode, bareSettings));
+  const host = await (options.createEngineHost ?? createPiEngineHost)(engineHostOptions(options, productMode, bareSettings, productPaths.runtimeDir));
   const sessionForkPrompt = options.sessionForkPrompt;
   try {
     backend = await host.create({
@@ -301,10 +301,15 @@ function bareShellPorts(
   };
 }
 
-function engineHostOptions(options: OwnedUiCompositionOptions, productMode: "bare" | "comparison", settings: OwnedSettingsManager | null): PiEngineHostOptions {
+function engineHostOptions(options: OwnedUiCompositionOptions, productMode: "bare" | "comparison", settings: OwnedSettingsManager | null, runtimeDir: string): PiEngineHostOptions {
   const bare = productMode === "bare";
   return {
     productMode,
+    deliveryIncident: failure => {
+      void import("../foundation/terminal-cleanup/index.js").then(module => module.writeFatalDiagnostic(
+        `${runtimeDir}/crashes`, "delivery", Object.assign(new Error(), { deliveryFailure: failure }), options.packageVersion,
+      )).catch(() => undefined);
+    },
     availableThemes: () => getAvailablePiThemes().map(theme => theme.name),
     ...(bare ? { workflowHost: { reserveExport: async (id: string, format: "html" | "jsonl") => (await import("../foundation/lifecycle/user-exports.js")).reserveUserExport(id, format) } } : {}),
     announceStartupChangelog: !bare,

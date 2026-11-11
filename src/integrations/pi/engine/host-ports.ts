@@ -1,3 +1,4 @@
+import type { DeliveryFailure } from "./event-delivery.js";
 import { markStartupPhase, type StartupPhase } from "../../../foundation/startup/startup-runtime.js";
 
 /**
@@ -7,6 +8,7 @@ import { markStartupPhase, type StartupPhase } from "../../../foundation/startup
 export interface PiEngineHostSessionPorts {
   /** Aborted when the host is disposed; host-level timers and probes stop with it. */
   readonly signal: AbortSignal;
+  deliveryIncident?(failure: DeliveryFailure): void;
   /** Record a startup trace phase; the host records each phase once per process. */
   markStartupPhase(phase: StartupPhase): Promise<void>;
   /** A session's runtime loaded the profile's HTTP idle timeout; the host installs the dispatcher once. */

@@ -790,19 +790,32 @@ The normal update status SHALL show the existing green `Update installed, restar
 - **AND** bounded diagnostic evidence SHALL retain the failure reason while safe automatic recovery continues
 
 ### Requirement: Immutable release retention is age-based
-Release retention SHALL need no supervisor, cohort registry, or live-instance inventory. At update time and at every launch, A1 SHALL keep the approved active release, the executing release, and every release approved within the last seven days, remove the rest with their unreferenced dependency layers, and print nothing on success.
+Release retention SHALL keep active and selected releases, releases approved within seven days, and every release with a live or unverifiable process-lifetime use claim. Launch selection and claim acquisition SHALL exclude cleanup detachment until ownership is established. The claim SHALL protect release files, required certification evidence, and dependency layers until the process exits. Cleanup SHALL revalidate ownership before destructive boundaries, conservatively retain legacy releases lacking lifetime-claim support, and collect expired unclaimed releases only when safety is established. No supervisor or hot-swapping is required.
 
 #### Scenario: An old release is collected
-- **WHEN** a launch finds a release approved more than seven days ago that is neither active nor executing
-- **THEN** that release and its unreferenced dependency layers SHALL be removed before the UI starts, without delaying the first frame
+- **WHEN** an expired claim-capable release is not selected and all its recorded owners are proven absent
+- **THEN** its release and unreferenced dependency layers MAY be collected without affecting another executing release
 
 #### Scenario: A recent release is kept
 - **WHEN** a release was approved within the last seven days but is no longer active
-- **THEN** it SHALL remain on disk so sessions started from it keep running
+- **THEN** it SHALL remain on disk
 
 #### Scenario: The record cannot be read
-- **WHEN** a release's approval record is missing or malformed
-- **THEN** retention SHALL keep that release and continue
+- **WHEN** approval or lifetime ownership cannot be established safely
+- **THEN** retention SHALL keep the affected content and continue conservatively
+
+#### Scenario: An old process survives several publications
+- **WHEN** a process uses an expired release while newer releases activate
+- **THEN** its root and dependency layers SHALL remain available for later lazy imports and helper launches until it exits
+
+#### Scenario: Launch races cleanup
+- **WHEN** a launch selects a retained release while cleanup considers it
+- **THEN** claim acquisition and collection SHALL be mutually excluded so the launch never enters a detached root
+
+#### Scenario: Legacy cleanup does not ignore lifetime ownership
+- **WHEN** a claim-aware control process adopts a valid v1 release store
+- **THEN** its locked update SHALL preserve the records and write a control-state schema that pre-claim cleanup readers refuse
+- **AND** saved sessions SHALL remain unchanged and approved legacy release roots SHALL remain conservatively retained
 
 ### Requirement: Interactive startup checks for a newer release in Auto mode
 When an interactive profile starts from a published build and the `Update` mode is not `Manual`, A1 SHALL discover whether a newer release exists on the executing release's channel, comparing valid semver only, after the first usable frame and never for noninteractive commands. `Auto` SHALL request a silent exact-target background update and show no availability notice; `Manual` SHALL skip the check entirely. Lookup, parse, or cache failure SHALL produce no UI diagnostic.
@@ -957,3 +970,16 @@ Every self-update SHALL resolve npm's CLI entry before changing anything, SHALL 
 - **WHEN** activating the installed release fails
 - **THEN** the update SHALL roll back to the prior active release and record the failure with the rollback result
 - **AND** it SHALL exit with a non-zero status
+
+### Requirement: Restart-ready announcements preserve large-session execution
+Activation of an approved successor and its restart-ready announcement SHALL leave an existing large-session process on its executing immutable release, without aborting its agent work, replacing its session, disposing its UI, or requiring restart because its authoritative transcript exceeds the pending delivery allowance. The notice SHALL remain informational; ordinary subsequent input SHALL continue in the existing process, and only a later launch SHALL select the approved successor. Existing certification guarantees remain unchanged.
+
+#### Scenario: Another process activates a successor during long-session work
+- **WHEN** a retained published process has more than 8 MiB of authoritative transcript and observes a newer approved same-channel active release
+- **THEN** it SHALL announce restart readiness without cancelling active work or changing executing-release or session identity
+- **AND** subsequent commands SHALL remain usable on the original release
+
+#### Scenario: Resume after an informational update notice
+- **WHEN** the user later exits that large session and executes its normal resume command through a fixed installed entry
+- **THEN** the new process SHALL select the approved release and restore the persisted conversation under the same-pin restoration contract
+- **AND** the preceding announcement SHALL require no session-file repair, truncation, or migration

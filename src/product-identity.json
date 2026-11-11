@@ -41,7 +41,7 @@
   "protocol": {
     "namespace": "a1",
     "promptHistorySchema": "a1-prompt-history-v1",
-    "releaseCohortSchema": "a1-release-cohort-v1",
+    "releaseCohortSchema": "a1-release-cohort-v2",
     "updateJournalSchema": "a1-update-journal-v1"
   },
   "evidence": {

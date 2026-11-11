@@ -1,3 +1,9 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
+import { createPiEngineAdapter, createPiRuntimeIntegration } from "../../src/integrations/pi/engine/index.js";
+import { lockfileBackend, setSessionWriterLockBackendForTest } from "../../src/foundation/session-writer-lock/index.js";
+import { writeResumeFixture } from "../support/session-resume-fixture.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createStartupReleaseUpdateObservation } from "../../src/composition/release-update-observation.js";
 import { deferStartupReleaseUpdateObservation } from "../../src/composition/startup-route.js";
@@ -48,6 +54,46 @@ describe("deferred update observation", () => {
 });
 
 describe("update readiness", () => {
+  it("delivers installed notices to a real large-session adapter without cancelling admitted work", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-update-continuity-"));
+    setSessionWriterLockBackendForTest(lockfileBackend(resolve(root, "locks")));
+    const saved = await writeResumeFixture(resolve(root, "sessions"), root, { largeMessages: 1000 });
+    const before = await readFile(saved.path);
+    const runtime = await createPiRuntimeIntegration({ cwd: root, agentDir: resolve(root, "agent"), sessionSelection: { target: saved.path } });
+    const adapter = await createPiEngineAdapter({ cwd: root, sessionId: "continuity", createRuntime: async () => runtime });
+    const work = Promise.withResolvers<void>();
+    const prompt = vi.spyOn(runtime.session, "prompt").mockImplementation(() => work.promise);
+    const abort = vi.spyOn(runtime.session, "abort");
+    try {
+      await adapter.flushEvents();
+      const identity = adapter.identity.currentSessionResumeMetadata();
+      const transcript = adapter.view().transcript;
+      const pending = adapter.execute({ type: "prompt", sessionId: "continuity", correlationId: "busy", text: "offline pending work" });
+      const announced = vi.spyOn(adapter.extensions, "announceReleaseUpdate");
+      automatic.request.mockResolvedValue("0.3.1");
+      const observer = createStartupReleaseUpdateObservation({ backend: adapter as never, configDir: resolve(root, "config"),
+        packageVersion: "0.3.0", readPackageVersion: async () => "0.3.0", mode: "auto", checkForNewerRelease: async () => release });
+      active.push(observer); observer.start();
+      await vi.waitFor(() => expect(announced).toHaveBeenCalledWith({ status: "installed", version: "0.3.1" }));
+      await adapter.flushEvents();
+      expect(abort).not.toHaveBeenCalled();
+      expect(adapter.deliveryDiagnostics().pendingCommands).toBe(1);
+      expect(adapter.view().lifecycle).not.toBe("failed");
+      expect(adapter.identity.currentSessionResumeMetadata()).toEqual(identity);
+      expect(adapter.view().transcript).toEqual(transcript);
+      work.resolve();
+      expect(await pending).toMatchObject({ outcome: "completed" });
+      expect(adapter.view().editor.submitEnabled).toBe(true);
+      prompt.mockResolvedValue(undefined);
+      expect(await adapter.execute({ type: "prompt", sessionId: "continuity", correlationId: "next", text: "next input" })).toMatchObject({ outcome: "completed" });
+      expect(await readFile(saved.path)).toEqual(before);
+    } finally {
+      work.resolve(); await adapter.dispose();
+      setSessionWriterLockBackendForTest(undefined);
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
   it("installs silently in Auto and announces only the installed status", async () => {
     automatic.request.mockResolvedValue("0.3.1");
     const fixture = setup("auto"); fixture.observer.start();
