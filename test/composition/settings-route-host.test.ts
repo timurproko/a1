@@ -221,6 +221,7 @@ describe("owned reference routes", () => {
     expect(info.id).toBe("session");
     lines = await settled(info, current => current.some(line => line.trimEnd() === " Messages"), 60, 12);
     expect(lines[1]?.startsWith(" Session Info")).toBe(true);
+    expect(lines.at(-3)?.trim()).toBe("");
     expect(lines.at(-2)?.startsWith(" ↑↓ scroll  Esc close")).toBe(true);
     expect(lines.at(-1)).toBe("─".repeat(60));
     expect(lines.some(line => line.trimEnd() === " Name: route fixture")).toBe(true);

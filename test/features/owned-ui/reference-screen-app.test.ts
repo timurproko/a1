@@ -178,6 +178,46 @@ describe("ReferenceScreenApp frame", () => {
     expect(lines.join("\n")).toContain("edit three");
   });
 
+  it("reserves a blank dialog footer row through scrolling, paging, resize, and rail activity", () => {
+    const target = new ReferenceScreenApp({
+      id: "session", title: "Session Info", presentation: "dialog",
+      document: { rows: () => numbered(20) },
+      scrollSettings: settings({ scrollbarAppearance: "always" }),
+    });
+    const content = () => screen(target).slice(1, -3).map(row => row.slice(0, RECT.width - RAIL_COLUMNS).trim());
+    let lines = screen(target);
+    expect(content()).toEqual(["Session Info", ...numbered(5)]);
+    expect(lines.at(-3)?.trim()).toBe("");
+    expect(lines.at(-2)?.trimEnd()).toBe(" ↑↓ scroll  Esc close");
+    expect(lines.at(-1)).toBe(RULE);
+    expect(lines.slice(1, -3).map(row => row.at(-1))).toEqual(Array(6).fill("┃"));
+
+    target.onInput(PAGE_DOWN, HOST);
+    expect(content()[0]).toBe("row 06");
+    target.onInput(PAGE_UP, HOST);
+    expect(content()[0]).toBe("Session Info");
+    target.onInput(END, HOST);
+    expect(content()).toEqual(numbered(20).slice(-6));
+    lines = screen(target);
+    expect(lines.at(-3)?.trim()).toBe("");
+    target.onMouse({ kind: "press", button: 0, row: RECT.height - 2, column: RECT.width }, HOST);
+    expect(content()).toEqual(numbered(20).slice(-6));
+    target.onMouse({ kind: "wheel-up", button: 0, row: 3, column: 1 }, HOST);
+    expect(content()[0]).toBe("row 12");
+    expect(screen(target).at(-3)?.trim()).toBe("");
+
+    for (const height of [0, 1, 2, 3, 4, 5, 6, 12]) {
+      const rect = { width: 32, height };
+      const frame = screen(target, { ...HOST, getSize: () => rect }, rect);
+      expect(frame).toHaveLength(height);
+      if (height >= 4) expect(frame.at(-3)?.trim()).toBe("");
+    }
+    const close = vi.fn();
+    expect(target.onInput(ESC, { ...HOST, close })).toEqual({ consumed: true });
+    expect(close).toHaveBeenCalledOnce();
+    target.onClose(HOST);
+  });
+
   it("shows the interrupt notice while the chord is armed and leaves the interrupt byte to the host", () => {
     const { app: target } = app(["alpha"]);
     const notice = screen(target, { ...HOST, interruptArmed: true }).at(-1) ?? "";

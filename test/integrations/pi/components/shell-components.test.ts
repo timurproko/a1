@@ -881,7 +881,7 @@ describe("Pi shell public component adapters", () => {
     });
     expect(new Set(columns)).toEqual(new Set([21]));
     const preamble = stripTerminalSequences(reference.preamble.join("\n")).replace(/: +/gu, ": ");
-    expect(preamble).toMatch(/Name: Parity fixture\s*\n\s*File: C:\\sessions\\parity\.jsonl\s*\n\s*ID: session-1/);
+    expect(preamble).toMatch(/Name: Parity fixture\s*\n\s*Folder: C:\\sessions\\\s*\n\s*File: parity\.jsonl\s*\n\s*ID: session-1/);
 
     const longSessionFile = String.raw`C:\Users\Timur Prokopiev\.a1\agent\sessions\--E--Git-a1-.worktrees-session-tree-dialog-design--\2026-10-06T14-50-37-124Z_01a111b1-f2c3-76dc-a3f7-7b6e82c49ebb.jsonl`;
     const overflowWidth = 32;
@@ -890,23 +890,35 @@ describe("Pi shell public component adapters", () => {
       stats: { ...presentation.stats, sessionFile: longSessionFile },
     }, overflowWidth);
     const overflowRows = overflow.preamble.map(row => stripTerminalSequences(row).trimEnd());
+    const folderIndex = overflowRows.findIndex(row => row.startsWith(" Folder:"));
     const fileIndex = overflowRows.findIndex(row => row.startsWith(" File:"));
     const idIndex = overflowRows.findIndex(row => row.startsWith(" ID:"));
-    expect(fileIndex).toBe(2);
+    expect(folderIndex).toBe(2);
+    expect(fileIndex).toBeGreaterThan(folderIndex + 1);
     expect(idIndex).toBeGreaterThan(fileIndex + 1);
     const pathColumn = 21;
-    expect(overflowRows[fileIndex]).toBe(` File:${" ".repeat(15)}${longSessionFile.slice(0, 10)}`);
-    const pathRows = [
+    expect(overflowRows[folderIndex]).toBe(` Folder:${" ".repeat(13)}${longSessionFile.slice(0, 10)}`);
+    const folder = [
+      overflowRows[folderIndex]!.slice(pathColumn),
+      ...overflowRows.slice(folderIndex + 1, fileIndex).map(row => row.slice(1)),
+    ].join("");
+    const filename = [
       overflowRows[fileIndex]!.slice(pathColumn),
       ...overflowRows.slice(fileIndex + 1, idIndex).map(row => row.slice(1)),
-    ];
-    expect(pathRows.join("")).toBe(longSessionFile);
+    ].join("");
+    expect(folder.endsWith("\\")).toBe(true);
+    expect(filename).not.toMatch(/[\\/]/u);
+    expect(folder + filename).toBe(longSessionFile);
     expect(overflowRows[idIndex]).toBe(` ID:${" ".repeat(17)}session-1`);
     expect(overflow.preamble.every(row => visibleWidth(row) <= overflowWidth)).toBe(true);
 
     const grouped = stripTerminalSequences(reference.sections.flatMap(section => section.rows).join("\n")).replace(/: +/gu, ": ");
     expect(grouped).toMatch(/Total: 6\s*\n\s*User: 2\s*\n\s*Assistant: 2\s*\n\s*Tools: 1 calls, 1 results/);
     expect(grouped).toMatch(/Input: 450\s*\n\s*Cached: 300 \(66\.7%\)\s*\n\s*Uncached: 150 \(50 written to cache\)/);
+    const tokenRows = reference.sections.find(section => section.title === "Tokens")!.rows.map(stripTerminalSequences);
+    for (const label of ["Input:", "Cached:", "Uncached:", "Output:", "Total:"]) {
+      expect(tokenRows.find(row => row.includes(label))?.startsWith(` ${label}`)).toBe(true);
+    }
     expect(grouped.replace(/\s*\n\s*/gu, " ")).toContain("Status: Decision now (50% continuation probability, expected savings 0.100 >= 0.050 -> warm)");
     expect(grouped).toContain("Cache miss penalty: $0.200");
     expect(grouped).toContain("Refresh cost: $0.010");
@@ -915,6 +927,10 @@ describe("Pi shell public component adapters", () => {
     const pinned = stripTerminalSequences(createPiShellSessionInfo(presentation).render(100).join("\n"));
     expect(pinned).toMatch(/Session Info\s*\n\s*\n\s*Name: Parity fixture/);
     expect(pinned).toMatch(/Cache Warming\s*\n\s*Mode: streaming/);
+    expect(pinned).toContain("File: C:\\sessions\\parity.jsonl");
+    expect(pinned).not.toContain("Folder:");
+    expect(pinned).toContain("  Cached: 300");
+    expect(pinned).toContain("  Uncached: 150");
     expect(pinned).toContain("Status: Decision now (50% continuation probability, expected savings 0.100 >= 0.050 -> warm)");
 
     const { sessionName: _sessionName, ...unnamedPresentation } = presentation;
@@ -928,10 +944,49 @@ describe("Pi shell public component adapters", () => {
     expect(minimal.sections.map(section => section.title)).toEqual(["Messages", "Tokens", "Cache Warming"]);
     const narrow = renderPiShellSessionInfoReferenceDocument({ ...presentation, stats: { ...presentation.stats, sessionFile: "C:/complete/path.jsonl" } }, 10);
     const narrowPreamble = narrow.preamble.map(row => stripTerminalSequences(row).trimEnd());
-    const start = narrowPreamble.findIndex(row => row.startsWith(" File:"));
+    const start = narrowPreamble.findIndex(row => row.startsWith(" Folder:"));
+    const file = narrowPreamble.findIndex(row => row.startsWith(" File:"));
     const end = narrowPreamble.findIndex(row => row.startsWith(" ID:"));
-    expect(narrowPreamble.slice(start, end).join("").replace(/^ File: */u, "").replaceAll(" ", "")).toBe("C:/complete/path.jsonl");
+    const folderValue = narrowPreamble.slice(start, file).join("").replace(/^ Folder: */u, "").replaceAll(" ", "");
+    const fileValue = narrowPreamble.slice(file, end).join("").replace(/^ File: */u, "").replaceAll(" ", "");
+    expect(folderValue).toBe("C:/complete/");
+    expect(fileValue).toBe("path.jsonl");
     expect([...narrow.preamble, ...narrow.sections.flatMap(section => section.rows)].every(row => visibleWidth(row) <= 10)).toBe(true);
+  });
+
+  it.each([
+    { path: String.raw`C:\sessions\file.jsonl`, folder: "C:\\sessions\\", file: "file.jsonl" },
+    { path: "/sessions/file.jsonl", folder: "/sessions/", file: "file.jsonl" },
+    { path: String.raw`C:\file.jsonl`, folder: "C:\\", file: "file.jsonl" },
+    { path: "/file.jsonl", folder: "/", file: "file.jsonl" },
+    { path: String.raw`\\server\share\file.jsonl`, folder: "\\\\server\\share\\", file: "file.jsonl" },
+    { path: "sessions/file.jsonl", folder: "sessions/", file: "file.jsonl" },
+    { path: "sessions/文件.jsonl", folder: "sessions/", file: "文件.jsonl" },
+    { path: "file.jsonl", folder: null, file: "file.jsonl" },
+    { path: undefined, folder: null, file: "In-memory" },
+    {
+      path: String.raw`C:\Users\tprokopiev\.a1\agent\sessions\--D--Git-a1--\2026-11-11T13-25-45-634Z_01a1cac9-3222-712e-b62e-86fbe3dd4970.jsonl`,
+      folder: "C:\\Users\\tprokopiev\\.a1\\agent\\sessions\\--D--Git-a1--\\",
+      file: "2026-11-11T13-25-45-634Z_01a1cac9-3222-712e-b62e-86fbe3dd4970.jsonl",
+    },
+  ])("separates the complete folder and filename for $path", ({ path, folder, file }) => {
+    const document = renderPiShellSessionInfoReferenceDocument({
+      stats: {
+        ...(path === undefined ? {} : { sessionFile: path }),
+        sessionId: "session-1", userMessages: 0, assistantMessages: 0,
+        toolCalls: 0, toolResults: 0, totalMessages: 0,
+        tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, cost: 0,
+      },
+      cacheWaste: { missedTokens: 0, missedCost: 0, missCount: 0 },
+      usageBreakdown: [], cacheWarming: { mode: "idle" },
+    }, 120);
+    const rows = document.preamble.map(row => stripTerminalSequences(row).trimEnd());
+    expect(rows).toHaveLength(folder === null ? 2 : 3);
+    expect(rows.find(row => row.startsWith(" File:"))?.replace(/^ File: +/u, "")).toBe(file);
+    const folderRow = rows.find(row => row.startsWith(" Folder:"));
+    if (folder === null) expect(folderRow).toBeUndefined();
+    else expect(folderRow?.replace(/^ Folder: +/u, "")).toBe(folder);
+    expect(document.preamble.every(row => visibleWidth(row) <= 120)).toBe(true);
   });
 
   it("renders the complete keybinding-derived pinned hotkey tables", () => {

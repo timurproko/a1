@@ -298,7 +298,7 @@ export function renderUpdateProgressBar(percent: number, accent = SHARED_PROGRES
   // percentage retain the update meter's neutral treatment.
   const gray = "\u001b[38;2;128;128;128m";
   const track = "\u001b[38;2;102;102;102m";
-  return `${accent}${"━".repeat(filled)}${track}${"─".repeat(PROGRESS_BAR_WIDTH - filled)}${gray} ${bounded}%\u001b[39m`;
+  return `${accent}${"━".repeat(filled)}${track}${"━".repeat(PROGRESS_BAR_WIDTH - filled)}${gray} ${bounded}%\u001b[39m`;
 }
 
 function updateProgressAccent(environment: NodeJS.ProcessEnv): string {
