@@ -66,7 +66,7 @@ The old environment registry included `fixture` and `inputAcknowledgement`, but 
 
 `certificationTarball`, `internalPackaging`, `nativePi`, `piParityIntentionalMutation`, `protocolVersion`, `structuredFlowLimits`, `terminalArgumentsJson`, and `terminalExecutable` had no active runtime consumer in the reviewed tree. They are removed from the current environment authority, not renamed into new settings. Rejection patterns and immutable historical evidence remain factual.
 
-The release store (`src/foundation/release/release-state.ts`, persisted as `release-state.json`) keeps the schema id `a1-release-cohort-v1` and the identity key `releaseCohortSchema`. "Cohort" is a legacy name from the retired supervisor era; the id is unchanged because every installed release state carries it, and renaming it would make existing installations unreadable.
+The release store (`src/foundation/release/release-state.ts`, persisted as `release-state.json`) uses `a1-release-cohort-v2` and retains the identity key `releaseCohortSchema`. "Cohort" is a historical wire name, not a supervisor. New readers accept v1 and preserve its records; the next locked write upgrades control state to v2. This deliberately fences older cleanup/control writers that cannot protect live release-use claims. Existing sessions are not migrated or restarted, legacy approved roots remain protected, and a claim-aware launcher may still run a retained older UI. A pre-v2 launcher cannot independently control a v2 store.
 
 ## Negotiated handoff and protected state
 

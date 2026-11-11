@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
+import { spawnReleaseEntry } from "./release-use.js";
 import { chmod, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -346,7 +346,7 @@ export async function cleanupUpdateRecoveryCapsules(dataDir: string): Promise<vo
 }
 
 async function spawnRecoveryWorker(entry: string, manifestPath: string, environment: NodeJS.ProcessEnv): Promise<void> {
-  const child = spawn(process.execPath, [entry, "--worker", manifestPath], { detached: true, stdio: "ignore", windowsHide: true, env: environment });
+  const child = await spawnReleaseEntry(entry, ["--worker", manifestPath], { detached: true, stdio: "ignore", windowsHide: true, env: environment });
   await new Promise<void>((resolvePromise, rejectPromise) => {
     child.once("spawn", resolvePromise);
     child.once("error", rejectPromise);
