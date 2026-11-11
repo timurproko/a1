@@ -24,7 +24,7 @@ The maintainer integration decision accepts these scenarios:
     "Existing saved spinner choices remain selected, and accepting dots retains the current storage identifier.",
     "Preview navigation and cancellation leave the saved choice unchanged and stop preview timers on close."
   ],
-  "archiveDigest": "26fde4aa3678587f8459109e664ed7743304cd10d07e18edbb8015a52fefdbd7",
+  "archiveDigest": "f10eaf6e4df39b538077ad083de83db389ee97d614103dfea9ef8d446e69886b",
   "specDigest": "2c0c1b722c53686737bf2a00244afd2709d96e795ee7786d7986d06e5a9c88a8",
   "tasksDigest": "a3866d6de44d5e8fc7ec2e844cd117f106bb29a507059aa6fcf2bed0d99a9288",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
