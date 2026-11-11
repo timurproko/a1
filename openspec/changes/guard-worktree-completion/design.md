@@ -33,7 +33,7 @@ Local Git configuration is set by the machine owner, is not part of any checkout
 
 ## Cleanup guard
 
-`local-worktree-cleanup.mjs` reads A1's claim records for the candidate path before destructive work and blocks with `attached-session` when the recorded process is alive. It needs no A1 installation: an absent store means no claim. This protects agents that still call cleanup directly.
+The shared cleanup preflight used by `complete`, sweep, and the queue reads A1's claim record for the exact candidate checkout and blocks with `attached-session` when the recorded process is alive, or `attached-session-unverifiable` when the record cannot be read. It needs no A1 installation: an absent store means no claim. This protects agents that still call cleanup directly. Explicit `discard` and `retire-redundant` keep their own content inspection and do not apply the guard in this change.
 
 ## Guidance
 
