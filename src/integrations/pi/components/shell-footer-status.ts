@@ -1,4 +1,6 @@
 import type { OwnedUiShellKeybindings } from "../../../contracts/owned-ui/index.js";
+import type { ProgressSpinnerSource } from "../../../contracts/presentation/index.js";
+import { progressSpinnerFrame } from "../../../ui/components/progress-status.js";
 import { piKeybindings } from "./shell-shared-facade.js";
 import { rawKeyHint, VERSION } from "../startup-public.js";
 import {
@@ -113,6 +115,7 @@ export function createPiShellStatus(
   view: OwnedUiSessionViewModel,
   progressStatus: PiShellProgressStatusPresentation,
   runtime?: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
+  spinner?: ProgressSpinnerSource,
 ): PiShellStatusPort {
   ensureTheme();
   const statusUi = createTuiFacade(runtime ?? { getColumns: () => 80, getRows: () => 24, requestRender() {} });
@@ -122,7 +125,7 @@ export function createPiShellStatus(
   let progressPresentation: PiShellProgressPresentationMode = "pinned";
   let placement: PiShellStatusPlacement = statusPlacement(view, workingOverride, workingOverrideActive);
   const liveStatusText = () => progressStatus.text(liveWorkingText(view, workingOverride, progressPresentation), progressPresentation);
-  let component = statusComponent(view, statusUi, outputPad, liveStatusText, placement, progressPresentation, progressStatus);
+  let component = statusComponent(view, statusUi, outputPad, liveStatusText, placement, progressPresentation, progressStatus, spinner);
   let signature = statusSignature(view, workingOverride, outputPad, placement, progressPresentation);
   const rebuild = () => {
     const nextPlacement = statusPlacement(view, workingOverride, workingOverrideActive);
@@ -142,8 +145,11 @@ export function createPiShellStatus(
     if (component !== undefined && "dispose" in component && typeof component.dispose === "function") component.dispose();
     placement = nextPlacement;
     signature = nextSignature;
-    component = statusComponent(view, statusUi, outputPad, liveStatusText, placement, progressPresentation, progressStatus);
+    component = statusComponent(view, statusUi, outputPad, liveStatusText, placement, progressPresentation, progressStatus, spinner);
   };
+  const releaseSpinner = spinner?.onChange(() => {
+    if (progressPresentation === "custom-viewport") component?.invalidate();
+  });
   return {
     render: width => appendInstalledUpdateStatus(component?.render(width) ?? [], width, view, progressPresentation),
     renderDock: width => placement === "dock" ? component?.render(width) ?? [] : [],
@@ -168,6 +174,7 @@ export function createPiShellStatus(
       rebuild();
     },
     dispose() {
+      releaseSpinner?.();
       if (component !== undefined && "dispose" in component && typeof component.dispose === "function") component.dispose();
       component = undefined;
     },
@@ -250,14 +257,15 @@ function liveWorkingText(
 }
 
 class OwnedWorkingStatusIndicator extends StatusIndicator {
-  constructor(ui: TUI, message: string, frame: PiShellProgressStatusPresentation["frame"]) {
+  constructor(ui: TUI, message: string, frame: PiShellProgressStatusPresentation["frame"], spinner?: ProgressSpinnerSource) {
     let phase = -1;
     super(
       "working",
       ui,
-      spinner => {
+      defaultFrame => {
         phase += 1;
-        return piTheme().fg("accent", spinner);
+        const glyph = progressSpinnerFrame(spinner?.snapshot() ?? "current", phase, defaultFrame);
+        return glyph === "" ? "" : piTheme().fg("accent", glyph);
       },
       text => frame(text, phase, {
         muted: value => piTheme().fg("muted", value),
@@ -276,10 +284,11 @@ function statusComponent(
   placement: PiShellStatusPlacement,
   progressPresentation: PiShellProgressPresentationMode,
   progressStatus: PiShellProgressStatusPresentation,
+  spinner?: ProgressSpinnerSource,
 ): Component | undefined {
   if (placement === "live") {
     return progressPresentation === "custom-viewport"
-      ? new OwnedWorkingStatusIndicator(ui, liveStatusText(), progressStatus.frame)
+      ? new OwnedWorkingStatusIndicator(ui, liveStatusText(), progressStatus.frame, spinner)
       : new WorkingStatusIndicator(ui, liveStatusText());
   }
   if (placement === "dock") {

@@ -1,5 +1,6 @@
 import type { PresentationComponentPort } from "./component.js";
 export type { PresentationComponentPort, PresentationPointerSurface } from "./component.js";
+export type { ProgressSpinnerSource, ProgressSpinnerStyle } from "./progress-spinner.js";
 export { samePointerSurfaces } from "./component.js";
 export type { CanvasBackgroundStyle, ShellPresentationPorts, ThemeSource, UiTheme, UiThemeBackground, UiThemeToken } from "./theme.js";
 export type {
