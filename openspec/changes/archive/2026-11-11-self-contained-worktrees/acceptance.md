@@ -26,10 +26,10 @@ The maintainer integration decision accepts these scenarios:
     "Stable background polls do not rewrite healthy editing claims or runtime registrations.",
     "Both repositories use shared minimal guidance, with the external migration dependent on a compatible installed runtime."
   ],
-  "archiveDigest": "7717feeab404d3982dc5bffc18c24506c150ee04ea4a88f4cd854785c1b5b3b8",
+  "archiveDigest": "b9a397274d6c41999872f40d05c0cefa57d0cb29e280e12b42196be4af7ece88",
   "specDigest": "dc35c405dc759316754e6b85678840aca0307678f7552e5cf7011448e2c9d899",
   "tasksDigest": "f1d140f9dd02f8dc0e1f75eb4e9e745bd2b0d5f023dc581037d081aa393cfe3f",
-  "evidenceDigest": "57517616d7be8a91b777910385ff8faa03617af50db7326e6c2916696c9f0c9f",
+  "evidenceDigest": "ccbc5183751959a29e7263ec4d9cdd09c41e2dccd7dda8c99e675bd48bd735d6",
   "knownGaps": []
 }
 ```
