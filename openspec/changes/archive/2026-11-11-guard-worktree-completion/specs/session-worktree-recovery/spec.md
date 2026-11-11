@@ -29,7 +29,7 @@ A1 SHALL distinguish a definitively invalid attachment from an uncertain one. An
 
 ### Requirement: Completion returns the session to primary before cleanup
 
-A1 SHALL expose `worktree complete` with optional change and pull-request selectors. It SHALL require a valid attachment owned by the calling session, SHALL remain attached and report the blocker when the checkout is locked in Git or holds tracked, staged, or untracked content, and SHALL otherwise release the attachment before any cleanup starts. Cleanup SHALL run from the startup checkout in the A1 runtime after the issuing shell has exited, through a command configured in the primary repository's local Git configuration and executed without a shell. A1 SHALL NOT delete worktrees or branches itself and SHALL NOT take a cleanup command from task-checkout files. When no command is configured, or it needs a selector that was not supplied, completion SHALL detach and report cleanup unavailable. The result SHALL relay the cleanup command's own report as authoritative; A1 SHALL NOT itself claim that a checkout was removed. A blocked or failed cleanup SHALL leave the session operational on the startup checkout. Cleanup SHALL be skipped when another live session has claimed the checkout or the pending request has expired.
+A1 SHALL expose `worktree complete` with optional change and pull-request selectors. It SHALL require a valid attachment owned by the calling session, SHALL remain attached and report the blocker when the checkout is locked in Git or holds tracked, staged, or untracked content, and SHALL otherwise release the attachment before any cleanup starts. Cleanup SHALL run from the startup checkout in the A1 runtime after the issuing shell has exited, through a command the repository declares in a committed file, read from the session's startup checkout and executed without a shell. A1 SHALL NOT delete worktrees or branches itself and SHALL NOT take a cleanup command from the task checkout being left or require per-machine setup. When no command is declared, or it needs a selector that was not supplied, completion SHALL detach and report cleanup unavailable. The result SHALL relay the cleanup command's own report as authoritative; A1 SHALL NOT itself claim that a checkout was removed. A blocked or failed cleanup SHALL leave the session operational on the startup checkout. Cleanup SHALL be skipped when another live session has claimed the checkout or the pending request has expired.
 
 #### Scenario: Complete a merged task
 
@@ -48,9 +48,9 @@ A1 SHALL expose `worktree complete` with optional change and pull-request select
 - **THEN** the result SHALL name the blocker
 - **AND** subsequent built-in tools SHALL succeed from the startup checkout
 
-#### Scenario: No cleanup command is configured
+#### Scenario: No cleanup command is declared
 
-- **WHEN** completion runs in a repository without a configured cleanup command
+- **WHEN** completion runs in a repository without a declared cleanup command
 - **THEN** the session SHALL be detached, the checkout SHALL be retained, and cleanup SHALL be reported unavailable
 
 ## MODIFIED Requirements

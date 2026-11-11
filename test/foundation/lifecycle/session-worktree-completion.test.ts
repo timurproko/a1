@@ -1,5 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import { access, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -22,6 +22,8 @@ import {
 
 const execute = promisify(execFile);
 const roots: string[] = [];
+// Performance: every case builds real Git repositories; a loaded runner needs more than the default limit.
+vi.setConfig({ testTimeout: 30_000 });
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }))); });
 const exists = (path: string) => access(path).then(() => true, () => false);
 
@@ -44,7 +46,12 @@ async function attachedFixture(template?: string) {
   await execute("git", ["-C", primary, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "commit", "-m", "fixture"]);
   await execute("git", ["-C", primary, "worktree", "add", "-b", "fix/task", worktree]);
   if (template !== undefined) {
-    await execute("git", ["-C", primary, "config", "--local", "a1.worktreeCleanup", template.replace("{script}", script.replaceAll("\\", "/"))]);
+    await mkdir(join(primary, ".a1"));
+    await writeFile(join(primary, ".a1", "worktree.json"), template.startsWith("{") || template === "broken"
+      ? template : JSON.stringify({ cleanup: template.split(" ").map(part => part === "{script}" ? script : part) }));
+    await execute("git", ["-C", primary, "add", ".a1"]);
+    await execute("git", ["-C", primary, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "commit", "-m", "declare cleanup"]);
+    await execute("git", ["-C", worktree, "merge", "--ff-only", "develop"]);
   }
   const session = async (id: string) => {
     const identity = { sessionId: id, sessionFile: join(root, `${id}.jsonl`) };
@@ -64,6 +71,17 @@ async function attachedFixture(template?: string) {
 const REMOVE = "node {script} {primary} {worktree}";
 
 describe("worktree completion", () => {
+  it("ignores a declaration that exists only in the task checkout being left", async () => {
+    const fixture = await attachedFixture();
+    await mkdir(join(fixture.worktree, ".a1"));
+    await writeFile(join(fixture.worktree, ".a1", "worktree.json"), JSON.stringify({ cleanup: ["node", "-e", "process.exit(0)"] }));
+    await execute("git", ["-C", fixture.worktree, "add", ".a1"]);
+    await execute("git", ["-C", fixture.worktree, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "commit", "-m", "task-only declaration"]);
+    await requestSessionWorktreeCompletion(fixture.identity, {}, fixture.options);
+    await expect(settleSessionWorktreeCompletion(fixture.identity, fixture.options)).resolves.toMatchObject({ kind: "cleanup-unavailable" });
+    expect(await exists(fixture.worktree)).toBe(true);
+  });
+
   it("detaches before the configured cleanup runs from primary and settles the request once", async () => {
     const fixture = await attachedFixture(`${REMOVE} {branch} {change} {pr}`);
     const request = await requestSessionWorktreeCompletion(fixture.identity, { change: "example-change", pr: 12 }, fixture.options);
@@ -102,9 +120,17 @@ describe("worktree completion", () => {
     const bare = await attachedFixture();
     await requestSessionWorktreeCompletion(bare.identity, {}, bare.options);
     await expect(settleSessionWorktreeCompletion(bare.identity, bare.options)).resolves.toMatchObject({
-      kind: "cleanup-unavailable", detail: expect.stringContaining("a1.worktreeCleanup"),
+      kind: "cleanup-unavailable", detail: expect.stringContaining(".a1/worktree.json"),
     });
     expect(await exists(bare.worktree)).toBe(true);
+    for (const malformed of ["broken", JSON.stringify({ cleanup: "node cleanup.cjs" }), JSON.stringify({ cleanup: [] })]) {
+      const invalid = await attachedFixture(malformed);
+      await requestSessionWorktreeCompletion(invalid.identity, {}, invalid.options);
+      await expect(settleSessionWorktreeCompletion(invalid.identity, invalid.options)).resolves.toMatchObject({
+        kind: "cleanup-unavailable", detail: expect.stringContaining("must hold"),
+      });
+      expect(await exists(invalid.worktree)).toBe(true);
+    }
     const selective = await attachedFixture(`${REMOVE} {pr}`);
     await requestSessionWorktreeCompletion(selective.identity, { change: "example-change" }, selective.options);
     await expect(settleSessionWorktreeCompletion(selective.identity, selective.options)).resolves.toMatchObject({

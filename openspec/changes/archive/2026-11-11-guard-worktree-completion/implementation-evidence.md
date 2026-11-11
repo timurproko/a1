@@ -5,7 +5,7 @@
 - Attachment validation separates a definitively invalid checkout (missing directory, missing Git pointer, not a worktree root, replaced identity, all with a verified startup checkout) from uncertain failures. Only the definitive case releases the session's own association and claim.
 - The runtime registry releases such an attachment whether a tool call or footer polling discovers it, fails the agent's next built-in tool call once with `worktree-attachment-invalid`, and then resolves tools and repository discovery from the startup checkout.
 - `a1 worktree complete [--change <id>] [--pr <number>]` checks ownership, Git lock, and uncommitted or untracked content, detaches, and records one pending request. The shell tool wrapper settles it in the A1 process after the shell exits and appends the outcome to that command's result.
-- The cleanup command comes from the primary repository's local `a1.worktreeCleanup`, runs without a shell from the startup checkout, and its report is relayed as authoritative. Missing configuration or selectors, a competing live claim, an unverifiable claim, and an expired request retain the checkout with a named outcome.
+- The cleanup command comes from the repository's committed `.a1/worktree.json` as read from the primary checkout, runs without a shell from the startup checkout, and its report is relayed as authoritative. Missing configuration or selectors, a competing live claim, an unverifiable claim, and an expired request retain the checkout with a named outcome.
 - The shared cleanup preflight behind `complete`, sweep, and the queue blocks a checkout whose A1 claim names a live process (`attached-session`) or cannot be read (`attached-session-unverifiable`).
 - `AGENTS.md`, the worktree feature and protocol documents, the cleanup and delivery runbooks, the delivery skill, the diagnostics table, and the bash tool guideline describe the completion lifecycle.
 
@@ -30,6 +30,6 @@ All of the above ran on Windows. The Windows-only case is skipped, not claimed, 
 - The attached-session guard covers `complete`, sweep, and the queue. Explicit `discard` and `retire-redundant` do not apply it. Accepted; both need a separate confirmation and are not the post-merge path.
 - The real `a1` executable was not driven through a real Git Bash tool shell in an automated test: the composition fixture issues the same request the CLI issues and then runs the real bash tool. No interactive session demonstration was performed.
 - If the startup checkout itself is missing, no automatic choice is made; Pi's existing missing-session-directory prompt remains the recovery surface.
-- `a1.worktreeCleanup` is not set by this change. Each machine owner sets it once; until then completion detaches and reports `cleanup-unavailable`. Arguments cannot contain spaces and the program must be a real executable.
+- A repository without `.a1/worktree.json` gets detach only and `cleanup-unavailable`; this repository now commits the file. The first list element must be a real executable.
 - The existing #910 and #914 remnants were not touched and remain for the repository's guarded sweep.
 - XR Build's guidance is a separate delivery in its own repository and is not part of this change.

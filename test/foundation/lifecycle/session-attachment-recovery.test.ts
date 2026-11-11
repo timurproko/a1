@@ -23,6 +23,8 @@ import {
 
 const execute = promisify(execFile);
 const roots: string[] = [];
+// Performance: every case builds real Git repositories; a loaded runner needs more than the default limit.
+vi.setConfig({ testTimeout: 30_000 });
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true, maxRetries: 5 }))); });
 
 async function attachedFixture() {

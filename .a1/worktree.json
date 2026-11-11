@@ -1,0 +1,6 @@
+{
+  "cleanup": [
+    "node", "scripts/governance/local-worktree-cleanup.mjs", "complete",
+    "--repo", "{primary}", "--path", "{worktree}", "--change", "{change}", "--pr", "{pr}"
+  ]
+}

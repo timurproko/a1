@@ -22,7 +22,10 @@ describe("shared worktree agent guidance", () => {
     expect(skill).toContain("shared Worktrees guidance in `AGENTS.md`");
     expect(feature).toContain("before integrating a repository's instruction migration");
     expect(feature).toContain("No command removes worktrees");
-    expect(feature).toContain("a1.worktreeCleanup");
+    expect(feature).toContain(".a1/worktree.json");
+    expect(feature).not.toContain("git config --local a1.worktreeCleanup");
+    const declared = JSON.parse(await read(".a1/worktree.json")) as { cleanup: string[] };
+    expect(declared.cleanup.slice(0, 3)).toEqual(["node", "scripts/governance/local-worktree-cleanup.mjs", "complete"]);
     for (const instructions of [cleanup, delivery]) expect(instructions).toContain("a1 worktree complete");
     expect(cleanup).toContain("attached-session");
   });

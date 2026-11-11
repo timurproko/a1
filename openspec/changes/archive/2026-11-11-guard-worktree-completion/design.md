@@ -27,9 +27,9 @@ The shell tool wrapper then settles the record in the A1 process once the shell 
 
 ## Cleanup adapter
 
-`git config --local a1.worktreeCleanup` in the primary repository holds an argument template, for example `node scripts/governance/local-worktree-cleanup.mjs complete --repo {primary} --path {worktree} --change {change} --pr {pr}`. It is split on whitespace, placeholders are substituted per argument, and it runs with `execFile` (no shell) from the primary root with a bounded timeout and output. A template that needs `{change}` or `{pr}` when none was supplied yields `cleanup-unavailable`.
+A committed `.a1/worktree.json` in the repository holds `{"cleanup": [...]}`: an argument list, for example `["node", "scripts/governance/local-worktree-cleanup.mjs", "complete", "--repo", "{primary}", "--path", "{worktree}", "--change", "{change}", "--pr", "{pr}"]`. Placeholders are substituted per element and the list runs with `execFile` (no shell) from the primary root with a bounded timeout and output. A list that needs `{change}` or `{pr}` when none was supplied, a malformed file, and an absent file all yield `cleanup-unavailable`.
 
-Local Git configuration is set by the machine owner, is not part of any checkout, and already carries `a1.worktreeBase`; it has the same trust as Git aliases and hooks. Tracked files of a task checkout never select the command. The adapter keeps all eligibility, evidence, content, and compare-and-delete checks; A1 adds none of its own deletion.
+A1 reads the file from the session's startup checkout, which is the primary checkout, and never from the task checkout being left. A task branch therefore cannot change the command until its change is merged, and no machine needs local setup: an earlier draft used local Git configuration, which the maintainer rejected because it required a manual command per machine and repository. The adapter keeps all eligibility, evidence, content, and compare-and-delete checks; A1 adds none of its own deletion.
 
 ## Cleanup guard
 

@@ -14,7 +14,7 @@ Run these commands through an active A1 session's shell tool:
 | `a1 worktree complete [--change <id>] [--pr <number>]` | After a verified merge: return this session to the startup checkout, then run the repository's configured cleanup. |
 | `a1 worktree list` | Informational same-repository inventory; never required after success. |
 
-Successful enter/attach returns the canonical root and branch after acquiring the editing claim. It is the complete attachment result: agents do not run a second inventory approval gate or implement their own retry loop. Temporary registration/coordination contention is retried within an operation budget. Actual ownership conflicts and uncertain records produce actionable failures rather than unsafe takeovers. A failed switch preserves the prior attachment. No command removes worktrees, branches, user files, or private workspace data itself; `complete` only runs the cleanup command the repository owner configured.
+Successful enter/attach returns the canonical root and branch after acquiring the editing claim. It is the complete attachment result: agents do not run a second inventory approval gate or implement their own retry loop. Temporary registration/coordination contention is retried within an operation budget. Actual ownership conflicts and uncertain records produce actionable failures rather than unsafe takeovers. A failed switch preserves the prior attachment. No command removes worktrees, branches, user files, or private workspace data itself; `complete` only runs the cleanup command the repository declares.
 
 Enter creates `.worktrees/<short-description>` under the primary checkout. It fetches the selected origin base before creating a new topic branch. Base selection is explicit `--base`, local Git configuration `a1.worktreeBase`, then the origin default branch; local-only repositories fall back to the primary branch. Existing matching worktrees keep their local edits and history. Path/branch collisions, primary checkouts, foreign repositories, and Git-locked worktrees are retained, not forced or adopted. Setup commands, dependency installation, private-clone provisioning, and repository hooks are not executed by A1.
 
@@ -38,18 +38,18 @@ Never run repository cleanup against the checkout a session is attached to. The 
 | --- | --- |
 | `cleanup-finished` | The cleanup command ran. Its report follows and is authoritative; A1 does not claim a removal itself. |
 | `cleanup-failed` | The command exited with an error. The checkout may remain; retry with the repository's cleanup from primary. |
-| `cleanup-unavailable` | No command is configured, or it needs `--change`/`--pr` that was not given. The checkout is retained. |
+| `cleanup-unavailable` | The repository declares no command, or it needs `--change`/`--pr` that was not given. The checkout is retained. |
 | `cleanup-skipped` | Another live session attached the checkout, its claim is unverifiable, or the request was not settled within five minutes. |
 
 In every case the session is already on the startup checkout and its tools keep working. Do not attach a partially removed checkout again.
 
-The cleanup command is machine-owner configuration, read from the primary repository's local Git configuration and never from files in a task checkout:
+The cleanup command is declared once in the repository, in a committed `.a1/worktree.json`, so no machine needs any setup:
 
-```bash
-cd /d/Git/a1 && git config --local a1.worktreeCleanup "node scripts/governance/local-worktree-cleanup.mjs complete --repo {primary} --path {worktree} --change {change} --pr {pr}"
+```json
+{ "cleanup": ["node", "scripts/governance/local-worktree-cleanup.mjs", "complete", "--repo", "{primary}", "--path", "{worktree}", "--change", "{change}", "--pr", "{pr}"] }
 ```
 
-The value is split on whitespace and run without a shell from the startup checkout, with `{primary}`, `{worktree}`, `{branch}`, `{change}`, and `{pr}` substituted per argument. Arguments therefore cannot contain spaces, and the program must be an executable such as `node`, not a `.cmd` shim. The command keeps every eligibility and deletion safeguard; A1 adds no deletion of its own. Delivery evidence is the command's to judge, so completing an unmerged task ends detached with the files intact and the command's blocker.
+A1 reads the file from the primary checkout the session started in, never from the task checkout being left, so a task branch cannot change what runs until it is merged. The list is run without a shell from the primary checkout, with `{primary}`, `{worktree}`, `{branch}`, `{change}`, and `{pr}` substituted in each element; the first element must be a real executable such as `node`, not a `.cmd` shim. A repository without the file needs nothing: completion detaches, keeps the checkout, and reports `cleanup-unavailable`, and the repository's ordinary cleanup still applies. The command keeps every eligibility and deletion safeguard; A1 adds no deletion of its own. Delivery evidence is the command's to judge, so completing an unmerged task ends detached with the files intact and the command's blocker.
 
 ## Invalid attachments
 

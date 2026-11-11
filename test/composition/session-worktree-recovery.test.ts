@@ -12,6 +12,8 @@ import type { ExtensionToolContext } from "../../src/integrations/pi/startup-pub
 import { PRODUCT_IDENTITY } from "../../src/product-identity.js";
 
 const execute = promisify(execFile), roots: string[] = [];
+// Performance: every case builds real Git repositories; a loaded runner needs more than the default limit.
+vi.setConfig({ testTimeout: 30_000 });
 afterEach(async () => { vi.unstubAllEnvs(); await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true, maxRetries: 5 }))); });
 
 async function attachedSession() {
@@ -86,7 +88,7 @@ it("appends the settled completion to the shell call that requested it and keeps
     const settled = await session.bash("echo done");
     const text = settled.content.map(part => part.type === "text" ? part.text : "").join("\n");
     expect(text).toContain("done");
-    expect(text).toMatch(/Worktree completion \(cleanup-unavailable\).*a1\.worktreeCleanup/su);
+    expect(text).toMatch(/Worktree completion \(cleanup-unavailable\).*\.a1\/worktree\.json/su);
     expect(text).toContain(`left ${session.entered.cwd} (fix/sdk-task)`);
     await session.write("after.txt", "primary");
     expect(await readFile(join(session.primary, "after.txt"), "utf8")).toBe("primary");
