@@ -28,7 +28,7 @@ The maintainer integration decision accepts these scenarios:
     "Live release claims preserve executing code, dependency layers, and certification across successor activations; later launches select the successor.",
     "Incident diagnostics distinguish delivery failure classes without recording private conversation or tool content."
   ],
-  "archiveDigest": "0db0c9a4a42e194d7556eac33af4831afd59ebfe10ef277826453fb190008905",
+  "archiveDigest": "a287d113c172c4921cf099be5703f9f3497a94f4d35557a5ae1b30f24a28cfd6",
   "specDigest": "899080b65c128c19826881481ad774e24459d048d020d5a2a379b7dfaf503335",
   "tasksDigest": "9b54083be19c3b8503b5cb6a244e83c06d3fbf80bb35866501ea4128937358d6",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",

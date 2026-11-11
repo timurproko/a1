@@ -277,7 +277,7 @@ export class PiWorkflowRunner {
     }
     const providerId = stringProperty(model, "provider") ?? "unknown";
     const modelId = stringProperty(model, "id") ?? reference;
-    // Selection already applied. A delivery-generation change cannot undo it; a replaced
+    // Invariant: selection already applied. A delivery-generation change cannot undo it; a replaced
     // session must not receive its view, but the operation result remains truthful.
     if (!this.#ports.disposed() && session === this.#ports.session()) {
       this.#ports.setActiveModel({ providerId, modelId, displayName: stringProperty(model, "name") ?? modelId });

@@ -58,7 +58,7 @@ export function lockfileBackend(root = join(tmpdir(), "a1-session-writer-locks")
   };
   const acquireAuthority = (path: string): (() => void) => {
     mkdirSync(root, { recursive: true, mode: 0o700 });
-    // The nonempty owner record also prevents legacy heartbeat-only clients from reclaiming
+    // Compatibility: the nonempty owner record also prevents legacy heartbeat-only clients from reclaiming
     // a stalled live writer: proper-lockfile removes directories non-recursively.
     reclaimDeadWriter(path);
     const release = lockfile.lockSync(path, {
@@ -69,15 +69,15 @@ export function lockfileBackend(root = join(tmpdir(), "a1-session-writer-locks")
     const stamp = statSync(path).mtime;
     try {
       writeFileSync(join(path, "owner.json"), JSON.stringify(owner), { flag: "wx", mode: 0o600 });
-      // Creating the owner record must not masquerade as a foreign heartbeat.
+      // Concurrency: creating the owner record must not masquerade as a foreign heartbeat.
       utimesSync(path, stamp, stamp);
     } catch (error) {
-      try { unlinkSync(join(path, "owner.json")); release(); } catch { /* Retain uncertain ownership. */ }
+      try { unlinkSync(join(path, "owner.json")); release(); } catch { /* Security: retain uncertain ownership. */ }
       throw error;
     }
     return () => {
       if (readWriterOwner(path)?.token !== owner.token) throw new Error("Session writer ownership was lost");
-      // A legacy contender must not reclaim the short empty-directory release interval.
+      // Concurrency: a legacy contender must not reclaim the short empty-directory release interval.
       const now = new Date(); utimesSync(path, now, now);
       unlinkSync(join(path, "owner.json"));
       release();
@@ -143,7 +143,7 @@ function writerAbsent(pid: number): boolean {
 function reclaimDeadWriter(path: string): void {
   if (!existsSync(path)) return;
   const owner = readWriterOwner(path);
-  // Age and malformed/legacy records cannot prove that a writer is absent.
+  // Security: age and malformed/legacy records cannot prove that a writer is absent.
   if (owner === null || !writerAbsent(owner.pid)) throw new Error("Session writer is live or unverifiable");
   const gate = join(path, ".reclaim");
   mkdirSync(gate);
@@ -154,7 +154,7 @@ function reclaimDeadWriter(path: string): void {
     rmdirSync(gate);
     rmdirSync(path);
   } catch (error) {
-    try { rmdirSync(gate); } catch { /* A partial recovery remains conservatively blocked. */ }
+    try { rmdirSync(gate); } catch { /* Security: a partial recovery remains conservatively blocked. */ }
     throw error;
   }
 }

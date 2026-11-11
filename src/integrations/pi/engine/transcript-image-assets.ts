@@ -73,7 +73,7 @@ export class TranscriptImageAssets {
     let shared = this.#events.get(key);
     if (shared === undefined) {
       const blocks = event.type === "transcript-block" ? [event.block] : event.type === "session-view" ? event.view.transcript : [];
-      // Capture entries, not ids: obsolete generations cannot decrement replacement assets.
+      // Concurrency: capture entries, not ids: obsolete generations cannot decrement replacement assets.
       const entries = blocks.flatMap(block => (block.imageReferences ?? []).map(ref => [ref.assetId, this.#assets.get(ref.assetId)] as const));
       this.#captureBytes += entries.length * 32;
       for (const [id, entry] of entries) {

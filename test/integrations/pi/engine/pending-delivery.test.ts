@@ -32,7 +32,7 @@ describe("semantic pending engine delivery", () => {
     expect(queue.diagnostics().bytes).toBe(0);
     expect(queue.push(view(31), 1)).toBe(true);
     current = Object.freeze([{ ...first, revision: 2, text: "new" }]);
-    // The large old revision is now genuinely retained only by the pending event.
+    // Invariant: the large old revision is now genuinely retained only by the pending event.
     expect(queue.push(view(32), 1)).toBe(false);
     const consumed = queue.shift()!;
     const old = consumed.event as Extract<OwnedUiEvent, { type: "session-view" }>;

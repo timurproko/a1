@@ -138,7 +138,7 @@ describe("session writer lockfile backend", () => {
     writeFileSync(path, "{}\n");
     const locks = join(root, "locks");
     const held = lockfileBackend(locks, 60_000).acquire(path);
-    // A stalled process is not an absent process.
+    // Invariant: a stalled process is not an absent process.
     const stale = new Date(Date.now() - 120_000);
     for (const name of readdirSync(locks)) utimesSync(join(locks, name), stale, stale);
     expect(() => lockfileBackend(locks, 60_000).acquire(path)).toThrow("live or unverifiable");

@@ -209,7 +209,7 @@ export class PiEventDelivery {
     const { pending, bytes } = this.#queue.diagnostics();
     this.#failure = { reason, event, generation: this.#ports.sessionGeneration(), pending, bytes };
     if (this.#reported++ < 10) {
-      try { this.#ports.incident?.(this.#failure); } catch { /* Diagnostics never own recovery. */ }
+      try { this.#ports.incident?.(this.#failure); } catch { /* Invariant: diagnostics never own recovery. */ }
     }
   }
 

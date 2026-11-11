@@ -244,7 +244,7 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
     runtimeSessionWriters.set(runtime, sessionWriters);
     const dispose = runtime.dispose.bind(runtime);
     let disposal: Promise<void> | undefined;
-    // Every public runtime consumer uses the writer-owning teardown, including the adapter.
+    // Invariant: every public runtime consumer uses the writer-owning teardown, including the adapter.
     runtime.dispose = () => disposal ??= (async () => {
       try { await dispose(); }
       finally { sessionWriters.release(); runtimeSessionWriters.delete(runtime); }

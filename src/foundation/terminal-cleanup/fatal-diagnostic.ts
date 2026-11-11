@@ -5,7 +5,7 @@ import { join } from "node:path";
 /** Loaded only on a failure; persistence must never impede terminal restoration. */
 export async function writeFatalDiagnostic(directory: string, origin: string, error: unknown, releaseId?: string): Promise<string | null> {
   try {
-    // Only known classifications and code locations are retained, never private messages or objects.
+    // Security: only known classifications and code locations are retained, never private messages or objects.
     const cleanupFailed = error instanceof AggregateError && error.cause instanceof Error;
     const primary = cleanupFailed ? (error as AggregateError).cause : error;
     const classification = primary instanceof TypeError ? "TypeError" : primary instanceof RangeError ? "RangeError" : "Error";

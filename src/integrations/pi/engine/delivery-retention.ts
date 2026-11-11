@@ -17,7 +17,7 @@ export class DeliveryRetention {
   baseline(value: unknown): void {
     if (value === this.#current) return;
     const next = this.#allocation(value);
-    // Retain first: common blocks never become transient backlog during a revision change.
+    // Invariant: retain first so common blocks never become transient backlog during a revision change.
     this.#change(next, "authoritative", 1);
     if (this.#baseline) this.#change(this.#baseline, "authoritative", -1);
     this.#current = value;
@@ -59,7 +59,7 @@ export class DeliveryRetention {
     allocation[owner] += delta;
     const charge = allocation.pending > 0 && allocation.authoritative === 0;
     if (charged !== charge) this.#bytes += charge ? allocation.bytes : -allocation.bytes;
-    // A shared parent's second owner does not retain every descendant again.
+    // Invariant: a shared parent's second owner does not retain every descendant again.
     if (before === 0 || allocation[owner] === 0) {
       for (const child of allocation.children) this.#change(child, owner, delta);
     }

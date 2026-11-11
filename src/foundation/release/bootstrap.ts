@@ -262,7 +262,7 @@ async function launchClaimedUi(
     });
     let handoff = Promise.resolve();
     child.once("spawn", () => {
-      // Failure keeps the durable launching reservation rather than guessing the child dead.
+      // Security: failure keeps the durable launching reservation rather than guessing the child dead.
       handoff = use.started(child.pid!).catch(() => undefined);
     });
     child.on("message", message => {

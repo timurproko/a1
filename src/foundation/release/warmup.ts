@@ -24,7 +24,7 @@ export async function warmMaterializedRelease(
     windowsHide: true,
   });
   await new Promise<void>((resolvePromise, rejectPromise) => {
-    // Bounded diagnostics explain graph-import failures without attaching a terminal.
+    // Rationale: bounded diagnostics explain graph-import failures without attaching a terminal.
     let diagnostics = "";
     child.stderr?.setEncoding("utf8");
     child.stderr?.on("data", chunk => { diagnostics = `${diagnostics}${chunk}`.slice(-WARMUP_DIAGNOSTIC_LIMIT); });

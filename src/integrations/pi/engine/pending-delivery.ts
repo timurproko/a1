@@ -63,7 +63,7 @@ export class PendingEngineDelivery {
       this.#generation = generation;
     }
     const prior = key === null ? undefined : this.#replaceable.get(key);
-    // Production owns exact immutable revisions through the ledger. Legacy standalone
+    // Compatibility: production owns exact immutable revisions through the ledger. Legacy standalone
     // queues retain the compact-marker contract when no authoritative owner is supplied.
     const marker = this.current === undefined && key !== null && retainedEventBytes(event) > 64 * 1024 && reconcile !== undefined;
     const charge = marker ? undefined : this.#retention.retain(event);
@@ -108,7 +108,7 @@ export class PendingEngineDelivery {
     const release = node.release ?? this.retain?.(event);
     const charge = node.charge;
     this.#unlink(node, false);
-    // Keep the exact revision and assets charged through reentrant listener production.
+    // Invariant: keep the exact revision and assets charged through reentrant listener production.
     let released = false;
     return { event, generation: node.generation, release: () => {
       if (released) return;

@@ -339,7 +339,7 @@ async function collectDisposition(
         trashPath = resolve(trashRoot, `${releaseId}--${randomUUID()}`);
         let moved = false;
         const destination = trashPath;
-        // Claim admission and destructive rename share the state gate. A launch recorded
+        // Concurrency: claim admission and destructive rename share the state gate. A launch recorded
         // after discovery cannot slip between the last protection read and deletion.
         await store.update(async latest => {
           if (!isProtectedDetachedRelease(latest, inputs, releaseId)) {

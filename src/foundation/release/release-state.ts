@@ -527,7 +527,7 @@ async function reclaimAbandonedLock(path: string): Promise<boolean> {
     if (!Number.isSafeInteger(value.pid) || (value.pid as number) <= 0) return false;
     try { process.kill(value.pid as number, 0); return false; }
     catch (error) { if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) return false; }
-  } catch { return false; } // Unknown ownership never becomes safe merely through age.
+  } catch { return false; } // Security: unknown ownership never becomes safe merely through age.
   const gate = `${path}.reclaim`;
   try { await mkdir(gate); } catch { return false; }
   try {
@@ -547,7 +547,7 @@ function normalizeState(value: unknown): ReleaseState {
   const cleanup = state.cleanup;
   return {
     ...state,
-    // One-way control-state upgrade fences pre-claim cleanup workers; session files are untouched.
+    // Compatibility: one-way control-state upgrade fences pre-claim cleanup workers; session files are untouched.
     ...(state.schema === "a1-release-cohort-v1" ? { schema: RELEASE_STATE_SCHEMA } : {}),
     cleanup: cleanup
       ? { ...cleanup, workerRuns: cleanup.workerRuns ?? [] }
@@ -600,7 +600,7 @@ function validateTransition(current: ReleaseState, next: ReleaseState): void {
 }
 export function releaseUseIsLive(claim: ReleaseUseClaim): boolean {
   if (claim.phase === "launching") return true;
-  // PID reuse only over-retains: no live/uncertain process identity ever proves a claim dead.
+  // Security: PID reuse only over-retains: no live/uncertain process identity ever proves a claim dead.
   try { process.kill(claim.pid, 0); return true; }
   catch (error) { return !(error instanceof Error && "code" in error && error.code === "ESRCH"); }
 }
