@@ -103,6 +103,8 @@ An exact `complete` invocation may additionally use `--stop-dev-processes`. This
 cd /d/Git/a1 && node scripts/governance/local-worktree-cleanup.mjs complete --repo D:/Git/a1 --path D:/Git/a1/.worktrees/example-task --change example-change --pr 123 --stop-dev-processes
 ```
 
+Inside an A1 session attached to the candidate, do not run this command yourself: run `a1 worktree complete --change example-change --pr 123`, which returns the session to primary and then runs this same command as declared in the repository's `.a1/worktree.json` (see [worktree commands](features/worktrees.md#completing-a-merged-task)). `complete`, sweep, and the queue report `blocked` with `attached-session` while a running A1 session still has the checkout attached, and `attached-session-unverifiable` when that checkout's claim record cannot be read; the check reads A1's claim record only, changes nothing, and needs no A1 installation. Explicit `discard` and `retire-redundant` do not yet apply it.
+
 Agents do not manually remove generated content, call `git worktree remove`, or delete the local branch after delivery. The JSON result is authoritative: report success only for `removed` or verified `already-absent`; otherwise retain the worktree and report the exact blocker. A handed-off entry whose worktree was deleted by hand completes through its journal, and its branch is deleted under the accepted-ancestry rule. Legacy roles can supply separate `--source-pr`, `--candidate-pr`, and `--role` values.
 
 ## Explicit closed-unmerged discard
@@ -319,7 +321,7 @@ Disable writes a stop sentinel without waiting for a busy state or resource lock
 Dependency-free focused fixtures (temporary repositories only, no live PR mutation or watcher activation):
 
 ```bash
-node --test test/repository-governance/local-cleanup.node.mjs test/repository-governance/local-cleanup-evidence.node.mjs test/repository-governance/local-cleanup-watch.node.mjs
+node --test test/repository-governance/local-cleanup.node.mjs test/repository-governance/local-cleanup-evidence.node.mjs test/repository-governance/local-cleanup-watch.node.mjs test/repository-governance/local-cleanup-attachment.node.mjs
 ```
 
 The Vitest bridge includes these fixtures in ordinary fast CI, whose runner is Windows. On Windows the suite exercises an actual exclusive file handle and a junction; a non-Windows run explicitly skips the Windows-only handle case rather than claiming it passed. The handle fixture starts one throwaway `powershell.exe` when the file loads so the hosted runner's interpreter cold start overlaps the earlier tests instead of the fixture's timed hold; its bounds and release protocol are unchanged. Required current-head CI and a separately authorized live archive lifecycle remain necessary before acceptance; fixtures and preview do not replace those gates.

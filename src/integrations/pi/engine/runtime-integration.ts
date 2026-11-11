@@ -221,6 +221,9 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
           customTools: createSessionWorktreeTools(cwd, signal => options.worktreeCwdReader!(
             targetSessionManager.getSessionId(), targetSessionManager.getSessionFile()!,
             signal ?? options.signal ?? new AbortController().signal,
+          ), options.worktreeCwdReader.settleShell === undefined ? undefined : signal => options.worktreeCwdReader!.settleShell!(
+            targetSessionManager.getSessionId(), targetSessionManager.getSessionFile()!,
+            signal ?? options.signal ?? new AbortController().signal,
           )).filter(tool => !services.resourceLoader.getExtensions().extensions.some(extension => extension.tools.has(tool.name))),
         }),
         ...(sessionStartEvent ? { sessionStartEvent } : {}),

@@ -2,6 +2,7 @@ import {
   clearSessionRepositoryContext,
   enterSessionRepositoryWorktree,
   listSessionRepositoryWorktrees,
+  requestSessionWorktreeCompletion,
   retrySessionCoordination,
   setSessionRepositoryContext,
   type ProcessIdentity,
@@ -16,11 +17,13 @@ export type SessionContextRequest =
   | { readonly action: "link-worktree"; readonly path: string }
   | { readonly action: "enter-worktree"; readonly branch: string; readonly base?: string }
   | { readonly action: "unlink-worktree" }
+  | { readonly action: "complete-worktree"; readonly change?: string; readonly pr?: number }
   | { readonly action: "worktrees" };
 
 export type SessionContextOutcome =
   | { readonly kind: "linked"; readonly cwd: string; readonly branch: string }
   | { readonly kind: "unlinked" }
+  | { readonly kind: "completing"; readonly cwd: string; readonly branch: string; readonly startupRoot: string }
   | { readonly kind: "worktrees"; readonly entries: readonly SessionWorktreeInventoryEntry[] };
 
 export interface SessionContextRuntime {
@@ -48,6 +51,12 @@ export async function updateSessionRepositoryContext(
     if (request.action === "unlink-worktree") {
       await clearSessionRepositoryContext(identity, options);
       return { kind: "unlinked" };
+    }
+    if (request.action === "complete-worktree") {
+      return { kind: "completing", ...await requestSessionWorktreeCompletion(identity, {
+        ...(request.change === undefined ? {} : { change: request.change }),
+        ...(request.pr === undefined ? {} : { pr: request.pr }),
+      }, options) };
     }
     if (request.action === "worktrees") {
       return { kind: "worktrees", entries: await listSessionRepositoryWorktrees(identity, options) };

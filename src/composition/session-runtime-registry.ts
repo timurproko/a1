@@ -15,6 +15,8 @@ export class SessionRuntimeRegistry {
   readonly #options: SessionRuntimeRegistryOptions;
   readonly #identities = new Map<string | undefined, SessionIdentity>();
   readonly #activated = new Map<string | undefined, SessionIdentity>();
+  // Invariant: a released invalid attachment is reported by the agent's next tool call instead of running elsewhere.
+  readonly #released = new Map<string | undefined, { readonly identity: SessionIdentity; readonly message: string }>();
   readonly #abort = new AbortController();
   #owner: Promise<ProcessIdentity | null> | null = null;
   #timer: NodeJS.Timeout | null = null;
@@ -38,7 +40,7 @@ export class SessionRuntimeRegistry {
       return await this.#enqueue(async () => {
         const owner = await this.#ownerIdentity();
         if (owner === null || !this.#current(agentId, identity)) return null;
-        const { activateSessionRepositoryContext, readActiveSessionRepositoryContext } = await import("../foundation/lifecycle/session-repository-context.js");
+        const { activateSessionRepositoryContext, readActiveSessionRepositoryContext, releaseInvalidSessionRepositoryContext } = await import("../foundation/lifecycle/session-repository-context.js");
         if (!this.#current(agentId, identity)) return null;
         const options = {
           runtimeId,
@@ -58,6 +60,14 @@ export class SessionRuntimeRegistry {
           return { cwd: context.cwd, branch: context.branch, revision: context.revision };
         } catch (error) {
           const code = error instanceof Error && "code" in error ? error.code : null;
+          if (code === "worktree-attachment-invalid") {
+            const released = await releaseInvalidSessionRepositoryContext(identity, options);
+            if (released !== null && this.#current(agentId, identity)) {
+              this.#released.set(agentId, { identity, message: `attached worktree ${released.worktreeRoot} is no longer a valid Git worktree; `
+                + `this session was detached and now uses ${released.startupRoot}. Nothing was deleted and this call did not run; retry it from that directory.` });
+              return null;
+            }
+          }
           if ((code === "session-runtime-unavailable" || code === "worktree-context-changed") && this.#current(agentId, identity)) {
             this.#activated.delete(agentId);
           }
@@ -70,7 +80,17 @@ export class SessionRuntimeRegistry {
   /** Strict tool cwd lookup: transient startup failure never redirects a write to primary. */
   toolReaderFor(agentId: string | undefined) {
     const read = this.readerFor(agentId);
-    return async (sessionId: string, sessionFile: string, signal: AbortSignal): Promise<string> => {
+    /** Run a completion the just-finished shell requested, from this stable process rather than that shell. */
+    const settleShell = async (sessionId: string, sessionFile: string, signal: AbortSignal): Promise<string | null> => {
+      const { runtimeId, inspectProcess } = this.#options;
+      if (this.#disposed || runtimeId === undefined || inspectProcess === undefined) return null;
+      const { describeWorktreeCompletion, settleSessionWorktreeCompletion } = await import("../foundation/lifecycle/session-worktree-completion.js");
+      const result = await settleSessionWorktreeCompletion({ sessionId, sessionFile }, {
+        runtimeId, inspectProcess, signal, ...(agentId === undefined ? {} : { agentId }),
+      });
+      return result === null ? null : describeWorktreeCompletion(result);
+    };
+    return Object.assign(async (sessionId: string, sessionFile: string, signal: AbortSignal): Promise<string> => {
       const { retrySessionCoordination } = await import("../foundation/lifecycle/session-context-retry.js");
       return await retrySessionCoordination(async () => {
         signal.throwIfAborted();
@@ -81,11 +101,19 @@ export class SessionRuntimeRegistry {
         if (active?.sessionId !== sessionId || active.sessionFile !== sessionFile) {
           throw Object.assign(new Error("worktree runtime registration is still recovering"), { code: "session-runtime-unavailable" });
         }
+        const released = this.#released.get(agentId);
+        if (released !== undefined) {
+          this.#released.delete(agentId);
+          // Invariant: work addressed to the lost checkout fails once; it is never silently applied to the startup checkout.
+          if (released.identity.sessionId === sessionId && released.identity.sessionFile === sessionFile) {
+            throw Object.assign(new Error(released.message), { code: "worktree-attachment-invalid" });
+          }
+        }
         if (context !== null) return context.cwd;
         const { readSessionStartupRoot } = await import("../foundation/lifecycle/session-repository-context.js");
         return await readSessionStartupRoot({ sessionId, sessionFile });
       }, 8_000, signal);
-    };
+    }, { settleShell });
   }
 
   /** Drain publication before releasing claims; never republish after disposal. */

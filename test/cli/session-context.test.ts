@@ -56,6 +56,17 @@ describe("session context command", () => {
     expect(stderr).not.toHaveBeenCalled();
   });
 
+  it("reports the startup checkout a completion returned to and defers the cleanup result", async () => {
+    launch.outcome = { kind: "completing", cwd: "D:/repo/.worktrees/task", branch: "fix/task", startupRoot: "D:/repo" };
+    const stdout = vi.fn(), stderr = vi.fn();
+    expect(await runSessionContextCommand({ action: "complete-worktree", pr: 12 }, {
+      environment: { PI_SESSION_ID: "session", PI_SESSION_FILE: "D:/session.jsonl", A1_SESSION_RUNTIME_ID: "runtime" },
+      stdout, stderr,
+    })).toBe(0);
+    expect(stdout).toHaveBeenCalledExactlyOnceWith(expect.stringMatching(/^Session returned to D:\/repo; left D:\/repo\/\.worktrees\/task \(fix\/task\)\..*shell exits/u));
+    expect(stderr).not.toHaveBeenCalled();
+  });
+
   it("names a claiming agent only when it is not the runtime's primary agent", async () => {
     launch.outcome = { kind: "worktrees", entries: [
       { cwd: "D:/primary", branch: "develop", status: "available", agentId: null },

@@ -23,6 +23,16 @@ describe("cleanup local preflight", () => {
     expect(JSON.stringify(result)).not.toContain("private");
   });
 
+  it("blocks a checkout a live session has attached and treats a failed attachment check as unverifiable", async () => {
+    const clean = { inspect: async () => ({ clean: true }), inspectProcesses: async () => [] };
+    const attached = await cleanupPreflight({}, { path: "checkout" }, { ...clean, inspectAttachment: async () => ({ reason: "attached-session" }) });
+    expect(attached).toMatchObject({ clean: false, reason: "attached-session", blockers: [{ reason: "attached-session" }] });
+    const failed = await cleanupPreflight({}, { path: "checkout" }, { ...clean, inspectAttachment: async () => { throw new Error("private"); } });
+    expect(failed.blockers).toEqual([{ reason: "attached-session-unverifiable" }]);
+    const free = await cleanupPreflight({}, { path: "checkout" }, { ...clean, inspectAttachment: async () => null });
+    expect(free).toMatchObject({ clean: true, blockers: [] });
+  });
+
   it("protects caller-associated processes and retains structural inspection failures", async () => {
     const result = await cleanupPreflight({}, { path: "checkout" }, {
       inspect: async () => { throw Object.assign(new Error("private details"), { cleanupCode: "hidden-index-content" }); },
