@@ -16,7 +16,7 @@ export interface PiSessionSelection {
   readonly sessionDir?: string;
 }
 
-export type PiSessionForkPrompt = (request: { readonly sourceCwd: string }) => Promise<boolean>;
+export type PiSessionForkPrompt = (request: { readonly sourceCwd: string; readonly fallbackCwd?: string }) => Promise<boolean | "continue" | "fork" | "cancel">;
 
 /** Expected resume outcomes are concise CLI diagnostics, not engine crashes. */
 export class PiSessionSelectionError extends Error {
@@ -53,7 +53,7 @@ function holdSelectedWriter(manager: SessionManager, writer: SessionWriterHandle
   return manager;
 }
 
-/** Pinned Pi 0.84.2 main.ts policy, using SDK APIs rather than importing the CLI. */
+/** A1 CLI selection policy over pinned SDK APIs, including missing-folder recovery. */
 export async function openSelectedPiSession(options: SessionSelectionOptions): Promise<SessionManager> {
   const sessions = options.sessions ?? SessionManager;
   const cwd = resolve(options.cwd);
@@ -77,8 +77,9 @@ export async function openSelectedPiSession(options: SessionSelectionOptions): P
       path = matched.path;
     }
     assertResumeFile(path);
-    if (global) {
-      if (!options.forkPrompt || !await options.forkPrompt({ sourceCwd: global.cwd })) {
+    if (global && existsSync(global.cwd)) {
+      const choice = await options.forkPrompt?.({ sourceCwd: global.cwd });
+      if (choice !== true && choice !== "fork") {
         throw new PiSessionSelectionError("Session resume cancelled.", 0);
       }
       assertResumeFile(path);
@@ -93,8 +94,23 @@ export async function openSelectedPiSession(options: SessionSelectionOptions): P
     // can otherwise produce a new in-memory header instead of an existing session.
     const writer = options.guardWriter ? acquireExisting(path) : undefined;
     try {
-      const manager = sessions.open(path, sessionDir);
+      let manager = sessions.open(path, sessionDir);
       assertResumeFile(path);
+      if (!existsSync(manager.getCwd()) && options.forkPrompt !== undefined) {
+        const choice = await options.forkPrompt({ sourceCwd: manager.getCwd(), fallbackCwd: cwd });
+        if (choice !== "continue" && choice !== "fork" && choice !== true) throw new PiSessionSelectionError("Session resume cancelled.", 0);
+        assertResumeFile(path);
+        assertCwd(cwd);
+        if (choice === "fork" || choice === true) {
+          const fork = sessions.forkFrom(path, cwd, sessionDir);
+          writer?.release();
+          if (!options.guardWriter) return fork;
+          const target = fork.getSessionFile();
+          if (target === undefined) throw new PiSessionSelectionError("Fork did not create a session file");
+          return holdSelectedWriter(fork, acquireSessionWriter(target));
+        }
+        manager = sessions.open(path, sessionDir, cwd);
+      }
       assertCwd(manager.getCwd());
       return writer === undefined ? manager : holdSelectedWriter(manager, writer);
     } catch (error) {
@@ -104,7 +120,8 @@ export async function openSelectedPiSession(options: SessionSelectionOptions): P
   } catch (error) {
     if (error instanceof PiSessionSelectionError) throw error;
     if (error instanceof SessionWriterConflict) {
-      if (options.forkPrompt && await options.forkPrompt({ sourceCwd: cwd })) {
+      const choice = await options.forkPrompt?.({ sourceCwd: cwd });
+      if (choice === true || choice === "fork") {
         const manager = sessions.forkFrom(error.path, cwd, sessionDir);
         if (!options.guardWriter) return manager;
         const target = manager.getSessionFile();

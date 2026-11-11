@@ -932,32 +932,50 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     await shell.dispose();
   });
 
-  it("continues import through the missing-cwd recovery confirmation", async () => {
+  it.each(["continue", "fork", "cancel", "escape"] as const)("handles import missing-folder choice %s through the pinned selector", async choice => {
     const { adapter, terminal, shell } = await fixture();
     const workflow = vi.spyOn(adapter.workflows, "executeWorkflow")
       .mockResolvedValueOnce({ command: "import", outcome: "requires-confirmation", message: "Replace current session with fixture.jsonl?" })
       .mockResolvedValueOnce({
         command: "import",
-        outcome: "requires-confirmation",
-        message: "cwd from session file does not exist\nD:/missing\n\ncontinue in current cwd\nD:/work",
-        detail: "D:/work",
+        outcome: "requires-selection",
+        message: "Session cwd does not exist: D:/missing",
+        cwdRecovery: { fallbackCwd: "D:/work" },
+        options: [
+          { id: "continue", label: "Continue in D:/work (asks again next time)" },
+          { id: "fork", label: "Fork into D:/work (new session ID, original kept)" },
+          { id: "cancel", label: "Cancel" },
+        ],
       })
-      .mockResolvedValueOnce({ command: "import", outcome: "completed", message: "Session imported from: fixture.jsonl" });
+      .mockResolvedValueOnce(choice === "cancel" || choice === "escape"
+        ? { command: "import", outcome: "cancelled", message: "Import cancelled", messageKind: "status" }
+        : { command: "import", outcome: "completed", message: choice === "fork" ? "Forked into new session fork-id in D:/work" : "Session imported from: fixture.jsonl" });
 
     const operation = shell.runWorkflow({ command: "import", argument: "fixture.jsonl" });
     await new Promise(resolve => setTimeout(resolve, 0));
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Session cwd not found");
-    terminal.input("\r");
+    const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(frame).toContain("Session cwd does not exist: D:/missing");
+    expect(frame).toContain("Continue in D:/work");
+    expect(frame).toContain("Fork into D:/work");
+    expect(frame).toContain("Cancel");
+    if (choice === "fork" || choice === "cancel") terminal.input("\x1b[B");
+    if (choice === "cancel") terminal.input("\x1b[B");
+    terminal.input(choice === "escape" ? "\x1b" : "\r");
     await operation;
     expect(workflow).toHaveBeenNthCalledWith(3, {
       command: "import",
       argument: "fixture.jsonl",
       confirmed: true,
-      cwdOverride: "D:/work",
+      cwdRecoveryChoice: choice === "escape" ? "cancel" : choice,
+      ...(choice === "continue" ? { cwdOverride: "D:/work" } : {}),
     });
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Session imported from: fixture.jsonl");
+    const restored = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(restored).not.toContain("Session cwd does not exist: D:/missing");
+    expect(restored).toContain(choice === "cancel" || choice === "escape" ? "Import cancelled" : choice === "fork" ? "Forked into new session" : "Session imported from: fixture.jsonl");
+    terminal.input("restored");
+    expect(shell.root.editor.getText()).toBe("restored");
     await shell.dispose();
   });
 

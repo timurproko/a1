@@ -175,6 +175,7 @@ describe("PiExtensionUiBinding", () => {
     const current = session({ bindExtensions: async (bindings: unknown) => { if (fail) throw new Error("bridge refused"); bound = bindings; } });
     const binding = new PiExtensionUiBinding({
       session: () => current,
+      runtime: () => undefined,
       diagnostic: (severity, code, message) => { calls.push(`${severity}:${code}:${message}`); },
       emitView: () => { calls.push("view"); },
     });

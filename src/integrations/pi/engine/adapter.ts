@@ -170,6 +170,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
   });
   readonly #extensions = new PiExtensionUiBinding({
     session: () => this.#engine.session,
+    runtime: () => this.#engine.runtime,
     diagnostic: (severity, code, message, recoverable) => { this.#addDiagnostic(severity, code, message, recoverable); },
     emitView: () => { this.#emitView(); },
   });

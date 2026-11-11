@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.26",
   "pinned": {
-    "version": "1.5.1",
-    "commit": "dd30101cfc5b0609411dd80b6f93adbc14db14cf"
+    "version": "1.5.2",
+    "commit": "b4afdddf44e059c67ccf5097e5317d913521b470"
   },
   "policy": {
     "scope": "Every root, nested, replacement, and overlay node plus every source-reachable transition from InteractiveMode, nested components, and public extension UI is mandatory.",
@@ -829,24 +829,24 @@
       "id": "session.missing-cwd",
       "source": "interactive",
       "sourceAnchors": [
-        "Session cwd not found",
+        "getMissingSessionCwdOptions(error.issue)",
         "formatMissingSessionCwdPrompt"
       ],
-      "heading": "Session cwd not found",
-      "body": "missing session cwd and fallback current cwd",
+      "heading": "Session cwd does not exist: stored cwd",
+      "body": "missing session cwd with current cwd in the choice labels",
       "options": [
-        "Yes",
-        "No"
+        "Continue in current cwd (asks again next time)",
+        "Fork into current cwd (new session ID, original kept)",
+        "Cancel"
       ],
       "borders": "ExtensionSelectorComponent borders",
       "colors": "extension selector theme",
       "instructions": "navigate/select/cancel",
       "focus": "ExtensionSelectorComponent",
-      "viewport": "confirmation rows",
+      "viewport": "recovery choice rows",
       "scrolling": "none required",
       "destination": "src/app/session-shell/session-shell.ts",
-      "status": "implemented-pending-exhaustive-parity",
-      "controller": "ExtensionSelectorComponent confirmation",
+      "controller": "ExtensionSelectorComponent missing-folder recovery",
       "acceptance": "modal-node:session.missing-cwd",
       "parents": [
         "editor.root"
@@ -2426,9 +2426,9 @@
       ],
       "trigger": "selected/imported session cwd is missing",
       "stateMutation": "retain session path and fallback cwd issue",
-      "replacement": "ExtensionSelector confirmation",
-      "result": "missing-cwd choice",
-      "restoration": "Yes retries in current cwd; No/cancel returns editor with cancellation status",
+      "replacement": "ExtensionSelector recovery choices",
+      "result": "continue/fork/cancel missing-cwd choice",
+      "restoration": "Continue retries with transient cwd override; Fork switches to a new identity; Cancel restores editor with cancellation status",
       "acceptance": "modal-edge:resume.missing-cwd",
       "acceptanceEvidence": [
         "terminal:session-selector-cancel-restored",
@@ -2442,10 +2442,11 @@
       "to": "editor.root",
       "source": "interactive",
       "sourceAnchors": [
-        "return confirmed ? error.issue.fallbackCwd : undefined"
+        "switch (await this.promptForMissingSessionCwd(error))",
+        "this.switchToForkedSession(sessionPath, error.issue.fallbackCwd, options)"
       ],
-      "trigger": "Yes/No/Escape",
-      "stateMutation": "optional cwdOverride retry",
+      "trigger": "Continue/Fork/Cancel/Escape",
+      "stateMutation": "transient cwdOverride retry or new fork identity; cancel leaves active session unchanged",
       "replacement": "restore editor/new session",
       "result": "resume/import status or cancellation/failure",
       "restoration": "focus editor.root",
@@ -2453,6 +2454,8 @@
       "acceptanceEvidence": [
         "terminal:session-selector-cancel-restored",
         "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "test:test/integrations/pi/engine/session-cwd-recovery.test.ts",
+        "test:test/app/session-shell/session-shell.test.ts",
         "authority:pinned-controller-transition"
       ]
     },

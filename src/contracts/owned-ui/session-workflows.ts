@@ -81,6 +81,8 @@ export interface OwnedUiWorkflowRequest {
   readonly confirmed?: boolean;
   /** Recovery cwd selected after an import/resume source cwd is unavailable. */
   readonly cwdOverride?: string;
+  /** Explicit missing-folder recovery; cancellation never changes the active session. */
+  readonly cwdRecoveryChoice?: "continue" | "fork" | "cancel";
   /** Cancellation for an owned operation surface such as `/share`. */
   readonly signal?: AbortSignal;
   /** Progress label for that operation surface, e.g. when `/share` picks its upload destination. */
@@ -157,6 +159,8 @@ export interface OwnedUiWorkflowResult {
   readonly messages?: readonly OwnedUiWorkflowMessage[];
   readonly detail?: string;
   readonly selectorTitle?: string;
+  /** A missing-folder selector, distinct from ordinary workflow selection. */
+  readonly cwdRecovery?: { readonly fallbackCwd: string };
   readonly options?: readonly OwnedUiWorkflowOption[];
   readonly presentation?: OwnedUiWorkflowPresentation;
 }

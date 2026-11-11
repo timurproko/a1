@@ -79,7 +79,7 @@
       "lines": 192
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter.runWorkflow": {
-      "lines": 109
+      "lines": 103
     },
     "src/composition/owned-ui.ts::composeOwnedUi": {
       "lines": 170

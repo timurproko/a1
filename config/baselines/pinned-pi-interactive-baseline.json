@@ -5,18 +5,18 @@
   "recordedAt": "2026-08-16T18:24:43.909Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
-    "commit": "dd30101cfc5b0609411dd80b6f93adbc14db14cf",
+    "commit": "b4afdddf44e059c67ccf5097e5317d913521b470",
     "license": "MIT",
     "packages": [
       {
         "name": "@earendil-works/pi-coding-agent",
-        "version": "1.5.1",
-        "integrity": "sha512-rdu4pRvpQba2ep83nqHaN8L1pvY1OQ3i/2FucogA/eyRxwoUXMUXdk1Z9JnZFJR+9ck9Gs1ajuSb9m7Hz7ejYw=="
+        "version": "1.5.2",
+        "integrity": "sha512-mUWI04rqF1Vd/m1q+Ps1XeWsTXEVvRUnsmRa83I3Dzua0Tx5bYS93imeqtIfrXf7PkkaR6ERz+AuQhIJlom5yA=="
       },
       {
         "name": "@earendil-works/pi-tui",
-        "version": "1.5.1",
-        "integrity": "sha512-UZkaMYLuJrk2anJhZf06dNYdLWL8toqWNL807fhAorc8Lzy5vkxWNq/pC1f0CIM2EVdlctuRibWuIQGKYOgx+A=="
+        "version": "1.5.2",
+        "integrity": "sha512-WK8ih+c88GWizaB79y7Pq3PV7ySf5VI1pZ1i/6aBBjDOAiG2EE3ojKjl+pxQqLfyQGnzHYu4VfakOBJgumuoyw=="
       }
     ]
   },
@@ -26,8 +26,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
       "sourceMap": "modes/interactive/interactive-mode.js.map",
-      "lines": 7270,
-      "sha256": "6f38dac5378b585c924c1bd80bb325716910141f40ec7e7173f4f04657d9083d"
+      "lines": 7303,
+      "sha256": "cd345cb77d54d9f57e78f2500bf81cc185aa4a51a8811f35accd561bb7e35725"
     },
     {
       "id": "commands",
@@ -178,8 +178,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          752,
-          1141
+          871,
+          1302
         ],
         "symbol": "showStartupNoticesIfNeeded, init, run",
         "anchors": [
@@ -224,8 +224,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          494,
-          525
+          499,
+          530
         ],
         "symbol": "InteractiveMode state fields",
         "anchors": [
@@ -247,8 +247,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          670,
-          678
+          675,
+          683
         ],
         "symbol": "constructor editor setup",
         "anchors": [
@@ -384,8 +384,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3316,
-          3515
+          3324,
+          3523
         ],
         "symbol": "setupEditorSubmitHandler",
         "anchors": [
@@ -407,8 +407,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          7145,
-          7238
+          7178,
+          7271
         ],
         "symbol": "handleBashCommand",
         "anchors": [
@@ -430,8 +430,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5053,
-          5085
+          5061,
+          5093
         ],
         "symbol": "disposeActiveSelector and showSelector",
         "anchors": [
@@ -522,8 +522,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          6683,
-          6852
+          6713,
+          6885
         ],
         "symbol": "session utility command handlers",
         "anchors": [
@@ -546,8 +546,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5406,
-          5611
+          5414,
+          5619
         ],
         "symbol": "model handlers and selectors",
         "anchors": [
@@ -592,8 +592,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3517,
-          3924
+          3525,
+          3932
         ],
         "symbol": "subscribeToAgent and handleEvent",
         "anchors": [
@@ -638,8 +638,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3668,
-          3745
+          3676,
+          3753
         ],
         "symbol": "handleEvent tool and message cases",
         "anchors": [
@@ -707,8 +707,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3260,
-          3288
+          3268,
+          3296
         ],
         "symbol": "clipboard input handlers",
         "anchors": [
@@ -798,8 +798,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          7250,
-          7268
+          7283,
+          7301
         ],
         "symbol": "stop",
         "anchors": [

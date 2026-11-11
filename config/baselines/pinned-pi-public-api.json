@@ -3,7 +3,7 @@
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "1.5.1",
+      "version": "1.5.2",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -55,6 +55,7 @@
             "src/integrations/pi/engine/settings-port.ts",
             "src/integrations/pi/engine/view-state.ts",
             "src/integrations/pi/engine/workflow-contexts.ts",
+            "src/integrations/pi/engine/workflow-export.ts",
             "src/integrations/pi/engine/workflow-runner.ts",
             "src/integrations/pi/engine/workflow-share.ts"
           ]
@@ -82,6 +83,7 @@
           "kind": "class",
           "hash": "1d775993cc8b926be47a67bd36199812ed6540527411e79b49dddd615ea464a8",
           "consumers": [
+            "src/integrations/pi/engine/extension-ui-binding.ts",
             "src/integrations/pi/engine/prompt-suggestions.ts",
             "src/integrations/pi/engine/provider-authentication.ts",
             "src/integrations/pi/engine/resource-catalog.ts",
@@ -524,6 +526,8 @@
           "kind": "function",
           "hash": "2cefb72b1072d2df49b39708b7f69879c20adf132952c40200519fc2ac6d8918",
           "consumers": [
+            "src/integrations/pi/components/upstream/components/auth-url.ts",
+            "src/integrations/pi/components/upstream/components/login-dialog.ts",
             "src/integrations/pi/engine/workflow-support.ts",
             "src/integrations/pi/startup-public.ts"
           ]
@@ -935,6 +939,8 @@
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/components/upstream/components/extension-input.ts",
             "src/integrations/pi/components/upstream/components/extension-selector.ts",
+            "src/integrations/pi/components/upstream/components/login-dialog.ts",
+            "src/integrations/pi/components/upstream/components/oauth-selector.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/thinking-selector.ts",
@@ -1478,7 +1484,7 @@
         {
           "name": "InteractiveMode",
           "kind": "class",
-          "hash": "59d36abbd7f8ca60142b460adf6b67e4adf7bdf161ff7caf9944ead52e5d0d39",
+          "hash": "8a99f3896f512a5c62b9e86e83a85cdc802f88cec88853b2fd42c063c25001a4",
           "consumers": []
         },
         {
@@ -3075,7 +3081,7 @@
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "1.5.1",
+      "version": "1.5.2",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -3204,6 +3210,7 @@
           "kind": "interface",
           "hash": "5a20d15aaded27ae46ea0143cf1869bc817cecb40a168778a38d5f7522640525",
           "consumers": [
+            "src/integrations/pi/components/login-text.ts",
             "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/share-operation-dialog.ts",
@@ -3214,6 +3221,7 @@
             "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/submitted-prompt-adapter.ts",
             "src/integrations/pi/components/tool-image-presentation.ts",
+            "src/integrations/pi/components/upstream/components/login-dialog.ts",
             "src/integrations/pi/components/upstream/components/session-footer.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/status-indicator.ts",
@@ -3241,10 +3249,13 @@
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/components/skills-dialog.ts",
+            "src/integrations/pi/components/upstream/components/auth-url.ts",
             "src/integrations/pi/components/upstream/components/earendil-announcement.ts",
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/components/upstream/components/extension-input.ts",
             "src/integrations/pi/components/upstream/components/extension-selector.ts",
+            "src/integrations/pi/components/upstream/components/login-dialog.ts",
+            "src/integrations/pi/components/upstream/components/oauth-selector.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
@@ -3380,6 +3391,7 @@
           "kind": "function",
           "hash": "2c370c44434c0cecb387fb2da676e63c2731ab2580a603d6f2b8f9020b2150fc",
           "consumers": [
+            "src/integrations/pi/components/upstream/components/oauth-selector.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/thinking-selector.ts"
           ]
@@ -3442,8 +3454,11 @@
             "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/skills-dialog.ts",
+            "src/integrations/pi/components/upstream/components/auth-url.ts",
             "src/integrations/pi/components/upstream/components/extension-input.ts",
             "src/integrations/pi/components/upstream/components/extension-selector.ts",
+            "src/integrations/pi/components/upstream/components/login-dialog.ts",
+            "src/integrations/pi/components/upstream/components/oauth-selector.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
@@ -3475,6 +3490,7 @@
           "kind": "function",
           "hash": "d6962dd3565939f4d2aeac277e8a9ab7c5717c51f462d7c9f36164b22f669239",
           "consumers": [
+            "src/integrations/pi/components/upstream/components/oauth-selector.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts"
           ]
         },
@@ -3503,6 +3519,7 @@
           "kind": "function",
           "hash": "9730bac132a52ab615493cbfc14ba9bf158b9f5e4402851fb9305e8711bc438b",
           "consumers": [
+            "src/integrations/pi/components/login-links.ts",
             "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/upstream/components/session-footer.ts"
@@ -3581,6 +3598,8 @@
             "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/extension-input.ts",
+            "src/integrations/pi/components/upstream/components/login-dialog.ts",
+            "src/integrations/pi/components/upstream/components/oauth-selector.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/thinking-selector.ts",
@@ -3942,7 +3961,10 @@
           "name": "replaceControlCharacters",
           "kind": "function",
           "hash": "6bed7f9fe00d3cc110809138e32c5670f10d426f46e4c0d8210940bf3b12a27a",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/login-links.ts",
+            "src/integrations/pi/components/login-text.ts"
+          ]
         },
         {
           "name": "resetCapabilitiesCache",
@@ -4114,6 +4136,7 @@
           "kind": "function",
           "hash": "f81e15732dc355a21592f6377fa88189b46003b8837fd275705671c0ea9484e2",
           "consumers": [
+            "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/shell-session-info-reference.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/tree-selector.ts",
@@ -4136,6 +4159,8 @@
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/components/upstream/components/extension-input.ts",
             "src/integrations/pi/components/upstream/components/extension-selector.ts",
+            "src/integrations/pi/components/upstream/components/login-dialog.ts",
+            "src/integrations/pi/components/upstream/components/oauth-selector.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/thinking-selector.ts",
@@ -4191,7 +4216,9 @@
           "kind": "function",
           "hash": "89b4812bb095249f5021630133c2a1a896e6499583a4ec871b8b44d426f5e908",
           "consumers": [
-            "src/integrations/pi/components/theme.ts"
+            "src/integrations/pi/components/modal-frame.ts",
+            "src/integrations/pi/components/theme.ts",
+            "src/integrations/pi/components/upstream/components/session-footer.ts"
           ]
         },
         {
@@ -4241,6 +4268,7 @@
           "kind": "class",
           "hash": "20b16a193dccf6331affd3d0ce66aa54ba3caf40b7fd9e93b62bcb54c6ab4da3",
           "consumers": [
+            "src/integrations/pi/components/login-text.ts",
             "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/share-operation-dialog.ts",
             "src/integrations/pi/components/shell-extension-ui.ts",
@@ -4256,6 +4284,7 @@
             "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/components/upstream/components/extension-input.ts",
             "src/integrations/pi/components/upstream/components/extension-selector.ts",
+            "src/integrations/pi/components/upstream/components/oauth-selector.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/skill-invocation-message.ts",
@@ -4296,7 +4325,9 @@
           "name": "TruncatedText",
           "kind": "class",
           "hash": "1d489a4f09f69b4c81b37b637f203dea48db7817597c219be918c331331b34ef",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/components/upstream/components/oauth-selector.ts"
+          ]
         },
         {
           "name": "truncateToWidth",
@@ -4440,6 +4471,7 @@
           "kind": "function",
           "hash": "ff5227d927901971eb77bb5d5ce67d87420d9090a4e05ff230fd6d685348d457",
           "consumers": [
+            "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/owned-editor-ux.ts",
             "src/integrations/pi/components/prompt-chip-presentation.ts",

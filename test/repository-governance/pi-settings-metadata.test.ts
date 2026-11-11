@@ -13,6 +13,14 @@ describe("Pi settings presentation metadata", () => {
     expect(loadPiSettingsMetadata()).toEqual(assertPiSettingsMetadata(JSON.parse(renderMetadata())));
   });
 
+  it.each(["component", "event-frame"])("prepares source metadata before standalone %s parity loads its consumers", kind => {
+    const generator = readFileSync(`scripts/pi/update-pi-${kind}-parity.ts`, "utf8");
+    const prepare = generator.indexOf('writePiSettingsMetadata("src")');
+    const consumers = generator.indexOf('await import("../../test/features/owned-ui/');
+    expect(prepare).toBeGreaterThan(0);
+    expect(consumers).toBeGreaterThan(prepare);
+  });
+
   it("ships the same metadata in the built tree when one exists", () => {
     const built = `dist/${METADATA_FILE}`;
     if (!existsSync(built)) return;

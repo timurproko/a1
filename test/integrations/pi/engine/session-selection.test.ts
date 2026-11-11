@@ -41,7 +41,7 @@ function api() {
   };
 }
 
-describe("public CLI session selection (Pi 0.84.2 oracle)", () => {
+describe("public CLI session selection", () => {
   it("opens relative files from invoking cwd and preserves header cwd and identity", async () => {
     const { cwd, other } = await fixture();
     const path = join(cwd, "saved.jsonl");
@@ -131,6 +131,45 @@ describe("public CLI session selection (Pi 0.84.2 oracle)", () => {
     expect(manager.getHeader()?.parentSession).toBe(path);
     expect(manager.buildSessionContext().messages[0]).toMatchObject({ content: "history-saved-id" });
     expect(await readFile(path, "utf8")).toBe(before);
+  });
+
+  it.each(["continue", "fork", "cancel"] as const)("recovers a missing startup directory with %s without changing the source", async choice => {
+    const { cwd, root, store } = await fixture();
+    const source = join(store, "gone.jsonl");
+    const missing = join(root, "gone");
+    await save(source, missing);
+    const before = await readFile(source, "utf8");
+    const forkPrompt = vi.fn(async () => choice);
+    const selected = openSelectedPiSession({ cwd, selection: { target: source, sessionDir: store }, forkPrompt });
+    if (choice === "cancel") {
+      await expect(selected).rejects.toMatchObject({ exitCode: 0, message: "Session resume cancelled." });
+    } else {
+      const manager = await selected;
+      expect(manager.getCwd()).toBe(cwd);
+      expect(manager.getSessionId() === "saved-id").toBe(choice === "continue");
+      expect(manager.buildSessionContext().messages[0]).toMatchObject({ content: "history-saved-id" });
+      expect((await openSelectedPiSession({ cwd, selection: { target: manager.getSessionFile()!, sessionDir: store }, forkPrompt })).getSessionId()).toBe(manager.getSessionId());
+      expect(forkPrompt).toHaveBeenCalledTimes(choice === "continue" ? 2 : 1);
+    }
+    expect(forkPrompt).toHaveBeenCalledWith({ sourceCwd: missing, fallbackCwd: cwd });
+    expect(await readFile(source, "utf8")).toBe(before);
+  });
+
+  it("keeps a legacy boolean fork callback compatible for a missing-folder global ID", async () => {
+    const { cwd, root, store } = await fixture();
+    await save(join(store, "gone.jsonl"), join(root, "gone"));
+    const selected = await openSelectedPiSession({ cwd, selection: { target: "saved-id", sessionDir: store }, forkPrompt: async () => true });
+    expect(selected.getSessionId()).not.toBe("saved-id");
+    expect(selected.getCwd()).toBe(cwd);
+  });
+
+  it("offers missing-folder choices for a global ID instead of the ordinary cross-project fork question", async () => {
+    const { cwd, root, store } = await fixture();
+    await save(join(store, "gone.jsonl"), join(root, "gone"));
+    const forkPrompt = vi.fn(async () => "continue" as const);
+    const selected = await openSelectedPiSession({ cwd, selection: { target: "saved-id", sessionDir: store }, forkPrompt });
+    expect(selected.getSessionId()).toBe("saved-id");
+    expect(forkPrompt).toHaveBeenCalledExactlyOnceWith({ sourceCwd: join(root, "gone"), fallbackCwd: cwd });
   });
 
   it.each(["", "not json", '{"type":"not-session"}\n'])("rejects empty/invalid existing files without modifying them (%j)", async content => {

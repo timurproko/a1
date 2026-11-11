@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.2 (MIT), commit b4afdddf44e059c67ccf5097e5317d913521b470,
  * packages/coding-agent/src/modes/interactive/theme/theme.ts.
  * Modifications: Source-synchronized theme port: retain pinned theme schema, variable/color
  * resolution, built-in and custom loading, terminal detection, and layout defaults while constructing
