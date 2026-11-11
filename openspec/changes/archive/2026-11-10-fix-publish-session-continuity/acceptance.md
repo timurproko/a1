@@ -19,7 +19,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-10-fix-publish-session-continuity/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-10-fix-publish-session-continuity/acceptance.md",
   "finalizedDate": "2026-11-10",
-  "specBaseSha": "3d3c76792f41343dee7f72854c2b60c3edd4a155",
+  "specBaseSha": "0f58c6d97ceeb7761919fbff91e8e0c3974ae3cf",
   "acceptanceScenarios": [
     "Large saved conversations reach input readiness and resume with unchanged identity, history, and source bytes.",
     "Model selection and installed-update notices leave large-session work usable without false queue overload or repeated mutations.",
