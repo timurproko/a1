@@ -14,4 +14,4 @@
 ## 3. Focused checks and handoff
 
 - [x] 3.1 Add focused settings, frame geometry, live-change, spacing, loader lifecycle, and profile-isolation assertions for all five choices.
-- [ ] 3.2 Run targeted tests, typecheck, architecture, and strict OpenSpec validation; record actual outcomes and any explicit gap disposition before final acceptance/body completion.
+- [x] 3.2 Run targeted tests, typecheck, architecture, and strict OpenSpec validation; record actual outcomes and any explicit gap disposition before final acceptance/body completion.
