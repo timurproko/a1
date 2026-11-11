@@ -1,4 +1,5 @@
 import type { OwnedUiShellComponents, OwnedUiShellLazySelectorLoader } from "../../../contracts/owned-ui/index.js";
+import type { ProgressSpinnerSource } from "../../../contracts/presentation/index.js";
 import { createPiShellEditor } from "../components/shell-editor-autocomplete.js";
 import { createPiExtensionUiBridge } from "../components/shell-extension-ui.js";
 import {
@@ -55,12 +56,14 @@ import { ProgramStatusReporter } from "../components/upstream/program-status-rep
 import { workflowCommandNames } from "../engine/workflows.js";
 
 /** The Pi components and helpers behind the shell's neutral component record. */
-export function createPiShellComponents(loadLazySelectors: () => Promise<OwnedUiShellLazySelectorLoader>, bare = false): OwnedUiShellComponents {
+export function createPiShellComponents(
+  loadLazySelectors: () => Promise<OwnedUiShellLazySelectorLoader>, bare = false, spinner?: ProgressSpinnerSource,
+): OwnedUiShellComponents {
   return {
     editor: { create: createPiShellEditor },
     chrome: {
       header: createPiShellHeader,
-      status: createPiShellStatus,
+      status: (view, progress, runtime) => createPiShellStatus(view, progress, runtime, bare ? spinner : undefined),
       footer: createPiShellFooter,
       queuedInput: createPiQueuedInputStatus,
       loadedResources: createPiShellLoadedResources,
@@ -99,7 +102,9 @@ export function createPiShellComponents(loadLazySelectors: () => Promise<OwnedUi
       async shareProgress(runtime, message, style) {
         // Rationale: sharing is rare, so its progress surfaces stay off the startup graph.
         const surfaces = await import("../components/share-operation-dialog.js");
-        return (style === "dialog" ? surfaces.createPiShellShareOperationDialog : surfaces.createPiShellOperationLoader)(runtime, message);
+        return style === "dialog"
+          ? surfaces.createPiShellShareOperationDialog(runtime, message, bare ? spinner : undefined)
+          : surfaces.createPiShellOperationLoader(runtime, message);
       },
       extensionUiBridge: createPiExtensionUiBridge,
       lazySelectors: loadLazySelectors,

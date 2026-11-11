@@ -187,7 +187,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   let presenter: OwnedUiSessionPresenter;
   try {
     const presenterOptions: OwnedUiSessionShellOptions = {
-      presenters: createPiSessionPresenters(backend),
+      presenters: createPiSessionPresenters(backend, spinnerPresenterOptions(bareSettings)),
       engine: {
         backend,
         cwd: backend.identity.cwd,
@@ -257,6 +257,13 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     },
   };
   return { application, settings };
+}
+
+function spinnerPresenterOptions(settings: OwnedSettingsManager | null) {
+  return settings === null ? {} : { spinner: {
+    snapshot: () => settings.value("spinnerStyle"),
+    onChange: (listener: () => void) => settings.onChange(() => listener()),
+  } };
 }
 
 type ShellOptions = OwnedUiSessionShellOptions;

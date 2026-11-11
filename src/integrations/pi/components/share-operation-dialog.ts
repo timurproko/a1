@@ -5,6 +5,8 @@ import {
   type Component,
 } from "@earendil-works/pi-tui";
 import { BorderedLoader, DynamicBorder } from "../startup-public.js";
+import type { ProgressSpinnerSource } from "../../../contracts/presentation/index.js";
+import { progressSpinnerFrame } from "../../../ui/components/index.js";
 import { adoptPiModalFrame, PiModalFrame } from "./modal-frame.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints } from "./theme.js";
 import {
@@ -25,16 +27,23 @@ export interface PiShellOperationLoaderPort extends PiShellComponentPort {
 class ShareOperationDialog implements Component {
   readonly #loader: CancellableLoader;
   readonly #frame: PiModalFrame;
+  readonly #releaseSpinner: (() => void) | undefined;
 
   constructor(
     runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
     message: string,
+    spinner?: ProgressSpinnerSource,
   ) {
     const theme = piTheme();
+    let phase = -1;
     this.#loader = new CancellableLoader(
       createTuiFacade(runtime),
-      text => theme.fg("accent", text),
-      text => theme.fg("muted", text),
+      currentFrame => {
+        phase += 1;
+        const glyph = progressSpinnerFrame(spinner?.snapshot() ?? "current", phase, currentFrame);
+        return glyph === "" ? "" : piTheme().fg("accent", glyph);
+      },
+      text => piTheme().fg("muted", text),
       message,
     );
     this.#frame = new PiModalFrame(
@@ -47,6 +56,7 @@ class ShareOperationDialog implements Component {
       ],
       new DynamicBorder(paintPiBorder),
     );
+    this.#releaseSpinner = spinner?.onChange(() => this.#loader.invalidate());
   }
 
   get signal(): AbortSignal { return this.#loader.signal; }
@@ -54,15 +64,16 @@ class ShareOperationDialog implements Component {
   invalidate(): void { this.#frame.invalidate(); }
   render(width: number): string[] { return this.#frame.render(width); }
   handleInput(data: string): void { this.#loader.handleInput(data); }
-  dispose(): void { this.#loader.dispose(); }
+  dispose(): void { this.#releaseSpinner?.(); this.#loader.dispose(); }
 }
 
 export function createPiShellShareOperationDialog(
   runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
   message: string,
+  spinner?: ProgressSpinnerSource,
 ): PiShellOperationLoaderPort {
   ensureTheme();
-  const dialog = new ShareOperationDialog(runtime, message);
+  const dialog = new ShareOperationDialog(runtime, message, spinner);
   return { ...componentPort(dialog), signal: dialog.signal, setMessage: message => dialog.setMessage(message) };
 }
 

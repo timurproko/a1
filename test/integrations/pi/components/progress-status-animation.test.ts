@@ -1,6 +1,8 @@
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../../src/contracts/owned-ui/index.js";
+import type { ProgressSpinnerSource, ProgressSpinnerStyle } from "../../../../src/contracts/presentation/index.js";
+import { createPiShellComponents } from "../../../../src/integrations/pi/session-presenters/components.js";
 import { createPiShellStatus, piTheme } from "../../../../src/integrations/pi/components/index.js";
 import { progressStatusFrame, progressStatusText } from "../../../../src/ui/components/index.js";
 import { cellStyle } from "../../../support/ansi-cell-style.js";
@@ -51,9 +53,90 @@ function blockedView(): OwnedUiSessionViewModel {
   return { ...view, diagnostics: [{ ...view.diagnostics[0]!, code: "release-update-blocked", message: "Update 1.2.4 prepared; activation blocked." }] };
 }
 
+function spinnerChoice(initial: ProgressSpinnerStyle) {
+  let style = initial;
+  const listeners = new Set<() => void>();
+  const source: ProgressSpinnerSource = {
+    snapshot: () => style,
+    onChange(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
+  };
+  return { source, listeners, set(next: ProgressSpinnerStyle) { style = next; for (const listener of listeners) listener(); } };
+}
+
+const runtime = { getColumns: () => 80, getRows: () => 24, requestRender() {} };
 afterEach(() => vi.useRealTimers());
 
 describe("bare-A1 progress status animation", () => {
+  it.each(["Working", "Retrying", "Compacting", "Summarizing branch", "Indexing sources"])("uses stable selected frames for %s and changes style live", message => {
+    vi.useFakeTimers();
+    const choice = spinnerChoice("circle");
+    const components = createPiShellComponents(async () => { throw new Error("unused selector"); }, true, choice.source);
+    const status = components.chrome.status(busyView(message), presentation, runtime);
+    status.setProgressPresentation("custom-viewport");
+    const row = () => stripTerminalSequences(status.renderLive(80).join("\n")).trim();
+    try {
+      const frames: string[] = [];
+      for (let index = 0; index < 4; index++) {
+        const text = row();
+        frames.push(text[0]!);
+        expect(text.slice(1)).toBe(` ${message}…`);
+        expect(text.indexOf(message)).toBe(2);
+        vi.advanceTimersByTime(80);
+      }
+      expect(frames).toEqual(["◐", "◓", "◑", "◒"]);
+      expect(vi.getTimerCount()).toBe(1);
+      for (const [style, glyphs] of [["diamond", "◇◈◆"], ["square", "◧◩◨◪"], ["current", "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"]] as const) {
+        choice.set(style);
+        expect(glyphs).toContain(row()[0]!);
+        expect(row().slice(1)).toBe(` ${message}…`);
+        expect(vi.getTimerCount()).toBe(1);
+      }
+      choice.set("none");
+      expect(row()).toBe(`${message}…`);
+      status.setWorkingOverride("Extension operation");
+      expect(row()).toBe("Extension operation…");
+      choice.set("square");
+      expect(row().slice(1)).toBe(" Extension operation…");
+      expect(choice.listeners.size).toBe(1);
+      for (const width of [1, 2, 8]) expect(status.renderLive(width).every(line => stripTerminalSequences(line).length <= width)).toBe(true);
+    } finally { status.dispose?.(); }
+    expect(vi.getTimerCount()).toBe(0);
+    expect(choice.listeners.size).toBe(0);
+  });
+
+  it("applies the same live choice to owned operation loaders and preserves cancellation", async () => {
+    vi.useFakeTimers();
+    const choice = spinnerChoice("diamond");
+    const components = createPiShellComponents(async () => { throw new Error("unused selector"); }, true, choice.source);
+    const dialog = await components.dialogs.shareProgress(runtime, "Creating gist…", "dialog");
+    const row = () => dialog.render(60).map(line => stripTerminalSequences(line).trim()).find(line => line.includes("Creating gist"))!;
+    try {
+      expect(row()).toBe("◇ Creating gist…");
+      vi.advanceTimersByTime(80);
+      expect(row()).toBe("◈ Creating gist…");
+      choice.set("none"); expect(row()).toBe("Creating gist…");
+      choice.set("circle"); expect("◐◓◑◒").toContain(row()[0]!);
+      dialog.handleInput?.("\u001b");
+      expect(dialog.signal.aborted).toBe(true);
+    } finally { dialog.dispose?.(); }
+    expect(choice.listeners.size).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("ignores the owned choice in comparison factories", () => {
+    vi.useFakeTimers();
+    const choice = spinnerChoice("square");
+    const components = createPiShellComponents(async () => { throw new Error("unused selector"); }, false, choice.source);
+    const status = components.chrome.status(busyView("Working"), presentation, runtime);
+    try {
+      expect(stripTerminalSequences(status.renderLive(80).join("\n")).trim()).toBe("⠋ Working...");
+      choice.set("none");
+      vi.advanceTimersByTime(80);
+      expect(stripTerminalSequences(status.renderLive(80).join("\n")).trim()).toBe("⠙ Working...");
+      expect(choice.listeners.size).toBe(0);
+    } finally { status.dispose?.(); }
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it("advances a white text highlight from the accent spinner timer and disposes that timer", async () => {
     vi.useFakeTimers();
     const requestRender = vi.fn();

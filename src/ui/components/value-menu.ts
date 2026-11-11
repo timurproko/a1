@@ -11,7 +11,7 @@ import type { UiTheme } from "./theme.js";
 export interface ValueMenuState {
   /** Values offered, as they should read. */
   readonly choices: readonly string[];
-  /** Optional already-painted square previews, aligned before each choice label. */
+  /** Optional already-painted glyph previews, aligned before each choice label. */
   readonly previews?: readonly string[];
   /** The value in effect, marked rather than highlighted. */
   readonly current: string | null;
@@ -60,7 +60,8 @@ export function valueMenuFrame(
   const top = Math.max(bodyTop, Math.min(anchor.screenRow - currentIndex, bodyBottom - state.choices.length));
   const previewWidth = Math.max(0, ...(state.previews ?? []).map(displayWidth));
   const previewColumns = previewWidth === 0 ? 0 : previewWidth + 1;
-  const width = Math.max(...state.choices.map(choice => displayWidth(choice) + previewColumns + 4), 6);
+  const width = Math.min(Math.max(0, layout.surfaceWidth - layout.reservedRight),
+    Math.max(...state.choices.map(choice => displayWidth(choice) + previewColumns + 4), 6));
   // Invariant: rows reserve two cells for the effective-value mark and, when present,
   // a preview plus one gap. Choice text remains aligned with the source value column.
   const column = Math.min(Math.max(0, anchor.valueColumn - 2 - previewColumns), Math.max(0, layout.surfaceWidth - width - layout.reservedRight));
@@ -75,6 +76,7 @@ export function renderValueMenu(
   theme: UiTheme,
 ): readonly string[] {
   const output = [...lines];
+  if (frame.width <= 0) return output;
   state.choices.forEach((choice, index) => {
     const target = frame.top + index;
     if (target < 0 || target >= output.length) return;
@@ -85,7 +87,7 @@ export function renderValueMenu(
     const previewWidth = Math.max(0, ...previews.map(displayWidth));
     const preview = previewWidth === 0 ? "" : `${padToWidth(previews[index] ?? "", previewWidth)} `;
     // Invariant: the current-value check stays on ordinary text while the optional
-    // square carries the palette color; the row treatment supplies only its surface.
+    // preview carries its own color; the row treatment supplies only its surface.
     const tail = padToWidth(`${current ? " " : "  "}${preview}${choice} `, frame.width - (current ? 1 : 0));
     const painted = current
       ? `${paint(theme.fg("text", "✓"))}${paint(tail)}`

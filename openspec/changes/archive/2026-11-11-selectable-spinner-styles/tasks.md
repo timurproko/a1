@@ -1,0 +1,26 @@
+## 1. Live spinner-style setting
+
+- [x] 1.1 Declare Spinner style in Appearance with exactly lowercase none, current, circle, diamond, and square; preserve current as the default and invalid-value fallback.
+- [x] 1.2 Wire typed resolution and existing profile-local persistence/live updates through settings and shell composition, retaining normal accept, cancel, and failed-change rollback behavior.
+
+- [x] 1.3 Add accent-colored native dropdown previews through the shared value-menu preview column, animate the focused style without label movement, and preserve normal accept/cancel and preview teardown.
+
+## 2. Shared owned spinner presentation
+
+- [x] 2.1 Define the selected frame sets once, verify a fixed display-cell slot for every animated frame, and omit only the glyph and separator for None.
+- [x] 2.2 Apply the policy to bare-A1 shared working/retry/compaction/extension status and owned indeterminate operation loaders while preserving semantic text, colors, progress calculations, timer ownership, and disposal.
+- [x] 2.3 Preserve Current's default behavior, measured install/update bars, custom extension renderers, and pinned comparison presentation.
+
+## 3. Focused checks and handoff
+
+- [x] 3.1 Add focused settings, frame geometry, live-change, spacing, loader lifecycle, and profile-isolation assertions for all five choices.
+- [x] 3.2 Run targeted tests, typecheck, architecture, and strict OpenSpec validation; record actual outcomes and any explicit gap disposition before final acceptance/body completion.
+
+## 4. CI repair
+
+- [x] 4.1 Use the shared product identity for settings-fixture namespace properties without changing persisted bytes or weakening naming validation.
+- [x] 4.2 Reconcile current develop, retain both merged fixture behaviors, and move unchanged shell engine-option types off the eager startup graph without relaxing the startup budget.
+
+## 5. Lowercase value labels
+
+- [x] 5.1 Show lowercase spinner values in the main settings row and dropdown while preserving saved identifiers, previews, selection, and behavior; update focused presentation assertions.

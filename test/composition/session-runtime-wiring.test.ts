@@ -16,22 +16,39 @@ import {
 import type { ProcessIdentity } from "../../src/foundation/lifecycle/model.js";
 
 import type { PiEngineHostOptions } from "../../src/integrations/pi/engine/host.js";
+import type { ProgressSpinnerSource, ProgressSpinnerStyle } from "../../src/contracts/presentation/index.js";
+import type { PiSessionPresentersOptions } from "../../src/integrations/pi/session-presenters/presenters.js";
 
 type RepositoryContextReader = (sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<unknown>;
 
-const observed = vi.hoisted(() => ({ hosts: [] as PiEngineHostOptions[], readers: [] as Array<RepositoryContextReader | undefined>, autoName: true, nameFormat: "sentence" as "kebab" | "sentence" | "title" | undefined }));
+const observed = vi.hoisted(() => ({
+  hosts: [] as PiEngineHostOptions[], readers: [] as Array<RepositoryContextReader | undefined>, autoName: true,
+  nameFormat: "sentence" as "kebab" | "sentence" | "title" | undefined, spinnerStyle: "current" as ProgressSpinnerStyle,
+  spinnerSources: [] as Array<ProgressSpinnerSource | undefined>, settingsListeners: new Set<() => void>(),
+}));
 // Rationale: run the real composition, registry, and lifecycle store without provider, terminal, or user-file effects.
 vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async importOriginal => ({
   ...await importOriginal<object>(), applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {} }));
 vi.mock("../../src/integrations/pi/engine/host.js", () => ({ createPiEngineHost: vi.fn() }));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
+vi.mock("../../src/integrations/pi/session-presenters/presenters.js", async importOriginal => {
+  const original = await importOriginal<typeof import("../../src/integrations/pi/session-presenters/presenters.js")>();
+  return { ...original, createPiSessionPresenters(adapter: Parameters<typeof original.createPiSessionPresenters>[0], options: PiSessionPresentersOptions) {
+    observed.spinnerSources.push(options.spinner);
+    return original.createPiSessionPresenters(adapter, options);
+  } };
+});
 vi.mock("../../src/ui/settings/manager.js", () => ({
   OwnedSettingsManager: class {
     get file() { return "synthetic-agent-settings.json"; }
     refresh() { return false; }
-    value(key: string) { return key === "sessionAutoName" ? observed.autoName : key === "sessionNameFormat" ? observed.nameFormat : key === "promptHistoryEnabled" ? false : key === "accentColor" ? "purple" : undefined; }
-    onChange() { return () => undefined; }
+    value(key: string) { return key === "spinnerStyle" ? observed.spinnerStyle : key === "sessionAutoName" ? observed.autoName : key === "sessionNameFormat" ? observed.nameFormat : key === "promptHistoryEnabled" ? false : key === "accentColor" ? "purple" : undefined; }
+    onChange(listener: (current: this) => void) {
+      const notify = () => listener(this);
+      observed.settingsListeners.add(notify);
+      return () => observed.settingsListeners.delete(notify);
+    }
   },
 }));
 vi.mock("../../src/app/session-shell/session-shell.js", () => ({
@@ -66,6 +83,9 @@ afterEach(async () => {
   observed.hosts = [];
   observed.autoName = true;
   observed.nameFormat = "sentence";
+  observed.spinnerStyle = "current";
+  observed.spinnerSources = [];
+  observed.settingsListeners.clear();
   vi.unstubAllEnvs();
   await rm(root, { recursive: true, force: true });
 });
@@ -104,6 +124,26 @@ async function runtimeRecords(): Promise<Array<Record<string, unknown>>> {
 }
 
 describe("session runtime composition wiring", () => {
+  it.each(["bare", "comparison"] as const)("wires profile-local spinner choices only into %s", async productMode => {
+    observed.spinnerStyle = "circle";
+    const composed = await compose({ productMode });
+    try {
+      const source = observed.spinnerSources.at(-1);
+      if (productMode === "comparison") expect(source).toBeUndefined();
+      else {
+        expect(source!.snapshot()).toBe("circle");
+        const before = new Set(observed.settingsListeners);
+        const changed = vi.fn();
+        const release = source!.onChange(changed);
+        observed.spinnerStyle = "diamond";
+        for (const listener of observed.settingsListeners) if (!before.has(listener)) listener();
+        expect(source!.snapshot()).toBe("diamond");
+        expect(changed).toHaveBeenCalledOnce();
+        release();
+        expect(observed.settingsListeners).toEqual(before);
+      }
+    } finally { await composed.application.dispose(); }
+  });
   it.each(["bare", "comparison"] as const)("supplies product-owned persistent export storage only for %s", async productMode => {
     vi.stubEnv(PRODUCT_IDENTITY.environment.profileHome, root);
     const composed = await compose({ productMode });
