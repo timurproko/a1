@@ -13,6 +13,19 @@ const procedureOwners = [
 ];
 const guidancePaths = [...entryPoints, procedureOwners[0]!, procedureOwners[2]!, "docs/features/session-exports.md"];
 
+const progress = "Plan `tasks.md` as one task group per PR `## Implementation` outcome, in the same order. Then work one outcome at a time: write its code and tests, tick its `tasks.md` tasks, commit and push, and tick that outcome in the PR body (`[ ]` to `[x]`, nothing else) before starting the next one. A tick means the code and tests are written: CI, broad test runs, and manual validation never delay it, and a later defect is fixed in a new commit. Never save ticks for handoff.";
+
+describe("implementation progress guidance", () => {
+  it("gives every agent one shared rule for ticking outcomes while implementing", async () => {
+    const agents = (await readFile(resolve(root, "AGENTS.md"), "utf8")).replaceAll("\r\n", "\n");
+    expect(agents).toContain(`## Implementation progress\n\n${progress}\n`);
+    expect(agents).toContain("never mark an implementation PR ready yourself");
+    const runbook = await readFile(resolve(root, procedureOwners[0]!), "utf8");
+    expect(runbook).toContain("one task group per item in the same order");
+    expect(runbook).toContain("commit, push, and check that item before starting the next");
+  });
+});
+
 describe("delivery guidance routing", () => {
   it.each(entryPoints)("routes %s to the existing procedure owners", async path => {
     const source = await readFile(resolve(root, path), "utf8");

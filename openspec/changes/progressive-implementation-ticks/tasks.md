@@ -1,7 +1,7 @@
 ## 1. Shared progress rule
 
-- [ ] 1.1 Add the shared `Implementation progress` paragraph to `AGENTS.md` and state that agents never mark an implementation pull request ready; verify a guidance regression assertion requires the exact paragraph.
-- [ ] 1.2 Align the delivery runbook's planning and same-PR implementation steps with one task group per outcome and commit, push, tick ordering; verify the runbook names that order once in each step.
+- [x] 1.1 Add the shared `Implementation progress` paragraph to `AGENTS.md` and state that agents never mark an implementation pull request ready; verify a guidance regression assertion requires the exact paragraph.
+- [x] 1.2 Align the delivery runbook's planning and same-PR implementation steps with one task group per outcome and commit, push, tick ordering; verify the runbook names that order once in each step.
 
 ## 2. Single owner for every agent
 

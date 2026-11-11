@@ -4,7 +4,11 @@
 
 - Load the [delivery skill](.agents/skills/change-delivery/SKILL.md) before repository delivery work. It routes to the owning [delivery](docs/openspec-archive-automation.md), [worktree](docs/architecture/project-structure.md#development-worktrees), and [cleanup](docs/local-worktree-cleanup.md) procedures.
 - Ask only about a genuinely missing decision. One explicit instruction can approve a presented plan and request implementation; it does not authorize merge or unrelated deletion.
-- Keep delivery progress truthful. Trusted automation owns implementation-PR readiness and finalization; protected integration still requires a separate current exact-candidate maintainer decision.
+- Keep delivery progress truthful. Trusted automation owns implementation-PR readiness and finalization, so never mark an implementation PR ready yourself; protected integration still requires a separate current exact-candidate maintainer decision.
+
+## Implementation progress
+
+Plan `tasks.md` as one task group per PR `## Implementation` outcome, in the same order. Then work one outcome at a time: write its code and tests, tick its `tasks.md` tasks, commit and push, and tick that outcome in the PR body (`[ ]` to `[x]`, nothing else) before starting the next one. A tick means the code and tests are written: CI, broad test runs, and manual validation never delay it, and a later defect is fixed in a new commit. Never save ticks for handoff.
 
 ## Worktrees
 
