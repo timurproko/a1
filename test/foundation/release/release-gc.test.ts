@@ -1,4 +1,5 @@
-import { once } from "node:events";
+import { type ChildProcess } from "node:child_process";
+import { EventEmitter, once } from "node:events";
 import { acquireReleaseUse, spawnReleaseEntry } from "../../../src/foundation/release/release-use.js";
 import { lstat, mkdir, mkdtemp, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -50,10 +51,45 @@ describe("bounded immutable release cleanup", () => {
         await message(successor);
         const next = message(successor); successor.send("load");
         expect((await next)[0]).toMatchObject({ value: 3 });
-      } finally { successor.kill("SIGKILL"); await successorClosed; }
-    } finally { old.kill("SIGKILL"); await oldClosed; }
+      } finally { successor.kill("SIGKILL"); await successorClosed; await successor.releaseSettled; }
+    } finally { old.kill("SIGKILL"); await oldClosed; await old.releaseSettled; }
+    expect((await fixture.store.read()).uses).toEqual({});
     await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, ownReleaseIds: [] });
     await expect(lstat(first.releaseRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("settles tracked child cleanup only after its asynchronous claim release commits", async () => {
+    const fixture = await releaseFixture(1);
+    await activateAll(fixture.store, fixture.releases);
+    const use = await acquireReleaseUse(fixture.dataDir, fixture.releases[0]!.releaseId);
+    await use.started(process.pid);
+    const child = new EventEmitter() as ChildProcess;
+    const settled = use.track(child);
+    const update = ReleaseStateStore.prototype.update;
+    let allowRelease!: () => void;
+    let releaseStarted!: () => void;
+    const allowed = new Promise<void>(resolve => { allowRelease = resolve; });
+    const started = new Promise<void>(resolve => { releaseStarted = resolve; });
+    const pending = vi.spyOn(ReleaseStateStore.prototype, "update").mockImplementationOnce(async function(this: ReleaseStateStore, operation) {
+      releaseStarted();
+      await allowed;
+      return await update.call(this, operation);
+    });
+    let finished = false;
+    void settled.then(() => { finished = true; });
+    child.emit("close", 0, null);
+    try {
+      await started;
+      expect(finished).toBe(false);
+      expect(Object.values((await fixture.store.read()).uses ?? {})).toEqual([
+        expect.objectContaining({ releaseId: fixture.releases[0]!.releaseId, phase: "running", pid: process.pid }),
+      ]);
+    } finally {
+      allowRelease();
+      try { await settled; } finally { pending.mockRestore(); }
+    }
+    expect(finished).toBe(true);
+    expect((await fixture.store.read()).uses).toEqual({});
   });
 
   it("protects an expired executing root across several successor activations and concurrent users", async () => {

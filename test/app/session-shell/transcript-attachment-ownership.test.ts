@@ -112,19 +112,33 @@ describe("transcript attachment ownership", () => {
     expect(value.shell.root.transcript.component("tool-mounted")).toBe(mounted);
   });
 
-  it("uses bounded recovery rather than deleting sources when history replacement cannot seal the queue", async () => {
+  it("retains queued image sources through bounded recovery after authoritative history replacement", async () => {
     const value = await fixture();
     value.session.definitions.set("unknown", { name: "unknown", renderResult: () => new Text("bounded", 0, 0) });
     const text = "x".repeat(200_000);
-    for (let n = 0; n < 32; n++) value.session.emit(update(`pressure-${n}`, "AQID", text));
-    const original = assetId(value, "pressure-0");
-    value.session.messages = [{ role: "user", timestamp: 1, content: "REPLACEMENT_HISTORY" }];
-    await expect(value.emit({ type: "agent_settled" })).rejects.toThrow("Engine delivery did not complete");
-    expect(value.backend.deliveryDiagnostics()).toMatchObject({ overloads: 1, pending: 0, recovering: false });
-    expect(value.backend.deliveryDiagnostics().peakBytes).toBeLessThanOrEqual(8 * 1024 * 1024);
-    expect(value.backend.session.snapshot().view.transcript.filter(block => block.kind === "tool-result"))
-      .toHaveLength(32);
-    expect(value.backend.extensions.resolveTranscriptImage(original)).toBeNull();
+    const delivered: { id: string; text: string; image: string | null }[] = [];
+    const unsubscribe = value.backend.session.onEvent(event => {
+      if (event.type === "transcript-block" && event.block.id.startsWith("tool-pressure-")) {
+        delivered.push({ id: event.block.id, text: event.block.text,
+          image: value.backend.extensions.resolveTranscriptImage(event.block.imageReferences![0]!.assetId)?.data ?? null });
+      }
+    });
+    try {
+      for (let n = 0; n < 32; n++) value.session.emit(update(`pressure-${n}`, "AQID", text));
+      const original = assetId(value, "pressure-0");
+      // Invariant: authoritative history is not backlog; replacing it makes the old snapshots delivery-owned.
+      expect(value.backend.deliveryDiagnostics().overloads).toBe(0);
+      expect(value.backend.session.view().transcript.map(block => ({ id: block.id, kind: block.kind, status: block.status })))
+        .toEqual(Array.from({ length: 32 }, (_, n) => ({ id: `tool-pressure-${n}`, kind: "tool-call", status: "live" })));
+      value.session.messages = [{ role: "user", timestamp: 1, content: "REPLACEMENT_HISTORY" }];
+      await expect(value.emit({ type: "agent_settled" })).rejects.toThrow("Engine delivery did not complete");
+      expect(value.backend.deliveryDiagnostics()).toMatchObject({ overloads: 1, pending: 0, bytes: 0, recovering: false });
+      expect(value.backend.deliveryDiagnostics().peakBytes).toBeLessThanOrEqual(8 * 1024 * 1024);
+      expect(delivered).toEqual(Array.from({ length: 32 }, (_, n) => ({ id: `tool-pressure-${n}`, text, image: "AQID" })));
+      expect(value.backend.session.snapshot().view.transcript.map(block => ({ kind: block.kind, text: block.text, status: block.status })))
+        .toEqual([{ kind: "user", text: "REPLACEMENT_HISTORY", status: "finalized" }]);
+      expect(value.backend.extensions.resolveTranscriptImage(original)).toBeNull();
+    } finally { unsubscribe(); }
   });
 
   it("drops obsolete session and disposed assets without invalidating a replacement's shared content", async () => {

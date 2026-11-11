@@ -40,6 +40,7 @@ export {
   createLsToolDefinition,
   createReadToolDefinition,
   createWriteToolDefinition,
+  defineTool,
   getAgentDir,
   getMarkdownTheme,
   getSelectListTheme,

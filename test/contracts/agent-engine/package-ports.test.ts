@@ -37,6 +37,17 @@ describe("agent package contract", () => {
     expect(() => assertAgentPackagesPort(port({ capabilities }))).toThrow(/refreshModels/);
   });
 
+  it("snapshots and freezes update facts independently of later operations", () => {
+    const changes = ["npm:x 1.0.0 -> 1.1.0"];
+    const summary = { offline: false, warningCount: 1, changes };
+    const outcome = agentPackageOutcome("update", "completed", null, null, [], summary);
+    changes.push("git:x abc -> def");
+    summary.warningCount = 2;
+    expect(outcome.updateSummary).toEqual({ offline: false, warningCount: 1, changes: ["npm:x 1.0.0 -> 1.1.0"] });
+    expect(Object.isFrozen(outcome.updateSummary)).toBe(true);
+    expect(Object.isFrozen(outcome.updateSummary?.changes)).toBe(true);
+  });
+
   it("builds a frozen outcome with explicit absences", () => {
     const outcome = agentPackageOutcome("install", "failed", "npm is unavailable", "npm:x");
     expect(outcome).toEqual({

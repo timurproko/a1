@@ -104,14 +104,14 @@ describe("A1 package commands", () => {
       request: { verb: "update", source: null },
       outcome: agentPackageOutcome("update", "completed"),
       progress: undefined,
-      expected: `${transcriptStyle.green("Updated packages")}\n`,
+      expected: `${transcriptStyle.green("Packages are already up to date")}\n`,
     },
     {
       name: "update one package",
       request: { verb: "update", source: "npm:pi-mcp-adapter" },
       outcome: agentPackageOutcome("update", "completed", null, "npm:pi-mcp-adapter"),
       progress: undefined,
-      expected: `${transcriptStyle.green("Updated npm:pi-mcp-adapter")}\n`,
+      expected: `${transcriptStyle.green("npm:pi-mcp-adapter is already up to date")}\n`,
     },
   ] as const)("matches pinned Pi's $name transcript", async ({ request, outcome, progress, expected }) => {
     const profileHome = await home();

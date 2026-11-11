@@ -65,10 +65,13 @@ describe("bounded PR-core ownership", () => {
     const changed = select(["test/cli/dispatch.test.ts"]);
     expect(changed.owners.find(owner => owner.owner === "shared-product")?.reasons).toEqual(expect.arrayContaining([expect.objectContaining({ code: "changed-test" })]));
     const shared = select(["test/support/session-resume-fixture.ts"]);
-    expect(shared.owners.filter(owner => owner.selected).map(owner => owner.owner)).toEqual(["release-package-update", "pi"]);
+    expect(shared.owners.filter(owner => owner.selected).map(owner => owner.owner)).toEqual(["release-package-update", "pi", "shared-product"]);
     expect(shared.owners.find(owner => owner.owner === "pi")?.reasons).toEqual([{ code: "shared-support",
       paths: ["test/support/session-resume-fixture.ts", "test/integrations/pi/engine/runtime-integration.test.ts",
         "test/integrations/pi/engine/workflow-contexts-session-lock.test.ts"] }]);
+    expect(shared.owners.find(owner => owner.owner === "shared-product")?.reasons).toEqual([{ code: "shared-support",
+      paths: ["test/support/session-resume-fixture.ts", "test/composition/release-update-observation.test.ts"] }]);
+    expect(shared.tests).toContain("test/composition/release-update-observation.test.ts");
     const renamed = select([{ status: "R", oldPath: "src/ui/components/old.ts", path: "src/features/launch/new.ts" }]);
     expect(renamed.owners.filter(owner => owner.selected).map(owner => owner.owner)).toEqual(expect.arrayContaining(["ui-rendering", "launch-startup"]));
   });

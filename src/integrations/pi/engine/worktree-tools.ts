@@ -1,7 +1,7 @@
 import {
   createBashToolDefinition, createEditToolDefinition, createFindToolDefinition,
   createGrepToolDefinition, createLsToolDefinition, createReadToolDefinition, createWriteToolDefinition,
-  type ToolDefinition,
+  defineTool, type ToolDefinition,
 } from "../startup-public.js";
 
 export type PiWorktreeCwdReader = (sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<string>;
@@ -11,9 +11,9 @@ export function createSessionWorktreeTools(
   startupCwd: string,
   resolveCwd: (signal?: AbortSignal) => Promise<string>,
 ): ToolDefinition[] {
-  function wrap<T extends ToolDefinition["parameters"], D, S>(factory: (cwd: string) => ToolDefinition<T, D, S>): ToolDefinition<T, D, S> {
+  function wrap<T extends ToolDefinition["parameters"], D, S>(factory: (cwd: string) => ToolDefinition<T, D, S>) {
     const definition = factory(startupCwd);
-    return {
+    return defineTool<T, D, S>({
       ...definition,
       ...(definition.name === "bash" ? { promptGuidelines: [
         ...(definition.promptGuidelines ?? []),
@@ -26,11 +26,11 @@ export function createSessionWorktreeTools(
         signal?.throwIfAborted();
         return await factory(cwd).execute(id, params, signal, onUpdate, { ...context, cwd });
       },
-    };
+    });
   }
-  // Compatibility: the SDK collection erases schemas; each wrapper retains its typed implementation.
+  // Compatibility: defineTool preserves schema inference through the SDK's heterogeneous collection.
   return [
     wrap(createReadToolDefinition), wrap(createBashToolDefinition), wrap(createEditToolDefinition), wrap(createWriteToolDefinition),
     wrap(createGrepToolDefinition), wrap(createFindToolDefinition), wrap(createLsToolDefinition),
-  ] as unknown as ToolDefinition[];
+  ];
 }

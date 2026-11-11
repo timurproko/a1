@@ -618,6 +618,7 @@
           "hash": "4668a65974fb012c3a49082d334b584e1e97cc108fd6271efc2260f6c31be180",
           "consumers": [
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
+            "src/integrations/pi/engine/worktree-tools.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -645,6 +646,7 @@
           "hash": "94e14e5777457342d8351e25791b600f33579ea806b1e7f66b2101b33b0b8654",
           "consumers": [
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
+            "src/integrations/pi/engine/worktree-tools.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -672,6 +674,7 @@
           "hash": "069907417937a2c90e15727a0e40246a2c6af2e533ec39aa53bce1ad8361605f",
           "consumers": [
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
+            "src/integrations/pi/engine/worktree-tools.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -687,6 +690,7 @@
           "hash": "b502b3b93993e01af43545396e24ee1033c5fd89143cd6a9f7a5487c6f44c19a",
           "consumers": [
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
+            "src/integrations/pi/engine/worktree-tools.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -714,6 +718,7 @@
           "hash": "669605b67b75c8eb513ff88c970948d98cbb0ed6590f91e627d1899aa3ae65f1",
           "consumers": [
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
+            "src/integrations/pi/engine/worktree-tools.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -759,6 +764,7 @@
           "hash": "fc33947fa181b3e531644725d06de36517070e774d67c64486a9f25a1f0d58fe",
           "consumers": [
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
+            "src/integrations/pi/engine/worktree-tools.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -786,6 +792,7 @@
           "hash": "1ae89a3a7324b10b0241a45528971b9131e981655e7f6585ff9f3f0964ef4170",
           "consumers": [
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
+            "src/integrations/pi/engine/worktree-tools.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -911,7 +918,10 @@
           "name": "defineTool",
           "kind": "function",
           "hash": "e808b900da57bc35bebc023a786b8e334440a02857688647c412540bad6aa7ab",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/engine/worktree-tools.ts",
+            "src/integrations/pi/startup-public.ts"
+          ]
         },
         {
           "name": "detectSupportedImageMimeTypeFromFile",
@@ -2765,7 +2775,8 @@
           "kind": "interface",
           "hash": "53737a1d0b31201810dfe15213d5f451163decc076f2afe7c0ebec5375450ba7",
           "consumers": [
-            "src/integrations/pi/components/upstream/components/tool-execution.ts"
+            "src/integrations/pi/components/upstream/components/tool-execution.ts",
+            "src/integrations/pi/engine/worktree-tools.ts"
           ]
         },
         {

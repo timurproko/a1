@@ -14,12 +14,14 @@ async function claimReleaseEntry(entry: string, environment: NodeJS.ProcessEnv) 
   return acquireReleaseUse(dataDir, basename(root));
 }
 
-export async function spawnReleaseEntry(entry: string, args: readonly string[], options: SpawnOptions): Promise<ChildProcess> {
+export async function spawnReleaseEntry(entry: string, args: readonly string[], options: SpawnOptions): Promise<ChildProcess & { releaseSettled: Promise<void> }> {
   const use = await claimReleaseEntry(entry, options.env ?? process.env);
   try {
     const child = spawn(process.execPath, [entry, ...args], options);
-    use?.track(child);
-    return child;
+    const releaseSettled = use?.track(child) ?? Promise.resolve();
+    // Concurrency: detached callers need no waiter; awaited callers still observe release failures.
+    void releaseSettled.catch(() => undefined);
+    return Object.assign(child, { releaseSettled });
   } catch (error) { await use?.release(); throw error; }
 }
 
@@ -34,10 +36,12 @@ export async function acquireReleaseUse(dataDir: string, releaseId: string) {
   });
   let released = false;
   return {
-    track(child: ChildProcess): void {
+    track(child: ChildProcess): Promise<void> {
       let handoff = Promise.resolve();
       child.once("spawn", () => { handoff = this.started(child.pid!).catch(() => undefined); });
-      child.once("close", () => { void handoff.then(() => this.release()).catch(() => undefined); });
+      return new Promise<void>((resolve, reject) => {
+        child.once("close", () => { void handoff.then(() => this.release()).then(resolve, reject); });
+      });
     },
     async started(pid: number): Promise<void> {
       if (!Number.isSafeInteger(pid) || pid <= 0 || released) throw new Error("Invalid release process handoff");
