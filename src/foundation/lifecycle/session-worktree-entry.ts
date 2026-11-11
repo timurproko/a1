@@ -1,4 +1,3 @@
-import { execFile } from "node:child_process";
 import { lstat, mkdir, realpath } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -6,8 +5,6 @@ import {
   assertSessionRepositoryRuntime, readSessionStartupRoot, setSessionRepositoryContext,
   type SessionRepositoryContext, type SessionRepositoryContextOptions, type SessionRepositoryIdentity,
 } from "./session-repository-context.js";
-
-const execute = promisify(execFile);
 
 /** Create or resume a matching registered checkout. Failed attachment never deletes existing work. */
 export async function enterSessionRepositoryWorktree(
@@ -21,6 +18,9 @@ export async function enterSessionRepositoryWorktree(
   }
   await assertSessionRepositoryRuntime(identity, options);
   const startup = await readSessionStartupRoot(identity);
+  // Performance: unrelated lifecycle consumers do not need Git process bindings at import time.
+  const { execFile } = await import("node:child_process");
+  const execute = promisify(execFile);
   const git = async (...args: string[]) => (await execute("git", ["-c", "core.hooksPath=/dev/null", ...args], {
     cwd: startup, encoding: "utf8", windowsHide: true, timeout: 15_000, maxBuffer: 256 * 1024, signal: options.signal,
   })).stdout.trim();

@@ -23,6 +23,12 @@ Reconciled current `origin/develop`, including the already integrated Pi 1.5.2 u
 - Read-only actual-session inventory repeated 24 times: current 24, unverifiable 0. Earlier installed-runtime investigation reproduced 16 current / 8 unverifiable in 24 XR Build checks. The controlled contention regression separately verifies the new snapshot behavior.
 - XR Build: 15 focused instruction/worktree tests, name guard, and strict change validation passed. Private and KEEP preservation cases remain covered.
 
+## CI repair: deferred Git process binding
+
+The first finalized CI candidate failed while collecting the unchanged `test/foundation/release/update-launch.test.ts`: importing the lifecycle barrel evaluated the new worktree module's top-level `promisify(execFile)`, but the launch fixture deliberately exposes only `spawn`. The failure reproduced locally before the repair. Startup and Pi integration jobs were cancelled after the core failure; their missing outcome artifacts were cancellation fallout, not additional established product failures.
+
+Git process binding now happens inside worktree entry, after runtime validation, rather than during module import. The existing launch fixture and its isolation assertions remain unchanged. Five focused files passed after the repair: 199 tests, including all 20 launch-selection tests, entry/resume guards, the actual SDK attachment-cwd test, and command grammar/results. Build, typecheck, architecture/identity/pinned-source guards, and code-documentation governance passed. Fresh exact-head CI remains pending after the repair push; no acceptance scenario or protection was weakened.
+
 ## Known-gap disposition
 
 - This is source/build validation, not a published or installed release. Existing running agents retain their installed code. Integrate/publish the A1 capability before integrating the XR Build instruction migration; the maintainer owns that ordering and optional installed multi-session acceptance.
