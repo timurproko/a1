@@ -8,12 +8,13 @@ const nonTimingScenarios = [
   "keeps the exact packaged recovery guardian alive after updater loss",
   "materializes the published minimal inventory into one reusable dependency layer",
   "drains a production-shaped historical backlog through the exact packaged private worker",
+  "preserves legacy approved roots while the exact packaged worker collects eligible modern roots",
   "leaves durable scheduled evidence when the exact private entry cannot import its runtime",
 ];
 const startupScenario = "gates post-update, restart, and warm startup for both exact packaged profiles";
 
 describe("exact-package startup and non-timing ownership", () => {
-  it("retains all seven scenarios under exactly one successor file", async () => {
+  it("retains all eight scenarios under exactly one successor file", async () => {
     const [contracts, startup] = await Promise.all([
       readFile("test/foundation/release/package-install.integration.test.ts", "utf8"),
       readFile("test/foundation/release/package-startup.integration.test.ts", "utf8"),
@@ -24,7 +25,7 @@ describe("exact-package startup and non-timing ownership", () => {
     }
     expect(startup).toContain(`it.runIf(process.platform === "win32")("${startupScenario}"`);
     expect(contracts).not.toContain(startupScenario);
-    expect((contracts + startup).match(/^\s*it(?:\.runIf\([^\n]+\))?\(/gmu)).toHaveLength(7);
+    expect((contracts + startup).match(/^\s*it(?:\.runIf\([^\n]+\))?\(/gmu)).toHaveLength(8);
   });
 
   it("gives each owner fresh mutable state while sharing only verified installed bytes", async () => {

@@ -2,12 +2,17 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { DefaultPackageManager } from "@earendil-works/pi-coding-agent";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { assertAgentPackagesPort } from "../../../../src/contracts/agent-engine/index.js";
 import { createPiPackagesPort } from "../../../../src/integrations/pi/engine/index.js";
 
 const roots: string[] = [];
-afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
+afterEach(async () => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })));
+});
 
 async function profile(): Promise<{ root: string; profileRoot: string; cwd: string; extension: string }> {
   const root = await mkdtemp(resolve(tmpdir(), "a1-pi-packages-"));
@@ -111,6 +116,38 @@ describe("official Pi package integration", () => {
     expect(outcome.status).toBe("failed");
     expect(outcome.detail).toMatch(/does not exist/i);
     expect(await configuredSources(profileRoot)).toHaveLength(0);
+  });
+
+  it("isolates update results and warnings across repeated operations on one port", async () => {
+    const { profileRoot, cwd } = await profile();
+    vi.stubEnv("PI_OFFLINE", "0");
+    let emit: Parameters<DefaultPackageManager["setProgressCallback"]>[0];
+    vi.spyOn(DefaultPackageManager.prototype, "setProgressCallback").mockImplementation(callback => { emit = callback; });
+    const update = vi.spyOn(DefaultPackageManager.prototype, "update")
+      .mockImplementationOnce(async () => {
+        emit?.({ type: "start", action: "update", source: "npm:x", message: "Updating npm:x..." });
+        emit?.({ type: "progress", action: "update", source: "npm:x", message: "Registry warning" });
+        emit?.({ type: "result", action: "install", source: "npm:x", message: "Not an update result" });
+        emit?.({ type: "result", action: "update", source: "npm:x", message: "npm:x 1.0.0 -> 1.1.0" });
+        emit?.({ type: "result", action: "update", source: "npm:x" });
+      })
+      .mockImplementationOnce(async () => {
+        emit?.({ type: "progress", action: "update", source: "npm:x", message: "Failed update warning" });
+        throw new Error("Update failed");
+      })
+      .mockResolvedValueOnce();
+    const progress: unknown[] = [];
+    const port = createPiPackagesPort({ profileRoot, cwd, onProgress: event => progress.push(event) });
+    const changed = await port.update("npm:x");
+    expect(changed.updateSummary).toEqual({ offline: false, warningCount: 1, changes: ["npm:x 1.0.0 -> 1.1.0"] });
+    expect(progress).toEqual([
+      { operation: "update", message: "Updating npm:x..." },
+      { operation: "update", message: "Registry warning", severity: "warning" },
+    ]);
+    expect(await port.update()).toMatchObject({ status: "failed", detail: "Update failed" });
+    expect((await port.update()).updateSummary).toEqual({ offline: false, warningCount: 0, changes: [] });
+    expect(changed.updateSummary?.changes).toEqual(["npm:x 1.0.0 -> 1.1.0"]);
+    expect(update.mock.calls).toEqual([["npm:x"], [undefined], [undefined]]);
   });
 
   it("updates every configured package when no source is named", async () => {

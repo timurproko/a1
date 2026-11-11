@@ -46,4 +46,5 @@ export async function warmMaterializedRelease(
     }, timeoutMs);
     timer.unref?.();
   });
+  await child.releaseSettled;
 }
