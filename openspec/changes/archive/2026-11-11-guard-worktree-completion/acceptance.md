@@ -32,10 +32,10 @@ The maintainer integration decision accepts these scenarios:
     "Repository cleanup reports attached-session instead of removing a checkout a running A1 session has attached.",
     "Repository guidance directs agents to guarded completion after a verified merge, not direct cleanup."
   ],
-  "archiveDigest": "9bde6a3a80d4d5f9f23adb9fb891c22d098404e982f475e07a384a5b48edd9ab",
-  "specDigest": "1c2c06ae0f4232c1470059c90ba5019daa525219f4876a7a813b5c729ee36bc0",
+  "archiveDigest": "30267d9b00d910fe1d4d2ea22ef71fc57a6bcf264ebb8b44480e52712dfd5a27",
+  "specDigest": "90a472c118270ec3b92437c0d7fa4611e84e4dc6870e7e68023a27d9702fc6eb",
   "tasksDigest": "8c6c3c3c65620433178cb51b78e9f809779381e7dfc4ea87f3987a6c38f7710b",
-  "evidenceDigest": "209a9b13aea44acbb42c426a4a5ad51134d1dfa3e93b93b2556ee7c4269b097a",
+  "evidenceDigest": "a0fc23019452b2958df4d925d492e72a5447f9da9760ace1c91ed20e09006d90",
   "knownGaps": []
 }
 ```
