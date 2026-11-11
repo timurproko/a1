@@ -22,14 +22,16 @@ export async function readPinnedCommandChangelog(sinceVersion?: string, path: UR
 }
 
 function formatPinnedCommandChangelog(content: string, sinceVersion?: string): string {
-  // Provenance: behavior follows Pi 0.84.2 utils/changelog.ts at 914cf1472e715297caa30db4b9535d534a9eb718.
+  // Provenance: behavior follows Pi 1.5.1 utils/changelog.ts at dd30101cfc5b0609411dd80b6f93adbc14db14cf.
   // Runtime reads only the owned data resource; maintenance tooling verifies its pinned provenance.
   let releases = content.split(/(?=^## )/m).flatMap((section): Release[] => {
     const version = /^##\s+\[?(\d+)\.(\d+)\.(\d+)\]?/.exec(section);
     return version ? [{ version: version.slice(1).map(Number), markdown: section.trim() }] : [];
   });
   if (sinceVersion !== undefined) {
-    const previous = sinceVersion.split(".").map(value => Number(value) || 0);
+    const parts = /^v?(\d+)\.(\d+)\.(\d+)/.exec(sinceVersion.trim());
+    if (parts === null) return "";
+    const previous = parts.slice(1).map(Number);
     releases = releases.filter(release => {
       for (let index = 0; index < 3; index++) {
         const difference = release.version[index]! - (previous[index] ?? 0);

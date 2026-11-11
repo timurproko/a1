@@ -1,11 +1,4 @@
-/**
- * Extension packages are managed outside any session: the command that installs
- * one runs before the runtime exists, against a profile root chosen by the caller
- * rather than by whatever session happens to be open. So this port stands apart
- * from the session-scoped service ports and names only what a package operation
- * needs — a root, a source, and an outcome a caller can render without knowing
- * which engine performed it.
- */
+/** Non-interactive package operations use a caller-chosen profile root before any session exists. */
 
 export type AgentPackageOperation = "install" | "remove" | "update" | "refresh-models" | "list";
 
@@ -29,11 +22,18 @@ export interface AgentPackageOutcome {
   readonly source: string | null;
   readonly packages: readonly AgentPackageDescriptor[];
   readonly detail: string | null;
+  /** Update facts distinguish a checked result from skipped or warned work. */
+  readonly updateSummary?: {
+    readonly offline: boolean;
+    readonly warningCount: number;
+    readonly changes: readonly string[];
+  };
 }
 
 export interface AgentPackageProgress {
   readonly operation: AgentPackageOperation;
   readonly message: string;
+  readonly severity?: "warning";
 }
 
 export interface AgentPackagesPort {
@@ -82,6 +82,7 @@ export function agentPackageOutcome(
   detail?: string | null,
   source?: string | null,
   packages: readonly AgentPackageDescriptor[] = [],
+  updateSummary?: AgentPackageOutcome["updateSummary"],
 ): AgentPackageOutcome {
   return Object.freeze({
     operation,
@@ -89,5 +90,8 @@ export function agentPackageOutcome(
     source: source ?? null,
     packages: Object.freeze([...packages]),
     detail: detail ?? null,
+    ...(updateSummary === undefined ? {} : {
+      updateSummary: Object.freeze({ ...updateSummary, changes: Object.freeze([...updateSummary.changes]) }),
+    }),
   });
 }

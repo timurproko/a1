@@ -4,9 +4,32 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- Introducing commit `726730e263055d034f77466a9464dbf2a9f12e98` upgraded pinned Pi from 1.5.0 to 1.5.1 without reconciling the command-outcome fixture, package update summaries, or changelog version selection. Pi 1.5.1 uses a module-local provider matcher rather than `InteractiveMode.findLoginProviderOptions`; its package CLI now distinguishes offline, unchanged, warned, and changed updates; changelog selection accepts a leading version with a prerelease suffix and returns no selection for invalid saved versions.
+- Remove the obsolete private-method binding from the independent pinned producer and bind its newly required changelog helpers. Retain fail-fast checks for every bound method and all command scenarios and comparisons.
+- Carry package update summaries and warning severity through the vendor-neutral package contract. Collect Pi's result/progress events per update, mirror the non-public offline predicate inside the Pi adapter, and reproduce summary wording, styling, order, and counts without changing package policy or user-only scope.
+- Match pinned changelog selection for invalid versions, leading `v`, whitespace, and prerelease versions. Update the independent expected-result type to reflect Pi's actual optional result and explicitly assert that invalid and current prerelease versions show no new notes.
+- Commit `3d3c7679` introduced a deferred-selector frame hold without checking whether the runtime was running, and added source consumers without refreshing the public API inventory. Gate holds on both attachment and running state, preserving live-selector holds. Regenerate the reviewed consumer inventory; export identities and declaration hashes remain unchanged.
+- These are conformance repairs to existing transcript, changelog, presentation-lifecycle, and inventory requirements, so no requirement changes or specification deltas are needed. No assertions, budgets, timeouts, or coverage are reduced.
 
 ## Evidence
+
+### Local reproduction
+
+- On Windows x64, Node `v24.21.0`, from generated head `edf79ea0867daa30d6ef5164f7b0b29086f47b7f`, `npx vitest run test/app/session-shell/command-outcome-parity.test.ts test/cli/package-message-parity.test.ts` reproduced 7 failures: 3 command-outcome cases stopped at `Pinned method missing: findLoginProviderOptions`, and 4 package-transcript cases compared unconditional `Updated ...` against `Skipped package updates (offline mode)` (both color levels).
+- The pinned 1.5.1 changelog explicitly documents update result events, the new summary variants, and prerelease changelog version handling. Its interactive implementation calls module-local `findMatchingProviders`; the removed method is not a fixture dependency anymore. Once that blocker was removed, the same command-outcome tests exposed the missing `createChangelogMarkdown` binding, then the pre-start deferred trust-selector hold from `3d3c7679`; all four command-outcome tests pass after those fixes.
+- Reading the full failed log identified two additional failed files outside the bounded triage excerpt: `test/integrations/pi/engine/changelog.test.ts` and `test/repository-governance/pinned-pi-public-api.test.ts`. A focused local run reproduced both failures (2 failed, 5 passed). The generated API refresh changes only consumer arrays, matching the source consumers added by the UX dialog change; it preserves all export identities and declaration hashes.
+- The failed required Full aggregate follows missing failed-lane evidence; it is not independent evidence of an orchestration defect. Preserve all recorded owners and native lanes for the trusted exact-head PR Full selection.
+
+### Focused implementation evidence and pre-finalization observations
+
+- Merged current `origin/develop` before final local checks. Build and both TypeScript configurations pass. Architecture, session-writer guard, identity boundaries, and pinned source-ledger checks pass without changing their budgets or baselines; the contract introduction was shortened rather than raising the startup source-byte allowance.
+- Focused command: `npx vitest run test/app/session-shell/command-outcome-parity.test.ts test/app/session-shell/shell-host.test.ts test/app/session-shell/session-shell-workflows.test.ts test/cli/package-message-parity.test.ts test/cli/packages.test.ts test/integrations/pi/engine/package-integration.test.ts test/integrations/pi/engine/changelog.test.ts test/contracts/agent-engine/package-ports.test.ts test/repository-governance/pinned-pi-public-api.test.ts` — 9 files, 88 tests passed on Windows x64, Node `v24.21.0`.
+- Added independent direct/compatibility transcript comparisons at both color levels for offline values, unchanged updates, source-specific warnings, singular/plural changed-package lists, mixed warning/change outcomes, and subsequent empty updates. Adapter tests cover ignored non-update results, failure recovery, and result isolation; neutral contract tests cover immutable summary snapshots. Changelog parity adds prerelease, leading-v, whitespace, partial-version, and invalid-version cases. Existing pre-start command-outcome cases and live shell workflows cover both sides of the frame-hold guard.
+- Strict validation: `npx openspec validate fix-nightly-regression-2026-11-11 --strict` passed.
+- Before finalization, PR #907 remains a draft; its Development readiness, selection, and product jobs are skipped, as required. Its immutable App author and unchanged `regression-provenance.json` identify failed Full regression run #90 on `3d3c7679`; the trusted finalized-head PR selection must retain all four native Full lanes and all recorded failed owners. No standalone Full dispatch or broad local suite was used as substitute evidence.
+- Known gaps: no unresolved implementation gaps. Exact-finalized-head cross-platform PR Full regression and required aggregate results remain future CI evidence, not local test claims or implementation tasks. Numbered-package nightly publication recovery remains independent and is not claimed by this repair.
+
+### Original triage
 
 - Run [Full regression #90](https://github.com/timurproko/a1/actions/runs/42950411894) (attempt 1, schedule) on `3d3c767` at 2026-11-11T03:05:37Z:
   - `vitest-fast-resource-sensitive` (`fast-resource-sensitive`) failed on windows-2025-node22 (resource shard), windows-2025-node24 (resource shard) with exit 1.

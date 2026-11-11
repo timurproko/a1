@@ -5,7 +5,9 @@ The Full regression run of 2026-11-11 failed on `develop` at `3d3c767` (https://
 ## What Changes
 
 - Reproduce the failure on the failed lane from the listed tests or commands and identify the introducing change among the suspect commits.
-- Fix the cause without weakening assertions, budgets, timeouts, or coverage, and add regression evidence where the failure exposed a gap.
+- Restore pinned command-outcome fixture compatibility, truthful extension-update summaries, and changelog version selection after the Pi 1.5.1 upgrade.
+- Guard deferred-selector frame holds before runtime start and refresh the public API consumer inventory after the UX dialog change.
+- Preserve independent parity assertions and add update-summary, per-operation isolation, immutable-result, and prerelease/invalid-version regression cases without reducing budgets, timeouts, or coverage.
 
 ## Capabilities
 
@@ -15,7 +17,7 @@ None.
 
 ### Modified Capabilities
 
-None identified yet. When the cause is known and the fix changes a requirement, add the delta under `specs/<capability>/spec.md` and remove `skip_specs: true` from `.openspec.yaml`; when the fix changes no requirement, leave both as scaffolded.
+None. These changes restore existing pinned transcript, changelog, terminal lifecycle, and public API inventory requirements; `skip_specs: true` remains appropriate.
 
 ## Impact
 

@@ -9,12 +9,12 @@ import { readPinnedCommandChangelog } from "../../../../src/integrations/pi/engi
 interface Entry { readonly major: number; readonly minor: number; readonly patch: number; readonly content: string }
 interface PinnedChangelog {
   parseChangelog(path: string): Entry[];
-  getNewEntries(entries: Entry[], version: string): Entry[];
+  getNewEntries(entries: Entry[], version: string): Entry[] | undefined;
   normalizeChangelogLinks(markdown: string, version: Entry): string;
 }
 const pinned = await import(pathToFileURL(resolve("node_modules/@earendil-works/pi-coding-agent/dist/utils/changelog.js")).href) as PinnedChangelog;
 function expected(entries: Entry[], since?: string): string {
-  const selected = since === undefined ? [...entries].reverse() : pinned.getNewEntries(entries, since);
+  const selected = since === undefined ? [...entries].reverse() : pinned.getNewEntries(entries, since) ?? [];
   return selected.length === 0 ? since === undefined ? "No changelog entries found." : "" : selected.map(entry => pinned.normalizeChangelogLinks(entry.content, entry)).join("\n\n");
 }
 
@@ -41,9 +41,11 @@ describe("published changelog command data", () => {
       };
       const synthetic = await resource(text);
       const empty = await resource("# No releases");
-      for (const since of [undefined, "3.1.0", "3.2.1", "2.0.0", "", "invalid"]) {
+      for (const since of [undefined, "3.1.0", "3.2.1", "2.0.0", "3.2.1-dev", "v3.1.0", " 3.1.0 ", "3.1", "", "invalid"]) {
         await expect(readPinnedCommandChangelog(since, synthetic), String(since)).resolves.toBe(expected(entries, since));
       }
+      await expect(readPinnedCommandChangelog("3.2.1-20261111.1", synthetic)).resolves.toBe("");
+      await expect(readPinnedCommandChangelog("invalid", synthetic)).resolves.toBe("");
       const complete = await readPinnedCommandChangelog(undefined, synthetic);
       expect(complete.indexOf("oldest release")).toBeLessThan(complete.indexOf("older release"));
       expect(complete.indexOf("older release")).toBeLessThan(complete.indexOf("synthetic release"));
