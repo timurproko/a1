@@ -28,9 +28,9 @@ The maintainer integration decision accepts these scenarios:
     "Control-state writes on Windows survive a concurrent reader and leave no `release-state.json.*.tmp` files behind.",
     "Release validation fails if a published predecessor can no longer read, update, or maintain control state after it activates the candidate."
   ],
-  "archiveDigest": "9682cf0db3b26eff5e42068b460e9b06641b372560b82bce8fd962a548c34b7b",
+  "archiveDigest": "f1783353136e8176c91c7f0c917fd2f564ddcbf7defc939957826f765b87dd92",
   "specDigest": "56cfa9fe0ff64aa285b58b35b54bcecd1f7b51e58575c9de2e77804c8870187a",
-  "tasksDigest": "27c664d9378a27ebbfd961db329c6a846e6e3c81e7eb8cd92e694feccb51c70b",
+  "tasksDigest": "3c273091dbe295984bbbf09adfe58f33155ae5bc4940f447e5dbe03821261dea",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
