@@ -5,5 +5,5 @@
 
 ## 2. Single owner for every agent
 
-- [ ] 2.1 Reduce `CLAUDE.md` to an import of `AGENTS.md` and point the delivery skill checklist at the shared paragraph; verify regression assertions for the import, the reference, and the absence of a second copy.
-- [ ] 2.2 Record focused validation and known-gap disposition; verify strict OpenSpec validation, typecheck, and the final delivery body.
+- [x] 2.1 Reduce `CLAUDE.md` to an import of `AGENTS.md` and point the delivery skill checklist at the shared paragraph; verify regression assertions for the import, the reference, and the absence of a second copy.
+- [x] 2.2 Record focused validation and known-gap disposition; verify strict OpenSpec validation, typecheck, and the final delivery body.

@@ -24,6 +24,14 @@ describe("implementation progress guidance", () => {
     expect(runbook).toContain("one task group per item in the same order");
     expect(runbook).toContain("commit, push, and check that item before starting the next");
   });
+
+  it("keeps the rule in one place for Claude Code and the delivery skill", async () => {
+    const claude = await readFile(resolve(root, "CLAUDE.md"), "utf8");
+    expect(claude.trim()).toBe("@AGENTS.md");
+    const skill = await readFile(resolve(root, ".agents/skills/change-delivery/SKILL.md"), "utf8");
+    expect(skill).toContain("Follow `Implementation progress` in `AGENTS.md`");
+    expect(skill).not.toContain(progress);
+  });
 });
 
 describe("delivery guidance routing", () => {
