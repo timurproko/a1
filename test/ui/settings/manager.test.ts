@@ -135,9 +135,9 @@ describe("owned settings manager", () => {
     expect(manager.value("promptImageLimit")).toBe(8);
   });
 
-  it.each(["sentence", "title"] as const)("persists the live %s naming format and removes the default override", async format => {
+  it.each(["kebab", "title"] as const)("persists the live %s naming format and removes the default override", async format => {
     const target = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
-    expect(target.value("sessionNameFormat")).toBe("kebab");
+    expect(target.value("sessionNameFormat")).toBe("sentence");
     const seen: string[] = [];
     target.onChange(manager => seen.push(manager.value("sessionNameFormat")));
     expect(await target.change("a1", "sessionNameFormat", format)).toMatchObject({
@@ -149,15 +149,22 @@ describe("owned settings manager", () => {
     expect(restarted.value("sessionNameFormat")).toBe(format);
     expect((await restarted.change("a1", "sessionNameFormat", "snake")).status).toBe("failed");
     expect(restarted.value("sessionNameFormat")).toBe(format);
-    await restarted.change("a1", "sessionNameFormat", "kebab");
+    await restarted.change("a1", "sessionNameFormat", "sentence");
     expect(JSON.parse(readFileSync(target.file, "utf8"))[PRODUCT_IDENTITY.commandName]?.sessionNameFormat).toBeUndefined();
-    expect(new OwnedSettingsManager({ configDir: root, profileId: "a1" }).value("sessionNameFormat")).toBe("kebab");
+    expect(new OwnedSettingsManager({ configDir: root, profileId: "a1" }).value("sessionNameFormat")).toBe("sentence");
   });
 
-  it("resolves an invalid stored naming format to kebab without rejecting other settings", () => {
+  it.each(["kebab", "title"] as const)("preserves an explicit saved %s preference when the default changes", format => {
+    writeFileSync(path.join(root, "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { sessionNameFormat: format } }));
+    const target = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    expect(target.value("sessionNameFormat")).toBe(format);
+    expect(JSON.parse(readFileSync(target.file, "utf8"))[PRODUCT_IDENTITY.commandName].sessionNameFormat).toBe(format);
+  });
+
+  it("resolves an invalid stored naming format to sentence without rejecting other settings", () => {
     writeFileSync(path.join(root, "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { sessionNameFormat: "snake", sessionAutoName: false } }));
     const target = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
-    expect(target.value("sessionNameFormat")).toBe("kebab");
+    expect(target.value("sessionNameFormat")).toBe("sentence");
     expect(target.value("sessionAutoName")).toBe(false);
     expect(target.resolution.notices).not.toHaveLength(0);
   });

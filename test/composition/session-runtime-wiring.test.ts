@@ -23,7 +23,7 @@ type RepositoryContextReader = (sessionId: string, sessionFile: string, signal: 
 
 const observed = vi.hoisted(() => ({
   hosts: [] as PiEngineHostOptions[], readers: [] as Array<RepositoryContextReader | undefined>, autoName: true,
-  nameFormat: "kebab" as "kebab" | "sentence" | "title", spinnerStyle: "current" as ProgressSpinnerStyle,
+  nameFormat: "sentence" as "kebab" | "sentence" | "title" | undefined, spinnerStyle: "current" as ProgressSpinnerStyle,
   spinnerSources: [] as Array<ProgressSpinnerSource | undefined>, settingsListeners: new Set<() => void>(),
 }));
 // Rationale: run the real composition, registry, and lifecycle store without provider, terminal, or user-file effects.
@@ -82,7 +82,7 @@ afterEach(async () => {
   observed.readers = [];
   observed.hosts = [];
   observed.autoName = true;
-  observed.nameFormat = "kebab";
+  observed.nameFormat = "sentence";
   observed.spinnerStyle = "current";
   observed.spinnerSources = [];
   observed.settingsListeners.clear();
@@ -177,8 +177,8 @@ describe("session runtime composition wiring", () => {
   }
 
   it.each([
-    ["kebab", "fix-cache"], ["sentence", "Fix cache"], ["title", "Fix Cache"],
-  ] as const)("uses the %s setting for first naming and regeneration after unseen same-path re-entry", async (format, expected) => {
+    ["kebab", "fix-cache"], ["sentence", "Fix cache"], ["title", "Fix Cache"], [undefined, "Fix cache"],
+  ] as const)("uses the %s format or Sentence case fallback for naming and context regeneration", async (format, expected) => {
     observed.nameFormat = format;
     const file = await sessionFile(sessionId);
     const backend = namingBackend(file);

@@ -603,14 +603,17 @@ describe("the settings screen", () => {
     const { app: target, session, writes } = await app();
     screen(target);
     startSearch(target, "Session name format");
-    expect(find(target, "Session name format")).toContain("Kebab case");
+    expect(find(target, "Session name format")).toContain("Sentence case");
     for (const [label, value] of [["Sentence case", "sentence"], ["Title Case", "title"], ["Kebab case", "kebab"]]) {
       const rows = screen(target);
       const row = rows.findIndex(line => line.includes("Session name format"));
       const current = session.value("sessionNameFormat") === "kebab" ? "Kebab case" : session.value("sessionNameFormat") === "sentence" ? "Sentence case" : "Title Case";
       target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: rows[row]!.indexOf(current) + 1 }, HOST);
       const menu = screen(target);
-      for (const choice of ["Kebab case", "Sentence case", "Title Case"]) expect(menu.some(line => line.includes(choice))).toBe(true);
+      const choices = ["Sentence case", "Kebab case", "Title Case"].map(choice => menu.findIndex(line => line.includes(choice)));
+      expect(choices.every(index => index >= 0)).toBe(true);
+      expect(choices[0]).toBeLessThan(choices[1]!);
+      expect(choices[1]).toBeLessThan(choices[2]!);
       expect(menu.join("\n")).not.toMatch(/Snake|Lowercase words/);
       const choiceRow = menu.findIndex(line => line.includes(label!));
       target.onMouse?.({ kind: "press", button: 0, row: choiceRow + 1, column: menu[choiceRow]!.indexOf(label!) + 1 }, HOST);

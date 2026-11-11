@@ -133,7 +133,7 @@ describe("owned UI settings sections", () => {
     expect(group).toMatchObject({ title: "Agent", unavailableReason: null, readOnlyReason: null });
     expect(group?.entries).toHaveLength(5);
     expect(group?.entries[0]).toMatchObject({ id: "sessionAutoName", backend: "a1", value: true, editable: true, application: "live" });
-    expect(group?.entries[1]).toMatchObject({ id: "sessionNameFormat", backend: "a1", label: "Session name format", value: "kebab", editable: true, application: "live", choices: ["kebab", "sentence", "title"] });
+    expect(group?.entries[1]).toMatchObject({ id: "sessionNameFormat", backend: "a1", label: "Session name format", value: "sentence", editable: true, application: "live", choices: ["sentence", "kebab", "title"] });
     expect(group?.entries[2]).toMatchObject({ id: "promptSuggestions", backend: "a1", value: true, editable: true, application: "live" });
     expect(group?.entries[3]).toMatchObject({ id: "skillsPresentation", backend: "a1", value: "collapse", editable: true, application: "live" });
     expect(group?.entries[4]).toMatchObject({ id: "promptImageLimit", backend: "a1", value: 8, editable: true, application: "live" });
