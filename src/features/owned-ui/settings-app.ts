@@ -954,6 +954,7 @@ function rangeOf(entry: OwnedUiSettingsEntry): NumericRange {
 /** Scalar choices use their readable presentation without changing stored values. */
 function displaySettingValue(entry: OwnedUiSettingsEntry, value: OwnedUiSettingValue): string {
   if (typeof value === "boolean") return value ? "yes" : "no";
+  if (entry.backend === "a1" && entry.id === "spinnerStyle" && value === "current") return "dots";
   if (entry.backend === "a1" && entry.id === "sessionNameFormat") {
     if (value === "kebab") return "Kebab case";
     if (value === "sentence") return "Sentence case";
