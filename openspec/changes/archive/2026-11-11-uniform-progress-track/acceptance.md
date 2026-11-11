@@ -28,9 +28,9 @@ The maintainer integration decision accepts these scenarios:
     "Cached and Uncached labels share the other token labels' left edge while all report values keep one left-aligned column and their existing calculations.",
     "Session Info keeps one blank row above scroll and close hints during scrolling and resizing, without changing the pinned comparison report."
   ],
-  "archiveDigest": "9a1f78a139845387d05e9d92ba388597454e785d27bf26e306a8f2305a7cc8d6",
+  "archiveDigest": "bb3676b9b40a0b8b08d231f05f6acbed6d5493409526821cb4a1191b5851c7bf",
   "specDigest": "6c210bd8fcc3f0dbf26887d2f1bd22ed06f30af0a80c69835d1cfdbd946317b5",
-  "tasksDigest": "111f8a60653d5869d4b7a472752b8d76d0f60cf121f5365a6b36afbabd95d85a",
+  "tasksDigest": "5d9cc8f1f704a993ab9576e267d8996657faa9f72d92ab560e446ef5cf009a40",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
