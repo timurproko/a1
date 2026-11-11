@@ -68,7 +68,7 @@ describe("owned UI setting declarations", () => {
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "spinnerStyle")).toMatchObject({
       label: "Spinner style", section: { id: "appearance", title: "Appearance" },
-      application: "live", defaultValue: "current", allowedValues: ["none", "current", "circle", "diamond", "square"],
+      application: "live", defaultValue: "current", allowedValues: ["current", "circle", "diamond", "square", "none"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "skillsPresentation")).toMatchObject({
       label: "Skills",

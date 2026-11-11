@@ -75,10 +75,10 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     id: "spinnerStyle",
     label: "Spinner style",
     section: APPEARANCE_SECTION,
-    description: "Indicator beside working and operation progress text. None keeps text only; Current keeps the dot spinner.",
+    description: "Indicator beside working and operation progress text. Dots keeps the dot spinner; None keeps text only.",
     application: "live",
     defaultValue: "current",
-    allowedValues: Object.freeze(["none", "current", "circle", "diamond", "square"] as const satisfies readonly ProgressSpinnerStyle[]),
+    allowedValues: Object.freeze(["current", "circle", "diamond", "square", "none"] as const satisfies readonly ProgressSpinnerStyle[]),
   }),
   scrollbarAppearance: Object.freeze({
     id: "scrollbarAppearance",
