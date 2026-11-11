@@ -1,7 +1,7 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "1.5.1"
+    "version": "1.5.2"
   },
   "changelogSince": "0.84.2",
   "rows": [
@@ -2924,6 +2924,17 @@
       "since": "1.5.1",
       "disposition": "declined",
       "reason": "A1 exposes profile-isolated interactive /login and /logout workflows, not Pi's shell auth grammar; shell credential commands require a separately approved CLI surface."
+    },
+    {
+      "id": "changelog:1.5.2:fork-sessions-whose-folder-is-gone",
+      "kind": "changelog",
+      "feature": "Fork sessions whose folder is gone",
+      "version": "1.5.2",
+      "summary": "when a session's original folder was moved or deleted, you can now fork it into the current folder instead of only continuing, so later resumes no longer ask.",
+      "since": "1.5.2",
+      "disposition": "owned",
+      "behavior": "sessions.new-resume",
+      "test": "test/integrations/pi/engine/session-cwd-recovery.test.ts"
     }
   ]
 }

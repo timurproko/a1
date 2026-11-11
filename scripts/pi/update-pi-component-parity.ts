@@ -2,6 +2,7 @@ import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 // @ts-expect-error — plain shipped JS module without type declarations.
 import { installPinnedPiTuiResolver } from "../../bin/module-resolver.js";
+import { writePiSettingsMetadata } from "./build-pi-settings-metadata.mjs";
 import { readPinnedPiIdentity } from "../governance/pinned-pi-identity.mjs";
 import identity from "../../src/product-identity.json" with { type: "json" };
 
@@ -11,6 +12,8 @@ import identity from "../../src/product-identity.json" with { type: "json" };
 // A generator always describes this checkout's pin, not a parent Pi process's package override.
 delete process.env.PI_PACKAGE_DIR;
 installPinnedPiTuiResolver(resolve("."));
+// Invariant: the standalone generator loads source consumers without Vitest's metadata setup.
+writePiSettingsMetadata("src");
 const { buildStaticParityCases, STATIC_PARITY_COLOR_MODE, STATIC_PARITY_COVERAGE } = await import("../../test/features/owned-ui/pi-static-parity-fixture.js");
 const pinned = await readPinnedPiIdentity(".");
 

@@ -1,4 +1,4 @@
-import type { OwnedUiCommandResult, OwnedUiWorkflowRequest } from "../../contracts/owned-ui/index.js";
+import type { OwnedUiCommandResult, OwnedUiExtensionUiPort, OwnedUiWorkflowRequest, OwnedUiWorkflowResult } from "../../contracts/owned-ui/index.js";
 
 /** The owned selectors a workflow can open in place of asking the engine to choose. */
 export interface WorkflowSelectors {
@@ -14,6 +14,23 @@ export interface WorkflowSelectors {
   showLoginMethodSelector(providerReference: string): void;
   showLogoutSelector(): Promise<void>;
   showTreeSelector(): Promise<void>;
+}
+
+/** Maps the pinned recovery labels back to explicit choices, including Escape as cancellation. */
+export async function selectSessionCwdRecovery(
+  request: OwnedUiWorkflowRequest,
+  result: OwnedUiWorkflowResult,
+  ui: Pick<OwnedUiExtensionUiPort, "select">,
+): Promise<OwnedUiWorkflowRequest> {
+  const options = result.options ?? [];
+  const selected = await ui.select(result.message, options.map(option => option.label));
+  const choice = options.find(option => option.label === selected)?.id;
+  const cwdRecoveryChoice = choice === "continue" || choice === "fork" ? choice : "cancel";
+  return {
+    ...request,
+    cwdRecoveryChoice,
+    ...(cwdRecoveryChoice === "continue" ? { cwdOverride: result.cwdRecovery!.fallbackCwd } : {}),
+  };
 }
 
 interface SelectorRoute {
