@@ -1905,9 +1905,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "A1 PR links, model priority, level colors, secondary-accent name reveals, dim name/row clipping; Pi intact.",
+      "modifications": "A1 PR links, model/name priority over stats, level colors, secondary-accent name reveals, dim name/row clipping; Pi intact.",
       "upgradeStrategy": "three-way",
-      "localSha256": "32f694b7961dc49188c83b48df802db34951039f25be609dfb3aa09c82e6d603",
+      "localSha256": "47e00b13437d56b41b1857f1d49eb2a500a4f3e4076335773958a03d8ea93f31",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1935,8 +1935,8 @@
         },
         {
           "id": "owned-session-name-reveal",
-          "reason": "Approved context-aware-session-naming places bare-A1 session names after stats and animates changed automatic names with the configured secondary-accent shimmer, reveal, and fade to dim.",
-          "upstreamBehavior": "The comparison footer retains its path-row name. Bare A1 preserves path/PR and stats/model priority, clips the name first, and never animates authoritative terminal-title text.",
+          "reason": "Approved context-aware-session-naming places bare-A1 session names after stats with secondary-accent reveals; contextual-session-names reserves the name ahead of detailed statistics and optional provider/route text.",
+          "upstreamBehavior": "The comparison footer retains its path-row name. Bare A1 preserves path/PR and model identity, reduces detailed stats before clipping names, and never animates authoritative terminal-title text.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         }
       ],

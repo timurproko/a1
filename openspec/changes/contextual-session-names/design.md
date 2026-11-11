@@ -4,7 +4,7 @@
 
 Settings currently default to `kebab`, and the menu puts Kebab case first. The footer currently protects statistics/model content before allocating any remaining width to the name, matching the existing specification but not the requested priority.
 
-## Approved scope proposed for implementation
+## Implementation decisions
 
 ### Relevant task context
 
@@ -32,4 +32,4 @@ Run typecheck, strict validation of this OpenSpec change, and only the focused n
 
 ## Known gaps
 
-None identified at planning time. Model title quality needs regression fixtures for naming input and deterministic policy; a live model result is not guaranteed by prompt assertions alone.
+No known gaps. Deterministic regressions cover naming inputs, fallback, normalization, ownership, settings, and footer allocation. Live model wording remains model-dependent and was not claimed as manually accepted; focused validation is recorded in `implementation-evidence.md`.

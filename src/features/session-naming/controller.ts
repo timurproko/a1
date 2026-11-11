@@ -1,5 +1,6 @@
 import type { OwnedUiEvent, OwnedUiSessionBackend, OwnedUiSessionNameState, OwnedUiSessionNamingPort } from "../../contracts/owned-ui/index.js";
 import type { SessionNameFormat } from "./generate.js";
+import { sessionNamingTask } from "./context.js";
 
 export interface SessionNamingContext {
   readonly cwd: string;
@@ -22,6 +23,7 @@ interface PromptRun {
   context?: SessionNamingContext;
   state?: OwnedUiSessionNameState;
   prompt?: string;
+  promptId?: string;
   checking?: boolean;
 }
 
@@ -134,6 +136,7 @@ export class SessionNamingController {
     const run = this.#run;
     if (!run || !text.trim() || text.trimStart().startsWith("/")) return;
     run.prompt = text.trim();
+    run.promptId = id;
     this.#launch(run);
   }
 
@@ -147,8 +150,9 @@ export class SessionNamingController {
     this.#attempted = key;
     const work = new AbortController();
     this.#work = { abort: work, key: repositoryKey };
+    const task = sessionNamingTask(prompt, run.promptId!, context, this.#options.backend.session.view().transcript, state.completedContext === null);
     void import("./generate.js").then(async ({ formatSessionName, generateSessionNameCandidate }) => {
-      const candidate = await generateSessionNameCandidate(prompt, `${context.cwd.split(/[\\/]/).at(-1) ?? ""} (${context.branch ?? "no branch"})`,
+      const candidate = await generateSessionNameCandidate(task,
         request => this.#options.naming.complete(request), work.signal, this.#options.format);
       if (work.signal.aborted || this.#disposed || !this.#options.enabled()) return;
       return this.#options.withContext(current => {
