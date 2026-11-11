@@ -8,9 +8,18 @@ The maintainer selected option A after comparing actual colored terminal glyphs.
 - Keep all ANSI color sequences and percentage positioning unchanged. Color distinguishes completed cells from remaining cells even though their glyphs now match.
 - Extend existing exact-output tests rather than relying on visual screenshots. Check renderer parity across empty, partial, rounded, and complete percentages and saved accents.
 
+## Approved Session Info refinement
+
+The maintainer requested these related UI fixes in the same PR, selected separate Folder/File rows with a trailing folder separator, and requested left-aligned Cached/Uncached labels and one blank row before the footer.
+
+- Split paths by their final source separator rather than normalizing them with the host OS. Windows, POSIX, root, and relative paths retain their original spelling. Keep the filename on its labelled row when it fits; preserve complete content through wrapping at smaller widths.
+- Keep all value columns left-aligned, including numeric values. Remove only the cache-token sublabel indentation; preserve cost-breakdown nesting and all values and semantic styles.
+- Reserve footer breathing room in dialog chrome, not scrollable report content. Account for that row in viewport height, paging, and rail geometry. Full-screen Changelog/Keyboard Shortcuts presentation stays unchanged.
+- Finalized-delivery CI reported `delivery-artifact-missing`: the archived change lacked `.openspec.yaml`. Add the standard spec-driven metadata without changing validation rules, then let normal finalization regenerate digests.
+
 ## Scope boundaries
 
-No bar-length, fill calculation, phase, animation, cleanup, palette, installer/update orchestration, or percentage-text changes. Inline comparisons established the requested appearance; optional manual inspection does not require installing or updating a real global package.
+No bar-length, fill calculation, phase, animation, cleanup, palette, installer/update orchestration, report-calculation, or percentage-text changes. Inline comparisons established the requested progress appearance; optional manual inspection does not require installing or updating a real global package. The pinned comparison Session Info remains unchanged.
 
 ## Implementation observations
 

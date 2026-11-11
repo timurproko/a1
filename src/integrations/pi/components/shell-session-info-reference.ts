@@ -14,10 +14,10 @@ interface InfoRow {
   readonly indent?: number;
 }
 
-/** Splits a plain path by visible columns, preserving every source grapheme in order. */
-function splitSessionFile(sessionFile: string, firstWidth: number, continuationWidth: number): readonly string[] {
+/** Splits an identity value by visible columns, preserving every source grapheme in order. */
+function splitIdentityValue(value: string, firstWidth: number, continuationWidth: number): readonly string[] {
   const rows: string[] = [];
-  let remaining = sessionFile;
+  let remaining = value;
   let rowWidth = firstWidth;
   while (remaining) {
     let row = sliceByColumn(remaining, 0, rowWidth, true);
@@ -40,9 +40,12 @@ export function renderPiShellSessionInfoReferenceDocument(
 ): PiShellSessionInfoReferenceDocument {
   ensureTheme();
   const { stats, sessionName, cacheWaste, usageBreakdown, cacheWarming } = presentation;
+  const sessionFile = stats.sessionFile ?? "In-memory";
+  const separator = Math.max(sessionFile.lastIndexOf("/"), sessionFile.lastIndexOf("\\"));
   const identity: InfoRow[] = [
     ...(sessionName ? [{ label: "Name:", value: sessionName }] : []),
-    { label: "File:", value: stats.sessionFile ?? "In-memory" },
+    ...(separator < 0 ? [] : [{ label: "Folder:", value: sessionFile.slice(0, separator + 1) }]),
+    { label: "File:", value: sessionFile.slice(separator + 1) },
     { label: "ID:", value: stats.sessionId },
   ];
   const messages: InfoRow[] = [
@@ -55,9 +58,9 @@ export function renderPiShellSessionInfoReferenceDocument(
   const promptTokens = input + cacheRead + cacheWrite;
   const tokens: InfoRow[] = [{ label: "Input:", value: promptTokens.toLocaleString() }];
   if (promptTokens > 0 && (cacheRead > 0 || cacheWrite > 0)) {
-    tokens.push({ label: "Cached:", indent: 2, value: `${cacheRead.toLocaleString()} ${piTheme().fg("dim", `(${((cacheRead / promptTokens) * 100).toFixed(1)}%)`)}` });
+    tokens.push({ label: "Cached:", value: `${cacheRead.toLocaleString()} ${piTheme().fg("dim", `(${((cacheRead / promptTokens) * 100).toFixed(1)}%)`)}` });
     const written = cacheWrite > 0 ? ` ${piTheme().fg("dim", `(${cacheWrite.toLocaleString()} written to cache)`)}` : "";
-    tokens.push({ label: "Uncached:", indent: 2, value: `${(input + cacheWrite).toLocaleString()}${written}` });
+    tokens.push({ label: "Uncached:", value: `${(input + cacheWrite).toLocaleString()}${written}` });
   }
   tokens.push({ label: "Output:", value: stats.tokens.output.toLocaleString() });
   tokens.push({ label: "Total:", value: stats.tokens.total.toLocaleString() });
@@ -94,10 +97,10 @@ export function renderPiShellSessionInfoReferenceDocument(
   const render = (rows: readonly InfoRow[]) => new Text(rows.map(row => `${prefix(row)}${row.value}`).join("\n"), 1, 0).render(width);
   const preamble: string[] = [];
   for (const row of identity) {
-    if (row.label !== "File:") { preamble.push(`${prefix(row)}${row.value}`); continue; }
+    if (row.label !== "Folder:" && row.label !== "File:") { preamble.push(`${prefix(row)}${row.value}`); continue; }
     const label = prefix(row);
     const firstWidth = Math.max(0, contentWidth - visibleWidth(label));
-    const [first = "", ...continuation] = splitSessionFile(row.value, firstWidth, contentWidth);
+    const [first = "", ...continuation] = splitIdentityValue(row.value, firstWidth, contentWidth);
     preamble.push(firstWidth > 0 ? `${label}${first}` : piTheme().fg("dim", row.label), ...continuation);
   }
   return {
