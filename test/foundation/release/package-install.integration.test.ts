@@ -284,6 +284,35 @@ describe("clean installation of the exact candidate", () => {
     expect(state.cleanup.workerRuns.find(run => run.runId === "exact-package-cleanup")).toMatchObject({ status: "completed", completed: 39 });
   }, 120_000);
 
+  it("preserves legacy approved roots while the exact packaged worker collects eligible modern roots", async () => {
+    const packageRoot = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@timurproko", "a1");
+    const dataDir = resolve(root, "legacy-cleanup-data");
+    const releases = await createPackagedCleanupBacklog(dataDir, 4, 1, [0]);
+    const legacy = releases[0]!;
+    const cleanup = await runAsync(process.execPath, [resolve(packageRoot, "bin", "release-cleanup.js")], root, {
+      ...process.env,
+      A1_DATA_DIR: dataDir,
+      A1_RUNTIME_DIR: resolve(root, "legacy-cleanup-runtime"),
+      RELEASE_CLEANUP_RUN_ID: "exact-package-legacy-cleanup",
+      RELEASE_CLEANUP_KEEP: "[]",
+    });
+    expect(cleanup.status, cleanup.stderr).toBe(0);
+    const state = JSON.parse(await readFile(resolve(dataDir, "release-state.json"), "utf8")) as {
+      releases: Record<string, { lifetimeClaims?: true }>;
+      cleanup: { pending: Record<string, unknown>; workerRuns: Array<{ runId: string; status: string; completed: number }> };
+    };
+    const retained = [legacy.releaseId, releases[2]!.releaseId, releases[3]!.releaseId].sort();
+    expect(Object.keys(state.releases).sort()).toEqual(retained);
+    expect((await readdir(resolve(dataDir, "releases"))).filter(name => !name.startsWith(".")).sort()).toEqual(retained);
+    expect(state.releases[legacy.releaseId]).not.toHaveProperty("lifetimeClaims");
+    await expect(readFile(resolve(legacy.releaseRoot, "node_modules", "fixture", "0.js"), "utf8")).resolves.toBe("export default 0;");
+    await expect(access(legacy.diagnosticsPath)).resolves.toBeUndefined();
+    await expect(access(releases[1]!.releaseRoot)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(access(releases[1]!.diagnosticsPath)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(Object.keys(state.cleanup.pending)).toHaveLength(0);
+    expect(state.cleanup.workerRuns.find(run => run.runId === "exact-package-legacy-cleanup")).toMatchObject({ status: "completed", completed: 1 });
+  }, 120_000);
+
   it("leaves durable scheduled evidence when the exact private entry cannot import its runtime", async () => {
     const packageRoot = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@timurproko", "a1");
     const brokenRoot = resolve(root, "broken-cleanup-package");
@@ -335,7 +364,7 @@ describe("clean installation of the exact candidate", () => {
 
 });
 
-async function createPackagedCleanupBacklog(dataDir: string, count: number, payloadFilesPerRelease: number) {
+async function createPackagedCleanupBacklog(dataDir: string, count: number, payloadFilesPerRelease: number, legacyReleaseIndexes: readonly number[] = []) {
   const releasesRoot = resolve(dataDir, "releases");
   await mkdir(releasesRoot, { recursive: true });
   const releases = [] as Array<{
@@ -344,6 +373,7 @@ async function createPackagedCleanupBacklog(dataDir: string, count: number, payl
     packageVersion: string;
     contentDigest: string;
     approval: "approved";
+    lifetimeClaims?: true;
     materializedAt: string;
     certifiedAt: string;
     diagnosticsPath: string;
@@ -356,7 +386,15 @@ async function createPackagedCleanupBacklog(dataDir: string, count: number, payl
     const releaseRoot = resolve(releasesRoot, releaseId);
     await mkdir(resolve(releaseRoot, "node_modules", "fixture"), { recursive: true });
     await writePayloadFiles(releaseRoot, payloadFilesPerRelease);
-    await writeFile(resolve(releaseRoot, ".a1-release.json"), JSON.stringify({ releaseId, packageVersion, contentDigest }));
+    const lifetimeClaims = !legacyReleaseIndexes.includes(index);
+    const claimModule = "dist/foundation/release/release-use.js";
+    if (lifetimeClaims) {
+      await mkdir(dirname(resolve(releaseRoot, claimModule)), { recursive: true });
+      await writeFile(resolve(releaseRoot, claimModule), "// Provenance: lifetime-claim fixture marker.\n");
+    }
+    await writeFile(resolve(releaseRoot, ".a1-release.json"), JSON.stringify({
+      releaseId, packageVersion, contentDigest, files: lifetimeClaims ? [{ path: claimModule }] : [],
+    }));
     const diagnosticsPath = resolve(dataDir, `certification-${releaseId}.json`);
     await writeFile(diagnosticsPath, JSON.stringify({ releaseId }));
     releases.push({
@@ -365,6 +403,7 @@ async function createPackagedCleanupBacklog(dataDir: string, count: number, payl
       packageVersion,
       contentDigest,
       approval: "approved",
+      ...(lifetimeClaims ? { lifetimeClaims: true as const } : {}),
       materializedAt: new Date(0).toISOString(),
       certifiedAt: new Date(0).toISOString(),
       diagnosticsPath,
