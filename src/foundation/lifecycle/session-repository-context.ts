@@ -628,6 +628,73 @@ export async function releaseInvalidSessionRepositoryContext(
   });
 }
 
+/** The checkout a session left for completion, with the verified startup root it continues from. */
+export interface DetachedSessionWorktree {
+  readonly startupRoot: string;
+  readonly commonDir: string;
+  readonly worktreeRoot: string;
+  readonly worktreeGitDir: string;
+  readonly branch: string;
+}
+
+/**
+ * Release a valid attachment this session owns, after `record` durably notes what was left.
+ * A failed check or record keeps the attachment; nothing on disk is deleted.
+ */
+export async function detachSessionRepositoryContextForCompletion(
+  identity: SessionRepositoryIdentity,
+  options: SessionRepositoryContextOptions,
+  record: (detached: DetachedSessionWorktree) => Promise<void>,
+): Promise<DetachedSessionWorktree> {
+  const header = await readSessionHeader(identity);
+  const owner = { runtimeId: requireRuntimeId(options), agentId: requireAgentId(options) };
+  return await withClaimLock(options, async () => {
+    await requireLiveRuntime(header, owner, options);
+    const stored = await readContextRecord(header, options);
+    if (stored === null) throw contextError("no task worktree is attached", "worktree-not-attached");
+    const selected = await validateContextRecord(header, stored, options.signal);
+    const claim = await readClaim(selected, options);
+    if (claim === null || claim === undefined || !claimMatchesWorktree(claim, selected) || !ownedBy(claim, owner)) {
+      throw contextError("the session no longer owns its attached worktree", "worktree-owner-unverifiable");
+    }
+    if (await lstat(join(selected.gitDir, "locked")).then(() => true, error => { if (isMissingPathError(error)) return false; throw error; })) {
+      throw contextError("selected worktree is locked in Git", "worktree-git-locked");
+    }
+    const detached = {
+      startupRoot: stored.startupRoot, commonDir: selected.commonDir, worktreeRoot: selected.root,
+      worktreeGitDir: selected.gitDir, branch: requireBranch(selected),
+    };
+    await record(detached);
+    await rm(contextRecordPath(header, options), { force: true });
+    await releaseClaimsOwnedBy(owner, null, options);
+    return detached;
+  });
+}
+
+/** Whether any live runtime holds the editing claim of one checkout; an unreadable claim is never treated as absent. */
+export async function sessionWorktreeClaimState(
+  commonDir: string,
+  gitDir: string,
+  options: SessionRepositoryContextOptions = {},
+): Promise<"absent" | "live" | "unverifiable"> {
+  const path = claimRecordPath(commonDir, gitDir, options);
+  if (await lstat(path).then(() => false, error => { if (isMissingPathError(error)) return true; throw error; })) return "absent";
+  const claim = await readClaimRecordAt(path);
+  if (claim === null) return "unverifiable";
+  try {
+    const observed = await requireInspector(options)(claim.pid);
+    return observed !== null && observed.pid === claim.pid && observed.startIdentity === claim.startIdentity ? "live" : "absent";
+  } catch {
+    return "unverifiable";
+  }
+}
+
+/** Private per-agent store for a completion requested by a shell and settled by its runtime. */
+export function sessionWorktreeCompletionPath(identity: SessionRepositoryIdentity, options: SessionRepositoryContextOptions): string {
+  const key = `${requireRuntimeId(options)}\0${requireAgentId(options)}\0${identity.sessionId}`;
+  return join(claimStoreRoot(options), "completions", `${digest(key)}.json`);
+}
+
 function isInvalidAttachment(error: unknown): error is Error & ReleasedSessionAttachment {
   return error instanceof Error && "code" in error && error.code === INVALID_ATTACHMENT
     && "worktreeRoot" in error && typeof error.worktreeRoot === "string"

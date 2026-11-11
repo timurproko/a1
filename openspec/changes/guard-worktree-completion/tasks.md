@@ -5,8 +5,8 @@
 
 ## 2. Completion
 
-- [ ] 2.1 Add `worktree complete` grammar, preflight, detach, and pending-completion record; verify CLI parsing, content and lock blockers, and unchanged attach/detach behavior.
-- [ ] 2.2 Settle pending completion in the runtime after the shell exits using the configured adapter; verify ordering, unavailable adapter, blocked cleanup, competing claim, expiry, and a Windows directory-handle fixture.
+- [x] 2.1 Add `worktree complete` grammar, preflight, detach, and pending-completion record; verify CLI parsing, content and lock blockers, and unchanged attach/detach behavior.
+- [x] 2.2 Settle pending completion in the runtime after the shell exits using the configured adapter; verify ordering, unavailable adapter, blocked cleanup, competing claim, expiry, and a Windows directory-handle fixture.
 
 ## 3. Repository cleanup and guidance
 

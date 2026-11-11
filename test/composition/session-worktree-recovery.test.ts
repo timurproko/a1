@@ -33,7 +33,9 @@ async function attachedSession() {
   await registry.readerFor(undefined)(identity.sessionId, identity.sessionFile, new AbortController().signal);
   const entered = await updateSessionRepositoryContext(identity, { action: "enter-worktree", branch: "fix/sdk-task" }, { runtimeId, inspectProcess });
   if (entered.kind !== "linked") throw new Error("missing attachment");
-  return { primary, registry, runtime, identity, write, entered, dispose: async () => { await runtime.dispose(); await registry.dispose(); } };
+  const bash = (command: string) => runtime.session.getToolDefinition("bash")!.execute("call", { command }, undefined, undefined, context);
+  const complete = () => updateSessionRepositoryContext(identity, { action: "complete-worktree" }, { runtimeId, inspectProcess });
+  return { primary, registry, runtime, identity, write, bash, complete, entered, dispose: async () => { await runtime.dispose(); await registry.dispose(); } };
 }
 
 it("fails one tool call and then runs from primary after the attached checkout loses its Git pointer", async () => {
@@ -72,4 +74,24 @@ it("still reports the lost checkout to the next tool call when footer polling re
     await session.write("recovered.txt", "primary");
     expect(await readFile(join(session.primary, "recovered.txt"), "utf8")).toBe("primary");
   } finally { await metadata.dispose(); await session.dispose(); }
+});
+
+it("appends the settled completion to the shell call that requested it and keeps later tools on primary", async () => {
+  const session = await attachedSession();
+  try {
+    const quiet = await session.bash("echo attached");
+    expect(JSON.stringify(quiet.content)).not.toContain("Worktree completion");
+    // The issuing shell runs the CLI; the request it leaves is the same one this call writes.
+    await session.complete();
+    const settled = await session.bash("echo done");
+    const text = settled.content.map(part => part.type === "text" ? part.text : "").join("\n");
+    expect(text).toContain("done");
+    expect(text).toMatch(/Worktree completion \(cleanup-unavailable\).*a1\.worktreeCleanup/su);
+    expect(text).toContain(`left ${session.entered.cwd} (fix/sdk-task)`);
+    await session.write("after.txt", "primary");
+    expect(await readFile(join(session.primary, "after.txt"), "utf8")).toBe("primary");
+    expect(await readFile(join(session.entered.cwd, "README.md"), "utf8")).toContain("source");
+    const later = await session.bash("echo later");
+    expect(JSON.stringify(later.content)).not.toContain("Worktree completion");
+  } finally { await session.dispose(); }
 });

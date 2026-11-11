@@ -21,6 +21,12 @@ export {
 } from "./session-repository-context.js";
 export { retrySessionCoordination } from "./session-context-retry.js";
 export { enterSessionRepositoryWorktree } from "./session-worktree-entry.js";
+export {
+  describeWorktreeCompletion, requestSessionWorktreeCompletion, settleSessionWorktreeCompletion,
+} from "./session-worktree-completion.js";
+export type {
+  WorktreeCompletionRequest, WorktreeCompletionResult, WorktreeCompletionSelectors,
+} from "./session-worktree-completion.js";
 export type {
   ReleasedSessionAttachment,
   SessionRepositoryContext,

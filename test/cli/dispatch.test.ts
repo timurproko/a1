@@ -53,6 +53,8 @@ describe("A1 CLI dispatch", () => {
     [["worktree", "attach", "D:/worktree"], { kind: "session-context", request: { action: "link-worktree", path: "D:/worktree" } }],
     [["worktree", "detach"], { kind: "session-context", request: { action: "unlink-worktree" } }],
     [["worktree", "list"], { kind: "session-context", request: { action: "worktrees" } }],
+    [["worktree", "complete"], { kind: "session-context", request: { action: "complete-worktree" } }],
+    [["worktree", "complete", "--pr", "914", "--change", "name-dot-spinner"], { kind: "session-context", request: { action: "complete-worktree", change: "name-dot-spinner", pr: 914 } }],
     [["session", "worktrees"], { kind: "session-context", request: { action: "worktrees" } }],
     [["session", "link-worktree", "D:/worktree"], { kind: "session-context", request: { action: "link-worktree", path: "D:/worktree" } }],
     [["session", "unlink-worktree"], { kind: "session-context", request: { action: "unlink-worktree" } }],
@@ -67,6 +69,8 @@ describe("A1 CLI dispatch", () => {
   it.each([
     [], ["enter"], ["attach"], ["enter", "fix/task", "--base"], ["enter", "fix/task", "--force"],
     ["attach", "D:/task", "extra"], ["detach", "extra"], ["list", "extra"], ["remove", "D:/task"],
+    ["complete", "D:/task"], ["complete", "--pr"], ["complete", "--pr", "0"], ["complete", "--pr", "1", "--pr", "2"],
+    ["complete", "--change", "Not_A_Change"], ["complete", "--force", "yes"],
   ])("rejects incomplete or unsupported worktree arguments %j", (...args) => {
     expect(parseCliCommand(["worktree", ...args], PRERELEASE)).toMatchObject({ kind: "error" });
   });
@@ -79,6 +83,7 @@ describe("A1 CLI dispatch", () => {
     expect(commands.launch).not.toHaveBeenCalled();
     expect(cliHelp(PRERELEASE)).toContain("worktree enter <branch>");
     expect(cliHelp(PRERELEASE)).toContain("detach preserves files");
+    expect(cliHelp(PRERELEASE)).toContain("worktree complete [--change <id>] [--pr <number>]");
     expect(cliHelp(PRERELEASE)).toContain("session worktrees");
     expect(cliHelp(PRERELEASE)).toContain("session unlink-worktree");
     expect(cliHelp(PRERELEASE)).not.toContain("solo");

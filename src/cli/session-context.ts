@@ -35,6 +35,9 @@ export async function runSessionContextCommand(
       { runtimeId: identity.runtimeId, inspectProcess: options.inspectProcess ?? inspectLiveProcess },
     );
     if (outcome.kind === "unlinked") stdout("Session worktree context cleared.\n");
+    if (outcome.kind === "completing") {
+      stdout(`Session returned to ${outcome.startupRoot}; left ${outcome.cwd} (${outcome.branch}). Repository cleanup runs when this command's shell exits and is reported with its result.\n`);
+    }
     if (outcome.kind === "linked") stdout(`Session worktree context linked: ${outcome.cwd} (${outcome.branch})\n`);
     if (outcome.kind === "worktrees") {
       for (const entry of outcome.entries) {
@@ -80,6 +83,8 @@ function recoveryDetail(code: string | null): string | undefined {
     "worktree-primary-checkout": "attach a task worktree, not the primary checkout; use worktree enter to create one",
     "worktree-git-locked": "Git has locked this worktree; retain it and ask its owner to release the lock",
     "worktree-foreign-repository": "the selected worktree belongs to a different repository; the previous attachment was preserved",
+    "worktree-not-attached": "no task worktree is attached to this session; nothing was changed",
+    "worktree-attachment-invalid": "the attached worktree is no longer a valid Git worktree; run worktree detach to return to the startup checkout",
     "worktree-context-changed": "the attachment changed during the operation; no ownership was overridden",
   };
   return code === null ? undefined : details[code];

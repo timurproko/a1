@@ -80,7 +80,17 @@ export class SessionRuntimeRegistry {
   /** Strict tool cwd lookup: transient startup failure never redirects a write to primary. */
   toolReaderFor(agentId: string | undefined) {
     const read = this.readerFor(agentId);
-    return async (sessionId: string, sessionFile: string, signal: AbortSignal): Promise<string> => {
+    /** Run a completion the just-finished shell requested, from this stable process rather than that shell. */
+    const settleShell = async (sessionId: string, sessionFile: string, signal: AbortSignal): Promise<string | null> => {
+      const { runtimeId, inspectProcess } = this.#options;
+      if (this.#disposed || runtimeId === undefined || inspectProcess === undefined) return null;
+      const { describeWorktreeCompletion, settleSessionWorktreeCompletion } = await import("../foundation/lifecycle/session-worktree-completion.js");
+      const result = await settleSessionWorktreeCompletion({ sessionId, sessionFile }, {
+        runtimeId, inspectProcess, signal, ...(agentId === undefined ? {} : { agentId }),
+      });
+      return result === null ? null : describeWorktreeCompletion(result);
+    };
+    return Object.assign(async (sessionId: string, sessionFile: string, signal: AbortSignal): Promise<string> => {
       const { retrySessionCoordination } = await import("../foundation/lifecycle/session-context-retry.js");
       return await retrySessionCoordination(async () => {
         signal.throwIfAborted();
@@ -103,7 +113,7 @@ export class SessionRuntimeRegistry {
         const { readSessionStartupRoot } = await import("../foundation/lifecycle/session-repository-context.js");
         return await readSessionStartupRoot({ sessionId, sessionFile });
       }, 8_000, signal);
-    };
+    }, { settleShell });
   }
 
   /** Drain publication before releasing claims; never republish after disposal. */
