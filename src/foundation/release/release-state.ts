@@ -1,11 +1,27 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { MaterializedRelease } from "./release-store.js";
 import { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
+/**
+ * Protocol: the control-state family identifier. It is frozen: changing it locks every
+ * already-published release out of the state, which is what broke the 1276 → 1285 update.
+ * Evolve the format through {@link RELEASE_STATE_LEVEL} instead.
+ */
 export const RELEASE_STATE_SCHEMA = PRODUCT_IDENTITY.protocol.releaseCohortSchema;
+/** Compatibility: earlier family identifier, normalized on read. */
+const LEGACY_RELEASE_STATE_SCHEMA = "a1-release-cohort-v1";
+/**
+ * Protocol: the compatibility level this code reads and writes. State records the lowest
+ * level that may read it and the lowest that may write it; additive fields raise neither,
+ * because older code preserves fields it does not know. Raise `read` only when older code would
+ * misread the state, and `write` only when older writes would corrupt it.
+ */
+export const RELEASE_STATE_LEVEL = 1;
+const RELEASE_STATE_TEMPORARY_PATTERN = /^release-state\.json\.(\d+)\.[0-9a-f-]{36}\.tmp$/;
+const RENAME_RETRY_MS = 2_000;
 const RELEASE_ID_PATTERN = /^[0-9A-Za-z.+_-]+-[a-f0-9]{20}$/;
 /** Minimum age retention; live, uncertain, and legacy ownership independently overrides age. */
 export const RELEASE_RETENTION_MS = 7 * 24 * 60 * 60 * 1_000;
@@ -101,6 +117,38 @@ export interface ReleaseState {
   readonly references: ReleaseReferences;
   readonly cleanup: ReleaseCleanupState;
   readonly uses?: Readonly<Record<string, ReleaseUseClaim>>;
+  /** Lowest compatibility levels that may read and write this state; absent means level 1. */
+  readonly format?: ReleaseStateFormat;
+}
+
+export interface ReleaseStateFormat {
+  readonly read: number;
+  readonly write: number;
+}
+
+/**
+ * State written by a newer release that this code may not read or write. Callers doing
+ * housekeeping treat it as "a newer release owns this state" and skip their work.
+ */
+export class ReleaseStateNewerError extends Error {
+  readonly access: "read" | "write";
+  readonly required: number;
+  constructor(access: "read" | "write", required: number) {
+    super(`release state requires ${access} level ${required}; this release supports level ${RELEASE_STATE_LEVEL}. A newer release owns it`);
+    this.name = "ReleaseStateNewerError";
+    this.access = access;
+    this.required = required;
+  }
+}
+
+export function isReleaseStateNewerError(error: unknown): error is ReleaseStateNewerError {
+  return error instanceof ReleaseStateNewerError;
+}
+
+export interface ReleaseStateStoreOptions {
+  /** Replaces the atomic rename; tests inject transient sharing failures. */
+  readonly rename?: (from: string, to: string) => Promise<void>;
+  readonly platform?: NodeJS.Platform;
 }
 
 export interface ProtectedReleaseInputs {
@@ -176,14 +224,37 @@ export function withinRetention(release: ReleaseRecord, now: number, retentionMs
 /** Serializes validated release-state revisions under a lock and commits each update atomically. */
 export class ReleaseStateStore {
   readonly path: string;
+  readonly #rename: (from: string, to: string) => Promise<void>;
+  readonly #platform: NodeJS.Platform;
 
-  constructor(dataDir: string) {
+  constructor(dataDir: string, options: ReleaseStateStoreOptions = {}) {
     this.path = resolve(dataDir, "release-state.json");
+    this.#rename = options.rename ?? rename;
+    this.#platform = options.platform ?? process.platform;
+  }
+
+  private async renameWithRetry(temporary: string): Promise<void> {
+    const deadline = Date.now() + RENAME_RETRY_MS;
+    for (let delay = 10; ; delay = Math.min(delay * 2, 200)) {
+      try {
+        await this.#rename(temporary, this.path);
+        return;
+      } catch (error) {
+        const code = error instanceof Error && "code" in error ? error.code : undefined;
+        // Platform: Windows refuses to replace a file another process has open for reading.
+        // Readers hold it only briefly, so the replacement is retried rather than lost.
+        const transient = this.#platform === "win32" && (code === "EPERM" || code === "EACCES" || code === "EBUSY");
+        if (!transient || Date.now() >= deadline) throw error;
+        await new Promise(resolvePromise => setTimeout(resolvePromise, delay));
+      }
+    }
   }
 
   async read(): Promise<ReleaseState> {
     try {
       const state = normalizeState(JSON.parse(await readFile(this.path, "utf8")));
+      const format = stateFormat(state);
+      if (format.read > RELEASE_STATE_LEVEL) throw new ReleaseStateNewerError("read", format.read);
       validateState(state);
       return state;
     } catch (error) {
@@ -198,18 +269,27 @@ export class ReleaseStateStore {
     const lock = await acquireLock(lockPath);
     try {
       const current = await this.read();
+      const format = stateFormat(current);
+      if (format.write > RELEASE_STATE_LEVEL) throw new ReleaseStateNewerError("write", format.write);
       const next = await operation(current);
       validateTransition(current, next);
-      const committed: ReleaseState = { ...next, revision: current.revision + 1 };
+      // Invariant: levels only rise; an older writer never weakens what a newer one required.
+      const committed: ReleaseState = { ...next, revision: current.revision + 1, format };
       const temporary = `${this.path}.${process.pid}.${randomUUID()}.tmp`;
       const file = await open(temporary, "wx", 0o600);
       try {
-        await file.writeFile(JSON.stringify(committed, null, 2));
-        await file.sync();
-      } finally {
-        await file.close();
+        try {
+          await file.writeFile(JSON.stringify(committed, null, 2));
+          await file.sync();
+        } finally {
+          await file.close();
+        }
+        await this.renameWithRetry(temporary);
+      } catch (error) {
+        await rm(temporary, { force: true }).catch(() => undefined);
+        throw error;
       }
-      await rename(temporary, this.path);
+      await reclaimOrphanedTemporaries(dirname(this.path));
       return committed;
     } finally {
       await lock.close();
@@ -539,6 +619,34 @@ async function reclaimAbandonedLock(path: string): Promise<boolean> {
   } catch { return false; }
   finally { await rm(gate, { recursive: true, force: true }); }
 }
+function stateFormat(state: ReleaseState): ReleaseStateFormat {
+  const format = (state as { format?: unknown } | null)?.format;
+  if (format === undefined) return { read: RELEASE_STATE_LEVEL, write: RELEASE_STATE_LEVEL };
+  const { read, write } = (format ?? {}) as { read?: unknown; write?: unknown };
+  if (!Number.isSafeInteger(read) || !Number.isSafeInteger(write) || (read as number) < 1 || (write as number) < 1) {
+    throw new Error("invalid release state format");
+  }
+  return { read: read as number, write: write as number };
+}
+/**
+ * A write that died between creating and renaming its temporary file leaves it behind.
+ * Only files whose writer process is gone are removed; a running writer's file is never touched.
+ */
+async function reclaimOrphanedTemporaries(directory: string): Promise<void> {
+  const names = await readdir(directory).catch(() => [] as string[]);
+  for (const name of names) {
+    const match = RELEASE_STATE_TEMPORARY_PATTERN.exec(name);
+    if (!match) continue;
+    const pid = Number(match[1]);
+    if (pid === process.pid || processIsAlive(pid)) continue;
+    await rm(resolve(directory, name), { force: true }).catch(() => undefined);
+  }
+}
+function processIsAlive(pid: number): boolean {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return true;
+  try { process.kill(pid, 0); return true; }
+  catch (error) { return !(error instanceof Error && "code" in error && error.code === "ESRCH"); }
+}
 function normalizeState(value: unknown): ReleaseState {
   if (!value || typeof value !== "object") return value as ReleaseState;
   // Compatibility: state written while supervisors coordinated activation carries an
@@ -548,7 +656,7 @@ function normalizeState(value: unknown): ReleaseState {
   return {
     ...state,
     // Compatibility: one-way control-state upgrade fences pre-claim cleanup workers; session files are untouched.
-    ...(state.schema === "a1-release-cohort-v1" ? { schema: RELEASE_STATE_SCHEMA } : {}),
+    ...(state.schema === LEGACY_RELEASE_STATE_SCHEMA ? { schema: RELEASE_STATE_SCHEMA } : {}),
     cleanup: cleanup
       ? { ...cleanup, workerRuns: cleanup.workerRuns ?? [] }
       : { pending: {}, diagnostics: [], workerRuns: [] },

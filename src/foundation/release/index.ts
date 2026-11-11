@@ -6,7 +6,7 @@ export {
 } from "./bootstrap.js";
 export type { BootstrapOptions } from "./bootstrap.js";
 export { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
-export { ReleaseStateStore, RELEASE_STATE_SCHEMA, RELEASE_RETENTION_MS, emptyState, planProtectedReleases, withinRetention } from "./release-state.js";
+export { ReleaseStateStore, ReleaseStateNewerError, isReleaseStateNewerError, RELEASE_STATE_SCHEMA, RELEASE_STATE_LEVEL, RELEASE_RETENTION_MS, emptyState, planProtectedReleases, withinRetention } from "./release-state.js";
 export type {
   ActiveReleaseTransactionReference,
   ReleaseState,

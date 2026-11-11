@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 import { PRODUCT_TEXT } from "../../product-identity.js";
 import { certifyMaterializedRelease } from "./bootstrap.js";
 import { ReleaseStateStore } from "./release-state.js";
-import { resolveProductPaths } from "../lifecycle/index.js";
+import { resolveProductPaths, type ProductPaths } from "../lifecycle/index.js";
+import { scheduleReleaseCleanup } from "./release-gc.js";
 import { materializeRelease } from "./release-store.js";
 import { warmMaterializedRelease } from "./warmup.js";
 import { errorMessage } from "./managed-path.js";
@@ -137,6 +138,8 @@ export async function delegateActivation(request: UpdateActivationRequest, callb
     for (const event of events) {
       relay = relay.then(async () => {
         const parsed = parseActivationEvent(event);
+        // Compatibility: a newer tree may report events this updater does not know; they carry no verdict.
+        if (parsed === "unknown") return;
         if (!parsed) { failure ??= new Error(`unrecognized activation event ${JSON.stringify(event).slice(0, 200)}`); return; }
         if (parsed.event === "materializing") callbacks.onMaterializing?.({ completed: parsed.completed, total: parsed.total });
         else if (parsed.event === "phase") await callbacks.phase(parsed.phase);
@@ -165,22 +168,34 @@ export async function delegateActivation(request: UpdateActivationRequest, callb
 export async function runActivationEntry(
   argv: readonly string[],
   entryUrl: string,
-  io: { write(line: string): void } = { write: line => process.stdout.write(line) },
+  io: { write(line: string): void; diagnostic?(line: string): void } = {
+    write: line => process.stdout.write(line),
+    diagnostic: line => process.stderr.write(line),
+  },
   environment: NodeJS.ProcessEnv = process.env,
+  maintenance: (dataDir: string, paths: ProductPaths) => Promise<void> = scheduleReleaseCleanup,
 ): Promise<number> {
   const emit = (event: UpdateActivationEvent) => io.write(`${JSON.stringify(event)}\n`);
   try {
     const arguments_ = parseEntryArguments(argv);
     const packageRoot = resolve(fileURLToPath(new URL("..", entryUrl)));
+    const paths = resolveProductPaths(environment);
+    const dataDir = arguments_.dataDir ?? paths.dataDir;
     await activateInstalledRelease({
       packageRoot,
-      dataDir: arguments_.dataDir ?? resolveProductPaths(environment).dataDir,
+      dataDir,
       targetVersion: arguments_.targetVersion,
       environment,
     }, {
       phase: async phase => emit({ event: "phase", phase }),
       onMaterializing: progress => emit({ event: "materializing", ...progress }),
       onWarmup: state => emit({ event: "warmup", state }),
+    });
+    // Invariant: the release that now owns the control state performs its own maintenance. The
+    // updater that started this entry may be older and must not interpret state this code wrote.
+    // The activation is committed, so a maintenance failure is a diagnostic, never a verdict.
+    await maintenance(dataDir, { ...paths, dataDir }).catch((error: unknown) => {
+      io.diagnostic?.(`release maintenance after activation failed: ${errorMessage(error)}\n`);
     });
     emit({ event: "completed" });
     return 0;
@@ -203,14 +218,15 @@ function parseEntryArguments(argv: readonly string[]): { dataDir: string | null;
   return { dataDir, targetVersion };
 }
 
-function parseActivationEvent(value: unknown): UpdateActivationEvent | null {
+function parseActivationEvent(value: unknown): UpdateActivationEvent | "unknown" | null {
   if (typeof value !== "object" || value === null || !("event" in value)) return null;
   const record = value as Record<string, unknown>;
   switch (record.event) {
     case "materializing":
       return typeof record.completed === "number" && typeof record.total === "number" ? { event: "materializing", completed: record.completed, total: record.total } : null;
     case "phase":
-      return record.phase === "materialized" || record.phase === "certified" || record.phase === "active-reference-committed" ? { event: "phase", phase: record.phase } : null;
+      if (record.phase === "materialized" || record.phase === "certified" || record.phase === "active-reference-committed") return { event: "phase", phase: record.phase };
+      return typeof record.phase === "string" && record.phase.length > 0 ? "unknown" : null;
     case "warmup":
       return record.state === "started" || record.state === "completed" ? { event: "warmup", state: record.state } : null;
     case "completed":
@@ -218,7 +234,7 @@ function parseActivationEvent(value: unknown): UpdateActivationEvent | null {
     case "failed":
       return typeof record.message === "string" ? { event: "failed", message: record.message } : null;
     default:
-      return null;
+      return typeof record.event === "string" && record.event.length > 0 ? "unknown" : null;
   }
 }
 

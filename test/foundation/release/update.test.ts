@@ -470,7 +470,7 @@ describe("A1 self-update orchestration", () => {
     };
     const durable = new UpdateTransactionStore(dataDir);
     await durable.begin({ channel: "next", targetVersion: "0.2.7-dev.835", packageRoot: harness.packageRoot, priorActiveReleaseId: null });
-    await durable.advance("active-reference-committed");
+    await durable.advance("certified");
     await writeFile(resolve(dataDir, "update-execution.json"), JSON.stringify({
       schema: 1, ownerId: "dead-automatic-worker", pid: 2_000_000_000, pidStartIdentity: "gone",
       packageRoot: harness.packageRoot, channel: "next", targetVersion: "0.2.7-dev.835", mode: "automatic",
@@ -491,6 +491,39 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stderr.join("")).not.toContain("already in progress");
     // Invariant: the settled transaction and the dead lease are gone, so nothing blocks the next update.
     await expect(durable.read()).resolves.toBeNull();
+    await expect(readFile(resolve(dataDir, "update-execution.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    await rm(dataDir, { recursive: true, force: true });
+  });
+  it("settles a dead owner's committed transaction without rolling it back", async () => {
+    const dataDir = resolve(tmpdir(), "a1-update-test-dead-committed", `${process.pid}-${Date.now()}`);
+    await mkdir(dataDir, { recursive: true });
+    const harness = createHarness({ current: "0.2.7-dev.828" });
+    harness.fileSystem.realpath = async path => path;
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_[0] === "root") return success(harness.globalRoot + NEWLINE);
+      return success();
+    };
+    const durable = new UpdateTransactionStore(dataDir);
+    await durable.begin({ channel: "next", targetVersion: "0.2.7-dev.835", packageRoot: harness.packageRoot, priorActiveReleaseId: null });
+    await durable.advance("active-reference-committed");
+    await writeFile(resolve(dataDir, "update-execution.json"), JSON.stringify({
+      schema: 1, ownerId: "dead-automatic-worker", pid: 2_000_000_000, pidStartIdentity: "gone",
+      packageRoot: harness.packageRoot, channel: "next", targetVersion: "0.2.7-dev.835", mode: "automatic",
+      acquiredAt: new Date(0).toISOString(),
+    }));
+    const rollback = vi.fn<UpdateInstaller["rollback"]>(async () => "rolled back");
+
+    const { transactionStore: _mockedJournal, ...durableHarness } = harness;
+    await expect(runSelfUpdate({
+      ...durableHarness, channel: "next", target: "828",
+      installer: fakeUpdateInstaller(() => harness.runner, { rollback }),
+      fetcher: published({ "0.2.7-dev.828": {}, "0.2.7-dev.835": {} }).fetcher,
+      environment: { A1_DATA_DIR: dataDir },
+    })).resolves.toBe(0);
+
+    expect(rollback).not.toHaveBeenCalled();
+    expect(harness.stdout.join("")).toContain("a1 settled the interrupted 0.2.7-dev.835 update, which was already active");
     await expect(readFile(resolve(dataDir, "update-execution.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
     await rm(dataDir, { recursive: true, force: true });
   });
@@ -575,19 +608,57 @@ describe("A1 self-update orchestration", () => {
     })).resolves.toBe(0);
 
     expect(observed).toEqual(["active"]);
-    expect(finish).toHaveBeenCalledWith("completed");
+    expect(finish).toHaveBeenCalledWith("completed", null);
   });
 
-  it("does not publish success when maintenance fails after activation", async () => {
+  it("reports committed success with a warning and never rolls back when maintenance fails", async () => {
     const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
-    const finish = vi.spyOn(harness.transactionStore, "finish");
+    const rollback = vi.fn<UpdateInstaller["rollback"]>(async () => "rolled back");
     await expect(runSelfUpdate({
       ...harness,
-      installer: fakeUpdateInstaller(() => harness.runner, { maintenance: async () => { throw new Error("maintenance failed"); } }),
-    })).resolves.toBe(1);
-    expect(finish).not.toHaveBeenCalledWith("completed");
-    expect((await harness.transactionStore.read())?.status).toBe("failed");
-    expect(harness.stdout.join("")).not.toContain("updated successfully");
+      installer: fakeUpdateInstaller(() => harness.runner, { rollback, maintenance: async () => { throw new Error("invalid release state"); } }),
+    })).resolves.toBe(0);
+    expect(rollback).not.toHaveBeenCalled();
+    expect(harness.stdout.join("")).toContain("a1 updated successfully to 1.3.0");
+    expect(harness.stderr.join("")).toContain("warning: release cleanup will retry: invalid release state");
+    expect(await harness.transactionStore.read()).toBeNull();
+  });
+
+  it("leaves post-activation maintenance to a tree that activated itself", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
+    harness.lifecycle.activateInstalled = async (_path, _version, phase) => {
+      for (const value of ["materialized", "certified", "active-reference-committed"] as const) await phase(value);
+      return "delegated";
+    };
+    const maintenance = vi.fn<UpdateInstaller["maintenance"]>(async () => {});
+    await expect(runSelfUpdate({ ...harness, installer: fakeUpdateInstaller(() => harness.runner, { maintenance }) })).resolves.toBe(0);
+    expect(maintenance).not.toHaveBeenCalled();
+    expect(harness.stdout.join("")).toContain("a1 updated successfully to 1.3.0");
+    expect(harness.stderr.join("")).toBe("");
+  });
+
+  it("completes instead of rolling back when the activator fails after committing", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
+    harness.lifecycle.activateInstalled = async (_path, _version, phase) => {
+      for (const value of ["materialized", "certified", "active-reference-committed"] as const) await phase(value);
+      throw new Error("installed release activation exited with status 1");
+    };
+    const rollback = vi.fn<UpdateInstaller["rollback"]>(async () => "rolled back");
+    await expect(runSelfUpdate({ ...harness, installer: fakeUpdateInstaller(() => harness.runner, { rollback }) })).resolves.toBe(0);
+    expect(rollback).not.toHaveBeenCalled();
+    expect(harness.stdout.join("")).toContain("a1 updated successfully to 1.3.0");
+    expect(harness.stderr.join("")).toContain("warning: post-activation step failed: installed release activation exited with status 1");
+  });
+
+  it("reports up to date when a settled failed update already activated its target", async () => {
+    const harness = createHarness({ transactionPhase: "active-reference-committed", responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)] });
+    await harness.transactionStore.finish("failed", "invalid release state; rollback failed: invalid release state");
+    harness.lifecycle.targetIsActive = async () => true;
+    await expect(runSelfUpdate(harness)).resolves.toBe(0);
+    expect(harness.lifecycleCalls).toEqual([]);
+    expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
+    expect(harness.stdout.join("")).toContain("a1 is up to date — no update needed.");
+    expect(await harness.transactionStore.read()).toBeNull();
   });
 
   it("resumes a certified transaction by activating again without reinstalling", async () => {
@@ -688,7 +759,8 @@ describe("A1 self-update orchestration", () => {
   it("fails safely when the activated startup graph cannot warm", async () => {
     const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
     harness.lifecycle.activateInstalled = async (_path, _version, phase) => {
-      for (const value of ["materialized", "certified", "active-reference-committed"] as const) await phase(value);
+      // Invariant: warmup precedes the commit, so its failure still restores the prior release.
+      for (const value of ["materialized", "certified"] as const) await phase(value);
       throw new Error("immutable startup warmup failed");
     };
 

@@ -109,6 +109,37 @@ ${emitting([
     await expect(coordinator.activateInstalled(packageRoot, "1.1.0", async () => {})).rejects.toThrow("installed release activation exited with status 7: Error: Cannot find module 'x' | at stack");
   });
 
+  it("ignores events and phases a newer tree adds but still completes on its verdict", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-activation-contract-"));
+    roots.push(root);
+    const packageRoot = await installedTree(root, { entry: `
+for (const event of [
+  { event: "phase", phase: "materialized" },
+  { event: "telemetry", detail: { files: 3 } },
+  { event: "phase", phase: "indexed" },
+  { event: "phase", phase: "active-reference-committed" },
+  { event: "completed" },
+]) process.stdout.write(JSON.stringify(event) + "\\n");
+` });
+    const seen: string[] = [];
+    const coordinator = createUpdateLifecycleCoordinator({ [PRODUCT_IDENTITY.environment.dataDir]: resolve(root, "data") });
+
+    await expect(coordinator.activateInstalled(packageRoot, "1.1.0", async phase => { seen.push(phase); })).resolves.toBe("delegated");
+    expect(seen).toEqual(["materialized", "active-reference-committed"]);
+  });
+
+  it("still fails on a malformed event of a kind it knows", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-activation-contract-"));
+    roots.push(root);
+    const packageRoot = await installedTree(root, { entry: `
+process.stdout.write(JSON.stringify({ event: "materializing", completed: "one" }) + "\\n");
+process.stdout.write(JSON.stringify({ event: "completed" }) + "\\n");
+` });
+    const coordinator = createUpdateLifecycleCoordinator({ [PRODUCT_IDENTITY.environment.dataDir]: resolve(root, "data") });
+
+    await expect(coordinator.activateInstalled(packageRoot, "1.1.0", async () => {})).rejects.toThrow("unrecognized activation event");
+  });
+
   it("does not trust a tree that exits successfully without completing", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-activation-contract-"));
     roots.push(root);
@@ -159,8 +190,9 @@ describe("the installed release's activation entry", () => {
     });
     vi.mocked(certifyMaterializedRelease).mockResolvedValue("target-certification.json");
     const lines: string[] = [];
+    const maintenance = vi.fn(async (dataDir: string) => { lines.push(JSON.stringify({ event: "maintained", dataDir })); });
 
-    const code = await runActivationEntry(["--data-dir", resolve(root, "data"), "--target-version", "1.1.0"], pathToFileURL(resolve(packageRoot, "bin", "activate.js")).href, { write: line => lines.push(line) }, {});
+    const code = await runActivationEntry(["--data-dir", resolve(root, "data"), "--target-version", "1.1.0"], pathToFileURL(resolve(packageRoot, "bin", "activate.js")).href, { write: line => lines.push(line) }, {}, maintenance);
 
     expect(code).toBe(0);
     expect(lines.map(line => JSON.parse(line))).toEqual([
@@ -171,9 +203,28 @@ describe("the installed release's activation entry", () => {
       { event: "warmup", state: "started" },
       { event: "warmup", state: "completed" },
       { event: "phase", phase: "active-reference-committed" },
+      // Invariant: the activated release schedules its own maintenance after committing and before its verdict.
+      { event: "maintained", dataDir: resolve(root, "data") },
       { event: "completed" },
     ]);
     expect(materializeRelease).toHaveBeenCalledWith(packageRoot, resolve(root, "data"), expect.anything());
+  });
+
+  it("keeps its completed verdict when its own maintenance fails after committing", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-activation-entry-"));
+    roots.push(root);
+    const packageRoot = resolve(root, "package");
+    vi.mocked(materializeRelease).mockResolvedValue(release(root, "1.1.0", packageRoot));
+    vi.mocked(certifyMaterializedRelease).mockResolvedValue("target-certification.json");
+    const lines: string[] = [];
+    const diagnostics: string[] = [];
+
+    const code = await runActivationEntry(["--data-dir", resolve(root, "data"), "--target-version", "1.1.0"], pathToFileURL(resolve(packageRoot, "bin", "activate.js")).href,
+      { write: line => lines.push(line), diagnostic: line => diagnostics.push(line) }, {}, async () => { throw new Error("cleanup busy"); });
+
+    expect(code).toBe(0);
+    expect(JSON.parse(lines.at(-1) ?? "")).toEqual({ event: "completed" });
+    expect(diagnostics.join("")).toContain("release maintenance after activation failed: cleanup busy");
   });
 
   it("reports a failure as its last event and an unsuccessful status", async () => {
