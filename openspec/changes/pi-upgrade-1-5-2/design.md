@@ -4,6 +4,32 @@
 
 The upgrade script bumps the pins, evaluates the candidate in isolation, three-way merges each vendored copy that follows upstream (old upstream, new upstream, A1 copy) and records the upstream delta of each copy A1 keeps, regenerates every derived artifact, and runs the gates. It never resolves a conflict, never drops an orphaned inventory entry, never records a feature disposition, and never merges; each of those is a review item in the sync report comment, and the pull request's generated implementation outcomes are checked as the reviewer completes them.
 
+## Proposed implementation decisions
+
+This section is a plan awaiting maintainer approval; the generated sync report below remains historical proposal evidence, not a report of completed repairs.
+
+### Missing-folder recovery
+
+Adopt Pi 1.5.2's Continue, Fork, and Cancel behavior rather than retire the new feature as unsupported. Continue uses the current directory for that invocation without rewriting the original session. Fork creates a distinct session ID in the current directory so later resumes do not need the same recovery prompt. Cancel leaves the active session unchanged. Match the pinned selector's labels, instructions, focus restoration, and cancellation/status behavior through the owned UI.
+
+Trace startup session selection, resume, import, and extension-triggered session switching independently. Reuse public pinned SDK operations for copying and switching; keep Pi-specific details in the engine adapter and expose a vendor-neutral recovery choice to the shell. Preserve existing cross-project resume decisions and A1's single-writer protections; never modify a session owned by another process. Import recovery must not leave a failed intermediate copy or duplicate files sharing an ID.
+
+Repair the two orphaned modal inventory anchors against the new upstream controller and describe the three choices and their transitions. Mark the feature adoption row implemented only after its owned behavior and tests exist. The changed InteractiveMode export is not consumed by A1; review its delta without introducing a new dependency on that controller. Review all 33 unchanged vendored copies and retain existing A1 deviations unless an actual upstream delta requires adoption.
+
+### Generated evidence and upgrade compatibility
+
+Generate source-side Pi settings metadata before the standalone component/event-frame parity scripts load source modules; the ordinary build only generates the dist-side resource. Keep generated metadata ignored rather than committing it. Add a focused regression at the generation boundary so a clean checkout can refresh parity without relying on a preceding Vitest run.
+
+Re-evaluate the exact node-domexception transitive dependency path for Pi 1.5.2 before updating its documented exception. Do not broaden the accepted package, version, reason, or dependency scope. Classify any remaining parity-suite failures individually; the sync report's truncated output is not proof that all ten failures share that cause.
+
+Refresh current-pin provenance and derived parity records through their owning generators. Update live documentation and release notes, while preserving historical archives, old-version changelog entries, and unrelated asset content. The report's broad count of old-pin mentions is a review list, not a bulk-replacement instruction.
+
+### Delivery and bounded validation
+
+Continue branch chore/pi-1.5.2 and PR 906 in this worktree. Reconcile current origin/develop, including the already integrated session-continuity repair, before final evidence generation. Preserve the four generated Implementation outcomes; add detailed bookkeeping beneath them rather than rewriting them. No product implementation edits precede approval of this plan.
+
+After approval, use typecheck, strict validation of this OpenSpec change, and explicit test files covering session selection/recovery, workflow requests, shell dialogs, modal inventory, feature adoption, deprecated dependencies, and parity generation. Do not rerun directory-wide suites locally. Regenerate the affected component/event-frame fixtures and inspect every changed baseline. Leave unresolved failures and substantive gaps visible; final readiness and exact-head validation remain owned by trusted automation.
+
 ## Sync report at proposal
 
 - Vendored copies: 0 merged cleanly; 0 with conflict markers to resolve; 33 unchanged upstream; 0 kept as A1's version.
