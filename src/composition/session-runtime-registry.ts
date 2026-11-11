@@ -15,7 +15,7 @@ export class SessionRuntimeRegistry {
   readonly #options: SessionRuntimeRegistryOptions;
   readonly #identities = new Map<string | undefined, SessionIdentity>();
   readonly #activated = new Map<string | undefined, SessionIdentity>();
-  /** A released invalid attachment the agent's next tool call must report instead of running elsewhere. */
+  // Invariant: a released invalid attachment is reported by the agent's next tool call instead of running elsewhere.
   readonly #released = new Map<string | undefined, { readonly identity: SessionIdentity; readonly message: string }>();
   readonly #abort = new AbortController();
   #owner: Promise<ProcessIdentity | null> | null = null;

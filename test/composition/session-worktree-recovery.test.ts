@@ -81,7 +81,7 @@ it("appends the settled completion to the shell call that requested it and keeps
   try {
     const quiet = await session.bash("echo attached");
     expect(JSON.stringify(quiet.content)).not.toContain("Worktree completion");
-    // The issuing shell runs the CLI; the request it leaves is the same one this call writes.
+    // Rationale: the issuing shell runs the CLI; the request it leaves is the same one this call writes.
     await session.complete();
     const settled = await session.bash("echo done");
     const text = settled.content.map(part => part.type === "text" ? part.text : "").join("\n");

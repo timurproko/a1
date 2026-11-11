@@ -140,7 +140,7 @@ describe("worktree completion", () => {
     await expect(settleSessionWorktreeCompletion(expired.identity, expired.options)).resolves.toBeNull();
   });
 
-  // Windows-only: a process started in a directory pins it; other platforms allow the removal and prove nothing here.
+  // Platform: a process started in a directory pins it; other platforms allow the removal and prove nothing here.
   it.skipIf(process.platform !== "win32")("retains a checkout pinned by a process started inside it and leaves the session detached", async () => {
     const fixture = await attachedFixture(REMOVE);
     const holder = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], { cwd: fixture.worktree, stdio: "ignore", windowsHide: true });
