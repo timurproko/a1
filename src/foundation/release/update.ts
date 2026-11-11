@@ -131,8 +131,10 @@ export interface UpdateLifecycleCoordinator {
     phase: (phase: UpdateActivationPhase) => Promise<void>,
     onMaterializing?: (progress: UpdateMaterializationProgress) => void,
     onWarmup?: (state: "started" | "completed") => void,
-  ): Promise<void>;
+  ): Promise<UpdateActivationMode | void>;
 }
+/** Whether the installed tree activated itself (and owns its maintenance) or this updater activated it. */
+export type UpdateActivationMode = "delegated" | "in-process";
 export interface UpdateTransactionJournal {
   readonly path: string;
   read(): Promise<UpdateTransaction | null>;
@@ -268,8 +270,12 @@ export function createUpdateLifecycleCoordinator(
       // its own to know. A tree that serves the contract activates itself with its own code;
       // a tree from before the contract is activated here, with the layout it had then.
       const contracts = await readActivationContracts(packageRoot, fileSystem.readFile);
-      if (contracts.includes(UPDATE_ACTIVATION_CONTRACT)) await delegateActivation(request, callbacks);
-      else await activateInstalledRelease(request, callbacks);
+      if (contracts.includes(UPDATE_ACTIVATION_CONTRACT)) {
+        await delegateActivation(request, callbacks);
+        return "delegated";
+      }
+      await activateInstalledRelease(request, callbacks);
+      return "in-process";
     },
   };
 }
@@ -598,13 +604,21 @@ async function withUpdateExecutionLease(
     // back to the release that ran before it, so this request proceeds as an ordinary update of its
     // own target instead of reporting a dead attempt as in progress.
     const interrupted = lease.owner.targetVersion;
-    const rollback = await installer.rollback(lease.transaction.priorActiveReleaseId)
-      .catch(error => `rollback failed: ${errorMessage(error)}`);
     const store = new UpdateTransactionStore(input.dataDir);
-    await store.finish("rolled-back", `interrupted ${interrupted} update settled by ${input.targetVersion}; ${rollback}`);
-    await store.clearCompleted().catch(() => undefined);
-    await reclaimDeadLease(input.dataDir, lease.owner);
-    output.stdout(`${PRODUCT_TEXT.commandName} rolled back the interrupted ${interrupted} update: ${rollback}\n`);
+    if (lease.transaction.phase === "active-reference-committed") {
+      // Invariant: the interrupted update already committed its target; agents may run it, so it stays.
+      await store.finish("completed", `interrupted ${interrupted} update was already active; settled by ${input.targetVersion}`);
+      await store.clearCompleted().catch(() => undefined);
+      await reclaimDeadLease(input.dataDir, lease.owner);
+      output.stdout(`${PRODUCT_TEXT.commandName} settled the interrupted ${interrupted} update, which was already active\n`);
+    } else {
+      const rollback = await installer.rollback(lease.transaction.priorActiveReleaseId)
+        .catch(error => `rollback failed: ${errorMessage(error)}`);
+      await store.finish("rolled-back", `interrupted ${interrupted} update settled by ${input.targetVersion}; ${rollback}`);
+      await store.clearCompleted().catch(() => undefined);
+      await reclaimDeadLease(input.dataDir, lease.owner);
+      output.stdout(`${PRODUCT_TEXT.commandName} rolled back the interrupted ${interrupted} update: ${rollback}\n`);
+    }
     lease = await acquireUpdateExecutionLease(input);
   }
   if (lease.status !== "acquired") {
@@ -739,7 +753,9 @@ async function runUpdateTransaction(plan: UpdatePlan): Promise<number> {
   const { packageRoot, npmCliRoot } = plan.installation;
   const run: UpdateRun = { transaction: await transactionStore.read() };
   try {
-    if ((!run.transaction || run.transaction.status === "completed") && await lifecycle.targetIsActive(targetVersion)) {
+    // Rationale: a settled transaction, even one reported as failed after its commit, leaves nothing
+    // to install when its target is already active; reinstalling the same release would only churn.
+    if ((!run.transaction || run.transaction.status !== "active") && await lifecycle.targetIsActive(targetVersion)) {
       await installer.maintenance();
       await transactionStore.clearCompleted();
       output.stdout(`${PRODUCT_TEXT.commandName} is up to date — no update needed.\n`);
@@ -817,7 +833,7 @@ async function replaceUpdatePackage(
 
 /** Activate the installed package, commit maintenance, and only then report success. */
 async function activateUpdate(plan: UpdatePlan, run: UpdateRun): Promise<number> {
-  const { output, progress, transactionStore, now, onPhaseTiming, paths } = plan;
+  const { progress, transactionStore, now, onPhaseTiming } = plan;
   progress.set(70, MATERIALIZE_PROGRESS.from);
   let activationPhaseStartedAt = now();
   const recordActivationPhase = async (phase: UpdateActivationPhase) => {
@@ -826,7 +842,7 @@ async function activateUpdate(plan: UpdatePlan, run: UpdateRun): Promise<number>
     progress.set(ACTIVATION_PROGRESS[phase].at, ACTIVATION_PROGRESS[phase].creepTo);
     activationPhaseStartedAt = now();
   };
-  await plan.lifecycle.activateInstalled(plan.installation.packageRoot, plan.targetVersion, recordActivationPhase,
+  const activation = await plan.lifecycle.activateInstalled(plan.installation.packageRoot, plan.targetVersion, recordActivationPhase,
     ({ completed, total }) => progress.set(MATERIALIZE_PROGRESS.from
       + (MATERIALIZE_PROGRESS.to - MATERIALIZE_PROGRESS.from) * (total > 0 ? Math.min(1, completed / total) : 0)),
     state => {
@@ -837,18 +853,40 @@ async function activateUpdate(plan: UpdatePlan, run: UpdateRun): Promise<number>
       }
     });
   const transactionStartedAt = now();
-  const transaction = run.transaction;
-  if (transaction?.recovery?.capsulePath) await removeUpdateRecoveryCapsule(paths.dataDir, transaction.transactionId);
-  // Invariant: successful output follows the durable cleanup disposition. Slow recursive
-  // removal belongs to the detached worker started by this maintenance coordinator.
-  await plan.installer.maintenance();
-  // Concurrency: this is the launch cutover. No failure-prone update work follows success.
-  await transactionStore.finish("completed");
-  await Promise.all([transactionStore.clearCompleted(), invalidateReleaseCheckCache(paths.configDir)]).catch(() => undefined);
+  const warnings: string[] = [];
+  // Invariant: a delegated tree owns the control state it just wrote and has already scheduled its
+  // own maintenance; this updater may be older and must not interpret that state. An in-process
+  // activation ran this updater's own code, so the updater remains the owner of its maintenance.
+  if (activation !== "delegated") {
+    // Rationale: the activation is committed, so cleanup trouble is retried later, never a failure.
+    await plan.installer.maintenance().catch(error => { warnings.push(`release cleanup will retry: ${errorMessage(error)}`); });
+  }
+  await completeCommittedUpdate(plan, run.transaction, warnings);
   onPhaseTiming?.({ phase: "transaction-complete", durationMs: Math.max(0, now() - transactionStartedAt) });
+  return 0;
+}
+
+/**
+ * The active reference names the target, so the update has happened. Everything here is
+ * best-effort bookkeeping: it may warn, but it never fails the update and never rolls back.
+ */
+async function completeCommittedUpdate(plan: UpdatePlan, transaction: UpdateTransaction | null, warnings: string[]): Promise<void> {
+  const { output, progress, transactionStore, paths } = plan;
+  if (transaction?.recovery?.capsulePath) {
+    await removeUpdateRecoveryCapsule(paths.dataDir, transaction.transactionId)
+      .catch(error => { warnings.push(`recovery evidence will be removed later: ${errorMessage(error)}`); });
+  }
+  // Concurrency: this is the launch cutover. No failure-prone update work follows success.
+  await transactionStore.finish("completed", warnings.length === 0 ? null : warnings.join("; ").slice(0, 2_000))
+    .catch(error => { warnings.push(`update journal could not be settled: ${errorMessage(error)}`); });
+  await Promise.all([transactionStore.clearCompleted(), invalidateReleaseCheckCache(paths.configDir)]).catch(() => undefined);
   progress.finish();
   output.stdout(`${PRODUCT_TEXT.commandName} updated successfully to ${plan.targetVersion}\n`);
-  return 0;
+  for (const warning of warnings) output.stderr(`${PRODUCT_TEXT.diagnostic(`warning: ${singleLine(warning)}`)}\n`);
+}
+
+function singleLine(text: string): string {
+  return text.replace(/[\r\n]+/gu, " ").slice(0, 400);
 }
 
 async function settleUpdateFailure(plan: UpdatePlan, transaction: UpdateTransaction | null, error: unknown): Promise<number> {
@@ -858,6 +896,12 @@ async function settleUpdateFailure(plan: UpdatePlan, transaction: UpdateTransact
   if (error instanceof UpdatePreflightFailure) {
     output.stderr(`${PRODUCT_TEXT.diagnostic(`update could not start safely: ${message}. Nothing was changed. Retry with npm x -y -- ${PRODUCT_PACKAGE}-install`)}\n`);
     return 1;
+  }
+  if (transaction?.status === "active" && transaction.phase === "active-reference-committed") {
+    // Invariant: once the active reference names the target, running agents may already use it.
+    // Rolling back would move the reference under them, so a later failure only warns.
+    await completeCommittedUpdate(plan, transaction, [`post-activation step failed: ${message}`]);
+    return 0;
   }
   const rollback = await plan.installer.rollback(transaction?.priorActiveReleaseId ?? null)
     .catch(rollbackError => `rollback failed: ${errorMessage(rollbackError)}`);
