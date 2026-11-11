@@ -11,6 +11,7 @@ import {
   type ProtectedReleaseInputs,
   type ReleaseCleanupDisposition,
   type ReleaseRecord,
+  isReleaseStateNewerError,
 } from "./release-state.js";
 import type { ProductPaths } from "../lifecycle/index.js";
 import { resolveProductPaths } from "../lifecycle/index.js";
@@ -209,6 +210,15 @@ export async function scheduleReleaseCleanup(
   paths: ProductPaths,
   options: ReleaseCleanupOptions = {},
 ): Promise<void> {
+  try {
+    await scheduleOwnedReleaseCleanup(dataDir, paths, options);
+  } catch (error) {
+    // Compatibility: a newer release owns state this code may not write; its own maintenance cleans up.
+    if (!isReleaseStateNewerError(error)) throw error;
+  }
+}
+
+async function scheduleOwnedReleaseCleanup(dataDir: string, paths: ProductPaths, options: ReleaseCleanupOptions): Promise<void> {
   const { store } = await prepareReleaseCleanup(dataDir, paths, options);
   const runId = randomUUID();
   await store.recordCleanupWorkerScheduled(runId);
@@ -233,6 +243,19 @@ export async function scheduleReleaseCleanup(
 export async function runReleaseCleanupWorker(
   environment: NodeJS.ProcessEnv = process.env,
   workerOptions: ReleaseCleanupWorkerOptions = {},
+): Promise<ReleaseCleanupResult> {
+  try {
+    return await runOwnedReleaseCleanupWorker(environment, workerOptions);
+  } catch (error) {
+    // Compatibility: a worker started by an older release stands down once a newer release owns the state.
+    if (!isReleaseStateNewerError(error)) throw error;
+    return { planned: 0, attempted: 0, completed: 0, remaining: 0, durationMs: 0 };
+  }
+}
+
+async function runOwnedReleaseCleanupWorker(
+  environment: NodeJS.ProcessEnv,
+  workerOptions: ReleaseCleanupWorkerOptions,
 ): Promise<ReleaseCleanupResult> {
   const paths = resolveProductPaths(environment);
   const store = new ReleaseStateStore(paths.dataDir);
