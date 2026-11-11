@@ -9,4 +9,4 @@
 - [x] 2.1 Separate full session folder and filename with a trailing folder separator, preserving in-memory sessions and complete narrow-width wrapping.
 - [x] 2.2 Remove Cached/Uncached label indentation while preserving the common value column, numeric values, percentages, and cache-write details.
 - [x] 2.3 Reserve a blank row before dialog shortcut hints and keep scrolling, rail geometry, resize, close, and full-screen reference presentation coherent.
-- [ ] 2.4 Add focused layout and navigation assertions, record final checks and gap disposition, and restore missing OpenSpec schema metadata reported by finalized-delivery CI.
+- [x] 2.4 Add focused layout and navigation assertions, record final checks and gap disposition, and restore missing OpenSpec schema metadata reported by finalized-delivery CI.

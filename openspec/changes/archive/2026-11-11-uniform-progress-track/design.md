@@ -30,6 +30,15 @@ No bar-length, fill calculation, phase, animation, cleanup, palette, installer/u
 - Strict OpenSpec validation and `git diff --check` passed. No real global installation or update was performed; the pure built renderer is available for optional terminal inspection.
 - Review confirms the product diff is limited to the two track-glyph substitutions, with no change to movement, colors, width, percentage positioning, or cleanup.
 
+## Session Info implementation observations
+
+- Folder and File now preserve the original directory separator and complete basename independently. Focused cases cover Windows, POSIX, drive/root paths, UNC, relative and Unicode filenames, absent file storage, and the screenshot-length filename fitting on one row.
+- Cached and Uncached labels now share the ordinary label edge. Existing exact value-column, token percentage, cache-write detail, economics, cost nesting, and pinned comparison assertions remain intact.
+- Dialog chrome reserves one blank row before hints. Focused assertions cover initial/end frames, keyboard paging, wheel scrolling, rail boundaries, compact resize, and close; existing full-screen reference behavior still passes.
+- After merging current `origin/develop`, the five directly affected test files passed: 204 tests passed and 6 existing conditional/platform tests were skipped. `npm run build:core`, complete `npm run typecheck`, and `git diff --check` passed.
+- Added the missing standard `.openspec.yaml` identified by the earlier `delivery-artifact-missing` CI result; no validator was weakened. Finalization must regenerate the archive/acceptance digests for the refined scope.
+- Physical-terminal visual confirmation remains optional; no real global install or update was performed.
+
 ## Known gaps
 
 None identified in the approved scope.
