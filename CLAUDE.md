@@ -8,6 +8,10 @@
 - Never mark an implementation pull request ready yourself or infer checkbox completion from GitHub check counts. If implementation work cannot finish, keep progress truthful and report the concrete blocker.
 - Never infer or independently choose implementation integration. When an authorized maintainer explicitly asks in the current interaction to merge one identified, currently eligible PR, re-read authoritative state and require the requested exact head, current `develop`, finalized binding, successful `Development validation required`, positive mergeability, and an authorized human `User` credential. Then use one ordinary protected squash merge with expected-head enforcement. A changed or ineligible candidate requires a fresh request; never wait, watch, arm auto-merge, use merge queue or automation credentials, retry later, or bypass protection.
 
+## Worktrees
+
+Follow the shared Worktrees guidance in `AGENTS.md`; do not add a separate linkage or inventory gate.
+
 ## No AI attribution in git
 
 - Never add `Co-Authored-By` / `Co-authored-by` trailers naming Claude, Anthropic, or any model to commit messages.

@@ -94,6 +94,7 @@ export interface PiEngineAdapterOptions {
    */
   readonly checkPackageUpdates?: PiEnginePackageUpdateProbe;
   readonly repositoryContextReader?: PiRepositoryContextReader;
+  readonly worktreeCwdReader?: import("./worktree-tools.js").PiWorktreeCwdReader;
 }
 
 /** Owns the pinned Pi session lifecycle and serves it to the owned shell as the neutral session backend. */
@@ -196,6 +197,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
       signal: this.#engineHost.signal,
       markStartupPhase: phase => this.#engineHost.markStartupPhase(phase),
       ...(options.repositoryContextReader === undefined ? {} : { repositoryContextReader: options.repositoryContextReader }),
+      ...(options.worktreeCwdReader === undefined ? {} : { worktreeCwdReader: options.worktreeCwdReader }),
       host: this.#workflowHost,
     }, {
       disposed: () => this.#disposed,

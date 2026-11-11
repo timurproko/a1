@@ -82,7 +82,7 @@
       "lines": 103
     },
     "src/composition/owned-ui.ts::composeOwnedUi": {
-      "lines": 170
+      "lines": 169
     },
     "src/features/owned-ui/project-trust-prompt.ts::createConsoleProjectTrustPrompt": {
       "lines": 150
