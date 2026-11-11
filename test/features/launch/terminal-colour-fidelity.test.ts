@@ -50,7 +50,7 @@ describe("terminal colour fidelity", () => {
 
   it("gives development runs and manual handoffs the launch shape the installed command has", async () => {
     const developmentEntry = await source("scripts/dev");
-    const workflow = await source("openspec/config.yaml");
+    const workflow = await source("docs/openspec-archive-automation.md");
 
     expect(developmentEntry.startsWith("#!/bin/sh")).toBe(true);
     expect(developmentEntry).toMatch(/exec node .*development\/start-local\.mjs/u);

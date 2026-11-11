@@ -55,6 +55,22 @@ const DEFAULT_SURFACE: OwnedUiTerminalSurface = {
  * touches more than one field is one named mutator, so the adapter and its collaborators never
  * rebuild these objects inline.
  */
+export class OverloadRecovery {
+  #generation: number | undefined;
+  #settled = false;
+  readonly ports: { generation(): number; busy(): boolean; canResume(): boolean; resume(): void };
+  constructor(ports: OverloadRecovery["ports"]) { this.ports = ports; }
+  begin(): void { this.#settled = false; }
+  defer(generation: number | undefined): void { this.#generation = generation; }
+  settled(): void { this.#settled = true; this.resume(); }
+  resume(): void {
+    if (this.#generation === undefined || !this.#settled || this.ports.busy() || !this.ports.canResume()) return;
+    const generation = this.#generation;
+    this.#generation = undefined;
+    if (generation === this.ports.generation()) this.ports.resume();
+  }
+}
+
 export class EngineViewState {
   #revision = 0;
   #editor: OwnedUiEditorState = {

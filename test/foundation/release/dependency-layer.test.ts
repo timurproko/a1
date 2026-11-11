@@ -207,6 +207,8 @@ async function fixturePackage(root: string, name: string, version: string, produ
     dependencies: { "fixture-dependency": "1.0.0" },
   }));
   await writeFile(resolve(packageRoot, "dist", "app.js"), product);
+  await mkdir(resolve(packageRoot, "dist/foundation/release"), { recursive: true });
+  await writeFile(resolve(packageRoot, "dist/foundation/release/release-use.js"), "// claim-capable fixture\n");
   await writeFile(resolve(dependencyRoot, "package.json"), JSON.stringify({ name: "fixture-dependency", version: "1.0.0", main: "dist/index.js", files: ["dist"] }));
   await writeFile(resolve(dependencyRoot, "dist", "index.js"), dependency);
   await writeFile(resolve(dependencyRoot, "dist", "index.d.ts"), "export declare const value: string;");

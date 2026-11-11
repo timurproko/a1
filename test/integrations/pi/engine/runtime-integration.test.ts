@@ -70,6 +70,30 @@ async function appendFirstUserMessage(manager: SessionManager, text: string): Pr
 }
 
 describe("official Pi runtime integration", () => {
+  it.each(["runtime", "adapter"])("releases selected writer ownership through ordinary %s disposal", async owner => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-writer-disposal-")); roots.push(root);
+    const saved = await writeResumeFixture(resolve(root, "sessions"), root);
+    setSessionWriterLockBackendForTest(exclusiveSessionWriterBackend());
+    const runtime = await createPiRuntimeIntegration({ cwd: root, agentDir: resolve(root, "agent"), sessionSelection: { target: saved.path } });
+    expect(() => acquireExisting(saved.path)).toThrow();
+    if (owner === "adapter") {
+      const adapter = await createPiEngineAdapter({ sessionId: "disposal", cwd: root, createRuntime: async () => runtime });
+      await adapter.dispose();
+    } else await runtime.dispose();
+    const next = acquireExisting(saved.path); next.release();
+    await runtime.dispose();
+  });
+
+  it.each(["settings-loaded", "session-created"] as const)("releases selected writers after initialization fails at %s", async failedPhase => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-writer-startup-")); roots.push(root);
+    const saved = await writeResumeFixture(resolve(root, "sessions"), root);
+    setSessionWriterLockBackendForTest(exclusiveSessionWriterBackend());
+    await expect(createPiRuntimeIntegration({ cwd: root, agentDir: resolve(root, "agent"), sessionSelection: { target: saved.path },
+      markStartupPhase: async phase => { if (phase === failedPhase) throw new Error("isolated startup failure"); },
+    })).rejects.toThrow("isolated startup failure");
+    const next = acquireExisting(saved.path); next.release();
+  });
+
   it("creates, rebinds, replaces, and disposes an isolated public runtime", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-pi-runtime-"));
     roots.push(root);
