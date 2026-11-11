@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.2 (MIT), commit b4afdddf44e059c67ccf5097e5317d913521b470,
  * packages/coding-agent/src/modes/interactive/components/tree-selector.ts.
  * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
  * preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode

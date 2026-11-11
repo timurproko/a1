@@ -10,7 +10,7 @@ import { LoginInteraction } from "./login-interaction.js";
 import { PromptSubmission } from "./prompt-submission.js";
 import { SessionConcerns } from "./session-concern.js";
 import { composeExitText, SessionStopLatch } from "./session-lifecycle.js";
-import { openWorkflowSelector } from "./workflow-router.js";
+import { openWorkflowSelector, selectSessionCwdRecovery } from "./workflow-router.js";
 import { SessionSelectors } from "./session-selectors.js";
 import { bindSessionSettings, bindShellSettings } from "./settings-bindings.js";
 import {
@@ -680,18 +680,12 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.selectors.showModelSelector((result.detail ?? request.argument.trim()) || undefined);
       return { outcome: "completed", diagnostic: null };
     }
-    if (result.outcome === "requires-confirmation" && request.command === "resume") {
-      const confirmed = await this.#extensionBridge.context.confirm("Session cwd not found", result.message);
-      return this.runWorkflow({ ...request, confirmed: confirmed === true });
+    if (result.outcome === "requires-selection" && result.cwdRecovery !== undefined && (request.command === "resume" || request.command === "import")) {
+      return this.runWorkflow(await selectSessionCwdRecovery(request, result, this.#extensionBridge.context));
     }
     if (result.outcome === "requires-confirmation" && request.command === "import") {
-      const recoveringCwd = result.detail !== undefined;
-      const confirmed = await this.#extensionBridge.context.confirm(recoveringCwd ? "Session cwd not found" : "Import session", result.message);
-      return this.runWorkflow({
-        ...request,
-        confirmed: confirmed === true,
-        ...(confirmed === true && result.detail ? { cwdOverride: result.detail } : {}),
-      });
+      const confirmed = await this.#extensionBridge.context.confirm("Import session", result.message);
+      return this.runWorkflow({ ...request, confirmed: confirmed === true });
     }
     if (result.outcome === "requires-selection" || result.outcome === "requires-confirmation") {
       this.root.workflow.appendResult({ command: request.command, outcome: "failed", message: `Owned controller missing for ${request.command}` });

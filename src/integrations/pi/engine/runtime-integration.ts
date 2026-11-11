@@ -1,4 +1,4 @@
-import { closeSync, mkdirSync, openSync, writeFileSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import {
   createAgentSessionFromServices,
@@ -268,6 +268,28 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
 
 function defaultStartupPhaseMarker(phase: StartupPhase): Promise<void> {
   return markStartupPhase(process.env, phase);
+}
+
+/** Switch to an independent copy; an extension veto or failed switch must not leave a stray fork. */
+export async function switchToRecoveredFork(
+  runtime: AgentSessionRuntime,
+  sourcePath: string,
+  cwd: string,
+  options?: Parameters<AgentSessionRuntime["switchSession"]>[1],
+): Promise<{ readonly cancelled: boolean; readonly message: string }> {
+  const source = resolveSessionArgumentPath(sourcePath, process.cwd());
+  const fork = SessionManager.forkFrom(source, cwd, runtime.session.sessionManager.getSessionDir());
+  const path = fork.getSessionFile();
+  if (path === undefined) throw new Error("Fork did not create a session file");
+  try {
+    const result = await runtime.switchSession(path, options);
+    if (result.cancelled) unlinkSync(path);
+    return { cancelled: result.cancelled, message: `Forked into new session ${fork.getSessionId()} in ${cwd}` };
+  } catch (error) {
+    // Security: a replacement callback can throw after the fork became active; never delete that active file.
+    if (runtime.session.sessionManager.getSessionFile() !== path) unlinkSync(path);
+    throw error;
+  }
 }
 
 export function bindPiRuntimeSession(runtime: AgentSessionRuntime, rebind: (session: AgentSession) => Promise<void>): () => void {

@@ -73,6 +73,8 @@ a1 --session <id>
 
 When a session exits, A1 prints the `a1 --session <id>` command that resumes it; a custom session store is included in the printed command. Closing the terminal ends the agent, as it does for Pi.
 
+If a saved session's folder was moved or deleted, recovery offers **Continue**, **Fork**, or **Cancel**. Continue uses the current folder for this run and asks again on the next resume. Fork keeps the original and creates a new session ID in the current folder, so later resumes no longer ask. This also applies to session import and extension-triggered switching.
+
 Bare A1 automatically names unnamed sessions from the first prompt and regenerates automatic names on the next prompt after a worktree-context change. Manual `/name` renames are preserved. Names appear after footer stats, with a secondary-accent reveal for automatic changes. Agent settings offers **Session name format** with Kebab case (default), Sentence case, and Title Case for future generated names, or **Automatic session name** to disable naming; see [session names](docs/features/session-naming.md) for details.
 
 Inside an A1 agent session, `a1 worktree enter <branch>` creates or resumes a task checkout and attaches it. `a1 worktree attach <path>` attaches an existing checkout; `a1 worktree detach` releases it without deleting work. A1 handles coordination and ordinary recovery internally; successful attachment needs no second inventory check. See [worktree commands](docs/features/worktrees.md).

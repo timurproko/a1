@@ -1,6 +1,8 @@
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
 import { isRecord } from "./message-values.js";
-import type { AgentSession, ExtensionUIContext } from "../startup-public.js";
+import { missingSessionCwdRecovery } from "./session-cwd-recovery.js";
+import { switchToRecoveredFork } from "./runtime-integration.js";
+import type { AgentSession, AgentSessionRuntime, ExtensionUIContext } from "../startup-public.js";
 import {
   OWNED_UI_EXTENSION_CONTRACT_VERSION,
   OWNED_UI_EXTENSION_RENDER_CALLBACKS,
@@ -15,6 +17,7 @@ export type OwnedPiVisualExtensionSupport = OwnedUiVisualExtensionSupport;
 
 interface PiExtensionUiBindingPorts {
   session(): AgentSession | undefined;
+  runtime(): AgentSessionRuntime | undefined;
   diagnostic(severity: OwnedUiDiagnostics["severity"], code: string, message: string, recoverable: boolean): void;
   emitView(): void;
 }
@@ -78,8 +81,46 @@ export class PiExtensionUiBinding {
       return;
     }
     try {
+      const runtime = this.#ports.runtime();
       await session.bindExtensions({
         uiContext: ui,
+        ...(runtime === undefined ? {} : {
+          commandContextActions: {
+            waitForIdle: () => session.waitForIdle(),
+            newSession: options => runtime.newSession(options),
+            fork: (entryId, options) => runtime.fork(entryId, options),
+            navigateTree: async (targetId, options) => {
+              const result = await session.navigateTree(targetId, options);
+              return { cancelled: result.cancelled === true };
+            },
+            reload: async () => { await session.reload(); await this.rebind(); },
+            switchSession: async (path, options) => {
+              try {
+                const result = await runtime.switchSession(path, options);
+                if (!result.cancelled) ui.notify("Resumed session", "info");
+                return result;
+              } catch (error) {
+                const recovery = missingSessionCwdRecovery(error);
+                if (recovery === undefined) throw error;
+                const selected = await ui.select(recovery.message, recovery.options.map(option => option.label));
+                const choice = recovery.options.find(option => option.label === selected)?.id;
+                const cwd = recovery.cwdRecovery.fallbackCwd;
+                if (choice === "fork") {
+                  const result = await switchToRecoveredFork(runtime, path, cwd, options);
+                  if (!result.cancelled) ui.notify(result.message, "info");
+                  return { cancelled: result.cancelled };
+                }
+                if (choice === "continue") {
+                  const result = await runtime.switchSession(path, { ...options, cwdOverride: cwd });
+                  if (!result.cancelled) ui.notify(`Resumed session in ${cwd}`, "info");
+                  return result;
+                }
+                ui.notify("Resume cancelled", "info");
+                return { cancelled: true };
+              }
+            },
+          },
+        }),
         mode: "tui",
         shutdownHandler: () => this.#extensionShutdown?.(),
         onError: error => {

@@ -178,14 +178,16 @@ for (const theme of ["dark", "light"]) {
             clearStatusIndicator() {}, updateEditorBorderColor() {}, checkDaxnutsEasterEgg() {},
             updateAvailableProviderCount: async () => {}, maybeWarnAboutAnthropicSubscriptionAuth: async () => {},
             getMarkdownThemeWithSettings: () => api.getMarkdownTheme(),
-            showExtensionConfirm: async title => entry.condition !== "declined" && !(title === "Session cwd not found" && entry.condition === "missing-cwd-declined"),
+            getMarkdownTransformers: () => state.session.extensionRunner.getMarkdownTransformers(),
+            showExtensionConfirm: async () => entry.condition !== "declined",
+            showExtensionSelector: async (_title, options) => entry.condition === "missing-cwd-declined" ? undefined : options[0],
             stop: () => { state.calls.push("stop"); },
             // Compatibility: the pinned engine routes a fatal command error through crash recording before
             // exiting. This fixture owns no crash log, so record nothing and report that nothing was
             // recorded, which keeps the captured frame the command outcome rather than report guidance.
             recordCrash: () => false,
           };
-          for (const method of ["showStatus", "showError", "showWarning", "handleFatalRuntimeError", "getCrashExtensionHint", "getPathCommandArgument", "handleShareCommand", "handleExportCommand", "handleImportCommand", "handleClearCommand", "handleResumeSession", "handleCloneCommand", "handleCompactCommand", "handleNameCommand", "handleSessionCommand", "handleModelCommand", "handleThinkingCommand", "selectThinkingLevel", "showThinkingSelector", "findExactModelMatch", "completeProviderAuthentication", "handleCopyCommand", "showLoginDialog", "showApiKeyLoginDialog", "loginProvider", "notifyAuthDialog", "showAuthPrompt", "showAuthSelect", "disposeActiveSelector", "showSelector", "showOAuthSelector", "getLogoutProviderOptions", "showUserMessageSelector", "showTreeSelector", "showTrustSelector", "showSettingsSelector", "showModelsSelector", "showModelSelector", "handleReloadCommand", "maybeSaveImplicitProjectTrustAfterReload", "handleHotkeysCommand", "getAppKeyDisplay", "getEditorKeyDisplay", "handleDebugCommand", "handleChangelogCommand", "handleArminSaysHi", "handleDementedDelves", "shutdown", "handleLoginCommand", "findLoginProviderOptions", "getLoginProviderOptions", "showLoginAuthTypeSelector", "showLoginProviderSelector", "startProviderLogin", "showAmbientAuthDialog", "promptForMissingSessionCwd"]) {
+          for (const method of ["showStatus", "showError", "showWarning", "handleFatalRuntimeError", "getCrashExtensionHint", "getPathCommandArgument", "handleShareCommand", "handleExportCommand", "handleImportCommand", "handleClearCommand", "handleResumeSession", "handleCloneCommand", "handleCompactCommand", "handleNameCommand", "handleSessionCommand", "handleModelCommand", "handleThinkingCommand", "selectThinkingLevel", "showThinkingSelector", "findExactModelMatch", "completeProviderAuthentication", "handleCopyCommand", "showLoginDialog", "showApiKeyLoginDialog", "loginProvider", "notifyAuthDialog", "showAuthPrompt", "showAuthSelect", "disposeActiveSelector", "showSelector", "showOAuthSelector", "getLogoutProviderOptions", "showUserMessageSelector", "showTreeSelector", "showTrustSelector", "showSettingsSelector", "showModelsSelector", "showModelSelector", "handleReloadCommand", "maybeSaveImplicitProjectTrustAfterReload", "handleHotkeysCommand", "getAppKeyDisplay", "getEditorKeyDisplay", "handleDebugCommand", "handleChangelogCommand", "createChangelogMarkdown", "handleArminSaysHi", "handleDementedDelves", "shutdown", "handleLoginCommand", "getLoginProviderOptions", "showLoginAuthTypeSelector", "showLoginProviderSelector", "startProviderLogin", "showAmbientAuthDialog", "promptForMissingSessionCwd"]) {
             const implementation = api.InteractiveMode.prototype[method];
             if (typeof implementation !== "function") throw new Error(`Pinned method missing: ${method}`);
             owner[method] = implementation.bind(owner);
@@ -237,6 +239,9 @@ for (const theme of ["dark", "light"]) {
           adapter = await engine.createPiEngineAdapter({ sessionId: "owned-test", cwd, agentDir, settingsProductMode: "comparison", createRuntime: async () => state.runtime, workflowHost: state.host });
           shell = new owned.OwnedUiSessionShell({ presenters: presenters.createPiSessionPresenters(adapter), engine: { backend: adapter, cwd }, presentation: { terminal: new terminalModule.TestPresentationTerminal(), startup: { quiet: true } } });
           shell.root.editor.setText("preserved draft");
+          // Invariant: stateful selectors take a presentation hold on the real owned runtime.
+          shell.start();
+          shell.runtime.renderNow();
           state.onCancel = () => shell.root.handleInput("\u001b");
           state.onMissingCwd = () => setImmediate(() => shell.root.handleInput(entry.condition === "missing-cwd-declined" ? "\u001b" : "\r"));
           await changeBindings();
