@@ -70,6 +70,16 @@ async function appendFirstUserMessage(manager: SessionManager, text: string): Pr
 }
 
 describe("official Pi runtime integration", () => {
+  it("installs attachment-aware tools only when requested without changing tool selection", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-worktree-runtime-")); roots.push(root);
+    const ordinary = await createPiRuntimeIntegration({ cwd: root, agentDir: resolve(root, "ordinary-agent") });
+    const attached = await createPiRuntimeIntegration({ cwd: root, agentDir: resolve(root, "attached-agent"), worktreeCwdReader: async () => root });
+    try {
+      expect(attached.session.getActiveToolNames().sort()).toEqual(ordinary.session.getActiveToolNames().sort());
+      expect(attached.session.getToolDefinition("read")?.defaultActive).toBe(false);
+      expect(ordinary.session.getToolDefinition("read")?.defaultActive).not.toBe(false);
+    } finally { await ordinary.dispose(); await attached.dispose(); }
+  });
   it.each(["runtime", "adapter"])("releases selected writer ownership through ordinary %s disposal", async owner => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-writer-disposal-")); roots.push(root);
     const saved = await writeResumeFixture(resolve(root, "sessions"), root);

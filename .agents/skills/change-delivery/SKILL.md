@@ -15,7 +15,7 @@ Use the owning procedure for the operation; do not reconstruct it from duplicate
 
 ## Working checklist
 
-1. Keep primary on `develop`. Sweep once at session start, relay its result lines, inspect Git inventory, and verify the exact worktree, branch, repository, state, and ownership before edits. Blocked cleanup does not block a separate delivery.
+1. Keep primary on `develop`. Sweep once at session start and relay its result lines, then use the shared Worktrees guidance in `AGENTS.md`. A1 owns attachment verification; do not add an inventory approval gate. Blocked cleanup does not block a separate delivery.
 2. Start a planning-only draft PR. After explicit approval and an implementation request, continue in that same worktree, branch, history, and PR. One clear instruction can supply both authorization requirements for an already presented plan; ask only about a genuinely missing decision.
 3. Keep progress truthful. Check each delivered Implementation outcome promptly; before the final item, finish tasks/gaps, add Acceptance, reconcile/push current `origin/develop`, and check the final body. Trusted automation owns readiness, finalization, and CI; agents never mark implementation PRs ready.
 4. Use the runbook's bounded validation and handoff procedure. Keep scratch secret-free in the owning worktree's ignored `.artifacts/`. Follow `AGENTS.md` for attribution and user-command formatting.

@@ -77,6 +77,8 @@ If a saved session's folder was moved or deleted, recovery offers **Continue**, 
 
 Bare A1 automatically names unnamed sessions from the first prompt and regenerates automatic names on the next prompt after a worktree-context change. Manual `/name` renames are preserved. Names appear after footer stats, with a secondary-accent reveal for automatic changes. Agent settings offers **Session name format** with Kebab case (default), Sentence case, and Title Case for future generated names, or **Automatic session name** to disable naming; see [session names](docs/features/session-naming.md) for details.
 
+Inside an A1 agent session, `a1 worktree enter <branch>` creates or resumes a task checkout and attaches it. `a1 worktree attach <path>` attaches an existing checkout; `a1 worktree detach` releases it without deleting work. A1 handles coordination and ordinary recovery internally; successful attachment needs no second inventory check. See [worktree commands](docs/features/worktrees.md).
+
 Show all commands:
 
 ```text
