@@ -10,3 +10,7 @@
 - [x] 2.2 Remove Cached/Uncached label indentation while preserving the common value column, numeric values, percentages, and cache-write details.
 - [x] 2.3 Reserve a blank row before dialog shortcut hints and keep scrolling, rail geometry, resize, close, and full-screen reference presentation coherent.
 - [x] 2.4 Add focused layout and navigation assertions, record final checks and gap disposition, and restore missing OpenSpec schema metadata reported by finalized-delivery CI.
+
+## 3. CI architecture repair
+
+- [x] 3.1 Remove redundant footer-height state and share the derived render/paging geometry without changing dialog behavior or relaxing architecture limits.

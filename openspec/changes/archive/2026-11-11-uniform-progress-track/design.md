@@ -39,6 +39,12 @@ No bar-length, fill calculation, phase, animation, cleanup, palette, installer/u
 - Added the missing standard `.openspec.yaml` identified by the earlier `delivery-artifact-missing` CI result; no validator was weakened. Finalization must regenerate the archive/acceptance digests for the refined scope.
 - Physical-terminal visual confirmation remains optional; no real global install or update was performed.
 
+## CI architecture repair
+
+- The finalized candidate's PR-core job stopped before unit tests because `ReferenceScreenApp` had 16 fields, exceeding the class-size threshold after adding a redundant footer-height field.
+- Removed the derived field and centralized the render/paging height calculation in a pure module-local helper. The approved dialog spacing, viewport size, paging, and rail behavior are unchanged; no architecture threshold or baseline was relaxed.
+- Repair checks passed: complete architecture gates, build, typecheck, and 58 focused tests across the reference app, route adapter, and session-shell reference-screen files. Current `origin/develop` is already included, and no new known gaps were identified.
+
 ## Known gaps
 
 None identified in the approved scope.

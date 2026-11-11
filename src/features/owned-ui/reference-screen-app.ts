@@ -39,6 +39,11 @@ const SCROLL_LINGER_MS = 900;
 const SCROLL_LINGER_REPAINT_MS = 925;
 const LOADING_NOTICE = "Loading…";
 
+/** Keeps document rendering and paging on the same height after reserving dialog footer spacing. */
+function referenceBodyHeight(height: number, dialog: boolean): number {
+  return Math.max(0, height - HEADER_ROWS - FOOTER_ROWS - (dialog ? 1 : 0));
+}
+
 type Action = "up" | "down" | "page-up" | "page-down" | "first" | "last" | "close";
 
 export const REFERENCE_SCREEN_SHORTCUTS = new ShortcutRegistry<Action>();
@@ -114,7 +119,6 @@ export class ReferenceScreenApp implements UiApp {
   readonly id: string;
   readonly #title: string;
   readonly #dialog: boolean;
-  readonly #footerRows: number;
   readonly #document: ReferenceDocumentProvider;
   readonly #scrollSettings: () => OwnedUiViewportSettings;
   readonly #selection: ReferenceDocumentSelection | undefined;
@@ -136,7 +140,6 @@ export class ReferenceScreenApp implements UiApp {
     this.id = options.id;
     this.#title = options.title;
     this.#dialog = options.presentation === "dialog";
-    this.#footerRows = FOOTER_ROWS + (this.#dialog ? 1 : 0);
     this.#document = options.document;
     this.#scrollSettings = options.scrollSettings;
     this.#selection = options.selection === undefined ? undefined : new ReferenceDocumentSelection(options.selection);
@@ -166,7 +169,7 @@ export class ReferenceScreenApp implements UiApp {
     const settings = this.#scrollSettings();
     const reservesRail = settings.scrollbarAppearance !== "hidden";
     const contentWidth = reservesRail ? Math.max(0, rect.width - RAIL_COLUMNS) : rect.width;
-    const bodyHeight = Math.max(0, rect.height - HEADER_ROWS - this.#footerRows);
+    const bodyHeight = referenceBodyHeight(rect.height, this.#dialog);
     const content = this.#content(contentWidth, theme);
     const body: string[] = [];
     const visibleDocumentRows: Array<number | undefined> = [];
@@ -254,10 +257,10 @@ export class ReferenceScreenApp implements UiApp {
         this.#scrollBy(1);
         return { consumed: true };
       case "page-up":
-        this.#scrollBy(-Math.max(1, host.getSize().height - HEADER_ROWS - this.#footerRows));
+        this.#scrollBy(-Math.max(1, referenceBodyHeight(host.getSize().height, this.#dialog)));
         return { consumed: true };
       case "page-down":
-        this.#scrollBy(Math.max(1, host.getSize().height - HEADER_ROWS - this.#footerRows));
+        this.#scrollBy(Math.max(1, referenceBodyHeight(host.getSize().height, this.#dialog)));
         return { consumed: true };
       case "first":
         this.#scroll = 0;
