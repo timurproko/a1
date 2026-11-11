@@ -1,4 +1,29 @@
+import type { ProgressSpinnerStyle } from "../../contracts/presentation/index.js";
+
 export type ProgressStatusMarker = "…" | "...";
+
+/** Pinned loader cadence, shared by the focused Settings preview. */
+export const PROGRESS_SPINNER_INTERVAL_MS = 80;
+const SPINNER_FRAMES = {
+  none: [],
+  current: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
+  circle: ["◐", "◓", "◑", "◒"],
+  diamond: ["◇", "◈", "◆", "◈"],
+  square: ["◧", "◩", "◨", "◪"],
+} as const;
+
+/** Accepts only the declared owned spinner choices. */
+export function isProgressSpinnerStyle(value: unknown): value is ProgressSpinnerStyle {
+  return typeof value === "string" && Object.hasOwn(SPINNER_FRAMES, value);
+}
+
+/** One fixed-cell glyph; actual Current indicators retain the loader's supplied frame. */
+export function progressSpinnerFrame(style: ProgressSpinnerStyle, phase: number, currentFrame?: string): string {
+  if (style === "current" && currentFrame !== undefined) return currentFrame;
+  const frames = SPINNER_FRAMES[style];
+  const index = Number.isFinite(phase) ? Math.max(0, Math.floor(phase)) : 0;
+  return frames.length === 0 ? "" : frames[index % frames.length]!;
+}
 
 export interface ProgressStatusFrameStyles {
   readonly muted: (text: string) => string;
