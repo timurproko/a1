@@ -1,7 +1,7 @@
 ## 1. Recovery
 
-- [ ] 1.1 Classify definitive attachment invalidity and release the session's own association and claim; verify lifecycle tests for missing path, missing Git pointer, replaced identity, uncertain failure, and preserved foreign claims.
-- [ ] 1.2 Return built-in tools and footer context to the startup checkout after one explained failure; verify the SDK composition fixture through the real tool entry path and plain detach on an invalid checkout.
+- [x] 1.1 Classify definitive attachment invalidity and release the session's own association and claim; verify lifecycle tests for missing path, missing Git pointer, replaced identity, uncertain failure, and preserved foreign claims.
+- [x] 1.2 Return built-in tools and footer context to the startup checkout after one explained failure; verify the SDK composition fixture through the real tool entry path and plain detach on an invalid checkout.
 
 ## 2. Completion
 

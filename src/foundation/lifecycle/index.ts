@@ -14,6 +14,7 @@ export {
   readSessionStartupRoot,
   readSessionRepositoryContext,
   registerSessionRepositoryRuntime,
+  releaseInvalidSessionRepositoryContext,
   releaseSessionRepositoryRuntime,
   setSessionRepositoryContext,
   withSessionRepositoryObservation,
@@ -21,6 +22,7 @@ export {
 export { retrySessionCoordination } from "./session-context-retry.js";
 export { enterSessionRepositoryWorktree } from "./session-worktree-entry.js";
 export type {
+  ReleasedSessionAttachment,
   SessionRepositoryContext,
   SessionRepositoryContextOptions,
   SessionRepositoryIdentity,

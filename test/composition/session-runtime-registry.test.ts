@@ -5,6 +5,7 @@ const context = vi.hoisted(() => ({
   observe: vi.fn(async (..._args: unknown[]) => ({ cwd: "/repo", branch: "develop", revision: "revision-one" } as { cwd: string; branch: string; revision: string } | null)),
   register: vi.fn(async (..._args: unknown[]) => {}),
   release: vi.fn(async (..._args: unknown[]) => {}),
+  releaseInvalid: vi.fn(async (..._args: unknown[]) => null as { worktreeRoot: string; startupRoot: string } | null),
 }));
 vi.mock("../../src/foundation/lifecycle/session-repository-context.js", () => ({
   activateSessionRepositoryContext: context.activate,
@@ -12,6 +13,7 @@ vi.mock("../../src/foundation/lifecycle/session-repository-context.js", () => ({
   readSessionStartupRoot: async () => "/startup",
   registerSessionRepositoryRuntime: context.register,
   releaseSessionRepositoryRuntime: context.release,
+  releaseInvalidSessionRepositoryContext: context.releaseInvalid,
 }));
 
 const { SessionRuntimeRegistry } = await import("../../src/composition/session-runtime-registry.js");
@@ -170,6 +172,23 @@ describe("SessionRuntimeRegistry", () => {
       expect(await read("s1", "/s1.jsonl", signal)).toBe("/repo");
     }
     expect(context.activate).toHaveBeenCalledTimes(3);
+    await registry.dispose();
+  });
+
+  it("releases a definitively invalid attachment, reports it to one tool call, then uses startup", async () => {
+    const registry = new SessionRuntimeRegistry({ runtimeId: "runtime-1", inspectProcess: async () => owner });
+    const signal = new AbortController().signal;
+    const invalid = Object.assign(new Error("gone"), { code: "worktree-attachment-invalid" });
+    context.observe.mockRejectedValueOnce(invalid).mockResolvedValue(null);
+    context.releaseInvalid.mockResolvedValueOnce({ worktreeRoot: "/repo/.worktrees/task", startupRoot: "/startup" });
+    expect(await registry.readerFor(undefined)("s1", "/s1.jsonl", signal)).toBeNull();
+    const tool = registry.toolReaderFor(undefined);
+    await expect(tool("s1", "/s1.jsonl", signal)).rejects.toMatchObject({
+      code: "worktree-attachment-invalid", message: expect.stringMatching(/\/repo\/\.worktrees\/task.*\/startup/u),
+    });
+    expect(await tool("s1", "/s1.jsonl", signal)).toBe("/startup");
+    context.observe.mockRejectedValueOnce(invalid);
+    await expect(tool("s1", "/s1.jsonl", signal)).rejects.toBe(invalid);
     await registry.dispose();
   });
 
