@@ -1,7 +1,7 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ReleaseStateStore, emptyState, planProtectedReleases, RELEASE_STATE_SCHEMA, withinRetention } from "../../../src/foundation/release/index.js";
 import type { ReleaseState, MaterializedRelease } from "../../../src/foundation/release/index.js";
 
@@ -125,8 +125,24 @@ describe("atomic release references", () => {
     const store = new ReleaseStateStore(root);
     await writeFile(store.path, JSON.stringify({ ...emptyState(), schema: "addone-release-cohort-v1" }));
 
-    expect(RELEASE_STATE_SCHEMA).toBe("a1-release-cohort-v1");
+    expect(RELEASE_STATE_SCHEMA).toBe("a1-release-cohort-v2");
     await expect(store.read()).rejects.toThrow(/invalid release state/);
+  });
+
+  it("upgrades v1 control state and retains legacy approved roots", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-release-state-claims-")); roots.push(root);
+    const store = new ReleaseStateStore(root);
+    const first = release("1.0.0", "1"), second = release("1.0.1", "2");
+    const initial = approvedState(first, second);
+    const { lifetimeClaims: _capability, ...legacy } = initial.releases[first.releaseId]!;
+    await writeFile(store.path, JSON.stringify({ ...initial, schema: "a1-release-cohort-v1",
+      releases: { ...initial.releases, [first.releaseId]: legacy },
+      references: { ...initial.references, rollback: null },
+    }));
+    const state = await store.update(value => value);
+    expect(state.schema).toBe(RELEASE_STATE_SCHEMA);
+    expect(planProtectedReleases(state).retainedReleaseIds).toContain(first.releaseId);
+    expect(JSON.parse(await readFile(store.path, "utf8")).schema).toBe("a1-release-cohort-v2");
   });
 
   it("reconciles a large legacy retention list to age-based retention", async () => {
@@ -152,6 +168,7 @@ describe("atomic release references", () => {
         packageVersion: candidate.packageVersion,
         contentDigest: candidate.contentDigest,
         approval: "approved" as const,
+        lifetimeClaims: true as const,
         materializedAt: timestamp,
         certifiedAt: candidate === recent ? new Date(now - 6 * 24 * 60 * 60 * 1_000).toISOString() : timestamp,
         diagnosticsPath: `${candidate.releaseId}.json`,
@@ -214,6 +231,7 @@ describe("atomic release references", () => {
         packageVersion: value.packageVersion,
         contentDigest: value.contentDigest,
         approval,
+        lifetimeClaims: true as const,
         materializedAt: value === candidate ? at(day) : at(400 * day),
         certifiedAt,
         diagnosticsPath: null,
@@ -229,6 +247,27 @@ describe("atomic release references", () => {
     // Invariant: the active release is never collected, however old or unstamped its approval.
     const unstamped = { ...state, releases: { ...state.releases, [active.releaseId]: { ...state.releases[active.releaseId]!, certifiedAt: null } } };
     expect(planProtectedReleases(unstamped, { now }).retainedReleaseIds).toContain(active.releaseId);
+  });
+
+  it.each(["live", "unknown"])("retains an aged %s owner of the claim-admission gate", async kind => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-release-lock-")); roots.push(root);
+    const store = new ReleaseStateStore(root);
+    const owner = kind === "live" ? JSON.stringify({ pid: process.pid }) : "{";
+    const lock = `${store.path}.lock`;
+    await writeFile(lock, owner);
+    await utimes(lock, new Date(0), new Date(0));
+    const clock = vi.spyOn(Date, "now").mockReturnValueOnce(0).mockReturnValue(6000);
+    try { await expect(store.update(state => state)).rejects.toBeTruthy(); }
+    finally { clock.mockRestore(); }
+    expect(await readFile(lock, "utf8")).toBe(owner);
+  });
+
+  it("serializes competing state writers recovering a proven-dead gate owner", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-release-lock-")); roots.push(root);
+    const store = new ReleaseStateStore(root);
+    await writeFile(`${store.path}.lock`, JSON.stringify({ pid: 2147483647, token: "dead" }));
+    await Promise.all(Array.from({ length: 8 }, () => store.update(state => state)));
+    expect((await store.read()).revision).toBe(8);
   });
 
   it("stamps approval time when a release is approved", async () => {
@@ -257,6 +296,7 @@ function approvedState(first: MaterializedRelease, second: MaterializedRelease):
       launchContract: "neutral-launch-v1",
       contentDigest: candidate.contentDigest,
       approval: "approved" as const,
+      lifetimeClaims: true as const,
       materializedAt: timestamp,
       certifiedAt: timestamp,
       diagnosticsPath: `${candidate.releaseId}.json`,

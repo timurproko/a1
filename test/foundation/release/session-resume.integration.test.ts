@@ -70,6 +70,30 @@ afterAll(async () => {
 }, 60_000);
 
 describe("same-pin resume through the exact packaged public launch chain", () => {
+  it.each([false, true])("restores history beyond the delivery ceiling without rewriting it (compacted: %s)", async compacted => {
+    const saved = await writeResumeFixture(store, cwd, { compacted, largeMessages: 1000 });
+    const before = await readFile(saved.path);
+    const direct = SessionManager.open(saved.path).buildSessionContext();
+    expect(before.length).toBeGreaterThan(6_000_000);
+    const context = JSON.stringify(direct.messages);
+    for (const index of [0, 499, 999]) expect(context).toContain(`history-${index}-${saved.marker}`);
+    if (compacted) expect(direct.messages[0]?.role).toBe("compactionSummary");
+    const first = await launch(["--session", saved.path]);
+    await first.ready(saved.marker);
+    expect(first.output()).not.toMatch(/Session failed|Engine delivery did not complete/);
+    await first.close();
+    const hint = resumeHint(first.output());
+    expect(hint).toBe(`a1 --session ${saved.id}`);
+    const resumed = await launchHint(hint);
+    await resumed.ready(saved.marker);
+    expect(resumed.output()).not.toMatch(/Session failed|Engine delivery did not complete/);
+    await resumed.close();
+    expect(resumeHint(resumed.output())).toBe(hint);
+    expect(await readFile(saved.path)).toEqual(before);
+    expect(SessionManager.open(saved.path).buildSessionContext()).toEqual(direct);
+    await assertIdle();
+  }, 120_000);
+
   it.each([false, true])("creates, exits, and executes the default-store hint (compacted: %s)", async compacted => {
     const saved = await writeResumeFixture(store, cwd, { compacted });
     const before = await readFile(saved.path);
