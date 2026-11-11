@@ -1,12 +1,6 @@
 import type { OwnedUiEvent, OwnedUiSessionBackend, OwnedUiSessionNameState, OwnedUiSessionNamingPort } from "../../contracts/owned-ui/index.js";
 import type { SessionNameFormat } from "./generate.js";
-import { sessionNamingTask } from "./context.js";
-
-export interface SessionNamingContext {
-  readonly cwd: string;
-  readonly branch: string | null;
-  readonly revision: string;
-}
+import type { SessionNamingContext } from "./context.js";
 
 interface NamingOptions {
   readonly backend: Pick<OwnedUiSessionBackend, "identity" | "session">;
@@ -141,8 +135,8 @@ export class SessionNamingController {
   }
 
   #launch(run: PromptRun): void {
-    const { context, state, prompt } = run;
-    if (!context || !state || !prompt || run.checking || this.#disposed || !this.#options.enabled()
+    const { context, state, prompt, promptId } = run;
+    if (!context || !state || !prompt || !promptId || run.checking || this.#disposed || !this.#options.enabled()
       || run.abort.signal.aborted || run.epoch !== this.#epoch || state.source === "user") return;
     const repositoryKey = contextKey(context);
     const key = JSON.stringify([state.sessionFile, repositoryKey]);
@@ -150,8 +144,9 @@ export class SessionNamingController {
     this.#attempted = key;
     const work = new AbortController();
     this.#work = { abort: work, key: repositoryKey };
-    const task = sessionNamingTask(prompt, run.promptId!, context, this.#options.backend.session.view().transcript, state.completedContext === null);
-    void import("./generate.js").then(async ({ formatSessionName, generateSessionNameCandidate }) => {
+    const transcript = this.#options.backend.session.view().transcript;
+    void Promise.all([import("./generate.js"), import("./context.js")]).then(async ([{ formatSessionName, generateSessionNameCandidate }, { sessionNamingTask }]) => {
+      const task = sessionNamingTask(prompt, promptId, context, transcript, state.completedContext === null);
       const candidate = await generateSessionNameCandidate(task,
         request => this.#options.naming.complete(request), work.signal, this.#options.format);
       if (work.signal.aborted || this.#disposed || !this.#options.enabled()) return;

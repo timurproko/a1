@@ -1,5 +1,10 @@
 import type { OwnedUiTranscriptBlock } from "../../contracts/owned-ui/index.js";
-import type { SessionNamingContext } from "./controller.js";
+
+export interface SessionNamingContext {
+  readonly cwd: string;
+  readonly branch: string | null;
+  readonly revision: string;
+}
 
 const GENERIC_WORDS = new Set("a an the i we you my our your want need can could should would will lets let please now just and or to for of in on with from this that it some more make get do go ahead ok okay yes yep sure approved approve proceed continue implement implementation task tasks change changes feature fix add update build create new main master develop repo repository worktree later again".split(" "));
 const APPROVAL_WORDS = new Set([...GENERIC_WORDS, "plan", "thanks", "thank", "start", "done"]);

@@ -17,6 +17,14 @@
 
 The isolated worktree required its pinned dependency installation and a build before launcher typechecking; initial checks against inherited older dependencies or absent generated declarations were not treated as product failures. Naming tests assert bounded context, normalization/fallback, and lifecycle behavior with deterministic completions. No live provider or interactive terminal acceptance was claimed.
 
+## CI repair
+
+The first finalized candidate failed architecture checks because the new context helper was eagerly imported and its context type imported the controller, creating a three-module cycle. The context contract now lives in the helper module, the controller imports it only as a type, and both naming helpers load dynamically after an eligible prompt. Prompt identity and transcript are captured before lazy loading. No cycle allowlist or startup budget was relaxed. The startup regression explicitly excludes the context helper from eager reachability.
+
+Finalized-delivery validation also found the missing required `.openspec.yaml`. The archive now retains its spec-driven schema and original creation date; trusted refinalization recalculates the acceptance manifest rather than bypassing validation.
+
+Repair validation passed: build, typecheck, the complete architecture check chain, 61 focused naming/composition/startup tests in three files, and delivery refinalization inspection (including strict change validation). Existing task-name, format, and footer behavior is unchanged by this repair.
+
 ## Known gaps
 
 No known gaps. Live naming quality remains model-dependent; interactive approval and resize checks are optional maintainer acceptance, not prerequisites for completing the implementation.
