@@ -15,7 +15,14 @@ interface Case {
   readonly id: string;
   readonly pinnedArgs: readonly string[];
   readonly ownedArgs: readonly string[];
-  readonly scenario?: { readonly kind?: string; readonly detail?: string; readonly errors?: readonly (readonly [string, string])[] };
+  readonly scenario?: {
+    readonly kind?: string;
+    readonly detail?: string;
+    readonly errors?: readonly (readonly [string, string])[];
+    readonly offline?: string;
+    readonly warnings?: readonly string[];
+    readonly changes?: readonly string[];
+  };
   readonly settings?: object;
 }
 interface Transcript { readonly id: string; readonly stdout: string; readonly stderr: string; readonly code: number }
@@ -116,6 +123,39 @@ describe("independent pinned package command transcripts", () => {
     expect(owned.find(entry => entry.id === "install")?.stdout).toContain("Installing ./extension...");
     expect(owned.find(entry => entry.id === "list")?.stdout).toContain("User packages:");
     expect(owned.find(entry => entry.id === "remove")?.stdout).toContain("Removed ./extension");
+  }, 120_000);
+
+  it.each([0, 1] as const)("preserves skipped, unchanged, warned, and changed update summaries at color level %i", async color => {
+    const root = await home();
+    const summaries = [
+      { id: "offline", offline: "1", warnings: [], changes: [], text: "Skipped package updates (offline mode)" },
+      { id: "offline-true", offline: "TRUE", warnings: [], changes: [], text: "Skipped package updates (offline mode)" },
+      { id: "offline-yes", offline: "yes", warnings: [], changes: [], text: "Skipped package updates (offline mode)" },
+      { id: "unchanged", offline: "0", warnings: [], changes: [], text: "Packages are already up to date" },
+      { id: "unchanged-source", source: "npm:fixture", offline: "false", warnings: [], changes: [], text: "npm:fixture is already up to date" },
+      { id: "warned", offline: "", warnings: ["Stale registry metadata"], changes: [], text: "No packages were updated, see the warnings above" },
+      { id: "warned-source", source: "npm:fixture", offline: "", warnings: ["Stale registry metadata"], changes: [], text: "npm:fixture was not updated, see the warnings above" },
+      { id: "changed", offline: "", warnings: [], changes: ["npm:fixture 1.0.0 -> 1.1.0"], text: "Updated 1 package:" },
+      { id: "changed-warned", offline: "", warnings: ["Another package stayed unchanged"], changes: ["npm:fixture 1.0.0 -> 1.1.0", "git:fixture abc1234 -> def5678"], text: "Updated 2 packages:" },
+      { id: "unchanged-after-change", offline: "", warnings: [], changes: [], text: "Packages are already up to date" },
+    ];
+    const cases: Case[] = summaries.flatMap(summary => [false, true].map(compatibility => ({
+      id: `${summary.id}-${compatibility ? "pi" : "direct"}`,
+      pinnedArgs: summary.source ? ["update", summary.source] : ["update", "--extensions"],
+      ownedArgs: [...(compatibility ? ["pi"] : []), "update", ...(summary.source ? [summary.source] : ["--extensions"])],
+      scenario: { kind: "package-update", offline: summary.offline, warnings: summary.warnings, changes: summary.changes },
+    })));
+    const pinned = await capture("pinned", root, cases, color);
+    const owned = await capture("owned", root, cases, color);
+    expect(owned).toEqual(pinned);
+    for (const [index, summary] of summaries.entries()) {
+      for (const result of owned.slice(index * 2, index * 2 + 2)) {
+        expect(result.code).toBe(0);
+        expect(result.stderr).toBe("");
+        expect(result.stdout).toContain(summary.text);
+        for (const change of summary.changes) expect(result.stdout).toContain(`  ${change}\n`);
+      }
+    }
   }, 120_000);
 
   it.each([0, 1] as const)("projects pinned explicit help onto only A1's supported grammar at color level %i", async color => {

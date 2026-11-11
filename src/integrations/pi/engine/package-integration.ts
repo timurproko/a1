@@ -26,6 +26,8 @@ export function createPiPackagesPort(input: AgentPackagesPortInput): AgentPackag
   const { profileRoot, cwd } = input;
   // Compatibility: model-only refresh bypasses package settings and their diagnostics, as Pi does.
   let packageManager: DefaultPackageManager | undefined;
+  let updateChanges: string[] = [];
+  let updateWarningCount = 0;
   const manager = (): DefaultPackageManager => {
     if (packageManager) return packageManager;
     const settingsManager = SettingsManager.create(cwd, profileRoot, { projectTrusted: false });
@@ -37,8 +39,14 @@ export function createPiPackagesPort(input: AgentPackagesPortInput): AgentPackag
     }
     packageManager = new DefaultPackageManager({ cwd, agentDir: profileRoot, settingsManager });
     packageManager.setProgressCallback(event => {
-      if (event.type !== "start") return;
-      input.onProgress?.({ operation: operationFor(event.action), message: String(event.message) });
+      if (event.type === "result" && event.action === "update" && event.message) {
+        updateChanges.push(event.message);
+      } else if (event.type === "start") {
+        input.onProgress?.({ operation: operationFor(event.action), message: String(event.message) });
+      } else if (event.type === "progress" && event.message) {
+        updateWarningCount++;
+        input.onProgress?.({ operation: operationFor(event.action), message: event.message, severity: "warning" });
+      }
     });
     return packageManager;
   };
@@ -78,8 +86,14 @@ export function createPiPackagesPort(input: AgentPackagesPortInput): AgentPackag
     async update(source?: string): Promise<AgentPackageOutcome> {
       return await attempt("update", source ?? null, async () => {
         // Compatibility: Pi owns source identity and its contextual no-match suggestions.
+        updateChanges = [];
+        updateWarningCount = 0;
         await manager().update(source);
-        return agentPackageOutcome("update", "completed", null, source ?? null, configured());
+        // Compatibility: Pi's offline predicate is not part of its package-root public API.
+        const offline = ["1", "true", "yes"].includes(process.env.PI_OFFLINE?.toLowerCase() ?? "");
+        return agentPackageOutcome("update", "completed", null, source ?? null, configured(), {
+          offline, warningCount: updateWarningCount, changes: updateChanges,
+        });
       });
     },
 
