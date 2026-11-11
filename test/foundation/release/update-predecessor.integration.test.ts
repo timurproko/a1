@@ -117,7 +117,11 @@ async function recordCandidate(release: unknown, dataDir: string, materialized: 
 interface PredecessorStateContract {
   readonly RELEASE_STATE_SCHEMA?: string;
   readonly ReleaseStateStore?: new (dataDir: string) => {
-    read(): Promise<{ references: { active: string | null }; releases: Record<string, { packageVersion: string }> }>;
+    read(): Promise<{
+      references: { active: string | null };
+      releases: Record<string, { packageVersion: string }>;
+      cleanup?: { workerRuns?: readonly { completedAt: string | null }[] };
+    }>;
     update(operation: (state: unknown) => unknown): Promise<unknown>;
   };
   readonly delegateActivation?: (
@@ -156,6 +160,13 @@ async function exercisePostActivationState(release: PredecessorStateContract, ve
   expect(state.releases[state.references.active ?? ""]?.packageVersion, `published ${version} sees the candidate as active`).toBe(targetVersion);
   await expect(store.update(current => current), `published ${version} cannot update the candidate's control state`).resolves.toBeDefined();
   await expect(scheduleReleaseCleanup(paths.dataDir, paths), `published ${version} cannot maintain the candidate's control state`).resolves.toBeUndefined();
+  // Concurrency: the candidate and the predecessor each started a detached cleanup worker. Its last
+  // write records completion, so the sandbox is removed only once no worker can still write into it.
+  const deadline = Date.now() + 60_000;
+  while ((await store.read()).cleanup?.workerRuns?.some(run => run.completedAt === null)) {
+    if (Date.now() >= deadline) throw new Error(`cleanup workers started for published ${version} did not finish within 60s`);
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 100));
+  }
   await fixture.discard(sandbox);
 }
 

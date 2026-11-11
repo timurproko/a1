@@ -34,6 +34,7 @@
 ## 7. CI predecessor repair
 
 - [x] 7.1 Record the candidate with each predecessor's own store before its warmup, matching the real update order. Published 0.2.7-dev.1285 reserves a launch claim during warmup and refused the unrecorded candidate with "Selected release is no longer available for launch" (reproduced locally, fixed by the record).
+- [x] 7.2 Wait for the detached cleanup workers started by the candidate and the predecessor to record completion before removing the post-activation sandbox; Linux removal otherwise raced a worker still writing (ENOTEMPTY).
 
 ## Focused checks and gap disposition
 
