@@ -158,11 +158,30 @@ describe("installer command contract", () => {
     expect(INSTALLER_PROGRESS_ACCENT_ANSI).toBe(UPDATE_PROGRESS_ACCENT_ANSI);
     expect(INSTALLER_PROGRESS_ACCENT_ANSI).toBe(earlyAccentPalette("blue").accent);
     expect(rendered).toBe(renderUpdateProgressBar(31));
-    expect(stripVTControlCharacters(rendered)).toBe(`${"━".repeat(12)}${"─".repeat(26)} 31%`);
+    expect(stripVTControlCharacters(rendered)).toBe(`${"━".repeat(38)} 31%`);
     expect(rendered).toContain("\u001b[38;2;128;128;128m 31%");
     expect(rendered).not.toMatch(/Preparing|Resolving|Downloading|Installing|Activating|Verifying/u);
     expect(classifyProgressLine("npm http fetch GET 200 package.tgz")).toBe("Downloading packages");
     expect(classifyProgressLine("arbitrary package output", "Resolving packages")).toBe("Resolving packages");
+  });
+
+  it.each([
+    [-10, 0, 0],
+    [0, 0, 0],
+    [25, 25, 10],
+    [49.6, 50, 19],
+    [100, 100, 38],
+    [110, 100, 38],
+  ])("matches the update stroke and color boundary at %s percent", (input, percent, filled) => {
+    const accent = earlyAccentPalette("pink").accent;
+    const frame = renderProgressBar(input, accent);
+    expect(frame).toBe(renderUpdateProgressBar(input, accent));
+    expect(frame).toBe(
+      `${accent}${"━".repeat(filled)}`
+      + `\u001b[38;2;102;102;102m${"━".repeat(38 - filled)}`
+      + `\u001b[38;2;128;128;128m ${percent}%\u001b[39m`,
+    );
+    expect(stripVTControlCharacters(frame)).toBe(`${"━".repeat(38)} ${percent}%`);
   });
 
   it("keeps generated palette provenance synchronized with the named A1 accents", () => {

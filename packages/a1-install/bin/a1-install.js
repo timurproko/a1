@@ -151,7 +151,7 @@ export function renderProgressBar(percent, accent = SHARED_PROGRESS_ACCENT_ANSI)
   const filled = Math.round((bounded / 100) * PROGRESS_WIDTH);
   const gray = "\u001b[38;2;128;128;128m";
   const track = "\u001b[38;2;102;102;102m";
-  return `${accent}${"━".repeat(filled)}${track}${"─".repeat(PROGRESS_WIDTH - filled)}${gray} ${bounded}%\u001b[39m`;
+  return `${accent}${"━".repeat(filled)}${track}${"━".repeat(PROGRESS_WIDTH - filled)}${gray} ${bounded}%\u001b[39m`;
 }
 
 export function classifyProgressLine(line, fallback = "Installing") {

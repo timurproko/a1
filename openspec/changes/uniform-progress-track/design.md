@@ -14,7 +14,12 @@ No bar-length, fill calculation, phase, animation, cleanup, palette, installer/u
 
 ## Implementation observations
 
-Pending implementation and focused checks.
+- Both renderers now use `━` for the remaining segment; the completed segment and every ANSI color sequence are unchanged.
+- Exact-output tests cover clamped zero/full, partial, and rounded percentages. Installer/update byte parity includes a saved pink accent; existing default and saved-green assertions remain intact.
+- Focused validation: `vitest run test/foundation/release/update.test.ts test/foundation/release/installer-bootstrap.test.ts` passed with 109 tests passing and 6 existing platform/conditional skips.
+- The fresh worktree initially lacked generated `dist` declarations required by bin typechecking. `npm run build:core` generated them successfully, and the subsequent complete `npm run typecheck` passed.
+- Strict OpenSpec validation and `git diff --check` passed. No real global installation or update was performed; the pure built renderer is available for optional terminal inspection.
+- Review confirms the product diff is limited to the two track-glyph substitutions, with no change to movement, colors, width, percentage positioning, or cleanup.
 
 ## Known gaps
 
