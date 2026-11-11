@@ -12,4 +12,4 @@ Automatic export storage refuses linked storage-directory entries rather than fo
 
 Exports are user data and can contain private session content. They are not disposable build artifacts, do not belong in `.artifacts/`, and are never removed by ordinary worktree cleanup. The `a1 pi` comparison profile retains its pinned export behavior.
 
-For an old export already blocking an eligible merged worktree, see the explicit named-export preservation operation in [local worktree cleanup](../local-worktree-cleanup.md). It preserves and verifies the selected export before removing only its original pathname; it does not remove the worktree or bypass other local-content checks.
+For an old export blocking worktree cleanup, follow [export decisions](../local-worktree-cleanup.md#export-decisions): an explicit request to delete the identified file is sufficient, without mandatory preservation or another confirmation. If preservation is wanted instead, the optional named-export operation saves and verifies a copy before removing the source. Neither choice bypasses ordinary worktree cleanup checks.
