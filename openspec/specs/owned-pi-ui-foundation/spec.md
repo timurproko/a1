@@ -7,7 +7,14 @@ Defines A1's independently owned Pi shell with vanilla-default regular main-scre
 ## Requirements
 
 ### Requirement: The owned shell presents the complete pinned Pi interactive UI
-The A1-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `1.5.1` at commit `dd30101cfc5b0609411dd80b6f93adbc14db14cf`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior. After parity acceptance a route MAY be superseded by a declared A1-owned replacement; the pinned behavior of a superseded route SHALL remain provable through `a1 pi`, and every capability the pinned route exposed SHALL remain reachable from its replacement.
+The A1-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `1.5.2` at commit `b4afdddf44e059c67ccf5097e5317d913521b470`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior. After parity acceptance a route MAY be superseded by a declared A1-owned replacement; the pinned behavior of a superseded route SHALL remain provable through `a1 pi`, and every capability the pinned route exposed SHALL remain reachable from its replacement.
+
+#### Scenario: Recover a session whose working directory is gone
+- **WHEN** startup selection, resume, import, or an extension-triggered switch encounters a session whose original working directory no longer exists
+- **THEN** the owned UI SHALL expose pinned Continue, Fork, and Cancel choices with equivalent presentation and restoration behavior
+- **AND** Continue SHALL use the current directory without persisting that choice, Fork SHALL create a new session identity in the current directory, and Cancel SHALL leave the active session unchanged
+- **AND** cancelled or failed import recovery SHALL NOT leave duplicate imported files with the same session identity
+- **AND** recovery SHALL preserve A1's session-writer exclusion and existing cross-project selection policy
 
 #### Scenario: Start an owned Pi session
 - **WHEN** the user starts the owned UI in an equivalent terminal and session state

@@ -41,7 +41,7 @@ describe("published changelog command data", () => {
       };
       const synthetic = await resource(text);
       const empty = await resource("# No releases");
-      for (const since of [undefined, "3.1.0", "3.2.1", "2.0.0", "3.2.1-dev", "v3.1.0", " 3.1.0 ", "3.1", "", "invalid"]) {
+      for (const since of [undefined, "3.1.0", "v3.1.0", "3.1.0-dev.7", "3.2.1-preview.1", "3.2.1", "2.0.0", "3.2.1-dev", " 3.1.0 ", "3.1", "", "invalid"]) {
         await expect(readPinnedCommandChangelog(since, synthetic), String(since)).resolves.toBe(expected(entries, since));
       }
       await expect(readPinnedCommandChangelog("3.2.1-20261111.1", synthetic)).resolves.toBe("");

@@ -12,6 +12,8 @@ import {
   workflowConfirmation,
   workflowResult,
 } from "./workflow-support.js";
+import { missingSessionCwdRecovery } from "./session-cwd-recovery.js";
+import { switchToRecoveredFork } from "./runtime-integration.js";
 import type { PiProviderAuthentication } from "./provider-authentication.js";
 import type { PiWorkflowContexts } from "./workflow-contexts.js";
 import type { OwnedUiModelInfo, OwnedUiSnapshot, OwnedUiThinkingLevel } from "../../../contracts/owned-ui/index.js";
@@ -429,23 +431,19 @@ async function importWorkflow({ request, runtime, argument }: PiWorkflowCall): P
   if (request.confirmed === undefined) {
     return workflowConfirmation(request.command, `Replace current session with ${path}?`);
   }
-  if (!request.confirmed) return workflowResult(request.command, "cancelled", "Import cancelled", undefined, "status");
+  if (!request.confirmed || request.cwdRecoveryChoice === "cancel") return workflowResult(request.command, "cancelled", "Import cancelled", undefined, "status");
   try {
     const result = await requireCapability(runtime.importFromJsonl, "importFromJsonl").call(runtime, path, request.cwdOverride);
     if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Import cancelled", undefined, "status");
     return workflowResult(request.command, "completed", `Session imported from: ${path}`);
   } catch (error) {
-    const issue = isRecord(error) && isRecord(error.issue) ? error.issue : undefined;
-    const fallbackCwd = issue === undefined ? undefined : stringProperty(issue, "fallbackCwd");
-    if (fallbackCwd !== undefined && request.cwdOverride === undefined) {
-      const sessionCwd = stringProperty(issue, "sessionCwd") ?? "the session working directory";
-      return workflowConfirmation(
-        request.command,
-        `cwd from session file does not exist\n${sessionCwd}\n\ncontinue in current cwd\n${fallbackCwd}`,
-        fallbackCwd,
-      );
+    const recovery = missingSessionCwdRecovery(error);
+    if (recovery === undefined || request.cwdOverride !== undefined) throw error;
+    if (request.cwdRecoveryChoice === "fork") {
+      const result = await switchToRecoveredFork(runtime, path, recovery.cwdRecovery.fallbackCwd);
+      return workflowResult(request.command, result.cancelled ? "cancelled" : "completed", result.cancelled ? "Import cancelled" : result.message, undefined, "status");
     }
-    throw error;
+    return { command: request.command, outcome: "requires-selection", ...recovery };
   }
 }
 
@@ -548,22 +546,23 @@ async function compactWorkflow({ request, session, argument }: PiWorkflowCall): 
 async function resumeWorkflow({ request, runtime, argument, selection }: PiWorkflowCall): Promise<PiWorkflowResult> {
   if (!selection && !argument) return workflowResult(request.command, "failed", "Resume requires the owned session controller");
   const sessionPath = selection ?? argument;
+  if (request.cwdRecoveryChoice === "cancel") return workflowResult(request.command, "cancelled", "Resume cancelled", undefined, "status");
   try {
     const result = await runtime.switchSession(sessionPath);
     if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Resume cancelled", undefined, "silent");
     return workflowResult(request.command, "completed", "Resumed session");
   } catch (error) {
-    const issue = isRecord(error) && isRecord(error.issue) ? error.issue : undefined;
-    const fallbackCwd = issue === undefined ? undefined : stringProperty(issue, "fallbackCwd");
-    if (fallbackCwd === undefined) throw error;
-    if (request.confirmed === undefined) {
-      const sessionCwd = stringProperty(issue, "sessionCwd") ?? "the session working directory";
-      return workflowConfirmation(request.command, `cwd from session file does not exist\n${sessionCwd}\n\ncontinue in current cwd\n${fallbackCwd}`);
+    const recovery = missingSessionCwdRecovery(error);
+    if (recovery === undefined) throw error;
+    if (request.cwdRecoveryChoice === undefined) return { command: request.command, outcome: "requires-selection", ...recovery };
+    const fallbackCwd = recovery.cwdRecovery.fallbackCwd;
+    if (request.cwdRecoveryChoice === "fork") {
+      const result = await switchToRecoveredFork(runtime, sessionPath, fallbackCwd);
+      return workflowResult(request.command, result.cancelled ? "cancelled" : "completed", result.cancelled ? "Resume cancelled" : result.message, undefined, "status");
     }
-    if (!request.confirmed) return workflowResult(request.command, "cancelled", "Resume cancelled", undefined, "status");
     const result = await runtime.switchSession(sessionPath, { cwdOverride: fallbackCwd });
     if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Resume cancelled", undefined, "silent");
-    return workflowResult(request.command, "completed", "Resumed session in current cwd");
+    return workflowResult(request.command, "completed", `Resumed session in ${fallbackCwd}`, undefined, "status");
   }
 }
 

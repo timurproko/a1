@@ -21,6 +21,23 @@ describe("pre-resource session fork confirmation", () => {
     output.destroy();
   });
 
+  it.each([["1", "continue"], ["Fork", "fork"], ["3", "cancel"], ["", "cancel"]] as const)("handles missing-folder choice %j without replacing terminal modes", async (answer, choice) => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    let transcript = "";
+    output.on("data", chunk => { transcript += chunk.toString(); });
+    const result = createConsoleSessionForkPrompt({ input, output })({ sourceCwd: "D:/gone", fallbackCwd: "D:/work" });
+    input.write(`${answer}\n`);
+    expect(await result).toBe(choice);
+    expect(transcript).toContain("Session cwd does not exist: D:/gone");
+    expect(transcript).toContain("Continue in D:/work (asks again next time)");
+    expect(transcript).toContain("Fork into D:/work (new session ID, original kept)");
+    expect(transcript).toContain("Cancel");
+    expect(input.listenerCount("data")).toBe(0);
+    expect(input.listenerCount("error")).toBe(0);
+    input.destroy(); output.destroy();
+  });
+
   it("cancels on EOF and releases its input listener", async () => {
     const input = new PassThrough();
     const output = new PassThrough();

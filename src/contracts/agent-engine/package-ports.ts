@@ -2,11 +2,7 @@
 
 export type AgentPackageOperation = "install" | "remove" | "update" | "refresh-models" | "list";
 
-/**
- * Why an operation ended, kept separate from the prose so callers can branch on
- * it. `not-found` is the one failure an engine can state structurally — the source
- * is not configured in this profile — rather than only in a message.
- */
+/** Status is separate from prose; not-found means the source is unconfigured. */
 export type AgentPackageStatus = "completed" | "not-found" | "failed";
 
 export interface AgentPackageDescriptor {

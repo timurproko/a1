@@ -3,7 +3,7 @@
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
-      "version": "1.5.1",
+      "version": "1.5.2",
       "entry": "dist/index.d.ts",
       "exports": [
         {
@@ -83,6 +83,7 @@
           "kind": "class",
           "hash": "1d775993cc8b926be47a67bd36199812ed6540527411e79b49dddd615ea464a8",
           "consumers": [
+            "src/integrations/pi/engine/extension-ui-binding.ts",
             "src/integrations/pi/engine/prompt-suggestions.ts",
             "src/integrations/pi/engine/provider-authentication.ts",
             "src/integrations/pi/engine/resource-catalog.ts",
@@ -1483,7 +1484,7 @@
         {
           "name": "InteractiveMode",
           "kind": "class",
-          "hash": "59d36abbd7f8ca60142b460adf6b67e4adf7bdf161ff7caf9944ead52e5d0d39",
+          "hash": "8a99f3896f512a5c62b9e86e83a85cdc802f88cec88853b2fd42c063c25001a4",
           "consumers": []
         },
         {
@@ -3080,7 +3081,7 @@
     },
     {
       "name": "@earendil-works/pi-tui",
-      "version": "1.5.1",
+      "version": "1.5.2",
       "entry": "dist/index.d.ts",
       "exports": [
         {
