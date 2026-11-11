@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.5.1 (MIT), commit dd30101cfc5b0609411dd80b6f93adbc14db14cf,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.2 (MIT), commit b4afdddf44e059c67ccf5097e5317d913521b470,
  * packages/coding-agent/src/modes/interactive/program-status-reporter.ts.
  * Modifications: Remap Pi session events to A1's neutral run events, inject the terminal reporter, use
  * A1's application identity, and clear dialog state when the owned session changes.
