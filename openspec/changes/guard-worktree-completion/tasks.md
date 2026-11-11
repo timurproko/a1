@@ -12,4 +12,4 @@
 
 - [x] 3.1 Block repository cleanup of a checkout with a live A1 attachment; verify node fixtures for live, dead, absent, and malformed claim records.
 - [x] 3.2 Update worktree, cleanup, and delivery guidance and the bash tool guideline to the completion lifecycle; verify the guidance regression test.
-- [ ] 3.3 Record focused validation and known-gap disposition; verify strict OpenSpec validation, typecheck, and the final delivery body.
+- [x] 3.3 Record focused validation and known-gap disposition; verify strict OpenSpec validation, typecheck, and the final delivery body.

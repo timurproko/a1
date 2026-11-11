@@ -39,6 +39,10 @@ The shared cleanup preflight used by `complete`, sweep, and the queue reads A1's
 
 `AGENTS.md`, `docs/features/worktrees.md`, the worktree protocol, the cleanup runbook, the delivery runbook's cleanup section, and the bash tool guideline state one lifecycle: stay attached through implementation and review; after a verified merge run `a1 worktree complete`; never clean the attached checkout directly; plain detach keeps files. XR Build gets the same block in its own repository and delivery.
 
+## Startup budget
+
+The tool wrapper and runtime registry are startup-reachable, so the owned startup graph grows by 1,162 source bytes and its byte ratchet moves from 1,785,076 to the measured 1,786,238. The completion module itself is loaded on demand and adds no startup file.
+
 ## Authorization
 
 The maintainer reviewed the recovered handoff plan for this work and asked for it to be implemented. Integration remains a separate maintainer decision.
