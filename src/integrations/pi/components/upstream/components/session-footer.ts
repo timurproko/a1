@@ -1,8 +1,8 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.5.2 (MIT), commit b4afdddf44e059c67ccf5097e5317d913521b470,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
- * Modifications: A1 PR links, model priority, level colors, secondary-accent name reveals, dim
- * name/row clipping; Pi intact.
+ * Modifications: A1 PR links, model/name priority over stats, level colors, secondary-accent name
+ * reveals, dim name/row clipping; Pi intact.
  * Deviations: owned-status-level-color, owned-pull-request-badge, owned-footer-ellipsis,
  * owned-footer-model-priority, owned-session-name-reveal.
  */
@@ -116,23 +116,29 @@ export class SessionFooter implements Component {
       const route = ` → ${routed.model.modelId}${level}`;
       rightWithoutProvider += this.profile === "a1" ? theme.fg("dim", route) : route;
     }
+    const nameWidth = this.profile === "a1" ? visibleWidth(sessionName ?? "") : 0;
     let right = rightWithoutProvider;
     if ((view.status.footer?.availableProviderCount ?? 1) > 1 && view.activeModel) {
       const provider = `(${view.activeModel.providerId}) `;
       right = (this.profile === "a1" ? theme.fg("dim", provider) : provider) + rightWithoutProvider;
-      if (leftWidth + 2 + visibleWidth(right) > width) right = rightWithoutProvider;
+      if (Math.max(leftWidth, nameWidth) + 2 + visibleWidth(right) > width) right = rightWithoutProvider;
     }
 
-    if (this.profile === "a1" && leftWidth + 2 + visibleWidth(right) > width) {
-      right = [rightWithoutProvider, modelLevel].find(value => visibleWidth(value) + 2 <= width)
+    if (this.profile === "a1" && Math.max(leftWidth, nameWidth) + 2 + visibleWidth(right) > width) {
+      right = [rightWithoutProvider, modelLevel].find(value => visibleWidth(value) + 2 + nameWidth <= width)
+        ?? [rightWithoutProvider, modelLevel].find(value => visibleWidth(value) + 2 <= width)
         ?? truncateToWidth(theme.fg("dim", modelName), width, dimEllipsis);
       left = truncateToWidth(left, Math.max(0, width - visibleWidth(right) - 2), dimEllipsis);
       leftWidth = visibleWidth(left);
     }
     const rightWidth = visibleWidth(right);
-    this.#nameBudget = Math.max(0, width - leftWidth - rightWidth - 2 - 3);
+    this.#nameBudget = Math.max(0, width - rightWidth - 2);
     if (this.profile === "a1" && sessionName && this.#nameBudget > 0) {
-      left += theme.fg("dim", " • ") + this.#nameFrame(sessionName, this.#nameBudget).text;
+      this.#nameBudget = Math.min(visibleWidth(sessionName), this.#nameBudget);
+      const statsBudget = this.#nameBudget < visibleWidth(sessionName) ? 0
+        : Math.max(0, width - rightWidth - 2 - this.#nameBudget - 3);
+      left = statsBudget >= 4 ? truncateToWidth(left, statsBudget, dimEllipsis) : "";
+      left = (left ? left + theme.fg("dim", " • ") : "") + this.#nameFrame(sessionName, this.#nameBudget).text;
       leftWidth = visibleWidth(left);
     }
     let line: string;
