@@ -19,7 +19,7 @@ Use the owning procedure for the operation; do not reconstruct it from duplicate
 2. Start a planning-only draft PR. After explicit approval and an implementation request, continue in that same worktree, branch, history, and PR. One clear instruction can supply both authorization requirements for an already presented plan; ask only about a genuinely missing decision.
 3. Keep progress truthful. Check each delivered Implementation outcome promptly; before the final item, finish tasks/gaps, add Acceptance, reconcile/push current `origin/develop`, and check the final body. Trusted automation owns readiness, finalization, and CI; agents never mark implementation PRs ready.
 4. Use the runbook's bounded validation and handoff procedure. Keep scratch secret-free in the owning worktree's ignored `.artifacts/`. Follow `AGENTS.md` for attribution and user-command formatting.
-5. Use integrated primary-checkout cleanup tooling for worktrees and branches. Follow the cleanup runbook for a named export decision; a generic cleanup request does not authorize deleting unknown user files.
+5. Use integrated primary-checkout cleanup tooling for worktrees and branches; from an attached A1 session, finish a merged task with `a1 worktree complete`, never direct cleanup of the attached checkout. Follow the cleanup runbook for a named export decision; a generic cleanup request does not authorize deleting unknown user files.
 
 ## Authority boundaries
 

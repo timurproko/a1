@@ -15,6 +15,7 @@ it("verifies local cleanup identity, archive authority, ownership, recovery, and
     "test/repository-governance/local-cleanup-evidence.node.mjs",
     "test/repository-governance/local-cleanup-watch.node.mjs",
     "test/repository-governance/local-cleanup-maintenance.node.mjs",
+    "test/repository-governance/local-cleanup-attachment.node.mjs",
   ], { cwd: process.cwd(), timeout: CHILD_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 }); }
   catch (error) {
     const failure = error as Error & { stdout?: string; stderr?: string };

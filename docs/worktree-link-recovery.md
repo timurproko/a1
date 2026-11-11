@@ -33,5 +33,7 @@ When the old gate is absent, updated A1 initializes its compatibility barrier au
 | `session-runtime-unverifiable` | The runtime's recorded process cannot be checked. Retry; no ownership takeover is authorized. |
 | `worktree-active-in-another-session` | Another live agent owns the target. Use a different worktree or have that owner release it. |
 | `worktree-owner-unverifiable` | The editing claim itself is uncertain. Gate recovery cannot make that claim available. |
+| `worktree-attachment-invalid` | The attached checkout is gone or replaced. A1 released this session's attachment; retry the call from the startup checkout. |
+| `worktree-not-attached` / `worktree-content` | Completion needs an attached checkout without uncommitted or untracked content. Nothing was changed. |
 
 Diagnostics do not expose another session's process identity, session file, transcript, or credentials. The mechanism does not repair arbitrary damaged claim records, change tool cwd, or grant Git/cleanup authority.

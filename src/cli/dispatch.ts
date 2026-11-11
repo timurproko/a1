@@ -50,6 +50,7 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "worktree enter <branch> [--base <branch>]",
     "worktree attach <path>",
     "worktree detach",
+    "worktree complete [--change <id>] [--pr <number>]",
     "worktree list",
     "session worktrees",
     "session link-worktree <path>",
@@ -87,6 +88,7 @@ export function cliHelp(capabilities: CliCapabilities): string {
     `  ${command} worktree enter <branch> [--base <branch>]`,
     `  ${command} worktree attach <path>`,
     `  ${command} worktree detach`,
+    `  ${command} worktree complete [--change <id>] [--pr <number>]`,
     `  ${command} worktree list`,
     "",
     "Session context (compatibility aliases):",
@@ -192,7 +194,21 @@ function parseWorktree(rest: readonly string[]): CliCommand {
   if ((action === "detach" || action === "list") && value === undefined) {
     return { kind: "session-context", request: { action: action === "detach" ? "unlink-worktree" : "worktrees" } };
   }
-  return { kind: "error", message: PRODUCT_TEXT.diagnostic("worktree accepts enter <branch> [--base <branch>], attach <path>, detach, or list.") };
+  if (action === "complete") {
+    const selectors = rest.slice(1);
+    let change: string | undefined, pr: number | undefined;
+    let valid = selectors.length % 2 === 0;
+    for (let index = 0; valid && index < selectors.length; index += 2) {
+      const name = selectors[index], selected = selectors[index + 1] ?? "";
+      if (name === "--change" && change === undefined && /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(selected)) change = selected;
+      else if (name === "--pr" && pr === undefined && /^[1-9][0-9]{0,8}$/u.test(selected)) pr = Number(selected);
+      else valid = false;
+    }
+    if (valid) {
+      return { kind: "session-context", request: { action: "complete-worktree", ...(change === undefined ? {} : { change }), ...(pr === undefined ? {} : { pr }) } };
+    }
+  }
+  return { kind: "error", message: PRODUCT_TEXT.diagnostic("worktree accepts enter <branch> [--base <branch>], attach <path>, detach, complete [--change <id>] [--pr <number>], or list.") };
 }
 
 function parseSessionContext(rest: readonly string[]): CliCommand {
