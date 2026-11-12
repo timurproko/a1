@@ -1,7 +1,7 @@
 export type { OwnedUiSessionNameState, OwnedUiSessionNameCompletion, OwnedUiSessionNamingPort } from "./session-naming.js";
 
-/** Stable stored choices for bare A1's semantic UI accent. */
-export type UiAccentColor = "purple" | "blue" | "cyan" | "green" | "orange" | "pink";
+export const UI_ACCENT_COLORS = Object.freeze(["blue", "green", "orange", "pink", "purple", "cyan", "grey"] as const);
+export type UiAccentColor = typeof UI_ACCENT_COLORS[number];
 
 export {
   OWNED_UI_EXTENSION_CONTRACT_VERSION,

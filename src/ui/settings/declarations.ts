@@ -1,9 +1,7 @@
-import type { OwnedUiBackgroundStyle, UiAccentColor } from "../../contracts/owned-ui/index.js";
+import { UI_ACCENT_COLORS, type OwnedUiBackgroundStyle } from "../../contracts/owned-ui/index.js";
 import type { ProgressSpinnerStyle } from "../../contracts/presentation/index.js";
 
-const UI_ACCENT_COLOR_CHOICES = Object.freeze([
-  "blue", "purple", "cyan", "green", "orange", "pink",
-] as const satisfies readonly UiAccentColor[]);
+const UI_ACCENT_COLOR_CHOICES = UI_ACCENT_COLORS;
 
 export type OwnedUiSettingValue = string | number | boolean;
 

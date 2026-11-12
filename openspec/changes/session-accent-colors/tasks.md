@@ -1,8 +1,8 @@
 ## 1. Ordered seven-color palette
 
-- [ ] 1.1 Define the shared ordered inventory blue, green, orange, pink, purple, cyan, grey and extend the neutral accent contract.
-- [ ] 1.2 Add appearance-aware neutral grey and its semantic projection, previews, and generated progress palette forms.
-- [ ] 1.3 Add focused tests for ordering/default, grey neutrality/contrast, appearance and terminal-mode projection, previews, and generated palette consistency.
+- [x] 1.1 Define the shared ordered inventory blue, green, orange, pink, purple, cyan, grey and extend the neutral accent contract.
+- [x] 1.2 Add appearance-aware neutral grey and its semantic projection, previews, and generated progress palette forms.
+- [x] 1.3 Add focused tests for ordering/default, grey neutrality/contrast, appearance and terminal-mode projection, previews, and generated palette consistency.
 
 ## 2. Saved default and independent current session color
 

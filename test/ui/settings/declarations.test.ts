@@ -55,7 +55,7 @@ describe("owned UI setting declarations", () => {
       section: { id: "appearance", title: "Appearance" },
       application: "live",
       defaultValue: "blue",
-      allowedValues: ["blue", "purple", "cyan", "green", "orange", "pink"],
+      allowedValues: ["blue", "green", "orange", "pink", "purple", "cyan", "grey"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "accentColor")?.description)
       .toMatch(/list markers.*tonal interface surfaces/i);

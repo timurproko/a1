@@ -336,7 +336,7 @@ describe("owned settings manager", () => {
     const limit: number = target.value("promptHistoryMaxItems");
     const scope: "unique" | "shared" = target.value("promptHistoryScope");
     const animate: boolean = target.value("quitAnimation");
-    const accent: "purple" | "blue" | "cyan" | "green" | "orange" | "pink" = target.value("accentColor");
+    const accent: "purple" | "blue" | "cyan" | "green" | "orange" | "pink" | "grey" = target.value("accentColor");
     const background: "transparent" | "accent" | "dark" = target.value("backgroundStyle");
     expect([speed, limit, scope, animate, accent, background]).toEqual(["normal", 100, "unique", true, "blue", "transparent"]);
     await target.change("a1", "scrollbarSpeed", "fast");
