@@ -19,7 +19,9 @@ The override is not a setting or environment variable: it never changes saved De
 
 The first `--` ends option parsing. A declared normal launch can carry a literal prompt after it, submitted once through the owned prompt command after successful startup and first presentation. `a1 --session-color green -- --session-color pink` starts green and submits the text `--session-color pink`, not a second option. An explicit boundary without a color uses ordinary Default initialization. Token order/text is preserved and joined with spaces at prompt submission; quotes/metacharacters are not shell-evaluated. Grammar/startup failure or trust exit does not submit the prompt. Arbitrary leading words, comparison operations, and unrelated Pi flags remain outside the supported launch grammar.
 
-Bootstrap carries the value in owned literal child arguments, not Pi flags. If a selected older retained UI cannot consume this startup payload, the explicit override fails before rendering rather than silently showing Default; ordinary no-override release fallback remains available. Comparison mode and unrelated installation/update progress are unchanged.
+Bootstrap carries the value in owned literal child arguments, not Pi flags. Support is checked against authenticated evidence for the exact selected release, including its full manifest when compact restart evidence contains only the UI entry. A compatible release accepts color and literal prompts on cold and repeated warm launches; creating restart certification does not remove that support.
+
+If the selected retained UI genuinely cannot consume this startup payload, or its required evidence cannot be verified, startup fails before spawning that UI rather than silently dropping the color or prompt. Installed capability discovery does not authorize a different unsupported retained release. Ordinary no-payload launch and fallback behavior, comparison mode, and unrelated installation/update progress are unchanged.
 
 ## Integration commands
 
