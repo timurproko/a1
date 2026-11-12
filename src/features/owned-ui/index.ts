@@ -1,3 +1,6 @@
+export { reserveHerdrBinding } from "./herdr-binding.js";
+export type { HerdrBindingReservation } from "./herdr-binding.js";
+export { createHerdrReporter } from "./herdr-reporter.js";
 export { runOwnedUi, terminateOwnedUiProcess } from "./run.js";
 export type { OwnedUiRunOptions } from "./run.js";
 export { createConsoleProjectTrustPrompt } from "./project-trust-prompt.js";

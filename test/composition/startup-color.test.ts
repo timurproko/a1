@@ -22,7 +22,7 @@ describe("first-frame and committed replacement color composition", () => {
     root = await mkdtemp(join(tmpdir(), "startup-color-"));
     const profile = join(root, ".a1", "agent");
     await mkdir(profile, { recursive: true });
-    await writeFile(join(profile, "settings.json"), JSON.stringify({ a1: { defaultAccentColor: "pink", promptHistoryEnabled: false } }));
+    await writeFile(join(profile, "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { defaultAccentColor: "pink", promptHistoryEnabled: false } }));
     vi.stubEnv(PRODUCT_IDENTITY.environment.profileHome, root);
     vi.stubEnv(PRODUCT_IDENTITY.environment.runtimeDir, join(root, "runtime"));
     vi.stubEnv(PRODUCT_IDENTITY.environment.dataDir, join(root, "data"));

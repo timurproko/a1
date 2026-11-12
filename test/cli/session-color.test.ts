@@ -13,7 +13,7 @@ describe("always-JSON session color commands", () => {
   it("discovers only delivered support with exact clean stdout and no launch", async () => {
     const lines: string[] = [];
     expect(await runSessionColorCommand(["capabilities"], { environment: { HC_TERMINAL_ID: "invalid", PATH: "missing" }, stdout: text => lines.push(text) })).toBe(0);
-    expect(lines).toEqual(['{"version":1,"launchColor":true,"terminalIdentity":false}\n']);
+    expect(lines).toEqual(['{"version":1,"launchColor":true,"terminalIdentity":true}\n']);
     expect(await run(["capabilities", "extra"])).toMatchObject({ code: 2 });
   });
   it("lists ordered colors without a running session or a JSON flag", async () => {

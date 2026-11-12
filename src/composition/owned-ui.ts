@@ -37,6 +37,7 @@ import { createOwnedRouteHost, type OwnedReferenceProviders, type OwnedRouteHost
 import { renderPiShellChangelogLines } from "../integrations/pi/components/shell-presenters-info.js";
 import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
+import type { HerdrBindingReservation } from "../features/owned-ui/herdr-binding.js";
 import type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
 import { bindAutomaticSessionNaming } from "./session-naming.js";
 import { deferStartupReleaseUpdateObservation, readPackageVersion, StartupReleaseNote } from "./startup-route.js";
@@ -54,6 +55,8 @@ export interface OwnedUiCompositionOptions {
   readonly sessionSelection?: SessionSelection;
   readonly sessionColor?: UiAccentColor;
   readonly promptArguments?: readonly string[];
+  /** Early bare-launch reservation; never supplied to comparison/noninteractive compositions. */
+  readonly herdrBinding?: HerdrBindingReservation;
   readonly sessionForkPrompt?: PiSessionForkPrompt;
   /** A1 settings profile; comparison paths omit it. */
   readonly profileId?: string;
@@ -128,7 +131,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     ...(options.packageVersion === undefined ? {} : { packageVersion: options.packageVersion }),
     ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
   });
-  const sessionColor = bindSessionColor(backend, bareSettings, color => host.setAccentColor(color), productPaths.runtimeDir);
+  const sessionColor = bindSessionColor(backend, bareSettings, color => host.setAccentColor(color), productPaths.runtimeDir, options.herdrBinding);
   // Rationale: peer refresh shares persisted preferences, never session-local Current color.
   const unwatchSharedSettings = bareSettings === null
     ? () => {}
@@ -271,7 +274,7 @@ function startupPromptFlush(backend: ComposedSessionBackend, arguments_?: readon
   };
 }
 
-function bindSessionColor(backend: ComposedSessionBackend, settings: OwnedSettingsManager | null, apply: (color: UiAccentColor) => void, runtimeDir: string) {
+function bindSessionColor(backend: ComposedSessionBackend, settings: OwnedSettingsManager | null, apply: (color: UiAccentColor) => void, runtimeDir: string, herdrBinding?: HerdrBindingReservation) {
   if (settings === null) return { start() {}, async dispose() {} };
   let control: Promise<{ dispose(): Promise<void> } | null> = Promise.resolve(null);
   let started = false, stopped = false;
@@ -287,7 +290,7 @@ function bindSessionColor(backend: ComposedSessionBackend, settings: OwnedSettin
       if (started || stopped) return;
       started = true;
       control = import("./session-colors.js").then(module => stopped ? null
-        : module.startSessionColorControl(backend, settings, runtimeDir, process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId]))
+        : module.startSessionColorControl(backend, settings, runtimeDir, process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId], herdrBinding))
         .catch(() => null);
     },
     async dispose() { stopped = true; unbind(); unsubscribe(); await (await control)?.dispose(); },

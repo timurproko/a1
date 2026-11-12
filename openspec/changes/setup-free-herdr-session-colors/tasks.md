@@ -9,13 +9,13 @@
 
 ## 2. Publish Core terminal session identity automatically with bounded lifecycle reporting and ownership-safe cleanup
 
-- [ ] 2.1 Add a small owned-UI reporter with explicit identity/subprocess/clock/timer ports and validated local Core context; preserve the supplied native label contract without consulting private color endpoint records or matching from terminal content.
-- [ ] 2.2 Implement the shared per-user/Core terminal generation fence, early reservation, bounded cross-process serialization, and permanent supersession behavior so older delayed starts, heartbeats, replacements, and cleanup cannot reclaim a newer binding.
-- [ ] 2.3 Add the supported public Core get/label adapter with literal arguments, bounded execution/output/settlement, canonical identity checks, and Windows executable/npm plus Unix resolution without new dependencies or shell-string interpolation.
-- [ ] 2.4 Compose reporting only after color endpoint availability; order prompt replacement reporting after endpoint binding publication, coalesce in-flight events, refresh around 30 seconds, and dispose timers/subscriptions/public labels only under exact ownership.
-- [ ] 2.5 Make missing Core/command, invalid UUID/context, endpoint startup failure, partial/foreign labels, subprocess failures, and unverifiable ownership optional fail-closed paths; advertise terminalIdentity only after the implementation is delivered.
-- [ ] 2.6 Write disposable reporter/subprocess and two-process ownership fixtures for readiness, exact session/runtime binding, heartbeat/replacement/shutdown ordering, late writes, successor exit/stale reclaim, bounded failures, Windows/Unix resolution, and native/legacy coexistence.
-- [ ] 2.7 Add a disposable Core-only SSH-equivalent integration fixture without App/customization/companion setup, using a readable maintained Herdr contract or equivalent consumer fixture for native matching and older-discovery fallback.
+- [x] 2.1 Add a small owned-UI reporter with explicit identity/subprocess/clock/timer ports and validated local Core context; preserve the supplied native label contract without consulting private color endpoint records or matching from terminal content.
+- [x] 2.2 Implement the shared per-user/Core terminal generation fence, early reservation, bounded cross-process serialization, and permanent supersession behavior so older delayed starts, heartbeats, replacements, and cleanup cannot reclaim a newer binding.
+- [x] 2.3 Add the supported public Core get/label adapter with literal arguments, bounded execution/output/settlement, canonical identity checks, and Windows executable/npm plus Unix resolution without new dependencies or shell-string interpolation.
+- [x] 2.4 Compose reporting only after color endpoint availability; order prompt replacement reporting after endpoint binding publication, coalesce in-flight events, refresh around 30 seconds, and dispose timers/subscriptions/public labels only under exact ownership.
+- [x] 2.5 Make missing Core/command, invalid UUID/context, endpoint startup failure, partial/foreign labels, subprocess failures, and unverifiable ownership optional fail-closed paths; advertise terminalIdentity only after the implementation is delivered.
+- [x] 2.6 Write disposable reporter/subprocess and two-process ownership fixtures for readiness, exact session/runtime binding, heartbeat/replacement/shutdown ordering, late writes, successor exit/stale reclaim, bounded failures, Windows/Unix resolution, and native/legacy coexistence.
+- [x] 2.7 Add a disposable Core-only SSH-equivalent integration fixture without App/customization/companion setup, using a readable maintained Herdr contract or equivalent consumer fixture for native matching and older-discovery fallback.
 
 ## 3. Document the setup-free integration contract and compatibility behavior
 

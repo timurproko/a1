@@ -4,6 +4,8 @@ import { markStartupPhase } from "../../foundation/startup/startup-runtime.js";
 import { boundedCleanup } from "../../foundation/terminal-cleanup/terminal-reset.js";
 
 const PROCESS_OUTPUT_FLUSH_TIMEOUT_MS = 250;
+// Lifecycle: room for one bounded Core publication to settle before exact-owner cleanup.
+const PROCESS_CLEANUP_TIMEOUT_MS = 5000;
 
 export interface OwnedUiRunOptions {
   readonly application: OwnedUiApplicationPort;
@@ -41,7 +43,7 @@ export async function runOwnedUi(options: OwnedUiRunOptions): Promise<number> {
     originalFailure = error;
     throw error;
   } finally {
-    try { await boundedCleanup(() => application.dispose(), 2500); }
+    try { await boundedCleanup(() => application.dispose(), PROCESS_CLEANUP_TIMEOUT_MS); }
     catch (error) {
       if (failed) throw new AggregateError([originalFailure, error], "Owned UI run and cleanup failed", { cause: originalFailure });
       throw error;
