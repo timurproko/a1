@@ -116,7 +116,7 @@ describe("bounded project trust terminal preflight", () => {
     try {
       const profile = resolve(home, ".a1", "agent");
       await mkdir(profile, { recursive: true });
-      await writeFile(resolve(profile, "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { accentColor: "pink" } }));
+      await writeFile(resolve(profile, "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { defaultAccentColor: "pink", accentColor: "orange" } }));
       const project = resolve(home, "project");
       await mkdir(resolve(project, ".a1", "agent"), { recursive: true });
       await writeFile(resolve(project, ".a1", "agent", "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { accentColor: "orange" } }));

@@ -35,7 +35,7 @@ vi.mock("../../src/app/session-shell/session-shell.js", () => ({
 afterEach(() => { observed.options = undefined; vi.unstubAllEnvs(); });
 
 async function compose(options: { productMode?: "comparison"; profileId?: string; suggestionDiagnosticsPath?: string }) {
-  return composeOwnedUi({ ...options, createEngineHost: async () => ({ create: async () => ({ identity: { cwd: process.cwd(), agentDir: "synthetic-agent" }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never });
+  return composeOwnedUi({ ...options, createEngineHost: async () => ({ create: async () => ({ identity: { cwd: process.cwd(), agentDir: "synthetic-agent" }, session: { onEvent: () => () => {} }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never });
 }
 
 describe("suggestion diagnostic launch composition", () => {

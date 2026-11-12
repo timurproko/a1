@@ -5,7 +5,7 @@ import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { SHARED_PROGRESS_PALETTE } from "../../contracts/presentation/index.js";
 
 const MAX_SETTINGS_BYTES = 256 * 1024;
-type UiAccentColor = "blue" | "purple" | "cyan" | "green" | "orange" | "pink";
+type UiAccentColor = keyof typeof SHARED_PROGRESS_PALETTE;
 type EarlyAccentAppearance = "dark" | "light";
 type EarlyAccentMode = "truecolor" | "256color";
 

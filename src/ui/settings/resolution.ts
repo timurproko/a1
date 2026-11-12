@@ -48,7 +48,7 @@ export function resolveOwnedUiSettings(input: ResolveOwnedUiSettingsInput): Owne
   const values = input.values ?? {};
   const settings: OwnedUiResolvedSetting[] = [];
   for (const declaration of input.declarations) {
-    if (!Object.hasOwn(values, declaration.id)) {
+    if (declaration.storage === "session" || !Object.hasOwn(values, declaration.id)) {
       settings.push({ declaration, value: declaration.defaultValue, source: "default" });
       continue;
     }
@@ -67,7 +67,8 @@ export function resolveOwnedUiSettings(input: ResolveOwnedUiSettingsInput): Owne
 
   const preserved: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(values)) {
-    if (findOwnedUiSettingDeclaration(input.declarations, key) === null) preserved[key] = value;
+    const declaration = findOwnedUiSettingDeclaration(input.declarations, key);
+    if (declaration === null || declaration.storage === "session") preserved[key] = value;
   }
 
   return {

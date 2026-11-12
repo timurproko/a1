@@ -3677,7 +3677,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class, projecting A1's optional semantic accent, and deriving its owned fullscreen canvas.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "e98e570d44aceb534591502683109f894b93d2bcb83994c99ced1f9cc431b07f",
+      "localSha256": "310bd42051e79ebba4f4a3803f5ae2f50c24a21393af7323468c830c6098ff82",
       "approvedDeviations": [
         {
           "id": "theme-public-api-boundary",

@@ -24,7 +24,7 @@ type RepositoryContextReader = (sessionId: string, sessionFile: string, signal: 
 const observed = vi.hoisted(() => ({
   hosts: [] as PiEngineHostOptions[], readers: [] as Array<RepositoryContextReader | undefined>, autoName: true,
   nameFormat: "sentence" as "kebab" | "sentence" | "title" | undefined, spinnerStyle: "current" as ProgressSpinnerStyle,
-  spinnerSources: [] as Array<ProgressSpinnerSource | undefined>, settingsListeners: new Set<() => void>(),
+  spinnerSources: [] as Array<ProgressSpinnerSource | undefined>, colorStarts: 0, settingsListeners: new Set<() => void>(),
 }));
 // Rationale: run the real composition, registry, and lifecycle store without provider, terminal, or user-file effects.
 vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async importOriginal => ({
@@ -43,6 +43,7 @@ vi.mock("../../src/ui/settings/manager.js", () => ({
   OwnedSettingsManager: class {
     get file() { return "synthetic-agent-settings.json"; }
     refresh() { return false; }
+    startSession() { observed.colorStarts++; }
     value(key: string) { return key === "spinnerStyle" ? observed.spinnerStyle : key === "sessionAutoName" ? observed.autoName : key === "sessionNameFormat" ? observed.nameFormat : key === "promptHistoryEnabled" ? false : key === "accentColor" ? "purple" : undefined; }
     onChange(listener: (current: this) => void) {
       const notify = () => listener(this);
@@ -86,6 +87,7 @@ afterEach(async () => {
   observed.spinnerStyle = "current";
   observed.spinnerSources = [];
   observed.settingsListeners.clear();
+  observed.colorStarts = 0;
   vi.unstubAllEnvs();
   await rm(root, { recursive: true, force: true });
 });
@@ -103,7 +105,7 @@ async function compose(options: Pick<OwnedUiCompositionOptions, "productMode" | 
     createEngineHost: async hostOptions => { observed.hosts.push(hostOptions); return ({
       create: async (input: { repositoryContextReader?: RepositoryContextReader }) => {
         observed.readers.push(input.repositoryContextReader);
-        return { identity: { cwd: primary, agentDir: join(root, "agent") }, settings: { configuredTheme: () => "dark" }, ...extra };
+        return { identity: { cwd: primary, agentDir: join(root, "agent") }, session: { onEvent: () => () => {} }, settings: { configuredTheme: () => "dark" }, ...extra };
       },
       setAccentColor() {},
       dispose: async () => {},
@@ -124,6 +126,23 @@ async function runtimeRecords(): Promise<Array<Record<string, unknown>>> {
 }
 
 describe("session runtime composition wiring", () => {
+  it("resets color only on committed binding changes and unsubscribes on disposal", async () => {
+    const listeners = new Set<() => void>();
+    const identity = { cwd: primary, agentDir: join(root, "agent"), sessionBindingGeneration: 1, sessionGeneration: 1 };
+    const composed = await compose({}, { identity, session: { onEvent: (listener: () => void) => {
+      listeners.add(listener); listener(); return () => { listeners.delete(listener); };
+    } } });
+    const emit = () => { for (const listener of listeners) listener(); };
+    expect(observed.colorStarts).toBe(0);
+    identity.sessionGeneration++; emit();
+    expect(observed.colorStarts).toBe(0);
+    for (const _workflow of ["new", "resume", "fork", "import"]) {
+      identity.sessionBindingGeneration++; emit(); emit();
+    }
+    expect(observed.colorStarts).toBe(4);
+    await composed.application.dispose();
+    expect(listeners.size).toBe(0);
+  });
   it.each(["bare", "comparison"] as const)("wires profile-local spinner choices only into %s", async productMode => {
     observed.spinnerStyle = "circle";
     const composed = await compose({ productMode });
@@ -160,7 +179,8 @@ describe("session runtime composition wiring", () => {
   });
 
   function namingBackend(file: string) {
-    let listener: (event: unknown) => void = () => {};
+    const listeners = new Set<(event: unknown) => void>();
+    const emit = (event: unknown) => { for (const listener of listeners) listener(event); };
     let state = { sessionFile: file, binding: 1, name: null as string | null, nameEntryId: null as string | null, source: "unnamed", completedContext: null as string | null };
     const complete = vi.fn(async (_request: unknown) => "fix-cache");
     const apply = vi.fn((_expected: unknown, name: string, context: string) => { state = { ...state, name, source: "auto", nameEntryId: name, completedContext: context }; return true; });
@@ -169,10 +189,10 @@ describe("session runtime composition wiring", () => {
       extra: {
         identity: { cwd: primary, agentDir: join(root, "agent"), sessionBindingGeneration: 1,
           currentHistorySessionId: () => sessionId, currentSessionFile: () => file },
-        session: { view: () => ({ transcript: [] }), onEvent: (next: typeof listener) => { listener = next; return () => { listener = () => {}; }; } },
+        session: { view: () => ({ transcript: [] }), onEvent: (next: (event: unknown) => void) => { listeners.add(next); return () => { listeners.delete(next); }; } },
         naming: { state: () => state, complete, apply },
       },
-      prompt(text: string) { listener({ type: "agent-run-started" }); listener({ type: "transcript-block", block: { id: `prompt-${++promptNumber}`, kind: "user", text } }); },
+      prompt(text: string) { emit({ type: "agent-run-started" }); emit({ type: "transcript-block", block: { id: `prompt-${++promptNumber}`, kind: "user", text } }); },
     };
   }
 

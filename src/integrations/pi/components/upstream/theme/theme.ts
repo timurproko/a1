@@ -110,6 +110,7 @@ const ACCENT_PALETTE: Readonly<Record<UiAccentColor, Readonly<Record<PiTerminalT
   green: Object.freeze({ dark: okhslColor(159, 0.59, 0.67), light: okhslColor(159, 0.75, 0.46) }),
   orange: Object.freeze({ dark: okhslColor(48, 0.75, 0.67), light: okhslColor(48, 0.90, 0.47) }),
   pink: Object.freeze({ dark: okhslColor(337, 0.72, 0.67), light: okhslColor(337, 0.75, 0.48) }),
+  grey: Object.freeze({ dark: okhslColor(0, 0, 0.67), light: okhslColor(0, 0, 0.47) }),
 });
 
 /** Canonical named color used by both the interactive theme and pre-load palette generation. */
@@ -128,6 +129,7 @@ function wrapHue(hue: number): number {
 /** Derive the complete semantic family from any primary accent, including future custom colors. */
 export function derivePiAccentProjection(accent: Color, appearance: PiTerminalTheme): PiAccentProjection {
   const { h, s, l } = colorToOkhsl(accent);
+  const neutral = s < 0.001;
   const warm = h < 90 || h >= 270;
   const magenta = h >= 270 && h < 325;
   const blue = h >= 210 && h < 270;
@@ -138,16 +140,16 @@ export function derivePiAccentProjection(accent: Color, appearance: PiTerminalTh
   const selectedLightness = dark ? l * 0.37 : 1 - (1 - l) * 0.075;
   return Object.freeze({
     accent,
-    border: okhslColor(borderHue, clamp(s * 0.78, 0.30, 0.64), clamp(l - (dark ? 0.17 : 0.11), 0, 1)),
+    border: okhslColor(borderHue, neutral ? 0 : clamp(s * 0.78, 0.30, 0.64), clamp(l - (dark ? 0.17 : 0.11), 0, 1)),
     secondaryHeading: okhslColor(
       secondaryHue,
-      clamp(s + 0.20, 0.62, 0.82),
+      neutral ? 0 : clamp(s + 0.20, 0.62, 0.82),
       clamp(l + (dark ? 0.09 : -0.09), 0, 1),
     ),
-    selectedBg: okhslColor(h, selectedSaturation, selectedLightness),
+    selectedBg: okhslColor(h, neutral ? 0 : selectedSaturation, selectedLightness),
     userMessageBg: okhslColor(
       h,
-      selectedSaturation * 2 / 3,
+      neutral ? 0 : selectedSaturation * 2 / 3,
       dark ? l * 0.34 : 1 - (1 - l) * 0.055,
     ),
   });
@@ -197,8 +199,8 @@ export function renderPiAccentPreview(color: string, text: string): string | nul
 export function derivePiCanvasBackground(style: OwnedUiBackgroundStyle, accent: Color): Color | null {
   if (style === "transparent") return null;
   if (style === "dark") return okhslColor(229, 0.03, 0.12);
-  const { h } = colorToOkhsl(accent);
-  return okhslColor(h, 0.12, 0.12);
+  const { h, s } = colorToOkhsl(accent);
+  return okhslColor(h, s < 0.001 ? 0 : 0.12, 0.12);
 }
 
 /** Resolves the selected canvas through the active accent and terminal color mode. */

@@ -54,6 +54,10 @@ process.exitCode = await dispatchCli(process.argv.slice(2), {
     const { createPiPackagesPort } = await import("../dist/integrations/pi/engine/package-integration.js");
     return await runPackageCommand(request, { createPort: createPiPackagesPort });
   },
+  sessionColor: async arguments_ => {
+    const { runSessionColorCommand } = await import("../dist/cli/session-color.js");
+    return await runSessionColorCommand(arguments_);
+  },
   sessionContext: async request => {
     const { runSessionContextCommand } = await import("../dist/cli/session-context.js");
     return await runSessionContextCommand(request);

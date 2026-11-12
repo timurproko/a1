@@ -50,7 +50,7 @@ afterEach(() => {
   vi.useRealTimers(); vi.unstubAllEnvs();
 });
 async function compose(options: { productMode?: "comparison"; profileId?: string; clipboardDiagnosticsPath?: string }) {
-  return composeOwnedUi({ ...options, createEngineHost: async () => ({ create: async () => ({ identity: { cwd: process.cwd(), agentDir: "synthetic-agent" }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never });
+  return composeOwnedUi({ ...options, createEngineHost: async () => ({ create: async () => ({ identity: { cwd: process.cwd(), agentDir: "synthetic-agent" }, session: { onEvent: () => () => {} }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never });
 }
 
 describe("clipboard diagnostic launch composition", () => {

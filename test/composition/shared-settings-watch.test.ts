@@ -34,15 +34,20 @@ describe("shared settings watch", () => {
     } finally { stopOne(); stopTwo(); }
   });
 
-  it("applies a setting saved by another tab to every running tab", async () => {
+  it("shares the startup preference without recoloring running sessions", async () => {
     const settingsTab = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     const agentTab = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     const accents: string[] = [];
     agentTab.onChange(current => accents.push(current.value("accentColor")));
     const stop = watchSharedSettings(agentTab);
     try {
-      await settingsTab.change("a1", "accentColor", "cyan");
-      await vi.waitFor(() => expect(accents).toEqual(["cyan"]), { timeout: 5_000, interval: 50 });
+      await settingsTab.change("a1", "accentColor", "pink");
+      await settingsTab.change("a1", "defaultAccentColor", "cyan");
+      await vi.waitFor(() => expect(agentTab.pendingValue("defaultAccentColor")).toBe("cyan"), { timeout: 5_000, interval: 50 });
+      expect(accents).toEqual(["blue"]);
+      expect(settingsTab.value("accentColor")).toBe("pink");
+      agentTab.startSession();
+      expect(agentTab.value("accentColor")).toBe("cyan");
     } finally {
       stop();
     }
@@ -56,9 +61,9 @@ describe("shared settings watch", () => {
     agentTab.onChange(current => accents.push(current.value("accentColor")));
     const stop = watchSharedSettings(agentTab);
     try {
-      await settingsTab.change("a1", "accentColor", "cyan");
+      await settingsTab.change("a1", "defaultAccentColor", "cyan");
       await Promise.all(saturation);
-      await vi.waitFor(() => expect(accents).toEqual(["cyan"]), { timeout: 5_000, interval: 50 });
+      await vi.waitFor(() => expect(accents).toEqual(["blue"]), { timeout: 5_000, interval: 50 });
     } finally {
       stop();
     }

@@ -2,7 +2,7 @@ import { statSync } from "node:fs";
 import type { AgentSettingsPort } from "../contracts/agent-engine/index.js";
 import { resolveLaunchProfilePaths } from "../features/launch/profile-paths.js";
 import { PRODUCT_IDENTITY } from "../product-identity.js";
-import { OwnedSettingsManager } from "../ui/settings/manager.js";
+import type { OwnedSettingsManager } from "../ui/settings/manager.js";
 
 interface OwnedSettingsManagerFactoryOptions {
   readonly profileId: string;
@@ -11,7 +11,8 @@ interface OwnedSettingsManagerFactoryOptions {
 }
 
 /** Builds the profile-global settings manager shared by the Agent and slim utility compositions. */
-export function createOwnedSettingsManager(options: OwnedSettingsManagerFactoryOptions): OwnedSettingsManager {
+export async function createOwnedSettingsManager(options: OwnedSettingsManagerFactoryOptions): Promise<OwnedSettingsManager> {
+  const { OwnedSettingsManager } = await import("../ui/settings/manager.js");
   const profilePaths = resolveLaunchProfilePaths();
   return new OwnedSettingsManager({
     profileDir: profilePaths.agentProfile,
