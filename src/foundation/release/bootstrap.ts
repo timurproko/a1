@@ -44,7 +44,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
   await mkdir(paths.runtimeDir, { recursive: true, mode: 0o700 });
 
   const launchSelected = async (release: MaterializedRelease): Promise<number> => {
-    assertStartupPayloadSupport(release, options.launchIntent);
+    await assertStartupPayloadSupport(release, resolve(paths.dataDir, "releases"), options.launchIntent);
     const result = await launchUi(release, environment, sessionArgs, paths.runtimeDir, paths.dataDir);
     if (!result.releaseSuperseded) return result.code;
     if (retriesRemaining > 0) return await runBootstrapAttempt(options, retriesRemaining - 1);
@@ -159,9 +159,16 @@ function bootstrapArguments(intent: BootstrapOptions["launchIntent"], profile: L
   return arguments_;
 }
 
-function assertStartupPayloadSupport(release: MaterializedRelease, startup?: InteractiveStartupArguments): void {
-  if ((startup?.sessionColor !== undefined || startup?.promptArguments !== undefined)
-    && !release.files.some(file => file.path === "dist/features/launch/interactive-arguments.js")) {
+async function assertStartupPayloadSupport(
+  release: MaterializedRelease, selectedStoreRoot: string, startup?: InteractiveStartupArguments,
+): Promise<void> {
+  if (startup?.sessionColor === undefined && startup?.promptArguments === undefined) return;
+  const startupEntry = "dist/features/launch/interactive-arguments.js";
+  if (release.files.some(file => file.path === startupEntry)) return;
+  // Security: selection has established authority for this exact identity. Compact restart
+  // evidence carries only executable entries, so absence requires its authenticated full inventory.
+  const manifest = await readCertifiedReleaseManifest(release, selectedStoreRoot);
+  if (!manifest.files.some(file => file.path === startupEntry)) {
     throw new Error("Selected retained UI does not support invocation color/literal prompts; launch without the override or update A1.");
   }
 }
