@@ -2,13 +2,13 @@
 
 ### Requirement: External applications can list colors and control one live session
 
-A1 SHALL expose a documented local JSON process-invocation API through `a1 session color list`, `a1 session color get --session <id>`, and `a1 session color set <color> --session <id>`. These API commands SHALL always return exactly one JSON success or error object on stdout without requiring a `--json` flag. Success SHALL exit zero and errors SHALL exit nonzero; progress and diagnostics SHALL NOT contaminate the JSON response stream. Ordinary CLI help MAY remain human-readable. Inventory SHALL return exactly `blue`, `green`, `orange`, `pink`, `purple`, `cyan`, and `grey` in that order and identify blue as the default without requiring a live session. Get SHALL return the targeted live session identity and effective color. Set SHALL use the same authoritative session-local change path as Settings and return the identity and effective color applied for that request only after the live interface adopts it.
+A1 SHALL expose a documented local JSON process-invocation API through `a1 session color list`, `a1 session color get --session <id>`, and `a1 session color set <color> --session <id>`. These API commands SHALL always return exactly one JSON success or error object on stdout without requiring a `--json` flag. Success SHALL exit zero and errors SHALL exit nonzero; progress and diagnostics SHALL NOT contaminate the JSON response stream. Ordinary CLI help MAY remain human-readable. Inventory SHALL return exactly `blue`, `green`, `orange`, `pink`, `purple`, `cyan`, and `grey` in that order without requiring a live session or reading the configured startup default. Get SHALL return the targeted live session identity and effective Current color. Set SHALL use the same authoritative session-local Current color change path as Settings and return the identity and effective color applied for that request only after the live interface adopts it. Neither get nor set SHALL change the persisted Default color. Inventory SHALL return colors only rather than a hard-coded default that could misrepresent the configured startup preference.
 
 Outside an exact A1 shell runtime environment, get and set SHALL require an explicit complete session id. Within that environment, omission MAY select only the exact environment session/runtime identity. Missing, malformed, ambiguous, stale, stopped, unverifiable, replaced, and comparison-profile targets SHALL fail explicitly without changing any session. No operation SHALL infer a machine-wide current, first, last, or only session. Unknown colors SHALL fail without mutation. Help, capability discovery, and integration documentation SHALL describe stable JSON success/error shapes and exit statuses.
 
 #### Scenario: List available colors without an active agent
 - **WHEN** an external application invokes the JSON inventory command without a running session
-- **THEN** it SHALL receive the ordered seven-color inventory and blue default with a successful exit status
+- **THEN** it SHALL receive the ordered seven-color inventory with a successful exit status
 
 #### Scenario: JSON is the default API output
 - **WHEN** an application invokes list, get, or set without an output-format flag
@@ -19,7 +19,8 @@ Outside an exact A1 shell runtime environment, get and set SHALL require an expl
 - **WHEN** Herdr gets session A's color, sets session A to pink, and gets session A again while session B uses the same profile
 - **THEN** set SHALL acknowledge pink only after session A applies it and the subsequent get SHALL report pink
 - **AND** session B and all profile settings documents SHALL remain unchanged
-- **AND** session A's Settings SHALL show pink as its effective value
+- **AND** session A's Settings SHALL show pink as its Current color
+- **AND** the persisted Default color SHALL remain unchanged
 
 #### Scenario: Settings changes are externally visible
 - **WHEN** the reader accepts green through session A's Settings and an external application gets session A's color
@@ -45,7 +46,7 @@ Runtime routing SHALL use private local coordination with bounded records, safe 
 
 #### Scenario: Replace a session with a pending request
 - **WHEN** a session replacement commits before an old-identity request is applied
-- **THEN** the old request SHALL fail without changing the replacement session's blue color
+- **THEN** the old request SHALL fail without changing the replacement session's color initialized from Default color
 
 #### Scenario: Serialize concurrent changes
 - **WHEN** two external callers set different valid colors on one live session concurrently
