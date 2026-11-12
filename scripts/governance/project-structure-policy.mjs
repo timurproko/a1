@@ -9,7 +9,7 @@ export const PROJECT_OWNERS = Object.freeze({
     "owned-ui-contracts", "agent-engine-contracts", "presentation-contracts", "ui-components", "ui-apps", "owned-ui-settings",
     "terminal-cleanup", "owned-ui", "prompt-history", "prompt-suggestions", "launch",
   ]),
-  launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle"]),
+  launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle", "owned-ui-contracts"]),
   "owned-ui": owner("owned-ui", "feature", "src/features/owned-ui", "test/features/owned-ui", [
     "owned-ui-contracts", "owned-ui-settings", "ui-components", "ui-apps", "agent-engine-contracts", "presentation-contracts", "startup", "terminal-cleanup",
   ]),

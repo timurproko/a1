@@ -3,6 +3,8 @@ export type { DevelopmentLaunchEnvironment } from "./development-launch.js";
 export { PI_PROFILE_RESOURCE_DIRECTORIES, initializeProductProfile } from "./initialize-profile.js";
 export type { InitializedProfile } from "./initialize-profile.js";
 export { interactiveLaunchIntent, parseSessionSelection } from "./intent.js";
+export { parseInteractiveLaunchArguments } from "./interactive-arguments.js";
+export type { InteractiveLaunchArguments } from "./interactive-arguments.js";
 export type { InteractiveLaunchIntent, LaunchIntent, LaunchProfileId, SessionSelection } from "./intent.js";
 export { configurationRootForProfile, resolveLaunchProfilePaths, resolvePromptHistoryDataDir } from "./profile-paths.js";
 export type { LaunchProfilePathOptions, LaunchProfilePaths } from "./profile-paths.js";

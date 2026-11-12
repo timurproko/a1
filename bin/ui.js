@@ -9,6 +9,9 @@ const { readLaunchContext } = await import("../dist/foundation/launch-context/in
 const launchContext = readLaunchContext(process.env, "profile");
 const profile = launchContext.launchProfile;
 if (profile === undefined) throw new Error("A1 launch profile is missing");
+const { parseInteractiveLaunchArguments } = await import("../dist/features/launch/interactive-arguments.js");
+const launchArguments = parseInteractiveLaunchArguments(process.argv.slice(2));
+if (profile !== "a1" && Object.keys(launchArguments).length > 0) throw new Error("startup arguments require the normal A1 profile");
 if (profile === "a1") {
   const [{ randomUUID }, { PRODUCT_IDENTITY }] = await Promise.all([
     import("node:crypto"),
@@ -49,7 +52,7 @@ const assertPiTuiIdentity = () => identity.assertSinglePiTuiModuleAtLaunch(
   await startup.markStartupPhase(process.env, "ui-entry");
   const [
     { runSelectedInteractiveRuntime },
-    { parseSessionSelection },
+    ,
     { createConsoleProjectTrustPrompt },
     { createConsoleSessionForkPrompt },
     { runOwnedUi, terminateOwnedUiProcess },
@@ -59,18 +62,16 @@ const assertPiTuiIdentity = () => identity.assertSinglePiTuiModuleAtLaunch(
   assertPiTuiIdentity();
   await startup.markStartupPhase(process.env, "ui-modules-loaded");
 
-  const sessionSelection = parseSessionSelection(process.argv.slice(2));
   completeRun(Promise.resolve().then(async () => {
-    if (sessionSelection && profile !== "a1") throw new Error("session selection requires the normal A1 profile");
     return runSelectedInteractiveRuntime(profile, {
       ownedUi: async (profileId, productMode) => {
         const { application, settings } = await composeOwnedUi({
           cwd: process.cwd(),
           profileId,
           productMode,
-          projectTrustPrompt: createConsoleProjectTrustPrompt({ productMode }),
+          projectTrustPrompt: createConsoleProjectTrustPrompt({ productMode, ...(launchArguments.sessionColor === undefined ? {} : { sessionColor: launchArguments.sessionColor }) }),
           sessionForkPrompt: createConsoleSessionForkPrompt(),
-          ...(sessionSelection === undefined ? {} : { sessionSelection }),
+          ...launchArguments,
         });
         runningApplication = application;
         return await runOwnedUi({ application, ...(settings === null ? {} : { settings }) });

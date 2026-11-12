@@ -1,11 +1,11 @@
 ## 1. Add capability discovery and an invocation-only first-frame color override across startup and session replacement
 
-- [ ] 1.1 Extend CLI parsing/help and the color command adapter with version-1 discovery, honest delivered capability flags, seven-color validation, session-option ordering, and focused pre-render grammar failures.
-- [ ] 1.2 Carry the validated invocation value through owned launch/composition contracts, bootstrap/reselection/development child argv, and shipped entries; consume it before Pi adaptation and guard incompatible retained UI payloads without affecting no-override launches.
-- [ ] 1.3 Add the narrowly declared `--` literal-prompt path, preserving post-boundary text/token order without reinterpreting color flags or opening arbitrary positional/Pi passthrough; submit once through the owned prompt command after successful trusted/restricted startup and first paint.
-- [ ] 1.4 Initialize the startup-safe trust palette and settings manager from the invocation value before any visible owned frame, while preserving global Default fallback, resource trust, comparison styling, and tool/shell environment isolation.
-- [ ] 1.5 Keep an immutable invocation replacement policy separate from live Current color, apply it only on successful new/resume/fork/import binding changes, and preserve failed/cancelled replacement and no-override latest-Default behavior.
-- [ ] 1.6 Write focused CLI, launch/release, startup/trust, settings, and composition tests for exact discovery bytes, grammar/boundaries, first-frame precedence, non-persistence, peer isolation, replacement outcomes, acknowledged live writes, and unsupported retained children.
+- [x] 1.1 Extend CLI parsing/help and the color command adapter with version-1 discovery, honest delivered capability flags, seven-color validation, session-option ordering, and focused pre-render grammar failures.
+- [x] 1.2 Carry the validated invocation value through owned launch/composition contracts, bootstrap/reselection/development child argv, and shipped entries; consume it before Pi adaptation and guard incompatible retained UI payloads without affecting no-override launches.
+- [x] 1.3 Add the narrowly declared `--` literal-prompt path, preserving post-boundary text/token order without reinterpreting color flags or opening arbitrary positional/Pi passthrough; submit once through the owned prompt command after successful trusted/restricted startup and first paint.
+- [x] 1.4 Initialize the startup-safe trust palette and settings manager from the invocation value before any visible owned frame, while preserving global Default fallback, resource trust, comparison styling, and tool/shell environment isolation.
+- [x] 1.5 Keep an immutable invocation replacement policy separate from live Current color, apply it only on successful new/resume/fork/import binding changes, and preserve failed/cancelled replacement and no-override latest-Default behavior.
+- [x] 1.6 Write focused CLI, launch/release, startup/trust, settings, and composition tests for exact discovery bytes, grammar/boundaries, first-frame precedence, non-persistence, peer isolation, replacement outcomes, acknowledged live writes, and unsupported retained children.
 
 ## 2. Publish Core terminal session identity automatically with bounded lifecycle reporting and ownership-safe cleanup
 

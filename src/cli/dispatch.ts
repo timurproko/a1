@@ -1,4 +1,4 @@
-import { interactiveLaunchIntent, parseSessionSelection, type InteractiveLaunchIntent, type LaunchProfileId, type SessionSelection } from "../features/launch/index.js";
+import { interactiveLaunchIntent, parseInteractiveLaunchArguments, type InteractiveLaunchArguments, type InteractiveLaunchIntent, type LaunchProfileId } from "../features/launch/index.js";
 import type { CliCapabilities } from "./capabilities.js";
 import type { PackageCommandRequest } from "./packages.js";
 import type { SessionContextRequest } from "./session-context.js";
@@ -33,6 +33,7 @@ export function cliUsage(capabilities: CliCapabilities): string {
   return PRODUCT_TEXT.usage([
     "",
     "--session <path|id>",
+    "--session-color <name> [-- literal prompt]",
     "--session-dir <dir> --session <path|id>",
     ...(capabilities.developmentComparison ? ["pi"] : []),
     "help",
@@ -53,7 +54,7 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "worktree detach",
     "worktree complete [--change <id>] [--pr <number>]",
     "worktree list",
-    "session color list | get [--session <id>] | set <color> [--session <id>]",
+    "session color capabilities | list | get [--session <id>] | set <color> [--session <id>]",
     "session worktrees",
     "session link-worktree <path>",
     "session unlink-worktree",
@@ -66,6 +67,8 @@ export function cliHelp(capabilities: CliCapabilities): string {
     "Common:",
     `  ${command}`,
     `  ${command} --session <path|id>`,
+    `  ${command} --session-color <name> [-- literal prompt]`,
+    "  Colors: blue, green, orange, pink, purple, cyan, grey; invocation only.",
     `  ${command} --session-dir <dir> --session <path|id>`,
     ...(capabilities.developmentComparison ? [`  ${command} pi`] : []),
     `  ${command} help`,
@@ -94,6 +97,7 @@ export function cliHelp(capabilities: CliCapabilities): string {
     `  ${command} worktree list`,
     "",
     "Session colors (always JSON; explicit session id required outside the session shell):",
+    `  ${command} session color capabilities`,
     `  ${command} session color list`,
     `  ${command} session color get --session <id>`,
     `  ${command} session color set <color> --session <id>`,
@@ -132,7 +136,7 @@ export async function dispatchCli(
     output.stderr(`${command.message}\n`);
     return 2;
   }
-  if (command.kind === "launch") return await handlers.launch(interactiveLaunchIntent(command.profileId, command.sessionSelection));
+  if (command.kind === "launch") return await handlers.launch(interactiveLaunchIntent(command.profileId, command.sessionSelection, command));
   if (command.kind === "version") return await handlers.version();
   if (command.kind === "packages") return await handlers.packages(command.request);
   if (command.kind === "session-context") return await handlers.sessionContext(command.request);
@@ -150,7 +154,7 @@ export type CliCommand =
   | { readonly kind: "help" }
   | { readonly kind: "package-help"; readonly verb: PackageCliVerb; readonly namespace: PackageCommandNamespace }
   | { readonly kind: "package-error"; readonly diagnostic: PackageSyntaxDiagnostic; readonly namespace: PackageCommandNamespace }
-  | { readonly kind: "launch"; readonly profileId: LaunchProfileId; readonly sessionSelection?: SessionSelection }
+  | ({ readonly kind: "launch"; readonly profileId: LaunchProfileId } & InteractiveLaunchArguments)
   | { readonly kind: "version" }
   | { readonly kind: "update"; readonly channel: UpdateChannel; readonly target?: string }
   | { readonly kind: "packages"; readonly request: PackageCommandRequest }
@@ -163,10 +167,9 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
   if (arguments_.length === 0) return { kind: "launch", profileId: "a1" };
   const [command, ...rest] = arguments_;
 
-  if (command === "--session" || command === "--session-dir") {
+  if (command === "--session" || command === "--session-dir" || command === "--session-color" || command === "--") {
     try {
-      const sessionSelection = parseSessionSelection(arguments_);
-      return { kind: "launch", profileId: "a1", ...(sessionSelection === undefined ? {} : { sessionSelection }) };
+      return { kind: "launch", profileId: "a1", ...parseInteractiveLaunchArguments(arguments_) };
     } catch (error) {
       return { kind: "error", message: PRODUCT_TEXT.diagnostic(`could not parse session launch: ${error instanceof Error ? error.message : String(error)}`) };
     }

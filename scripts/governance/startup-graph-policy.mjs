@@ -7,6 +7,7 @@ export const STARTUP_ROOTS = Object.freeze([
   "src/foundation/terminal-cleanup/fatal-exit.ts",
   "src/foundation/lifecycle/paths.ts",
   "src/features/launch/runtime-selection.ts",
+  "src/features/launch/interactive-arguments.ts",
   "src/foundation/lifecycle/session-selection.ts",
   "src/features/owned-ui/project-trust-prompt.ts",
   "src/features/owned-ui/session-fork-prompt.ts",
