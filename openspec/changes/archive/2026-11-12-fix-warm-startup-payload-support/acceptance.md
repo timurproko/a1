@@ -28,7 +28,7 @@ The maintainer integration decision accepts these scenarios:
     "Existing restart seals remain compatible, and no-payload launches add no capability-resolution manifest reads or payload rehash.",
     "First visible trust and editor presentation uses invocation color without saved-settings writes; live control, peer isolation, replacement, discovery, and comparison behavior remain unchanged."
   ],
-  "archiveDigest": "bcf56fec9646ae7381631d7c25c6250555487289feb3bbc1df583b4fc3d241f2",
+  "archiveDigest": "278dd183b5c00e1978bf8a82af41e01d6104f0e9110504f609bbdaeb7f61159f",
   "specDigest": "d2e53963daaa6b4a2ee14c0db9aa8635a4d2cecf39cea34fb584a930ae70db70",
   "tasksDigest": "a7a669eaf0d539ed7644a95e534b85f6ea45ac8241ac96c92f7cf263285b8616",
   "evidenceDigest": "0121b3211a920fb67f45439db66451d2f49de46180761a47d3fe5be85a1eda6e",
