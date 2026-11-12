@@ -2,13 +2,18 @@
 
 ### Requirement: External applications can list colors and control one live session
 
-A1 SHALL expose a documented local JSON process-invocation API through `a1 session color list --json`, `a1 session color get --session <id> --json`, and `a1 session color set <color> --session <id> --json`. Inventory SHALL return exactly `blue`, `green`, `orange`, `pink`, `purple`, `cyan`, and `grey` in that order and identify blue as the default without requiring a live session. Get SHALL return the targeted live session identity and effective color. Set SHALL use the same authoritative session-local change path as Settings and return the identity and effective color applied for that request only after the live interface adopts it.
+A1 SHALL expose a documented local JSON process-invocation API through `a1 session color list`, `a1 session color get --session <id>`, and `a1 session color set <color> --session <id>`. These API commands SHALL always return exactly one JSON success or error object on stdout without requiring a `--json` flag. Success SHALL exit zero and errors SHALL exit nonzero; progress and diagnostics SHALL NOT contaminate the JSON response stream. Ordinary CLI help MAY remain human-readable. Inventory SHALL return exactly `blue`, `green`, `orange`, `pink`, `purple`, `cyan`, and `grey` in that order and identify blue as the default without requiring a live session. Get SHALL return the targeted live session identity and effective color. Set SHALL use the same authoritative session-local change path as Settings and return the identity and effective color applied for that request only after the live interface adopts it.
 
 Outside an exact A1 shell runtime environment, get and set SHALL require an explicit complete session id. Within that environment, omission MAY select only the exact environment session/runtime identity. Missing, malformed, ambiguous, stale, stopped, unverifiable, replaced, and comparison-profile targets SHALL fail explicitly without changing any session. No operation SHALL infer a machine-wide current, first, last, or only session. Unknown colors SHALL fail without mutation. Help, capability discovery, and integration documentation SHALL describe stable JSON success/error shapes and exit statuses.
 
 #### Scenario: List available colors without an active agent
 - **WHEN** an external application invokes the JSON inventory command without a running session
 - **THEN** it SHALL receive the ordered seven-color inventory and blue default with a successful exit status
+
+#### Scenario: JSON is the default API output
+- **WHEN** an application invokes list, get, or set without an output-format flag
+- **THEN** stdout SHALL contain exactly one parseable JSON success or error object without progress or human-readable prefixes
+- **AND** the exit status SHALL distinguish success from failure
 
 #### Scenario: Herdr reads and changes one of two live sessions
 - **WHEN** Herdr gets session A's color, sets session A to pink, and gets session A again while session B uses the same profile

@@ -24,9 +24,11 @@ Standalone installer and updater preference behavior is outside this change. The
 
 Propose a process-invocation API rather than introducing a network server:
 
-- `a1 session color list --json` returns the ordered inventory and blue default without requiring a live session.
-- `a1 session color get --session <id> --json` returns the targeted live session identity and current color.
-- `a1 session color set <color> --session <id> --json` changes only that session and returns the acknowledged effective color and identity.
+- `a1 session color list` returns the ordered inventory and blue default without requiring a live session.
+- `a1 session color get --session <id>` returns the targeted live session identity and current color.
+- `a1 session color set <color> --session <id>` changes only that session and returns the acknowledged effective color and identity.
+
+These API commands always return one JSON success or error object on stdout, without a `--json` flag or human-readable output mode. Success exits zero; errors exit nonzero. Keep progress text and other diagnostics out of the JSON response stream. Ordinary CLI help remains human-readable.
 
 Inside an A1 shell, omitted `--session` may resolve the exact existing runtime/session environment identity. Outside that shell, require an explicit selector. Never fall back to the last, first, or only session silently. Use the complete session id for the initial contract, rejecting ambiguous or malformed input; do not add path guessing. Document stable JSON response/error shapes, exit status, inventory identifiers, and integration examples in `docs/features/session-colors.md`. Include help and capability discovery.
 

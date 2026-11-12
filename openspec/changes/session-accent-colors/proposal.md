@@ -8,7 +8,7 @@ Accent color is currently persisted in a shared profile and refreshed into other
 - Make bare-A1 Accent color runtime-session state rather than a shared profile preference. Every launch and session replacement starts blue, including resume, new, fork, and import; accepted changes last only for that active session lifetime.
 - Ignore legacy profile accent values for interactive startup and live refresh without deleting user settings or changing other profile-shared settings.
 - Keep Settings and external writes on one live state/change path, updating semantic foregrounds, derived backgrounds, previews, and current-color reads together.
-- Expose a local JSON CLI API for external applications: list available colors, get a targeted live session's color, and set that session's color. Use explicit session identity outside the session shell, not a machine-wide current session.
+- Expose a local JSON CLI API for external applications: list available colors, get a targeted live session's color, and set that session's color. Return JSON success and error responses by default without a `--json` flag. Use explicit session identity outside the session shell, not a machine-wide current session.
 - Document the command and response contract for integrations such as Herdr, with bounded acknowledgement and explicit errors for invalid colors, stale targets, unavailable sessions, and ambiguous selectors.
 - Leave pinned `a1 pi`, standalone install/update progress preference policy, and unrelated settings unchanged. Regenerate shared palette assets to include grey.
 
