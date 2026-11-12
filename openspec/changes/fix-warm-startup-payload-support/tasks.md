@@ -1,9 +1,9 @@
 ## 1. Preserve selected-release startup capability validation across full and compact restart evidence
 
-- [ ] 1.1 Add a release-owner characterization using real materialization, certification, and compact restart recovery whose files contain only `bin/ui.js` while its authenticated full manifest carries the startup parser.
-- [ ] 1.2 Make the common selected-release startup compatibility gate await authenticated complete manifest resolution when selected inventory cannot establish payload support, binding the read to that release's identity and managed store.
-- [ ] 1.3 Keep successful full-inventory validation and exact literal child argv propagation for color-only, literal-only, and combined payloads; cover cold and at least two repeated warm launches after certification.
-- [ ] 1.4 Preserve restart seal version 1, existing minimal executable entries, and reader/identity/dependency authority without optional-feature schema migration or installed-package capability claims.
+- [x] 1.1 Add a release-owner characterization using real materialization, certification, and compact restart recovery whose files contain only `bin/ui.js` while its authenticated full manifest carries the startup parser.
+- [x] 1.2 Make the common selected-release startup compatibility gate await authenticated complete manifest resolution when selected inventory cannot establish payload support, binding the read to that release's identity and managed store.
+- [x] 1.3 Keep successful full-inventory validation and exact literal child argv propagation for color-only, literal-only, and combined payloads; cover cold and at least two repeated warm launches after certification.
+- [x] 1.4 Preserve restart seal version 1, existing minimal executable entries, and reader/identity/dependency authority without optional-feature schema migration or installed-package capability claims.
 
 ## 2. Retain fail-closed old-release handling and bounded ordinary startup behavior
 
