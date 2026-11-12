@@ -300,7 +300,7 @@ describe("startup support follows the ultimately selected release", () => {
 
   it.each(startupSelections)("guards installation-failure $payload fallback (supported: $supported)", async ({ supported, intent, argv }) => {
     target = startupSupport(target, supported);
-    // Boundary: the older installed tree cannot materialize, so only the approved active identity may launch.
+    // Security: the older installed tree cannot materialize, so only the approved active identity may launch.
     await mkdir(target.packageRoot, { recursive: true });
     await writeFile(resolve(target.packageRoot, "package.json"), JSON.stringify({ version: previous.packageVersion }));
     await expectPayloadSelection(supported, intent, argv, target, /must not inspect/);

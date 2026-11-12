@@ -18,7 +18,7 @@ import {
 } from "../../../src/foundation/release/index.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
-// Boundary: real package, release admission, manifest, and restart authority; only the terminal child is intercepted.
+// Rationale: real package, release admission, manifest, and restart authority; only the terminal child is intercepted.
 vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
 vi.mock("../../../src/foundation/release/restart-certification.js", async original => {
   const actual = await original<typeof import("../../../src/foundation/release/restart-certification.js")>();
