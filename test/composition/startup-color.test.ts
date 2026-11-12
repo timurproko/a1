@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -22,7 +22,8 @@ describe("first-frame and committed replacement color composition", () => {
     root = await mkdtemp(join(tmpdir(), "startup-color-"));
     const profile = join(root, ".a1", "agent");
     await mkdir(profile, { recursive: true });
-    await writeFile(join(profile, "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { defaultAccentColor: "pink", promptHistoryEnabled: false } }));
+    const savedSettings = JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { defaultAccentColor: "pink", promptHistoryEnabled: false } });
+    await writeFile(join(profile, "settings.json"), savedSettings);
     vi.stubEnv(PRODUCT_IDENTITY.environment.profileHome, root);
     vi.stubEnv(PRODUCT_IDENTITY.environment.runtimeDir, join(root, "runtime"));
     vi.stubEnv(PRODUCT_IDENTITY.environment.dataDir, join(root, "data"));
@@ -52,5 +53,6 @@ describe("first-frame and committed replacement color composition", () => {
       }
     } finally { await composed.application.dispose(); }
     expect(listeners.size).toBe(0);
+    expect(await readFile(join(profile, "settings.json"), "utf8")).toBe(savedSettings);
   });
 });

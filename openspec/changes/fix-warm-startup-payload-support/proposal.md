@@ -25,4 +25,4 @@ None.
 - Production owner: `src/foundation/release`, principally `bootstrap.ts`, reusing `readCertifiedReleaseManifest` in `release-store.ts`. Restart certification contracts are inspected and covered but do not require a schema migration.
 - Tests: owner-mirrored release startup/certification and selection fixtures; existing first-frame, trust, settings, live API, and comparison tests provide focused preservation checks.
 - No new dependencies, Herdr/Core/native/renderer changes, installed release edits, certification rewrites as a workaround, direct retained UI launching, retries without the payload, or control of existing agents.
-- This PR is planning-only. Implementation requires explicit approval and an implementation request in this same stream. Trusted automation owns readiness/finalization; integration requires a separate exact-candidate maintainer decision.
+- The initial draft PR was planning-only. The maintainer approved the presented plan and requested implementation; both outcomes continue in the same worktree/branch/PR. Trusted automation owns readiness/finalization; integration requires a separate exact-candidate maintainer decision.

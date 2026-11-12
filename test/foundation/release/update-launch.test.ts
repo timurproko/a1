@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { basename, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
-import { runBootstrap } from "../../../src/foundation/release/bootstrap.js";
+import { runBootstrap, type BootstrapOptions } from "../../../src/foundation/release/bootstrap.js";
 import { ReleaseStateStore } from "../../../src/foundation/release/release-state.js";
 import { selectUpdateLaunchRelease } from "../../../src/foundation/release/update-launch.js";
 import { UpdateTransactionStore, type UpdateTransactionPhase } from "../../../src/foundation/release/update-transaction.js";
@@ -283,6 +283,96 @@ describe("launch selection across update completion", () => {
       .toThrow("no verified previous release");
   });
 });
+
+const startupSelections = [true, false].flatMap(supported => [
+  { supported, payload: "color", intent: { kind: "interactive", profileId: "a1", sessionColor: "green" } as const, argv: ["--session-color", "green"] },
+  { supported, payload: "literal prompt", intent: { kind: "interactive", profileId: "a1", promptArguments: ["--session-color", "pink"] } as const, argv: ["--", "--session-color", "pink"] },
+]);
+
+describe("startup support follows the ultimately selected release", () => {
+  it.each(startupSelections)("guards update-prior $payload selection (supported: $supported)", async ({ supported, intent, argv }) => {
+    previous = startupSupport(previous, supported);
+    target = startupSupport(target, true);
+    await begin();
+    await expectPayloadSelection(supported, intent, argv, previous);
+    expect(materializeRelease).not.toHaveBeenCalled();
+  });
+
+  it.each(startupSelections)("guards installation-failure $payload fallback (supported: $supported)", async ({ supported, intent, argv }) => {
+    target = startupSupport(target, supported);
+    // Boundary: the older installed tree cannot materialize, so only the approved active identity may launch.
+    await mkdir(target.packageRoot, { recursive: true });
+    await writeFile(resolve(target.packageRoot, "package.json"), JSON.stringify({ version: previous.packageVersion }));
+    await expectPayloadSelection(supported, intent, argv, target, /must not inspect/);
+    expect(materializeRelease).toHaveBeenCalledOnce();
+  });
+
+  it.each(startupSelections)("guards newer-active $payload selection (supported: $supported)", async ({ supported, intent, argv }) => {
+    previous = startupSupport(previous, true);
+    target = startupSupport(target, supported);
+    await mkdir(previous.packageRoot, { recursive: true });
+    await writeFile(resolve(previous.packageRoot, "package.json"), JSON.stringify({ version: previous.packageVersion }));
+    vi.mocked(materializeRelease).mockResolvedValueOnce(previous);
+    await expectPayloadSelection(supported, intent, argv, target);
+    expect((await store.read()).references.active).toBe(target.releaseId);
+  });
+
+  it.each(startupSelections)("guards activation-race $payload selection (supported: $supported)", async ({ supported, intent, argv }) => {
+    previous = startupSupport(previous, supported);
+    target = startupSupport(target, true);
+    await store.activate(previous.releaseId);
+    await installedTarget();
+    vi.mocked(materializeRelease).mockResolvedValueOnce(target);
+    vi.spyOn(ReleaseStateStore.prototype, "activateForLaunch").mockImplementationOnce(async () => await store.read());
+    await expectPayloadSelection(supported, intent, argv, previous);
+  });
+
+  it.each(startupSelections)("rechecks $payload support after reselection (supported: $supported)", async ({ supported, intent, argv }) => {
+    previous = startupSupport(previous, supported);
+    target = startupSupport(target, true);
+    await installedTarget();
+    vi.mocked(spawn).mockImplementationOnce(() => {
+      const child = new EventEmitter();
+      queueMicrotask(async () => {
+        await store.activate(previous.releaseId);
+        child.emit("message", { type: "a1-release-reselection" });
+        child.emit("close", 1, null);
+      });
+      return child as ReturnType<typeof spawn>;
+    });
+    const launch = runBootstrap({ packageRoot: target.packageRoot, environment, launchIntent: intent, scheduleMaintenance: async () => {} });
+    if (supported) await expect(launch).resolves.toBe(0);
+    else await expect(launch).rejects.toThrow(/must not inspect/);
+    expect(spawn).toHaveBeenCalledTimes(supported ? 2 : 1);
+    expect(readLaunchContext((vi.mocked(spawn).mock.calls[0]![2] as { env: NodeJS.ProcessEnv }).env).releaseId).toBe(target.releaseId);
+    if (supported) expect(selectedRelease()).toBe(previous.releaseId);
+    for (const call of vi.mocked(spawn).mock.calls) expect(call[1]!.slice(1)).toEqual(argv);
+    expect(readCertifiedReleaseManifest).toHaveBeenCalledTimes(supported ? 1 : 2);
+    expect(readCertifiedReleaseManifest).toHaveBeenCalledWith(expect.objectContaining({ releaseId: previous.releaseId }), resolve(root, "releases"));
+  });
+});
+
+function startupSupport(value: MaterializedRelease, supported: boolean): MaterializedRelease {
+  return { ...value, files: supported ? [{ path: "dist/features/launch/interactive-arguments.js", bytes: 0, sha256: "e".repeat(64), executable: false }] : [] };
+}
+
+async function expectPayloadSelection(
+  supported: boolean, intent: NonNullable<BootstrapOptions["launchIntent"]>, argv: readonly string[], selected: MaterializedRelease,
+  rejection: RegExp = /does not support/,
+): Promise<void> {
+  const launch = runBootstrap({ packageRoot: target.packageRoot, environment, launchIntent: intent, scheduleMaintenance: async () => {} });
+  if (supported) {
+    await expect(launch).resolves.toBe(0);
+    expect(selectedRelease()).toBe(selected.releaseId);
+    expect(spawn).toHaveBeenCalledOnce();
+    expect(vi.mocked(spawn).mock.calls[0]![1]!.slice(1)).toEqual(argv);
+  } else {
+    await expect(launch).rejects.toThrow(rejection);
+    expect(spawn).not.toHaveBeenCalled();
+  }
+  expect(readCertifiedReleaseManifest).toHaveBeenCalledTimes(supported ? 1 : 2);
+  expect(readCertifiedReleaseManifest).toHaveBeenCalledWith(expect.objectContaining({ releaseId: selected.releaseId }), resolve(root, "releases"));
+}
 
 function begin() {
   return journal.begin({ channel: "stable", targetVersion: target.packageVersion, packageRoot: target.packageRoot, priorActiveReleaseId: previous.releaseId });

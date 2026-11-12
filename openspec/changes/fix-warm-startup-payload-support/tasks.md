@@ -7,8 +7,8 @@
 
 ## 2. Retain fail-closed old-release handling and bounded ordinary startup behavior
 
-- [ ] 2.1 Add unsupported and mismatched-evidence startup regressions that reject color/literal payloads before UI spawn and prevent another supported release or installed candidate from authorizing the selected unsupported release.
-- [ ] 2.2 Extend release-owner selection fixtures for update-prior selection, retained installation-failure fallback, newer-active/activation-race selection, and bounded reselection with independently resolved per-release support.
-- [ ] 2.3 Add deterministic assertions for zero support-only manifest reads on no-payload launches and unchanged restart operation boundaries, excluding recursive discovery/full rehash solely for capability resolution.
-- [ ] 2.4 Preserve the existing first-frame trust/editor color, Default/Current non-persistence, literal submission, live API/peer isolation, replacement, discovery, and comparison contracts through focused owner tests; add assertions only where existing coverage leaves a concrete gap.
-- [ ] 2.5 Reconcile implementation disposition and remaining gaps in the design, and clarify maintained release-support documentation or diagnostics only where the repair requires it, without adding consumer workarounds or implying unperformed physical/remote smoke.
+- [x] 2.1 Add unsupported and mismatched-evidence startup regressions that reject color/literal payloads before UI spawn and prevent another supported release or installed candidate from authorizing the selected unsupported release.
+- [x] 2.2 Extend release-owner selection fixtures for update-prior selection, retained installation-failure fallback, newer-active/activation-race selection, and bounded reselection with independently resolved per-release support.
+- [x] 2.3 Add deterministic assertions for zero support-only manifest reads on no-payload launches and unchanged restart operation boundaries, excluding recursive discovery/full rehash solely for capability resolution.
+- [x] 2.4 Preserve the existing first-frame trust/editor color, Default/Current non-persistence, literal submission, live API/peer isolation, replacement, discovery, and comparison contracts through focused owner tests; add assertions only where existing coverage leaves a concrete gap.
+- [x] 2.5 Reconcile implementation disposition and remaining gaps in the design, and clarify maintained release-support documentation or diagnostics only where the repair requires it, without adding consumer workarounds or implying unperformed physical/remote smoke.
