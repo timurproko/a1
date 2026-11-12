@@ -30,7 +30,7 @@ The maintainer integration decision accepts these scenarios:
     "Version-1 discovery, literal prompt boundaries, no-override initialization, and comparison behavior retain conservative compatibility.",
     "Documentation distinguishes known-space first-frame launches from subsequent live matching for manual and new-space launches."
   ],
-  "archiveDigest": "9759bb88749d23a4250bb81be73790f21b4c8d896b556d21c5bb7394ae752225",
+  "archiveDigest": "27f699a93ab5ffcdcb472fbcbb7a923bf31ce6c04e65aa906cb9ec9e73828d2e",
   "specDigest": "ee9d7f1b88386df43fc37e244e3324cb474f703a924bce25ff74cdeae0e3cc32",
   "tasksDigest": "3bcfac11d48f6fb814ac3bf461a71678f312508c10ffb23572f66060231fd11a",
   "evidenceDigest": "8dab1817b7d5deab29c5bc55bcb42b1cc16b102e25b1207fc16d3a6a131d085e",
