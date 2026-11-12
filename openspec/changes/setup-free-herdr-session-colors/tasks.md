@@ -19,7 +19,7 @@
 
 ## 3. Document the setup-free integration contract and compatibility behavior
 
-- [ ] 3.1 Update public help, README, and maintained session-color documentation with exact capability JSON, startup grammar and palette, first-frame/replacement precedence, Default/Current isolation, and literal-boundary behavior.
-- [ ] 3.2 Document native labels, endpoint-ready publication, heartbeat and exact-runtime ownership, Core-only local/SSH setup, optional failures, native-versus-legacy precedence, and supported consumer version discovery.
-- [ ] 3.3 Document the known-space/profile first-frame boundary and conservative manual/new-space/disabled-matching/custom-wrapper/conflicting-option behavior without claiming a new Core handshake or companion migration.
-- [ ] 3.4 Reconcile the planning prerequisites and any explicit implementation gaps in the maintained design and integration documentation, preserving truthful scope and compatibility limitations.
+- [x] 3.1 Update public help, README, and maintained session-color documentation with exact capability JSON, startup grammar and palette, first-frame/replacement precedence, Default/Current isolation, and literal-boundary behavior.
+- [x] 3.2 Document native labels, endpoint-ready publication, heartbeat and exact-runtime ownership, Core-only local/SSH setup, optional failures, native-versus-legacy precedence, and supported consumer version discovery.
+- [x] 3.3 Document the known-space/profile first-frame boundary and conservative manual/new-space/disabled-matching/custom-wrapper/conflicting-option behavior without claiming a new Core handshake or companion migration.
+- [x] 3.4 Reconcile the planning prerequisites and any explicit implementation gaps in the maintained design and integration documentation, preserving truthful scope and compatibility limitations.

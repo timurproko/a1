@@ -29,4 +29,4 @@ None. Public integration and discovery belong to the existing session-color-cont
 - Tests mirror those owners and use disposable subprocess/Core fixtures, never existing agents as control targets.
 - No new dependencies, companion requirement, customization edits, daemon, TCP listener, terminal-input injection, transcript inspection, or private color-endpoint record discovery.
 - Herdr's already implemented consumer contract remains exactly `--session-color`, version-1 discovery, and native `a1.*` labels. No consumer edits are authorized by this proposal.
-- This is a planning-only draft. Product code, runnable feature, implementation approval, and merge authority are absent. Continue the same branch/worktree/PR only after explicit plan approval and an implementation request.
+- The initial draft was planning-only. The maintainer approved this plan and requested implementation; delivery continues in the same branch/worktree/PR. Trusted automation owns readiness/finalization, and maintainer integration still requires a separate exact-candidate decision.

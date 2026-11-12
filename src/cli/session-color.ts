@@ -14,7 +14,7 @@ export async function runSessionColorCommand(arguments_: readonly string[], opti
   try {
     const [action, ...rest] = arguments_;
     if (action === "help" || action === "--help" || action === "-h") {
-      stdout(`${PRODUCT_TEXT.commandName} session color capabilities | list | get [--session <id>] | set <color> [--session <id>]\nAlways JSON; get/set target Current color only. Outside an A1 shell, --session is required.\n`);
+      stdout(`${PRODUCT_TEXT.commandName} session color capabilities | list | get [--session <id>] | set <color> [--session <id>]\nAlways JSON; get/set target Current color only. Outside an A1 shell, --session is required.\nCapabilities returns version 1 with launchColor and terminalIdentity booleans without starting a session or probing Core.\nStartup --session-color is invocation-only; live writes change neither saved Default nor replacement policy.\n`);
       return 0;
     }
     if (action === "capabilities" && rest.length === 0) { stdout(`${JSON.stringify({ version: 1, launchColor: true, terminalIdentity: true })}\n`); return 0; }
