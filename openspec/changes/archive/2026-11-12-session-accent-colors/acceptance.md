@@ -28,7 +28,7 @@ The maintainer integration decision accepts these scenarios:
     "Invalid, expired, ambiguous, stopped, and replaced targets fail explicitly without changing a peer or replaying a delayed request.",
     "The comparison profile and unrelated shared settings retain their existing behavior."
   ],
-  "archiveDigest": "fbdedfc823d255317bd0fe981acd2ea2dd12b674a993e4524361ee621e78725d",
+  "archiveDigest": "32fa8b825a159bca0a98f79e52b59f1b6ac062bdcfcfe42eed44b82d39bbca16",
   "specDigest": "53efb6b700494e7e8ca7021e59c3d2c2390b5bd1f8398b9f607dfa8f64adc074",
   "tasksDigest": "f63e9d838b7c2a829041ca285d08990fe051175e64f8fb26161f4264bb7bef88",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
