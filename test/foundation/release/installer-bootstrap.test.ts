@@ -191,7 +191,7 @@ describe("installer command contract", () => {
     expect(checked.stdout).toContain("Progress palette matches the named A1 accents.");
   });
 
-  it("resolves the same selected profile accent as self-update without depending on installed A1", async () => {
+  it("keeps installer/update accents separate from the interactive startup default", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-installer-accent-"));
     roots.push(root);
     const file = resolve(root, ".a1", "agent", "settings.json");
@@ -200,12 +200,16 @@ describe("installer command contract", () => {
     expect(resolveEarlyAccentColor(environment)).toBe("blue");
     expect(readPreTrustAccent(environment)).toBe("blue");
     await mkdir(dirname(file), { recursive: true });
-    for (const value of ["purple", "cyan", "green", "orange", "pink", "blue", "default", "invalid"]) {
+    for (const value of ["purple", "cyan", "green", "orange", "pink", "blue", "grey", "default", "invalid"] as const) {
       await writeFile(file, JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { accentColor: value } }));
-      const expected = (value === "default" ? "purple" : value === "invalid" ? "blue" : value) as "blue" | "purple" | "cyan" | "green" | "orange" | "pink";
+      const expected = value === "default" ? "purple" : value === "invalid" ? "blue" : value;
       expect(resolveInstallerAccentColor(environment)).toBe(expected);
       expect(resolveEarlyAccentColor(environment)).toBe(expected);
-      expect(readPreTrustAccent(environment)).toBe(expected);
+      expect(readPreTrustAccent(environment)).toBe("blue");
+      await writeFile(file, JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { accentColor: "orange", defaultAccentColor: value } }));
+      expect(readPreTrustAccent(environment)).toBe(value === "default" || value === "invalid" ? "blue" : value);
+      expect(resolveInstallerAccentColor(environment)).toBe("orange");
+      expect(resolveEarlyAccentColor(environment)).toBe("orange");
       for (const appearance of ["dark", "light"] as const) for (const mode of ["truecolor", "256color"] as const) {
         expect(preTrustPalette(expected, appearance, mode))
           .toEqual(earlyAccentPalette(expected, appearance, mode));

@@ -70,6 +70,12 @@ Run only directly affected test files, typecheck, applicable architecture/palett
 - Product build, complete typecheck, architecture/session-writer/identity/source-ledger gates, naming audit, changed-code documentation governance, strict OpenSpec validation, and whitespace checks passed. Built CLI inspection returned the exact ordered inventory as one JSON object and a structured unavailable-session error for a target without an active endpoint.
 - Fresh `origin/develop` was fetched before the final implementation checkbox; the candidate already contains that target. Product suites remain deferred by draft policy until trusted finalization/readiness. No broad local suite or physical-terminal acceptance is claimed.
 
+## CI fixture repair
+
+- Exact-head CI exposed a remaining prompt-history composition fixture without the required session event port. Added its inert event subscription, keeping all history storage, isolation, and legacy-file assertions intact.
+- The installer parity fixture still assumed interactive pre-trust appearance used the legacy shared accent. It now independently asserts the approved split: installer/self-update preserve the legacy preference, interactive startup ignores it and uses Default color, and invalid defaults fall back to blue. Extended the same checks to grey while retaining palette byte parity assertions.
+- Both affected test files passed locally: 48 tests passed, with the existing five platform-dependent skips unchanged. Complete typecheck and whitespace checks passed. Required CI must validate the repaired candidate; no successful exact-head CI result is claimed here.
+
 ## Known gaps
 
 None identified in the approved scope. Physical-terminal inspection is optional and was not performed; automated tests establish display-cell/semantic behavior, not font-specific grey appearance. HTTP, subscriptions, host-app icon recoloring, and Default color API writes remain explicitly outside scope.
