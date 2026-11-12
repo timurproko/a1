@@ -3,7 +3,7 @@ import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { reserveHerdrBinding } from "../../../src/features/owned-ui/herdr-binding.js";
+import { HERDR_IDENTITY_LABELS as LABELS, reserveHerdrBinding } from "../../../src/features/owned-ui/herdr-binding.js";
 import { createHerdrReporter } from "../../../src/features/owned-ui/herdr-reporter.js";
 import type { HerdrCommandPort } from "../../../src/features/owned-ui/herdr-command.js";
 const fixtureSessionId = randomUUID();
@@ -12,7 +12,7 @@ const reporters: Array<ReturnType<typeof createHerdrReporter>> = [];
 afterEach(async () => { for (const reporter of reporters.splice(0)) await reporter.dispose(); if (directory) await rm(directory, { recursive: true, force: true }); });
 async function fixture() {
   directory = await mkdtemp(join(tmpdir(), "herdr-reporter-"));
-  let labels: Record<string, string> = { "custom.a1.runtime": "legacy", unrelated: "keep" };
+  let labels: Record<string, string> = { [`custom.${LABELS.runtime}`]: "legacy", unrelated: "keep" };
   const calls: readonly string[][] = [];
   const command: HerdrCommandPort = vi.fn(async (args: readonly string[]) => {
     (calls as string[][]).push([...args]);
@@ -35,33 +35,33 @@ describe("endpoint-ready fenced Core reporting", () => {
     let heartbeat: () => void = () => {}, time = 1000;
     const cancelled = vi.fn();
     const reporter = own({ reservation, identity: () => identity, command: f.command, now: () => time, schedule(callback, milliseconds) { expect(milliseconds).toBe(30_000); heartbeat = callback; return cancelled; } });
-    await tick(); expect(f.calls).toHaveLength(0); // endpoint unavailable
+    await tick(); expect(f.calls).toHaveLength(0); // Invariant: no reporting before endpoint readiness.
     identity = { sessionId: randomUUID(), binding: 1 }; reporter.request();
-    await vi.waitFor(() => expect(f.labels()["a1.session"]).toBe(identity!.sessionId));
-    expect(f.labels()["a1.runtime"]).toBe(reservation.runtimeId); expect(f.labels()["a1.at"]).toBe("1000");
+    await vi.waitFor(() => expect(f.labels()[LABELS.session]).toBe(identity!.sessionId));
+    expect(f.labels()[LABELS.runtime]).toBe(reservation.runtimeId); expect(f.labels()[LABELS.at]).toBe("1000");
     await tick(); time = 31_000; heartbeat();
-    await vi.waitFor(() => expect(f.labels()["a1.at"]).toBe("31000"));
+    await vi.waitFor(() => expect(f.labels()[LABELS.at]).toBe("31000"));
     identity = { sessionId: randomUUID(), binding: 2 }; time = 32_000; reporter.request(); reporter.request();
-    await vi.waitFor(() => expect(f.labels()["a1.session"]).toBe(identity!.sessionId));
+    await vi.waitFor(() => expect(f.labels()[LABELS.session]).toBe(identity!.sessionId));
     await reporter.dispose(); heartbeat(); reporter.request();
     expect(cancelled).toHaveBeenCalledOnce();
-    expect(f.labels()).toEqual({ "custom.a1.runtime": "legacy", unrelated: "keep" });
+    expect(f.labels()).toEqual({ [`custom.${LABELS.runtime}`]: "legacy", unrelated: "keep" });
     expect(f.calls.filter(args => args[0] === "label").every(args => args.length === 6)).toBe(true);
   });
   it("fences a delayed older start, all older callbacks, and stale reclaim after successor exit", async () => {
     const f = await fixture(), old = await f.reserve(), newer = await f.reserve();
     const next = own({ reservation: newer, identity: () => ({ sessionId: fixtureSessionId, binding: 1 }), command: f.command, schedule: () => () => {} });
-    await vi.waitFor(() => expect(f.labels()["a1.runtime"]).toBe(newer.runtimeId)); await tick();
+    await vi.waitFor(() => expect(f.labels()[LABELS.runtime]).toBe(newer.runtimeId)); await tick();
     const before = JSON.stringify(f.labels());
     const stale = own({ reservation: old, identity: () => ({ sessionId: fixtureSessionId, binding: 99 }), command: f.command, schedule: () => () => {} });
     stale.request(); await tick(); await stale.dispose();
     expect(JSON.stringify(f.labels())).toBe(before);
     await next.dispose(); stale.request(); await tick();
-    expect(f.labels()).toEqual({ "custom.a1.runtime": "legacy", unrelated: "keep" });
+    expect(f.labels()).toEqual({ [`custom.${LABELS.runtime}`]: "legacy", unrelated: "keep" });
   });
-  it.each([{}, { "a1.runtime": "foreign" }, { "a1.session": randomUUID() }])("fails closed for foreign/partial native ownership %j", async labels => {
+  it.each([{}, { [LABELS.runtime]: "foreign" }, { [LABELS.session]: randomUUID() }])("fails closed for foreign/partial native ownership %j", async labels => {
     const f = await fixture(), reservation = await f.reserve();
-    f.setLabels({ "a1.runtime": randomUUID(), "a1.session": randomUUID(), "a1.at": "1", ...labels });
+    f.setLabels({ [LABELS.runtime]: randomUUID(), [LABELS.session]: randomUUID(), [LABELS.at]: "1", ...labels });
     const before = JSON.stringify(f.labels());
     const reporter = own({ reservation, identity: () => ({ sessionId: fixtureSessionId, binding: 1 }), command: f.command, schedule: () => () => {} });
     await tick(); await reporter.dispose(); expect(JSON.stringify(f.labels())).toBe(before);

@@ -42,7 +42,7 @@ describe("first-frame and committed replacement color composition", () => {
       expect(painted.frames).toEqual(["green"]);
       expect(painted.commands).toEqual([expect.objectContaining({ type: "prompt", text: "--session-color pink $(literal)" })]);
       await composed.settings!.change("a1", "accentColor", "orange");
-      for (const listener of listeners) listener(); // failed/cancelled work without committed generation
+      for (const listener of listeners) listener(); // Invariant: failed/cancelled work does not commit a generation.
       expect(painted.color).toBe("orange");
       for (const _workflow of ["new", "resume", "fork", "import"]) {
         identity.sessionId = randomUUID(); identity.sessionBindingGeneration++;

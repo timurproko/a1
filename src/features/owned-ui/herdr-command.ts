@@ -23,7 +23,7 @@ export function createHerdrCommand(options: CommandOptions = {}): HerdrCommandPo
 async function boundedResolution(environment: NodeJS.ProcessEnv, platform: NodeJS.Platform) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    // A late filesystem probe can finish, but can never spawn after its caller abandons resolution.
+    // Security: a late filesystem probe can finish, but cannot spawn after abandoned resolution.
     return await Promise.race([resolveCommand(environment, platform), new Promise<undefined>(done => { timer = setTimeout(() => done(undefined), 200); })]);
   } finally { clearTimeout(timer); }
 }
@@ -39,7 +39,7 @@ async function resolveCommand(environment: NodeJS.ProcessEnv, platform: NodeJS.P
     }
     const file = join(path, "hc.exe");
     try { if ((await stat(file)).isFile()) return { file, prefix: [] }; } catch {}
-    // npm shims name a literal node_modules script; never execute arbitrary batch/shell text.
+    // Platform: npm shims name a literal Node script; never execute arbitrary batch/shell text.
     for (const name of ["hc.cmd", "hc"]) {
       try {
         const shim = join(path, name);
@@ -68,7 +68,7 @@ function execute(executable: { file: string; prefix: string[] }, arguments_: rea
     };
     const stop = () => {
       if (failed) return; failed = true;
-      try { child.kill("SIGKILL"); } catch { /* Settlement, not kill success, owns fence release. */ }
+      try { child.kill("SIGKILL"); } catch { /* Security: verified settlement, not kill success, owns fence release. */ }
       settlement = setTimeout(() => finish(false), 250);
     };
     const deadline = setTimeout(stop, timeoutMs);

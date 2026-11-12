@@ -1,4 +1,4 @@
-// Maintained disposable equivalent of the supplied Herdr consumer contract, not product matching code.
+// Protocol: disposable equivalent of the supplied Herdr consumer, not product matching code.
 const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
 export function freshHerdrColorBinding(labels: Record<string, string>, now: number) {
   const native = ["a1.session", "a1.runtime", "a1.at"].some(key => Object.hasOwn(labels, key));

@@ -2,6 +2,13 @@ import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, realpath, rename, rmdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { PRODUCT_IDENTITY } from "../../product-identity.js";
+
+export const HERDR_IDENTITY_LABELS = Object.freeze({
+  session: `${PRODUCT_IDENTITY.protocol.namespace}.session`,
+  runtime: `${PRODUCT_IDENTITY.protocol.namespace}.runtime`,
+  at: `${PRODUCT_IDENTITY.protocol.namespace}.at`,
+});
 
 const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
 export interface HerdrPublishedBinding { readonly runtimeId: string; readonly sessionId: string; readonly at: string }
@@ -19,7 +26,7 @@ export async function reserveHerdrBinding(runtimeId: string, environment: NodeJS
   if (!terminalId || !validHerdrIdentity(terminalId, runtimeId)) return undefined;
   try {
     const canonicalDirectory = await safeDirectory(directory);
-    // Conservative per-user local namespace: even alternate local Core contexts share this fence.
+    // Security: even alternate local Core contexts share this conservative per-user fence.
     const file = join(canonicalDirectory, `${createHash("sha256").update(terminalId).digest("hex")}.json`);
     let unlock: (() => Promise<void>) | undefined;
     const deadline = performance.now() + 250;
@@ -71,7 +78,7 @@ async function safeDirectory(directory: string): Promise<string> {
 }
 async function lock(file: string): Promise<(() => Promise<void>) | undefined> {
   try { await mkdir(`${file}.lock`, { mode: 0o700 }); } catch { return undefined; }
-  // No age/PID-based stealing: crash residue disables reporting, never normal A1 startup.
+  // Security: no age/PID-based stealing; crash residue disables reporting, never normal A1 startup.
   return () => rmdir(`${file}.lock`);
 }
 async function readState(file: string): Promise<BindingState | undefined> {

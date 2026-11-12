@@ -1,5 +1,5 @@
 import { createHerdrCommand, type HerdrCommandPort } from "./herdr-command.js";
-import { validHerdrIdentity, withHerdrBinding, type HerdrBindingReservation, type HerdrPublishedBinding } from "./herdr-binding.js";
+import { HERDR_IDENTITY_LABELS, validHerdrIdentity, withHerdrBinding, type HerdrBindingReservation, type HerdrPublishedBinding } from "./herdr-binding.js";
 
 interface ReporterOptions {
   readonly reservation: HerdrBindingReservation;
@@ -37,7 +37,7 @@ export function createHerdrReporter(options: ReporterOptions) {
       const time = now();
       if (!Number.isSafeInteger(time) || time < 0) return;
       const published = { runtimeId: options.reservation.runtimeId, sessionId: identity.sessionId, at: String(time) };
-      if (await invoke(["label", options.reservation.terminalId, `a1.session=${published.sessionId}`, `a1.runtime=${published.runtimeId}`, `a1.at=${published.at}`, "--json"]) !== undefined) state.published = published;
+      if (await invoke(["label", options.reservation.terminalId, `${HERDR_IDENTITY_LABELS.session}=${published.sessionId}`, `${HERDR_IDENTITY_LABELS.runtime}=${published.runtimeId}`, `${HERDR_IDENTITY_LABELS.at}=${published.at}`, "--json"]) !== undefined) state.published = published;
     });
   }
   async function invoke(arguments_: string[]): Promise<string | undefined> {
@@ -61,16 +61,16 @@ export function createHerdrReporter(options: ReporterOptions) {
       if (state.published?.runtimeId !== options.reservation.runtimeId) return;
       const labels = await readLabels();
       if (!labels || !matches(labels, state.published)) return;
-      if (await invoke(["label", options.reservation.terminalId, "a1.session=", "a1.runtime=", "a1.at=", "--json"]) !== undefined) delete state.published;
+      if (await invoke(["label", options.reservation.terminalId, `${HERDR_IDENTITY_LABELS.session}=`, `${HERDR_IDENTITY_LABELS.runtime}=`, `${HERDR_IDENTITY_LABELS.at}=`, "--json"]) !== undefined) delete state.published;
     });
   }
   return { request, dispose() { return disposal ??= shutdown(); } };
 }
 function matches(labels: Record<string, unknown>, published: HerdrPublishedBinding): boolean {
-  return labels["a1.runtime"] === published.runtimeId && labels["a1.session"] === published.sessionId && labels["a1.at"] === published.at;
+  return labels[HERDR_IDENTITY_LABELS.runtime] === published.runtimeId && labels[HERDR_IDENTITY_LABELS.session] === published.sessionId && labels[HERDR_IDENTITY_LABELS.at] === published.at;
 }
 function canOwn(labels: Record<string, unknown>, published?: HerdrPublishedBinding): boolean {
-  const absent = ["a1.runtime", "a1.session", "a1.at"].every(key => !Object.hasOwn(labels, key));
+  const absent = Object.values(HERDR_IDENTITY_LABELS).every(key => !Object.hasOwn(labels, key));
   return absent || (published !== undefined && matches(labels, published));
 }
 function scheduleHeartbeat(callback: () => void, milliseconds: number): () => void {

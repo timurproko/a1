@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { runSessionColorCommand } from "../../src/cli/session-color.js";
+import { HERDR_IDENTITY_LABELS as LABELS } from "../../src/features/owned-ui/herdr-binding.js";
 import { PRODUCT_IDENTITY } from "../../src/product-identity.js";
 import { freshHerdrColorBinding, herdrLaunchArguments } from "./fixtures/herdr-color-consumer.js";
 const children: ChildProcess[] = [];
@@ -34,13 +35,14 @@ async function host() {
 }
 describe("Core-only subprocess integration and cross-process ownership", () => {
   it("keeps older discovery fallback and fails closed for partial/stale native labels", () => {
+    expect(LABELS).toEqual({ session: "a1.session", runtime: "a1.runtime", at: "a1.at" });
     expect(herdrLaunchArguments('{"version":1,"launchColor":true,"terminalIdentity":true}', "green")).toEqual(["--session-color", "green"]);
     for (const probe of ["", "not JSON", '{"version":1,"launchColor":true,"terminalIdentity":false}', '{"version":2,"launchColor":true,"terminalIdentity":true}']) expect(herdrLaunchArguments(probe, "green")).toEqual([]);
     const sessionId = randomUUID(), runtimeId = randomUUID();
-    const legacy = { "custom.a1.session": sessionId, "custom.a1.runtime": runtimeId, "custom.a1.at": "100000" };
+    const legacy = { [`custom.${LABELS.session}`]: sessionId, [`custom.${LABELS.runtime}`]: runtimeId, [`custom.${LABELS.at}`]: "100000" };
     expect(freshHerdrColorBinding(legacy, 100001)).toEqual({ sessionId, runtimeId });
-    expect(freshHerdrColorBinding({ ...legacy, "a1.runtime": randomUUID() }, 100001)).toBeUndefined();
-    const native = { ...legacy, "a1.session": sessionId, "a1.runtime": runtimeId, "a1.at": "100000" };
+    expect(freshHerdrColorBinding({ ...legacy, [LABELS.runtime]: randomUUID() }, 100001)).toBeUndefined();
+    const native = { ...legacy, [LABELS.session]: sessionId, [LABELS.runtime]: runtimeId, [LABELS.at]: "100000" };
     expect(freshHerdrColorBinding(native, 190000)).toEqual({ sessionId, runtimeId });
     expect(freshHerdrColorBinding(native, 190001)).toBeUndefined();
     expect(freshHerdrColorBinding(native, 94999)).toBeUndefined();
@@ -48,16 +50,16 @@ describe("Core-only subprocess integration and cross-process ownership", () => {
   it("publishes ready endpoint identity, acknowledges matching color, and fences delayed/older runtimes without a companion", async () => {
     root = await mkdtemp(join(tmpdir(), "core-only-colors-"));
     const scripts = join(root, "commands", "node_modules", "core-fixture"); await mkdir(scripts, { recursive: true });
-    await writeFile(join(root, "core.json"), JSON.stringify({ "custom.a1.runtime": "legacy-unchanged", other: "keep" }));
+    await writeFile(join(root, "core.json"), JSON.stringify({ [`custom.${LABELS.runtime}`]: "legacy-unchanged", other: "keep" }));
     await writeFile(join(root, "commands", "hc.cmd"), '@"node" "%dp0%\\node_modules\\core-fixture\\cli.js" %*\r\n');
     await writeFile(join(scripts, "cli.js"), `const fs=require('node:fs'); const file=${JSON.stringify(join(root, "core.json"))}; const args=process.argv.slice(2); let labels=JSON.parse(fs.readFileSync(file)); if(args[0]==='label') { for(const item of args.slice(2).filter(x=>x!=='--json')) { const i=item.indexOf('='); const key=item.slice(0,i),value=item.slice(i+1); if(value)labels[key]=value;else delete labels[key]; } fs.writeFileSync(file,JSON.stringify(labels)); } process.stdout.write(JSON.stringify({address:'t5z',labels}));`);
     if (process.platform !== "win32") {
       const file = join(root, "commands", "hc");
       await writeFile(file, `#!${process.execPath}\n${await readFile(join(scripts, "cli.js"), "utf8")}`); await chmod(file, 0o755);
     }
-    const old = await host(); // reserves first, deliberately delays endpoint/reporting
+    const old = await host(); // Concurrency: reserve first, deliberately delay endpoint/reporting.
     const newer = await host(); await newer.send("start");
-    await vi.waitFor(async () => expect(await labels()).toMatchObject({ "a1.runtime": newer.runtime, "a1.session": newer.session }), { timeout: 5000 });
+    await vi.waitFor(async () => expect(await labels()).toMatchObject({ [LABELS.runtime]: newer.runtime, [LABELS.session]: newer.session }), { timeout: 5000 });
     const output: string[] = [];
     expect(await runSessionColorCommand(["set", "pink", "--session", freshHerdrColorBinding(await labels(), Date.now())!.sessionId], { environment: { [PRODUCT_IDENTITY.environment.runtimeDir]: join(root, "runtime") }, stdout: value => output.push(value) })).toBe(0);
     expect(JSON.parse(output[0]!)).toEqual({ sessionId: newer.session, color: "pink" });
@@ -65,8 +67,8 @@ describe("Core-only subprocess integration and cross-process ownership", () => {
     await old.send("start"); await old.send("replace", randomUUID()); await old.send("stop");
     expect(await labels()).toEqual(before);
     const replacement = randomUUID(); await newer.send("replace", replacement);
-    await vi.waitFor(async () => expect(await labels()).toMatchObject({ "a1.runtime": newer.runtime, "a1.session": replacement }), { timeout: 5000 });
+    await vi.waitFor(async () => expect(await labels()).toMatchObject({ [LABELS.runtime]: newer.runtime, [LABELS.session]: replacement }), { timeout: 5000 });
     await newer.send("stop"); await old.send("replace", randomUUID());
-    expect(await labels()).toEqual({ "custom.a1.runtime": "legacy-unchanged", other: "keep" });
+    expect(await labels()).toEqual({ [`custom.${LABELS.runtime}`]: "legacy-unchanged", other: "keep" });
   });
 });

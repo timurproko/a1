@@ -4,7 +4,7 @@ import { markStartupPhase } from "../../foundation/startup/startup-runtime.js";
 import { boundedCleanup } from "../../foundation/terminal-cleanup/terminal-reset.js";
 
 const PROCESS_OUTPUT_FLUSH_TIMEOUT_MS = 250;
-// Lifecycle: room for one bounded Core publication to settle before exact-owner cleanup.
+// Concurrency: allow a bounded Core publication to settle before exact-owner cleanup.
 const PROCESS_CLEANUP_TIMEOUT_MS = 5000;
 
 export interface OwnedUiRunOptions {
