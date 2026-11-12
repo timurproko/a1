@@ -5,7 +5,7 @@ import { resolvePromptHistoryPath } from "../features/prompt-history/paths.js";
 import { resolvePromptHistoryDataDir } from "../features/launch/profile-paths.js";
 import { resolveProductPaths } from "../foundation/lifecycle/paths.js";
 import type { AvailableRelease, StartupReleaseCheckOptions } from "../foundation/release/latest-release.js";
-import { MAX_CLIPBOARD_TEXT_BYTES } from "../contracts/owned-ui/index.js";
+import { MAX_CLIPBOARD_TEXT_BYTES, type UiAccentColor } from "../contracts/owned-ui/index.js";
 import type { ProcessIdentity } from "../foundation/lifecycle/model.js";
 import type { SessionSelection } from "../foundation/lifecycle/session-selection.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes, setPiAccentColor, setPiPackageBorderProjectionEnabled } from "../integrations/pi/components/upstream/theme/theme.js";
@@ -98,7 +98,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   let backend: ComposedSessionBackend;
   const settings = options.profileId === undefined
     ? null
-    : createOwnedSettingsManager({
+    : await createOwnedSettingsManager({
       profileId: options.profileId,
       agentProvider: () => backend.settingsPort(),
     });
@@ -130,12 +130,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     ...(options.packageVersion === undefined ? {} : { packageVersion: options.packageVersion }),
     ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
   });
-  const unsubscribeAccentChange = bareSettings === null
-    ? () => {}
-    : bareSettings.onChange(current => {
-      const accent = current.value("accentColor");
-      host.setAccentColor(accent);
-    });
+  const unsubscribeAccentChange = bindSessionColor(backend, bareSettings, color => host.setAccentColor(color));
   // Rationale: separate A1 processes share one settings document; a live scope change saved in
   // one reaches the others only by rereading that document.
   const unwatchSharedSettings = bareSettings === null
@@ -257,6 +252,18 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     },
   };
   return { application, settings };
+}
+
+function bindSessionColor(backend: ComposedSessionBackend, settings: OwnedSettingsManager | null, apply: (color: UiAccentColor) => void): () => void {
+  if (settings === null) return () => {};
+  const unsubscribe = settings.onChange(current => apply(current.value("accentColor")));
+  let binding = backend.identity.sessionBindingGeneration;
+  const unbind = backend.session.onEvent(() => {
+    if (binding === backend.identity.sessionBindingGeneration) return;
+    binding = backend.identity.sessionBindingGeneration;
+    settings.startSession();
+  });
+  return () => { unbind(); unsubscribe(); };
 }
 
 function spinnerPresenterOptions(settings: OwnedSettingsManager | null) {

@@ -463,9 +463,10 @@ describe("the settings screen", () => {
     expect(lines.findIndex(line => line.trim() === "Appearance")).toBeLessThan(lines.findIndex(line => line.trim() === "Scroll"));
     expect(lines.some(line => line.includes("Quit animation") && line.includes("yes"))).toBe(true);
     expect(lines.some(line => line.trim() === "Appearance")).toBe(true);
-    expect(lines.some(line => line.includes("Accent color") && line.includes("blue"))).toBe(true);
+    expect(lines.some(line => line.includes("Default color") && line.includes("blue"))).toBe(true);
+    expect(lines.some(line => line.includes("Current color") && line.includes("blue"))).toBe(true);
     expect(lines.some(line => line.includes("Background") && line.includes("transparent"))).toBe(true);
-    expect(lines.findIndex(line => line.includes("Accent color"))).toBeLessThan(lines.findIndex(line => line.includes("Background")));
+    expect(lines.findIndex(line => line.includes("Current color"))).toBeLessThan(lines.findIndex(line => line.includes("Background")));
     expect(lines.findIndex(line => line.includes("Background"))).toBeLessThan(lines.findIndex(line => line.includes("Quit animation")));
     expect(lines.some(line => line.trim() === "Scroll")).toBe(true);
     expect(lines.some(line => line.includes("Scrollbar mode") && line.includes("auto"))).toBe(true);
@@ -596,21 +597,38 @@ describe("the settings screen", () => {
     } finally { target.onClose(HOST); }
   });
 
-  it("changes and undoes the profile accent without writing Pi settings", async () => {
+  it("changes and undoes the session color without writing Pi settings", async () => {
     const { app: target, session, writes } = await app();
-    screen(target);
-    target.onInput?.(`${ESC}[1;2B`, HOST);
-    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*blue/);
+    selectRow(target, "Current color");
+    expect(find(target, "Current color").trimStart()).toMatch(/^→.*blue/);
     target.onInput?.(`${ESC}[C`, HOST);
     await settleChanges();
-    expect(session.value("accentColor")).toBe("purple");
-    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*purple/);
+    expect(session.value("accentColor")).toBe("green");
+    expect(find(target, "Current color").trimStart()).toMatch(/^→.*green/);
     expect(writes).toEqual([]);
 
     target.onInput?.(CTRL_Z, HOST);
     await settleChanges();
     expect(session.value("accentColor")).toBe("blue");
-    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*blue/);
+    expect(find(target, "Current color").trimStart()).toMatch(/^→.*blue/);
+  });
+
+  it("changes and undoes the saved default without recoloring the session and cancels its menu", async () => {
+    const { app: target, session } = await app();
+    selectRow(target, "Default color");
+    target.onInput?.(`${ESC}[C`, HOST);
+    await settleChanges();
+    expect(session.pendingValue("defaultAccentColor")).toBe("green");
+    expect(session.value("accentColor")).toBe("blue");
+    target.onInput?.(CTRL_Z, HOST);
+    await settleChanges();
+    expect(session.sections().find(section => section.id === "appearance")?.entries[0]?.value).toBe("blue");
+    target.onInput?.(ENTER, HOST);
+    target.onInput?.(DOWN, HOST);
+    target.onInput?.(ESC, HOST);
+    await settleChanges();
+    expect(session.value("accentColor")).toBe("blue");
+    expect(session.sections().find(section => section.id === "appearance")?.entries[0]?.value).toBe("blue");
   });
 
   it("changes and undoes the owned background without writing Pi settings", async () => {
@@ -1541,7 +1559,7 @@ describe("the value dropdown behind the screen", () => {
   it("shows every accent choice with its effective-color square and a neutral current mark", async () => {
     const { app: target } = await app();
     const lines = screen(target);
-    const row = lines.findIndex(line => line.includes("Accent color"));
+    const row = lines.findIndex(line => line.includes("Current color"));
     const valueColumn = (lines[row] ?? "").indexOf("blue") + 1;
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
 

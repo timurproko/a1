@@ -30,6 +30,7 @@ describe("owned UI setting declarations", () => {
   it("declares the grouped live viewport appearance, style, and speed controls", () => {
     expect(OWNED_UI_SETTING_DECLARATIONS.map(setting => setting.id)).toEqual([
       "updateCheck",
+      "defaultAccentColor",
       "accentColor",
       "backgroundStyle",
       "quitAnimation",
@@ -51,7 +52,7 @@ describe("owned UI setting declarations", () => {
     }
     expect(OWNED_UI_SETTING_DECLARATIONS.some(setting => setting.section?.id === "tabs")).toBe(false);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "accentColor")).toMatchObject({
-      label: "Accent color",
+      label: "Current color", storage: "session", initialValueFrom: "defaultAccentColor",
       section: { id: "appearance", title: "Appearance" },
       application: "live",
       defaultValue: "blue",
@@ -143,8 +144,8 @@ describe("owned UI setting declarations", () => {
   });
 
   it("declares the Appearance background and quit-animation controls after the accent", () => {
-    expect(OWNED_UI_SETTING_DECLARATIONS.slice(0, 4).map(setting => setting.id)).toEqual([
-      "updateCheck", "accentColor", "backgroundStyle", "quitAnimation",
+    expect(OWNED_UI_SETTING_DECLARATIONS.slice(0, 5).map(setting => setting.id)).toEqual([
+      "updateCheck", "defaultAccentColor", "accentColor", "backgroundStyle", "quitAnimation",
     ]);
     const declaration = findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitAnimation");
     expect(declaration).toMatchObject({

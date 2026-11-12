@@ -150,6 +150,7 @@ async function compose(options: {
 function backendFixture(announced: unknown[]) {
   return {
       identity: { cwd: process.cwd(), agentDir: "synthetic-agent", disposed: false },
+      session: { onEvent: () => () => {} },
       settings: { configuredTheme: () => "dark" },
       extensions: { announceReleaseUpdate: (release: unknown) => { announced.push(release); } },
       workflows: { executeWorkflow: async (request: { command: string }) => {

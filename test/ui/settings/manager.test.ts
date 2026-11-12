@@ -115,7 +115,7 @@ describe("owned settings manager", () => {
     writeFileSync(path.join(root, "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { spinnerStyle: value, accentColor: "green" } }));
     const target = new OwnedSettingsManager({ profileDir: root, profileId: "a1" });
     expect(target.value("spinnerStyle")).toBe("current");
-    expect(target.value("accentColor")).toBe("green");
+    expect(target.value("accentColor")).toBe("blue");
   });
 
   it("retains the effective spinner choice if its settings file cannot be written", async () => {
@@ -211,8 +211,8 @@ describe("owned settings manager", () => {
       const imageLimit = group?.entries.find(candidate => candidate.id === "promptImageLimit");
       expect(imageLimit).toMatchObject({ backend: "a1", value: 8, effectiveValue: 8, editable: true, application: "live" });
       const appearance = target.sections().find(section => section.id === "appearance")?.entries;
-      const accent = appearance?.[0];
-      const background = appearance?.[1];
+      const accent = appearance?.[1];
+      const background = appearance?.[2];
       expect(accent).toMatchObject({ id: "accentColor", backend: "a1", value: "blue", effectiveValue: "blue", editable: true, application: "live" });
       expect(background).toMatchObject({ id: "backgroundStyle", backend: "a1", value: "transparent", effectiveValue: "transparent", editable: true, application: "live" });
       expect(group?.entries.slice(-3).map(candidate => candidate.id)).toEqual(["promptSuggestions", "skillsPresentation", "promptImageLimit"]);
@@ -251,7 +251,7 @@ describe("owned settings manager", () => {
       expect(JSON.parse(readFileSync(seed.file, "utf8"))).toEqual({
         [PRODUCT_IDENTITY.commandName]: {
           promptSuggestions: false, skillsPresentation: "expand", promptImageLimit: 12,
-          accentColor: "orange", backgroundStyle: "dark",
+          backgroundStyle: "dark",
         },
       });
       const restarted = new OwnedSettingsManager({ configDir: root, profileId: "a1", agent: state === "absent" ? null : port });
@@ -262,7 +262,8 @@ describe("owned settings manager", () => {
         { id: "promptImageLimit", backend: "a1", value: 12, effectiveValue: 12 },
       ]);
       expect(restarted.sections().find(section => section.id === "appearance")?.entries).toMatchObject([
-        { id: "accentColor", backend: "a1", value: "orange", effectiveValue: "orange" },
+        { id: "defaultAccentColor", backend: "a1", value: "blue", effectiveValue: "blue" },
+        { id: "accentColor", backend: "a1", value: "blue", effectiveValue: "blue" },
         { id: "backgroundStyle", backend: "a1", value: "dark", effectiveValue: "dark" },
         { id: "quitAnimation", backend: "a1", value: true, effectiveValue: true },
         { id: "spinnerStyle", backend: "a1", value: "current", effectiveValue: "current" },
@@ -273,7 +274,7 @@ describe("owned settings manager", () => {
       expect(restarted.value("promptSuggestions")).toBe(false);
       expect(restarted.value("skillsPresentation")).toBe("expand");
       expect(restarted.value("promptImageLimit")).toBe(12);
-      expect(restarted.value("accentColor")).toBe("orange");
+      expect(restarted.value("accentColor")).toBe("blue");
       expect(restarted.value("backgroundStyle")).toBe("dark");
       expect(port.writes).toEqual([]);
     },
@@ -290,7 +291,7 @@ describe("owned settings manager", () => {
     expect(target.value("accentColor")).toBe("blue");
     expect(target.refresh()).toBe(true);
     expect(notified).toBe(1);
-    expect(target.value("accentColor")).toBe("orange");
+    expect(target.value("accentColor")).toBe("blue");
     expect(target.value("promptHistoryEnabled")).toBe(true);
     expect(target.pendingValue("promptHistoryEnabled")).toBe(false);
     expect(target.value("promptHistoryScope")).toBe("shared");

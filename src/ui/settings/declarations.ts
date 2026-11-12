@@ -13,6 +13,8 @@ export interface OwnedUiSettingDeclaration {
   readonly section?: { readonly id: string; readonly title: string };
   readonly description: string;
   readonly application: OwnedUiSettingApplication;
+  readonly storage?: "session";
+  readonly initialValueFrom?: string;
   readonly defaultValue: OwnedUiSettingValue;
   readonly allowedValues: readonly OwnedUiSettingValue[];
   /**
@@ -40,9 +42,20 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     defaultValue: "auto",
     allowedValues: Object.freeze(["auto", "manual"] as const),
   }),
+  defaultAccentColor: Object.freeze({
+    id: "defaultAccentColor",
+    label: "Default color",
+    section: APPEARANCE_SECTION,
+    description: "Startup color for future sessions. Changing this does not recolor running sessions.",
+    application: "restart",
+    defaultValue: "blue",
+    allowedValues: UI_ACCENT_COLOR_CHOICES,
+  }),
   accentColor: Object.freeze({
     id: "accentColor",
-    label: "Accent color",
+    label: "Current color",
+    storage: "session",
+    initialValueFrom: "defaultAccentColor",
     section: APPEARANCE_SECTION,
     description: "Color used by highlighted interface controls, list markers, and tonal interface surfaces.",
     application: "live",

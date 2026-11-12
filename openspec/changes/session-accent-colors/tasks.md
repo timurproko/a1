@@ -6,11 +6,11 @@
 
 ## 2. Saved default and independent current session color
 
-- [ ] 2.1 Add persisted Default color with blue fallback and rename the session-local accent setting Current color; present both ordered menus and their storage/application scopes.
-- [ ] 2.2 Preserve Current color through shared refresh, Default color changes, and unrelated writes; ignore and retain the legacy shared accent without importing it.
-- [ ] 2.3 Initialize Current color from the latest Default color on interactive startup and successful active-session replacement, including safe early appearance; preserve the old current color on failure.
-- [ ] 2.4 Keep Settings sections, stored/effective and pending values, live theme/background application, cancel, and undo consistent with each setting's scope.
-- [ ] 2.5 Add focused settings/composition/lifecycle tests for default persistence/fallback, default changes not recoloring live sessions, latest-default initialization, same-profile current-color isolation, legacy values, reload/write isolation, failed replacement, and pinned comparison behavior.
+- [x] 2.1 Add persisted Default color with blue fallback and rename the session-local accent setting Current color; present both ordered menus and their storage/application scopes.
+- [x] 2.2 Preserve Current color through shared refresh, Default color changes, and unrelated writes; ignore and retain the legacy shared accent without importing it.
+- [x] 2.3 Initialize Current color from the latest Default color on interactive startup and successful active-session replacement, including safe early appearance; preserve the old current color on failure.
+- [x] 2.4 Keep Settings sections, stored/effective and pending values, live theme/background application, cancel, and undo consistent with each setting's scope.
+- [x] 2.5 Add focused settings/composition/lifecycle tests for default persistence/fallback, default changes not recoloring live sessions, latest-default initialization, same-profile current-color isolation, legacy values, reload/write isolation, failed replacement, and pinned comparison behavior.
 
 ## 3. External session color API
 
