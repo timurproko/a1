@@ -860,13 +860,25 @@ Every repository agent that performs approved implementation-bound work SHALL re
 
 ### Requirement: Agents own progress while automation owns readiness
 
-While a pull request remains draft, the agent SHALL check an approved `Implementation` item as soon as that outcome's code and tests are written and its detailed task bookkeeping is complete. Before checking the final item, the agent SHALL add plain `Acceptance`, finish every pre-ready task and gap disposition, and reconcile and push the branch. The final checkbox update SHALL complete the agent-owned implementation job; the agent SHALL NOT invoke the ready mutation.
+The detailed task ledger SHALL hold one task group per approved `Implementation` item, in the same order. While a pull request remains draft, the agent SHALL deliver one item at a time: write that outcome's code and tests, complete its detailed task bookkeeping, commit and push, and then check that item before starting the next outcome. The agent SHALL NOT hold completed items back for handoff. A defect found after an item is checked SHALL be fixed in a later commit; CI, broad test runs, and manual validation SHALL NOT delay a check. Before checking the final item, the agent SHALL add plain `Acceptance`, finish every pre-ready task and gap disposition, and reconcile and push the branch. The final checkbox update SHALL complete the agent-owned implementation job; the agent SHALL NOT invoke the ready mutation.
 
 #### Scenario: One implementation outcome finishes
 
 - **WHEN** an agent writes one approved outcome's code and tests and completes its detailed task bookkeeping
-- **THEN** the agent SHALL update only that PR-body item's marker while the pull request remains draft
+- **THEN** the agent SHALL commit and push that outcome and update only that PR-body item's marker while the pull request remains draft
 - **AND** other incomplete implementation outcomes SHALL remain unchecked
+
+#### Scenario: Several outcomes are approved
+
+- **WHEN** an approved plan has more than one Implementation item
+- **THEN** each item SHALL be checked after its own pushed commit and before work on the next item starts
+- **AND** the items SHALL NOT all be checked together at handoff
+
+#### Scenario: Root guidance carries the rule
+
+- **WHEN** an agent of any runtime loads the repository's root instructions
+- **THEN** it SHALL receive the same single Implementation progress paragraph from `AGENTS.md`
+- **AND** `CLAUDE.md` and the delivery skill SHALL refer to that paragraph rather than restate it
 
 #### Scenario: Outcome awaits only CI or manual validation
 
