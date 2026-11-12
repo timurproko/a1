@@ -136,6 +136,15 @@ describe("bounded project trust terminal preflight", () => {
     }
   });
 
+  it("uses invocation color on the first trust frame without consulting global/project defaults", async () => {
+    const output = new TtyOutput();
+    const prompt = createConsoleProjectTrustPrompt({ input: new TtyInput("\r"), output, sessionColor: "green", environment: { A1_PROFILE_HOME: resolve("unreadable-profile"), COLORTERM: "truecolor" } });
+    await expect(prompt(request())).resolves.toBe("trust");
+    const first = frames(output.text)[0]!;
+    expect(first).toContain(`${preTrustPalette("green", "dark", "truecolor").accent}Trust Project Folder?`);
+    expect(first).not.toContain(earlyAccentPalette("blue").accent);
+  });
+
   it("respects light-terminal and 256-color palette roles before loading UI themes", async () => {
     const output = new TtyOutput();
     const prompt = createConsoleProjectTrustPrompt({

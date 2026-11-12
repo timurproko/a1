@@ -1,4 +1,5 @@
 import type { Readable, Writable } from "node:stream";
+import type { UiAccentColor } from "../../contracts/owned-ui/index.js";
 import { EMERGENCY_TERMINAL_RESET } from "../../foundation/terminal-cleanup/terminal-reset.js";
 import { preTrustPalette, preTrustTerminalAppearance, preTrustTerminalColorMode, readPreTrustAccent } from "../../ui/settings/early-accent.js";
 
@@ -28,6 +29,7 @@ export interface ConsoleProjectTrustPromptOptions {
   readonly output?: Writable & { readonly isTTY?: boolean; readonly columns?: number; readonly rows?: number };
   readonly productMode?: "bare" | "comparison";
   readonly environment?: NodeJS.ProcessEnv;
+  readonly sessionColor?: UiAccentColor;
 }
 
 const ENTER_ALTERNATE_SCREEN = "\u001b[?1049h";
@@ -69,7 +71,7 @@ export function createConsoleProjectTrustPrompt(
     if (choices.length === 0) throw new Error("project trust choices are unavailable");
     const comparison = options.productMode === "comparison";
     const renderBareDialog = comparison ? undefined : (await import("./project-trust-dialog.js")).renderProjectTrustDialog;
-    const palette = comparison ? null : trustPaletteOptions(options.environment ?? process.env);
+    const palette = comparison ? null : trustPaletteOptions(options.environment ?? process.env, options.sessionColor);
 
     const wasRaw = input.isRaw === true;
     let selected = 0;
@@ -208,8 +210,8 @@ export function createConsoleProjectTrustPrompt(
   };
 }
 
-function trustPaletteOptions(environment: NodeJS.ProcessEnv) {
-  return preTrustPalette(readPreTrustAccent(environment), preTrustTerminalAppearance(environment), preTrustTerminalColorMode(environment));
+function trustPaletteOptions(environment: NodeJS.ProcessEnv, sessionColor?: UiAccentColor) {
+  return preTrustPalette(readPreTrustAccent(environment, sessionColor), preTrustTerminalAppearance(environment), preTrustTerminalColorMode(environment));
 }
 
 function optionRow(label: string, selected: boolean): string {

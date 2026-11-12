@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { PRODUCT_IDENTITY } from "../product-identity.js";
 import { PromptHistoryService } from "../features/prompt-history/service.js";
 import { PromptImageSidecar } from "../features/prompt-history/image-sidecar.js";
@@ -36,6 +37,7 @@ import { createOwnedRouteHost, type OwnedReferenceProviders, type OwnedRouteHost
 import { renderPiShellChangelogLines } from "../integrations/pi/components/shell-presenters-info.js";
 import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
+import type { HerdrBindingReservation } from "../features/owned-ui/herdr-binding.js";
 import type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
 import { bindAutomaticSessionNaming } from "./session-naming.js";
 import { deferStartupReleaseUpdateObservation, readPackageVersion, StartupReleaseNote } from "./startup-route.js";
@@ -51,6 +53,10 @@ export interface OwnedUiCompositionOptions {
   /** Explicit file selection retained for SDK callers. Public CLI uses sessionSelection. */
   readonly sessionPath?: string;
   readonly sessionSelection?: SessionSelection;
+  readonly sessionColor?: UiAccentColor;
+  readonly promptArguments?: readonly string[];
+  /** Early bare-launch reservation; never supplied to comparison/noninteractive compositions. */
+  readonly herdrBinding?: HerdrBindingReservation;
   readonly sessionForkPrompt?: PiSessionForkPrompt;
   /** A1 settings profile; comparison paths omit it. */
   readonly profileId?: string;
@@ -96,12 +102,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const productPaths = resolveProductPaths();
   // Rationale: the manager reads the engine's settings port lazily, after the session exists.
   let backend: ComposedSessionBackend;
-  const settings = options.profileId === undefined
-    ? null
-    : await createOwnedSettingsManager({
-      profileId: options.profileId,
-      agentProvider: () => backend.settingsPort(),
-    });
+  const settings = await compositionSettings(options, () => backend.settingsPort());
   // Invariant: bare A1 owns the settings-driven ports; the comparison profile receives none of them.
   const bareSettings = bare ? settings : null;
   // Invariant: process-wide engine state has one owner. The host installs the HTTP dispatcher, applies
@@ -130,7 +131,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     ...(options.packageVersion === undefined ? {} : { packageVersion: options.packageVersion }),
     ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
   });
-  const sessionColor = bindSessionColor(backend, bareSettings, color => host.setAccentColor(color), productPaths.runtimeDir);
+  const sessionColor = bindSessionColor(backend, bareSettings, color => host.setAccentColor(color), productPaths.runtimeDir, options.herdrBinding);
   // Rationale: peer refresh shares persisted preferences, never session-local Current color.
   const unwatchSharedSettings = bareSettings === null
     ? () => {}
@@ -236,7 +237,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       sessionColor.start();
       releaseUpdates.start();
     },
-    flush: () => backend.session.flushEvents(),
+    flush: startupPromptFlush(backend, bare ? options.promptArguments : undefined),
     waitUntilStopped: () => presenter.waitUntilStopped(),
     dispose: async () => {
       naming.dispose();
@@ -254,7 +255,26 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   return { application, settings };
 }
 
-function bindSessionColor(backend: ComposedSessionBackend, settings: OwnedSettingsManager | null, apply: (color: UiAccentColor) => void, runtimeDir: string) {
+async function compositionSettings(options: OwnedUiCompositionOptions, agentProvider: () => ReturnType<ComposedSessionBackend["settingsPort"]>) {
+  if (options.profileId === undefined) return null;
+  return await createOwnedSettingsManager({ profileId: options.profileId, agentProvider,
+    ...(options.productMode !== "comparison" && options.sessionColor !== undefined ? { sessionColor: options.sessionColor } : {}),
+  });
+}
+
+function startupPromptFlush(backend: ComposedSessionBackend, arguments_?: readonly string[]) {
+  let prompt = arguments_?.join(" ");
+  return async () => {
+    await backend.session.flushEvents();
+    const text = prompt;
+    prompt = undefined;
+    if (text?.trim() && !backend.identity.disposed) {
+      await backend.session.execute({ type: "prompt", correlationId: randomUUID(), sessionId: backend.identity.sessionId, text });
+    }
+  };
+}
+
+function bindSessionColor(backend: ComposedSessionBackend, settings: OwnedSettingsManager | null, apply: (color: UiAccentColor) => void, runtimeDir: string, herdrBinding?: HerdrBindingReservation) {
   if (settings === null) return { start() {}, async dispose() {} };
   let control: Promise<{ dispose(): Promise<void> } | null> = Promise.resolve(null);
   let started = false, stopped = false;
@@ -270,7 +290,7 @@ function bindSessionColor(backend: ComposedSessionBackend, settings: OwnedSettin
       if (started || stopped) return;
       started = true;
       control = import("./session-colors.js").then(module => stopped ? null
-        : module.startSessionColorControl(backend, settings, runtimeDir, process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId]))
+        : module.startSessionColorControl(backend, settings, runtimeDir, process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId], herdrBinding))
         .catch(() => null);
     },
     async dispose() { stopped = true; unbind(); unsubscribe(); await (await control)?.dispose(); },

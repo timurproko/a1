@@ -14,11 +14,11 @@ import { scheduleReleaseCleanup } from "./release-gc.js";
 import { createRestartSeal, readRestartCertifiedRelease, releaseCertificationDocument } from "./restart-certification.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { markStartupPhase } from "../startup/index.js";
-import { launchContractTarget, readLaunchContext, withLaunchContext } from "../launch-context/index.js";
+import { interactiveStartupArguments, type InteractiveStartupArguments, launchContractTarget, readLaunchContext, withLaunchContext } from "../launch-context/index.js";
 
 export interface BootstrapOptions {
   readonly packageRoot: string;
-  readonly launchIntent?: { readonly kind: "interactive"; readonly profileId: LaunchProfileId; readonly sessionSelection?: SessionSelection };
+  readonly launchIntent?: { readonly kind: "interactive"; readonly profileId: LaunchProfileId; readonly sessionSelection?: SessionSelection } & InteractiveStartupArguments;
   readonly environment?: NodeJS.ProcessEnv;
   readonly output?: Pick<NodeJS.WriteStream, "write">;
   /** Optional package-resolution probe that excludes a damaged retained release. */
@@ -38,15 +38,13 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
   const environment = withLaunchContext(options.environment ?? process.env, { launchProfile: launchProfileId });
   await markStartupPhase(environment, "bootstrap-start");
   assertLaunchProfileId(launchProfileId);
-  const sessionArgs = sessionSelectionArguments(options.launchIntent?.sessionSelection);
-  if (sessionArgs.length > 0 && launchProfileId !== "a1") {
-    throw new Error("session selection requires the A1 profile");
-  }
+  const sessionArgs = bootstrapArguments(options.launchIntent, launchProfileId);
   const output = options.output ?? process.stderr;
   const paths = resolveProductPaths(environment);
   await mkdir(paths.runtimeDir, { recursive: true, mode: 0o700 });
 
   const launchSelected = async (release: MaterializedRelease): Promise<number> => {
+    assertStartupPayloadSupport(release, options.launchIntent);
     const result = await launchUi(release, environment, sessionArgs, paths.runtimeDir, paths.dataDir);
     if (!result.releaseSuperseded) return result.code;
     if (retriesRemaining > 0) return await runBootstrapAttempt(options, retriesRemaining - 1);
@@ -153,6 +151,19 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
   }
 
   return await launchSelected(candidate);
+}
+
+function bootstrapArguments(intent: BootstrapOptions["launchIntent"], profile: LaunchProfileId): string[] {
+  const arguments_ = [...sessionSelectionArguments(intent?.sessionSelection), ...interactiveStartupArguments(intent ?? {})];
+  if (arguments_.length > 0 && profile !== "a1") throw new Error("startup arguments require the A1 profile");
+  return arguments_;
+}
+
+function assertStartupPayloadSupport(release: MaterializedRelease, startup?: InteractiveStartupArguments): void {
+  if ((startup?.sessionColor !== undefined || startup?.promptArguments !== undefined)
+    && !release.files.some(file => file.path === "dist/features/launch/interactive-arguments.js")) {
+    throw new Error("Selected retained UI does not support invocation color/literal prompts; launch without the override or update A1.");
+  }
 }
 
 /**

@@ -11,6 +11,25 @@ beforeEach(() => { root = mkdtempSync(join(tmpdir(), "session-colors-")); });
 afterEach(() => { rmSync(root, { recursive: true, force: true }); });
 
 describe("default and current session colors", () => {
+  it("retains invocation initialization across live changes, peer reloads, and replacements without persistence", async () => {
+    const saved = manager();
+    await saved.change("a1", "defaultAccentColor", "pink");
+    const bytes = readFileSync(saved.file, "utf8");
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "a1", sessionColor: "green" });
+    expect(session.value("accentColor")).toBe("green");
+    expect(readFileSync(saved.file, "utf8")).toBe(bytes);
+    await session.change("a1", "accentColor", "orange");
+    await saved.change("a1", "defaultAccentColor", "cyan");
+    session.refresh(); await session.load();
+    expect(session.value("accentColor")).toBe("orange");
+    for (const _workflow of ["new", "resume", "fork", "import"]) {
+      session.startSession();
+      expect(session.value("accentColor")).toBe("green");
+      await session.change("a1", "accentColor", "grey");
+    }
+    expect(manager().value("accentColor")).toBe("cyan");
+    expect(JSON.parse(readFileSync(saved.file, "utf8"))[PRODUCT_IDENTITY.commandName]).toEqual({ defaultAccentColor: "cyan" });
+  });
   it("ignores legacy accents while retaining them on unrelated writes", async () => {
     const file = join(root, "settings.json");
     writeFileSync(file, JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { accentColor: "purple", future: { keep: true } } }));

@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { UI_ACCENT_COLORS, type OwnedUiSessionBackend, type UiAccentColor } from "../contracts/owned-ui/index.js";
 import { serveSessionControl } from "../foundation/lifecycle/session-control.js";
+import { createHerdrReporter } from "../features/owned-ui/herdr-reporter.js";
+import type { HerdrBindingReservation } from "../features/owned-ui/herdr-binding.js";
 import type { OwnedSettingsManager } from "../ui/settings/manager.js";
 
-export async function startSessionColorControl(backend: OwnedUiSessionBackend, settings: OwnedSettingsManager, runtimeDir: string, runtimeId: string = randomUUID()) {
+export async function startSessionColorControl(backend: OwnedUiSessionBackend, settings: OwnedSettingsManager, runtimeDir: string, runtimeId: string = randomUUID(), herdrBinding?: HerdrBindingReservation) {
   const identity = () => ({ sessionId: backend.identity.currentHistorySessionId() ?? backend.identity.sessionId, binding: backend.identity.sessionBindingGeneration });
   const control = await serveSessionControl({ runtimeDir, runtimeId, identity, handle: async payload => {
     if (backend.identity.disposed) throw Object.assign(new Error("The session is stopped."), { code: "session-unavailable" });
@@ -19,11 +21,20 @@ export async function startSessionColorControl(backend: OwnedUiSessionBackend, s
     if (request.action !== "get") throw Object.assign(new Error("Unknown color action."), { code: "invalid-request" });
     return { sessionId, color: settings.value("accentColor") };
   } });
-  let stopped = false, binding = backend.identity.sessionBindingGeneration, publication = Promise.resolve();
+  let stopped = false, binding = backend.identity.sessionBindingGeneration, publishedBinding: number | undefined = binding, publication = Promise.resolve();
+  const reporter = herdrBinding?.runtimeId === runtimeId ? createHerdrReporter({ reservation: herdrBinding, identity: () => {
+    const current = identity();
+    return stopped || backend.identity.disposed || current.binding !== publishedBinding ? undefined : current;
+  } }) : undefined;
   const unsubscribe = backend.session.onEvent(() => {
     if (stopped || binding === backend.identity.sessionBindingGeneration) return;
     binding = backend.identity.sessionBindingGeneration;
-    publication = publication.then(() => control.publish()).catch(() => {});
+    publishedBinding = undefined;
+    publication = publication.then(async () => {
+      const generation = identity().binding;
+      await control.publish();
+      if (!stopped && generation === identity().binding) { publishedBinding = generation; reporter?.request(); }
+    }).catch(() => {});
   });
-  return { dispose: async () => { stopped = true; unsubscribe(); await publication; await control.dispose(); } };
+  return { dispose: async () => { stopped = true; unsubscribe(); await publication; await reporter?.dispose(); await control.dispose(); } };
 }

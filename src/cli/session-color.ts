@@ -14,11 +14,12 @@ export async function runSessionColorCommand(arguments_: readonly string[], opti
   try {
     const [action, ...rest] = arguments_;
     if (action === "help" || action === "--help" || action === "-h") {
-      stdout(`${PRODUCT_TEXT.commandName} session color list | get [--session <id>] | set <color> [--session <id>]\nAlways JSON; get/set target Current color only. Outside an A1 shell, --session is required.\n`);
+      stdout(`${PRODUCT_TEXT.commandName} session color capabilities | list | get [--session <id>] | set <color> [--session <id>]\nAlways JSON; get/set target Current color only. Outside an A1 shell, --session is required.\nCapabilities returns version 1 with launchColor and terminalIdentity booleans without starting a session or probing Core.\nStartup --session-color is invocation-only; live writes change neither saved Default nor replacement policy.\n`);
       return 0;
     }
+    if (action === "capabilities" && rest.length === 0) { stdout(`${JSON.stringify({ version: 1, launchColor: true, terminalIdentity: true })}\n`); return 0; }
     if (action === "list" && rest.length === 0) { stdout(`${JSON.stringify({ colors: UI_ACCENT_COLORS })}\n`); return 0; }
-    if (action !== "get" && action !== "set") throw failure("invalid-request", "Use session color list, get, or set <color>.");
+    if (action !== "get" && action !== "set") throw failure("invalid-request", "Use session color capabilities, list, get, or set <color>.");
     const color = action === "set" ? rest.shift() : undefined;
     if (action === "set" && !UI_ACCENT_COLORS.includes(color as UiAccentColor)) throw failure("invalid-color", "Choose blue, green, orange, pink, purple, cyan, or grey.");
     if (rest.length !== 0 && (rest.length !== 2 || rest[0] !== "--session" || !rest[1])) throw failure("invalid-request", "Expected only --session followed by a complete session id.");
