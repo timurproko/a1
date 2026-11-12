@@ -70,7 +70,7 @@ async function compose(options: { profileId?: string; productMode?: "comparison"
   return composeOwnedUi({
     ...options,
     cwd: root,
-    createEngineHost: async () => ({ create: async () => ({ identity: { cwd: root, agentDir: profileRoot, currentHistorySessionId: () => observed.sessionId || null }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never,
+    createEngineHost: async () => ({ create: async () => ({ identity: { cwd: root, agentDir: profileRoot, currentHistorySessionId: () => observed.sessionId || null }, session: { onEvent: () => () => {} }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never,
   });
 }
 

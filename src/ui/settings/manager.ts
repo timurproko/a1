@@ -70,8 +70,9 @@ interface WriteOutcome {
 }
 
 /**
- * One profile's A1 settings: resolves the declaration table against the stored document,
- * persists each accepted change atomically without discarding unknown keys, offers the
+ * Owns a profile's durable settings and this session's ephemeral overrides. Durable changes
+ * persist atomically without discarding unknown or legacy session keys; session changes stay local.
+ * Offers the
  * grouped sections a surface presents, and routes every accepted change only to its
  * owning backend, with agent settings reached through the engine settings port.
  */
@@ -89,6 +90,7 @@ export class OwnedSettingsManager {
   #agentSnapshot: AgentSettingsSnapshot | null = null;
   #pending = new Map<string, OwnedUiSettingValue>();
   readonly #restartEffective = new Map<string, OwnedUiSettingValue>();
+  readonly #sessionValues = new Map<string, OwnedUiSettingValue>();
 
   constructor(options: OwnedSettingsManagerOptions) {
     if (!PROFILE_ID_PATTERN.test(options.profileId)) {
@@ -105,6 +107,7 @@ export class OwnedSettingsManager {
     this.#hiddenAgentSettingIds = new Set(options.hiddenAgentSettingIds ?? []);
     this.#agentSettingLabelOverrides = { ...(options.agentSettingLabelOverrides ?? {}) };
     this.#resolution = this.read();
+    this.startSession();
     for (const setting of this.#resolution.settings) {
       if (setting.declaration.application === "restart") this.#restartEffective.set(setting.declaration.id, setting.value);
     }
@@ -137,11 +140,31 @@ export class OwnedSettingsManager {
     values: Readonly<Record<string, unknown>> | null,
     unreadableDetail?: string,
   ): OwnedUiSettingsResolution {
-    return resolveOwnedUiSettings({
+    const resolution = resolveOwnedUiSettings({
       declarations: this.#declarations,
       values,
       ...(unreadableDetail === undefined ? {} : { unreadableDetail }),
     });
+    return { ...resolution, settings: resolution.settings.map(setting => {
+      const value = this.#sessionValues.get(setting.declaration.id);
+      return setting.declaration.storage !== "session" || value === undefined ? setting : { ...setting, value };
+    }) };
+  }
+
+  startSession(): void {
+    this.#resolution = this.read();
+    for (const declaration of this.#declarations) {
+      if (declaration.storage !== "session") continue;
+      const source = this.#resolution.settings.find(setting => setting.declaration.id === declaration.initialValueFrom);
+      const value = source !== undefined && declaration.allowedValues.includes(source.value) ? source.value : declaration.defaultValue;
+      this.#sessionValues.set(declaration.id, value);
+      if (source !== undefined && source.declaration.application === "restart") {
+        this.#restartEffective.set(source.declaration.id, source.value);
+        this.#pending.delete(source.declaration.id);
+      }
+    }
+    this.#resolution = this.read();
+    this.#notify();
   }
 
   async load(): Promise<void> {
@@ -235,6 +258,14 @@ export class OwnedSettingsManager {
   }
 
   #changeOwned(id: string, value: OwnedUiSettingValue): OwnedUiSettingsChangeOutcome {
+    const declaration = this.#declarations.find(candidate => candidate.id === id);
+    if (!declaration?.allowedValues.includes(value)) return failed(`value ${JSON.stringify(value)} is not allowed for ${id}`);
+    if (declaration.storage === "session") {
+      this.#sessionValues.set(id, value);
+      this.#resolution = this.read();
+      this.#notify();
+      return changed("applied", "live", value, value);
+    }
     const outcome = this.#write(id, value);
     if (!outcome.stored) return failed(outcome.failure ?? `${id} could not be stored`);
 
@@ -370,7 +401,7 @@ function fromAgentOutcome(result: AgentSettingChangeOutcome): OwnedUiSettingsCha
 function compactValues(resolution: OwnedUiSettingsResolution): Record<string, unknown> {
   const values: Record<string, unknown> = { ...resolution.preserved };
   for (const setting of resolution.settings) {
-    if (setting.value !== setting.declaration.defaultValue) values[setting.declaration.id] = setting.value;
+    if (setting.declaration.storage !== "session" && setting.value !== setting.declaration.defaultValue) values[setting.declaration.id] = setting.value;
   }
   return values;
 }

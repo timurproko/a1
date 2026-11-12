@@ -99,6 +99,10 @@ a1 pi
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
 
+## Session colors
+
+Settings → Appearance separates a saved **Default color** (initially blue) from **Current color**, which affects only this session. Both offer blue, green, orange, pink, purple, cyan, and grey. External applications can read and change a targeted session through the [always-JSON local color API](docs/features/session-colors.md).
+
 ## Update
 
 Update on the channel you already use (release stays on release, develop stays on develop):

@@ -76,7 +76,7 @@ describe("owned UI settings sections", () => {
     ]);
     const entries = (id: string) => sections.find(section => section.id === id)?.entries.map(entry => entry.id);
     expect(entries("generic")).toEqual(["updateCheck"]);
-    expect(entries("appearance")).toEqual(["accentColor", "backgroundStyle", "quitAnimation", "spinnerStyle"]);
+    expect(entries("appearance")).toEqual(["defaultAccentColor", "accentColor", "backgroundStyle", "quitAnimation", "spinnerStyle"]);
     expect(entries("scroll")).toEqual(["scrollbarAppearance", "scrollbarStyle", "scrollbarSpeed"]);
     expect(entries("history")).toEqual(["promptHistoryEnabled", "promptHistoryScope", "promptHistoryMaxItems"]);
     expect(entries("tabs")).toBeUndefined();
@@ -86,8 +86,8 @@ describe("owned UI settings sections", () => {
     });
     expect(findOwnedUiSettingsEntry(sections, "quitEffect", "a1")).toBeNull();
     expect(findOwnedUiSettingsEntry(sections, "accentColor", "a1")).toMatchObject({
-      label: "Accent color", value: "blue", origin: "default", application: "live",
-      choices: ["blue", "purple", "cyan", "green", "orange", "pink"],
+      label: "Current color", value: "blue", origin: "default", application: "live",
+      choices: ["blue", "green", "orange", "pink", "purple", "cyan", "grey"],
     });
     expect(findOwnedUiSettingsEntry(sections, "backgroundStyle", "a1")).toMatchObject({
       label: "Background", value: "transparent", origin: "default", application: "live",

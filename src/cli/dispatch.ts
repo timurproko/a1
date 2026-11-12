@@ -19,6 +19,7 @@ export interface CliHandlers {
   readonly update: (channel: UpdateChannel, target?: string) => Promise<number>;
   readonly packages: (request: PackageCommandRequest) => Promise<number>;
   readonly sessionContext: (request: SessionContextRequest) => Promise<number>;
+  readonly sessionColor?: (arguments_: readonly string[]) => Promise<number>;
   /** Removes A1 from the machine; absent in hosts that cannot uninstall. */
   readonly uninstall?: (request: { readonly yes: boolean; readonly purge: boolean }) => Promise<number>;
 }
@@ -52,6 +53,7 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "worktree detach",
     "worktree complete [--change <id>] [--pr <number>]",
     "worktree list",
+    "session color list | get [--session <id>] | set <color> [--session <id>]",
     "session worktrees",
     "session link-worktree <path>",
     "session unlink-worktree",
@@ -91,6 +93,11 @@ export function cliHelp(capabilities: CliCapabilities): string {
     `  ${command} worktree complete [--change <id>] [--pr <number>]`,
     `  ${command} worktree list`,
     "",
+    "Session colors (always JSON; explicit session id required outside the session shell):",
+    `  ${command} session color list`,
+    `  ${command} session color get --session <id>`,
+    `  ${command} session color set <color> --session <id>`,
+    "",
     "Session context (compatibility aliases):",
     `  ${command} session worktrees`,
     `  ${command} session link-worktree <path>`,
@@ -129,6 +136,11 @@ export async function dispatchCli(
   if (command.kind === "version") return await handlers.version();
   if (command.kind === "packages") return await handlers.packages(command.request);
   if (command.kind === "session-context") return await handlers.sessionContext(command.request);
+  if (command.kind === "session-color") {
+    if (handlers.sessionColor) return await handlers.sessionColor(command.arguments);
+    output.stdout(`${JSON.stringify({ error: { code: "control-unavailable", message: "Session color API is unavailable in this host." } })}\n`);
+    return 1;
+  }
   if (command.kind === "uninstall") return handlers.uninstall ? await handlers.uninstall(command.request) : 2;
   return await handlers.update(command.channel, command.target);
 }
@@ -143,6 +155,7 @@ export type CliCommand =
   | { readonly kind: "update"; readonly channel: UpdateChannel; readonly target?: string }
   | { readonly kind: "packages"; readonly request: PackageCommandRequest }
   | { readonly kind: "session-context"; readonly request: SessionContextRequest }
+  | { readonly kind: "session-color"; readonly arguments: readonly string[] }
   | { readonly kind: "uninstall"; readonly request: { readonly yes: boolean; readonly purge: boolean } }
   | { readonly kind: "error"; readonly message: string };
 
@@ -174,6 +187,7 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
   }
   if (command === "update") return parseUpdate(rest, capabilities.runningChannel ?? "stable");
   if (command === "worktree") return parseWorktree(rest);
+  if (command === "session" && rest[0] === "color") return { kind: "session-color", arguments: rest.slice(1) };
   if (command === "session") return parseSessionContext(rest);
   if (command?.startsWith("update:")) return { kind: "noop" };
 

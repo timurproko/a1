@@ -21,8 +21,7 @@ export function readPreTrustAccent(environment: NodeJS.ProcessEnv = process.env)
     if (root === null || typeof root !== "object" || Array.isArray(root)) return "blue";
     const namespace: unknown = (root as Record<string, unknown>)[PRODUCT_IDENTITY.commandName];
     if (namespace === null || typeof namespace !== "object" || Array.isArray(namespace)) return "blue";
-    const value: unknown = (namespace as Record<string, unknown>).accentColor;
-    if (value === "default") return "purple";
+    const value: unknown = (namespace as Record<string, unknown>).defaultAccentColor;
     return typeof value === "string" && Object.hasOwn(SHARED_PROGRESS_PALETTE, value) ? value as UiAccentColor : "blue";
   } catch { return "blue"; }
 }

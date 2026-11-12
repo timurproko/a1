@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { readPinnedPiIdentity } from "../governance/pinned-pi-identity.mjs";
 import { backgroundAnsi, foregroundAnsi } from "@earendil-works/pi-tui";
 import { derivePiAccentProjection, namedPiAccent } from "../../src/integrations/pi/components/upstream/theme/theme.js";
-import type { UiAccentColor } from "../../src/contracts/owned-ui/index.js";
+import { UI_ACCENT_COLORS } from "../../src/contracts/owned-ui/index.js";
 
 const repository = fileURLToPath(new URL("../..", import.meta.url));
 const targets = [
@@ -13,8 +13,7 @@ const targets = [
   resolve(repository, "packages/a1-install/bin/progress-palette.js"),
 ] as const;
 const pinned = await readPinnedPiIdentity(repository) as { readonly version: string; readonly commit: string };
-const colors: readonly UiAccentColor[] = ["blue", "purple", "cyan", "green", "orange", "pink"];
-const palette = Object.fromEntries(colors.map(color => [color, Object.fromEntries(
+const palette = Object.fromEntries(UI_ACCENT_COLORS.map(color => [color, Object.fromEntries(
   (["dark", "light"] as const).map(appearance => [appearance, Object.fromEntries(
     (["truecolor", "256color"] as const).map(mode => {
       const projection = derivePiAccentProjection(namedPiAccent(color, appearance), appearance);

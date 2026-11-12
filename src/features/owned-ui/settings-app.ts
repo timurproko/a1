@@ -840,7 +840,7 @@ export class SettingsApp implements UiApp {
     const state = {
       choices: menu.choices.map(choice => displaySettingValue(menu.entry, choice)),
       ...(menu.preview !== null ? { previews: menu.preview.frames(menu.choices, menu.index, theme) }
-        : menu.entry.id === "accentColor" ? {
+        : ["accentColor", "defaultAccentColor"].includes(menu.entry.id) ? {
           previews: menu.choices.map(choice => theme.accentPreview?.(String(choice), "■") ?? ""),
         } : {}),
       current: this.#edits.shown(menu.entry) === null ? null : displaySettingValue(menu.entry, this.#edits.shown(menu.entry)!),
