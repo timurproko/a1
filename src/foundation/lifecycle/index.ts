@@ -2,6 +2,8 @@ export { assertLaunchProfileId } from "./model.js";
 export type { LaunchProfileId, ProcessIdentity } from "./model.js";
 export { PID_LIVENESS_IDENTITY, inspectLiveProcess } from "./process-liveness.js";
 export { resolveProductPaths } from "./paths.js";
+export { serveSessionControl, requestSessionControl } from "./session-control.js";
+export type { SessionControlHostOptions, SessionControlIdentity, SessionControlRequestOptions } from "./session-control.js";
 export type { ProductPaths } from "./paths.js";
 export { parseSessionSelection, sessionSelectionArguments } from "./session-selection.js";
 export type { SessionSelection } from "./session-selection.js";

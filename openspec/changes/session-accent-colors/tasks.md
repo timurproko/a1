@@ -14,8 +14,8 @@
 
 ## 3. External session color API
 
-- [ ] 3.1 Add always-JSON CLI inventory/get/set commands without an output-format flag, with explicit external session targeting, exact shell-environment targeting, help, and capability discovery.
-- [ ] 3.2 Implement bounded identity-checked local runtime request handling and applied-value acknowledgement through the same settings change path.
-- [ ] 3.3 Reject malformed, stale, stopped, ambiguous, replaced, unverifiable, and comparison targets; expire timed-out requests and release runtime records on disposal.
-- [ ] 3.4 Document stable request/response/error shapes, exit codes, color identifiers/order, Default versus Current color lifecycle semantics, and Herdr integration examples; keep API get/set limited to Current color.
-- [ ] 3.5 Add focused CLI/runtime tests and a two-runtime integration fixture for default JSON success/error output, targeting/isolation, acknowledgement, invalid colors/selectors, concurrent writes, timeout non-application, replacement, and disposal.
+- [x] 3.1 Add always-JSON CLI inventory/get/set commands without an output-format flag, with explicit external session targeting, exact shell-environment targeting, help, and capability discovery.
+- [x] 3.2 Implement bounded identity-checked local runtime request handling and applied-value acknowledgement through the same settings change path.
+- [x] 3.3 Reject malformed, stale, stopped, ambiguous, replaced, unverifiable, and comparison targets; expire timed-out requests and release runtime records on disposal.
+- [x] 3.4 Document stable request/response/error shapes, exit codes, color identifiers/order, Default versus Current color lifecycle semantics, and Herdr integration examples; keep API get/set limited to Current color.
+- [x] 3.5 Add focused CLI/runtime tests and a two-runtime integration fixture for default JSON success/error output, targeting/isolation, acknowledgement, invalid colors/selectors, concurrent writes, timeout non-application, replacement, and disposal.
