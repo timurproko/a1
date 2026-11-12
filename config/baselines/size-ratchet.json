@@ -82,13 +82,13 @@
       "lines": 103
     },
     "src/composition/owned-ui.ts::composeOwnedUi": {
-      "lines": 164
+      "lines": 159
     },
     "src/features/owned-ui/project-trust-prompt.ts::createConsoleProjectTrustPrompt": {
       "lines": 150
     },
     "src/foundation/release/bootstrap.ts::runBootstrapAttempt": {
-      "lines": 121
+      "lines": 119
     },
     "src/integrations/pi/components/shell-editor-autocomplete.ts::createPiShellEditor": {
       "lines": 243

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { UI_ACCENT_COLORS, type UiAccentColor } from "../../contracts/owned-ui/index.js";
 import { assertAgentSettingDescriptor } from "../../contracts/agent-engine/index.js";
 import type {
   AgentJsonValue,
@@ -40,6 +41,8 @@ export interface OwnedSettingsManagerOptions {
   /** Compatibility alias for SDK/tests that supplied the former root option. */
   readonly configDir?: string;
   readonly profileId: string;
+  /** Immutable invocation policy; live Current edits do not modify it. */
+  readonly sessionColor?: UiAccentColor;
   /** Product namespace; defaults to profileId for generic and hermetic consumers. */
   readonly namespace?: string;
   readonly declarations?: readonly OwnedUiSettingDeclaration[];
@@ -78,6 +81,7 @@ interface WriteOutcome {
  */
 export class OwnedSettingsManager {
   readonly #file: string;
+  readonly #sessionColor: UiAccentColor | undefined;
   readonly #namespace: string;
   readonly #declarations: readonly OwnedUiSettingDeclaration[];
   readonly #agent: AgentSettingsPort | null;
@@ -93,6 +97,8 @@ export class OwnedSettingsManager {
   readonly #sessionValues = new Map<string, OwnedUiSettingValue>();
 
   constructor(options: OwnedSettingsManagerOptions) {
+    if (options.sessionColor !== undefined && !UI_ACCENT_COLORS.includes(options.sessionColor)) throw new Error("Invalid invocation color");
+    this.#sessionColor = options.sessionColor;
     if (!PROFILE_ID_PATTERN.test(options.profileId)) {
       throw new Error(`owned UI settings profile id is not a bounded slug: ${options.profileId}`);
     }
@@ -156,7 +162,8 @@ export class OwnedSettingsManager {
     for (const declaration of this.#declarations) {
       if (declaration.storage !== "session") continue;
       const source = this.#resolution.settings.find(setting => setting.declaration.id === declaration.initialValueFrom);
-      const value = source !== undefined && declaration.allowedValues.includes(source.value) ? source.value : declaration.defaultValue;
+      const value = declaration.id === "accentColor" && this.#sessionColor !== undefined ? this.#sessionColor
+        : source !== undefined && declaration.allowedValues.includes(source.value) ? source.value : declaration.defaultValue;
       this.#sessionValues.set(declaration.id, value);
       if (source !== undefined && source.declaration.application === "restart") {
         this.#restartEffective.set(source.declaration.id, source.value);

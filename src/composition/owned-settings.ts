@@ -1,4 +1,5 @@
 import { statSync } from "node:fs";
+import type { UiAccentColor } from "../contracts/owned-ui/index.js";
 import type { AgentSettingsPort } from "../contracts/agent-engine/index.js";
 import { resolveLaunchProfilePaths } from "../features/launch/profile-paths.js";
 import { PRODUCT_IDENTITY } from "../product-identity.js";
@@ -6,6 +7,7 @@ import type { OwnedSettingsManager } from "../ui/settings/manager.js";
 
 interface OwnedSettingsManagerFactoryOptions {
   readonly profileId: string;
+  readonly sessionColor?: UiAccentColor;
   readonly agent?: AgentSettingsPort | null;
   readonly agentProvider?: () => AgentSettingsPort | null;
 }
@@ -18,6 +20,7 @@ export async function createOwnedSettingsManager(options: OwnedSettingsManagerFa
     profileDir: profilePaths.agentProfile,
     profileId: options.profileId,
     namespace: PRODUCT_IDENTITY.commandName,
+    ...(options.sessionColor === undefined ? {} : { sessionColor: options.sessionColor }),
     ...(options.agent === undefined ? {} : { agent: options.agent }),
     ...(options.agentProvider === undefined ? {} : { agentProvider: options.agentProvider }),
     hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],

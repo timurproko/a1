@@ -1,3 +1,6 @@
+export { interactiveStartupArguments } from "./interactive-arguments.js";
+export type { InteractiveStartupArguments } from "./interactive-arguments.js";
+
 /** The contract this build emits; supersedes the pre-cutover key set it still accepts. */
 export const PRIVATE_LAUNCH_CONTRACT = "neutral-launch-v1";
 

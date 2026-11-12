@@ -9,7 +9,11 @@ type Appearance = "dark" | "light";
 type ColorMode = "truecolor" | "256color";
 
 /** Global settings only: project resources must remain unavailable until trust is resolved. */
-export function readPreTrustAccent(environment: NodeJS.ProcessEnv = process.env): UiAccentColor {
+export function readPreTrustAccent(environment: NodeJS.ProcessEnv = process.env, sessionColor?: UiAccentColor): UiAccentColor {
+  if (sessionColor !== undefined) {
+    if (!Object.hasOwn(SHARED_PROGRESS_PALETTE, sessionColor)) throw new Error("Invalid invocation color");
+    return sessionColor;
+  }
   try {
     const home = environment[PRODUCT_IDENTITY.environment.profileHome] ?? homedir();
     if (!isAbsolute(home) || home.includes("\0")) return "blue";
