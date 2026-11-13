@@ -26,4 +26,18 @@
 
 The frozen rulebook, adapter table, cases and digest manifest are the implementation inputs. The design already narrows guidance changes to repository-owned entry points and preserves the OpenSpec boundary. Existing task groups remain in order; all substantive implementation tasks remain unchecked. This reconciliation completes task 1.4 only and does not assert implementation completion, CI success or acceptance.
 
-No conflicting pre-existing implementation was found. No concrete policy conflict has been identified at this checkpoint. Any later contradiction, missing adapter authority or framework-dependent outcome will be recorded and reported before the affected action; it will not be resolved by changing frozen policy or expected cases.
+No conflicting pre-existing implementation was found. No concrete policy conflict had been identified at this initial checkpoint. Any later contradiction, missing adapter authority or framework-dependent outcome will be recorded and reported before the affected action; it will not be resolved by changing frozen policy or expected cases.
+
+## Later conflict: native-arm acceptance wording
+
+Inspected implementation checkpoint: `11342d5811693b02e43036d1b9b72301cecb786c`. Outcomes 1-4 are published and checked. No integration/provenance implementation for outcome 5 has started; all group-5 tasks remain unchecked.
+
+Affected rules/case: R10, R18, C50. The unchanged project-specific `specs/change-delivery-workflow/spec.md` contains conflicting acceptance requirements:
+
+- Line 551: “the arm SHALL constitute acceptance of the listed scenarios for that exact candidate”.
+- Line 577: “Only an authorized human's non-automatic merge of that exact head SHALL activate the conditional manifest as acceptance.”
+- Frozen R10 permits recognition of a maintainer-owned native arm only with verified authorized ownership and evidence binding it to the exact finalized candidate and acceptance list; it explicitly says the native toggle alone is not acceptance evidence.
+
+These statements do not supply one unambiguous acceptance/provenance contract for the final outcome. In particular, the non-automatic-only clause excludes the native route addressed by R10, while the arm-only scenario omits R10's required binding evidence. R18 and C50 require clarification rather than independently choosing an interpretation.
+
+Disposition: stop affected outcome-5 integration/provenance work and request approval to replace the conflicting project-specific wording with a direct normative reference to R09-R10 and the a1 adapter's acceptance binding. The proposed correction changes no frozen rule, adapter value, expected case, OpenSpec skill or framework asset. No correction has been made pending that decision. Preserve all implementation, planning history and completed task ticks; do not infer merge, hosting or deletion authority.

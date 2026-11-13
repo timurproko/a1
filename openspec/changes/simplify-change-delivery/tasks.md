@@ -42,6 +42,8 @@ Contract binding: R05-R08; consume the matching IDs in `delivery-cases.json` wit
 
 Contract binding: R01, R09-R11, R17-R20; consume the matching IDs in `delivery-cases.json` without rewriting expectations.
 
+Blocked under R18/C50 pending clarification of the native-arm acceptance conflict recorded in `contract-reconciliation.md`. Outcomes 1-4 remain completed and published; the frozen contract files and the group-5 scope remain unchanged.
+
 - [ ] 5.1 Preserve protected exact-candidate merge and coherent hold/opt-out; verify stale/pending/ambiguous/bot authority stays rejected.
 - [ ] 5.2 Exclude authority-changing docs from unattended integration; verify complete diffs and rename sources while routine docs keep their route without hosting changes.
 - [ ] 5.3 Bind every unchanged shared verification case to actual repository behavior and enforce frozen contract bytes, adapter values and owner links; verify all case IDs run without skipped cases, copied expected-result stubs, policy paraphrases or OpenSpec overrides.
