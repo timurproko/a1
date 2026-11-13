@@ -20,9 +20,10 @@ import type { ProgressSpinnerSource, ProgressSpinnerStyle } from "../../src/cont
 import type { PiSessionPresentersOptions } from "../../src/integrations/pi/session-presenters/presenters.js";
 
 type RepositoryContextReader = (sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<unknown>;
+type WorktreeCwdReader = import("../../src/integrations/pi/engine/worktree-tools.js").PiWorktreeCwdReader;
 
 const observed = vi.hoisted(() => ({
-  hosts: [] as PiEngineHostOptions[], readers: [] as Array<RepositoryContextReader | undefined>, autoName: true,
+  hosts: [] as PiEngineHostOptions[], readers: [] as Array<RepositoryContextReader | undefined>, tools: [] as Array<WorktreeCwdReader | undefined>, autoName: true,
   nameFormat: "sentence" as "kebab" | "sentence" | "title" | undefined, spinnerStyle: "current" as ProgressSpinnerStyle,
   spinnerSources: [] as Array<ProgressSpinnerSource | undefined>, colorStarts: 0, settingsListeners: new Set<() => void>(),
 }));
@@ -81,6 +82,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   observed.readers = [];
+  observed.tools = [];
   observed.hosts = [];
   observed.autoName = true;
   observed.nameFormat = "sentence";
@@ -103,8 +105,9 @@ async function compose(options: Pick<OwnedUiCompositionOptions, "productMode" | 
     ...options,
     checkForNewerRelease: async () => null,
     createEngineHost: async hostOptions => { observed.hosts.push(hostOptions); return ({
-      create: async (input: { repositoryContextReader?: RepositoryContextReader }) => {
+      create: async (input: { repositoryContextReader?: RepositoryContextReader; worktreeCwdReader?: WorktreeCwdReader }) => {
         observed.readers.push(input.repositoryContextReader);
+        observed.tools.push(input.worktreeCwdReader);
         return { identity: { cwd: primary, agentDir: join(root, "agent") }, session: { onEvent: () => () => {} }, settings: { configuredTheme: () => "dark" }, ...extra };
       },
       setAccentColor() {},
@@ -126,6 +129,14 @@ async function runtimeRecords(): Promise<Array<Record<string, unknown>>> {
 }
 
 describe("session runtime composition wiring", () => {
+  it.each(["bare", "comparison", "no-runtime"] as const)("supplies owner-bound recovery only to claim-owning bare sessions: %s", async mode => {
+    if (mode === "no-runtime") vi.stubEnv(PRODUCT_IDENTITY.environment.sessionRuntimeId, undefined);
+    const composed = await compose({ productMode: mode === "comparison" ? "comparison" : "bare" });
+    try {
+      if (mode === "bare") expect(observed.tools.at(-1)?.detach).toBeTypeOf("function");
+      else expect(observed.tools.at(-1)).toBeUndefined();
+    } finally { await composed.application.dispose(); }
+  });
   it("resets color only on committed binding changes and unsubscribes on disposal", async () => {
     const listeners = new Set<() => void>();
     const identity = { cwd: primary, agentDir: join(root, "agent"), sessionBindingGeneration: 1, sessionGeneration: 1 };

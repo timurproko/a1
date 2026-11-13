@@ -57,6 +57,12 @@ A1 reads the file from the primary checkout the session started in, never from t
 
 If the attached checkout disappears, loses its Git pointer, or is replaced by a different worktree while the startup checkout still verifies, A1 releases this session's own association and editing claim. The built-in tool call that discovers it fails once with `worktree-attachment-invalid`, naming the released path and the startup checkout now in use, so work addressed to the lost checkout is never silently applied elsewhere. The next call runs from the startup checkout, and a resumed session recovers the same way. Uncertain results such as a timeout or an unverifiable startup checkout release nothing. `a1 worktree detach` works without validating the attached checkout. No file, branch, or other session's claim is removed.
 
+### Explicit recovery when ordinary tools are blocked
+
+A claim-owning bare session also exposes the argument-free `worktree_detach` tool. Ask the agent to use `worktree_detach` when you explicitly want to leave an attachment whose validation prevents even a shell detach command from running. This tool does not resolve the attached cwd or run Git: it verifies the exact bound session/runtime and clears only its association and owner claims through the ordinary mutation gate. It reports the original startup directory, which may be outside Git. Files, branches, history, other agents' claims and cleanup authority are unchanged. Later ordinary tools use that reported directory; the failed operation is never retried automatically elsewhere.
+
+Recovery is sequential and cannot accept a target session, path or shell command. It remains subject to explicit tool exclusions and extension overrides, and is absent from comparison sessions and runtimes without worktree ownership. An unrelated terminal normally lacks the exact shell-tool session identity, so launching a detach CLI there is not a substitute. Ordinary tools still fail closed on uncertain context; use explicit recovery rather than Git environment overrides or manual metadata deletion. After a verified merge, retain the normal `worktree complete` cleanup sequence instead of substituting recovery.
+
 Claims coordinate participating A1 sessions. They are not a sandbox against arbitrary external editors, an editing lock in Git, repository cleanup ownership, or permission to merge/delete anything. Delivery and protected cleanup remain independent.
 
 ## Shared repository guidance

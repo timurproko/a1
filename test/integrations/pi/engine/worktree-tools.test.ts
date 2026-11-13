@@ -36,6 +36,42 @@ describe("attachment-aware built-in tools", () => {
     expect(await readFile(join(attached, "note.txt"), "utf8")).toBe("edited");
   });
 
+  it("exposes only argument-free sequential detach outside strict cwd resolution and never settles cleanup", async () => {
+    const root = await mkdtemp(join(tmpdir(), "a1-worktree-tools-")); roots.push(root);
+    let detached = false;
+    const resolve = vi.fn(async () => { if (!detached) throw new Error("startup Git identity invalid"); return root; });
+    const settle = vi.fn(async () => "cleanup must not run");
+    const detach = vi.fn(async () => { detached = true; return root; });
+    const tools = createSessionWorktreeTools(root, resolve, settle, detach);
+    const context = {} as ExtensionToolContext;
+    const write = tools.find(tool => tool.name === "write")!;
+    await expect(write.execute("blocked", { path: "note.txt", content: "bad" }, undefined, undefined, context)).rejects.toThrow("startup Git identity invalid");
+    const recovery = tools.find(tool => tool.name === "worktree_detach")!;
+    expect(recovery.parameters).toEqual({ type: "object", properties: {}, additionalProperties: false });
+    expect(recovery.executionMode).toBe("sequential");
+    expect(recovery.defaultActive).not.toBe(false);
+    const result = await recovery.execute("recover", {}, undefined, undefined, context);
+    expect(result).toMatchObject({ details: { cwd: root }, content: [expect.objectContaining({ text: expect.stringContaining(root) })] });
+    expect(detach).toHaveBeenCalledExactlyOnceWith(undefined);
+    expect(resolve).toHaveBeenCalledOnce();
+    expect(settle).not.toHaveBeenCalled();
+    await expect(readFile(join(root, "note.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+    await write.execute("after", { path: "note.txt", content: "after explicit recovery" }, undefined, undefined, context);
+    expect(await readFile(join(root, "note.txt"), "utf8")).toBe("after explicit recovery");
+  });
+
+  it("omits recovery without its owner callback and reports cancellation or failure without success", async () => {
+    const resolve = vi.fn(async () => { throw new Error("uncertain attachment"); });
+    expect(createSessionWorktreeTools("/unused", resolve).some(tool => tool.name === "worktree_detach")).toBe(false);
+    const detach = vi.fn(async () => { throw new Error("owner unavailable"); });
+    const recovery = createSessionWorktreeTools("/unused", resolve, undefined, detach).find(tool => tool.name === "worktree_detach")!;
+    const controller = new AbortController(); controller.abort();
+    await expect(recovery.execute("cancelled", {}, controller.signal, undefined, {} as ExtensionToolContext)).rejects.toThrow();
+    expect(detach).not.toHaveBeenCalled();
+    await expect(recovery.execute("failed", {}, undefined, undefined, {} as ExtensionToolContext)).rejects.toThrow("owner unavailable");
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
   it("does not execute a mutation when attachment verification fails", async () => {
     const root = await mkdtemp(join(tmpdir(), "a1-worktree-tools-")); roots.push(root);
     await writeFile(join(root, "note.txt"), "keep");

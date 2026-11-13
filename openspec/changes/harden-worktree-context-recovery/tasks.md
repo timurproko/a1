@@ -7,7 +7,7 @@
 
 ## 2. Provide explicit session-bound detach when ordinary tools cannot resolve their cwd
 
-- [ ] 2.1 Add serialized runtime detach that verifies the exact current session/runtime, clears only its association and claims, and does not validate Git cwd.
-- [ ] 2.2 Expose the argument-free sequential worktree_detach recovery tool in claim-owning bare sessions and preserve comparison/override/tool-selection behavior.
-- [ ] 2.3 Add registry, tool and runtime integration regressions for blocked cwd, pre-activation recovery, cancellation, identity boundaries and preserved files/foreign claims.
-- [ ] 2.4 Document the supported recovery tool and its authority boundaries in feature/recovery guidance.
+- [x] 2.1 Add serialized runtime detach that verifies the exact current session/runtime, clears only its association and claims, and does not validate Git cwd.
+- [x] 2.2 Expose the argument-free sequential worktree_detach recovery tool in claim-owning bare sessions and preserve comparison/override/tool-selection behavior.
+- [x] 2.3 Add registry, tool and runtime integration regressions for blocked cwd, pre-activation recovery, cancellation, identity boundaries and preserved files/foreign claims.
+- [x] 2.4 Document the supported recovery tool and its authority boundaries in feature/recovery guidance.
