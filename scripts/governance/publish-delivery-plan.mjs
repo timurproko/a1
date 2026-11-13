@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { inspectDeliveryBody } from "./check-delivery-body.mjs";
+import { readDeliveryAdapter } from "./delivery-contract.mjs";
 import { parseImplementation } from "./openspec-archive-policy.mjs";
 
 const SHA = /^[a-f0-9]{40}$/u;
@@ -13,6 +14,8 @@ const failure = code => Object.assign(new Error(code), { deliveryCode: code });
 /** Explicit identity and stdin payloads deliberately have no Git cwd, dependency or runtime prerequisite. */
 export async function publishDeliveryPlan(input, remote = githubPlanningRemote()) {
   const { repository, base, baseHead, branch, expectedHead, change, files, body, title } = input;
+  const adapter = await readDeliveryAdapter();
+  if (repository !== adapter.repository || base !== adapter.baseBranch) throw failure("planning-adapter-identity");
   if (!repositoryPattern.test(repository ?? "") || !SHA.test(baseHead ?? "") || !base || base.startsWith("-")
     || !branchPattern.test(branch ?? "") || branch.includes("..") || branch === base
     || expectedHead !== null && !SHA.test(expectedHead ?? "") || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(change ?? "")) throw failure("planning-identity");
@@ -47,6 +50,7 @@ export async function publishDeliveryPlan(input, remote = githubPlanningRemote()
       publishedHead = await remote.commit(repository, branch, head, files, `docs(openspec): plan ${change}`);
     }
     stage = "pull-request";
+    if (await remote.head(repository, branch) !== publishedHead) throw failure("planning-head-changed");
     pr ??= await remote.findPr(repository, base, branch);
     if (pr && (!pr.draft || pr.body !== body)) throw failure("planning-pr-conflict");
     pr ??= await remote.createPr(repository, base, branch, title, body);

@@ -16,9 +16,9 @@ Contract binding: R01-R04, R16-R20; consume the matching IDs in `delivery-cases.
 
 Contract binding: R04, R12; consume the matching IDs in `delivery-cases.json` without rewriting expectations.
 
-- [ ] 2.1 Extend entry for remote PR branches and unoccupied local branches; verify identity, preserved ancestry and no default-base replacement in isolated Git fixtures.
-- [ ] 2.2 Preserve owned dirty resumes and separate setup; verify divergence, collisions, foreign repositories and live ownership remain non-destructive.
-- [ ] 2.3 Add portable handoff with separate publication and ownership facts; verify clean unpushed commits are not reported remotely available and safe remote descendants are recognized.
+- [x] 2.1 Extend entry for remote PR branches and unoccupied local branches; verify identity, preserved ancestry and no default-base replacement in isolated Git fixtures.
+- [x] 2.2 Preserve owned dirty resumes and separate setup; verify divergence, collisions, foreign repositories and live ownership remain non-destructive.
+- [x] 2.3 Add portable handoff with separate publication and ownership facts; verify clean unpushed commits are not reported remotely available and safe remote descendants are recognized.
 
 ## 3. Safe local-only removal
 

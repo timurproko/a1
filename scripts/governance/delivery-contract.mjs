@@ -33,6 +33,13 @@ export async function inspectContractInstallation(root, { read = path => readFil
   return { passed: errors.length === 0, errors };
 }
 
+/** Read only this repository's frozen binding; an edited local digest cannot authorize adapter drift. */
+export async function readDeliveryAdapter() {
+  const bytes = await readFile(new URL("../../docs/delivery-adapters.json", import.meta.url));
+  if (createHash("sha256").update(bytes).digest("hex") !== APPROVED_DELIVERY_HASHES["delivery-adapters.json"]) throw new Error("delivery-adapter-drift");
+  return JSON.parse(bytes).repositories.a1;
+}
+
 /** Both sides of every rename are authority-bearing; additions and deletions also enter this boundary. */
 export function inspectDeliveryScope(changes, { overridesOpenSpec = false } = {}) {
   const protectedPaths = changes.flatMap(change => [change.path, change.previousPath].filter(Boolean))

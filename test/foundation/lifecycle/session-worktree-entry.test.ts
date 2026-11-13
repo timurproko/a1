@@ -21,6 +21,7 @@ async function fixture(base = "develop") {
   const primary = join(root, "primary"), dataDir = join(root, "data");
   const git = async (...args: string[]) => (await execute("git", ["-C", primary, ...args], { encoding: "utf8" })).stdout.trim();
   await execute("git", ["init", "-b", base, primary]);
+  await git("config", "core.autocrlf", "false");
   await writeFile(join(primary, "README.md"), "base\n");
   await git("add", ".");
   await git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "base");
@@ -69,10 +70,63 @@ describe("self-contained worktree entry", () => {
     await f.git("branch", "alternate");
     const result = await enterSessionRepositoryWorktree(f.identity, "fix/example", "alternate", f.options);
     await expect(enterSessionRepositoryWorktree(f.identity, "feat/example", undefined, f.options)).rejects.toMatchObject({ code: "worktree-path-collision" });
-    await f.git("branch", "fix/existing");
-    await expect(enterSessionRepositoryWorktree(f.identity, "fix/existing", undefined, f.options)).rejects.toMatchObject({ code: "worktree-branch-collision" });
     await expect(enterSessionRepositoryWorktree(f.identity, "../../escape", undefined, f.options)).rejects.toMatchObject({ code: "worktree-branch-invalid" });
     expect((await readActiveSessionRepositoryContext(f.identity, f.options))?.cwd).toBe(result.cwd);
+  });
+
+  it("C09: adopts the fetched remote proposal rather than replacing it with the default base", async () => {
+    const f = await fixture();
+    await f.git("checkout", "-b", "chore/proposal");
+    await writeFile(join(f.primary, "proposal.md"), "approved planning history\n");
+    await f.git("add", ".");
+    await f.git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "proposal");
+    const proposalHead = await f.git("rev-parse", "HEAD");
+    const remote = join(f.root, "remote.git");
+    await execute("git", ["clone", "--bare", f.primary, remote]);
+    await f.git("checkout", "develop");
+    await f.git("branch", "-D", "chore/proposal");
+    await f.git("remote", "add", "origin", remote);
+    const result = await enterSessionRepositoryWorktree(f.identity, "chore/proposal", undefined, f.options);
+    expect(await f.git("rev-parse", "chore/proposal")).toBe(proposalHead);
+    expect(await readFile(join(result.cwd, "proposal.md"), "utf8")).toBe("approved planning history\n");
+    expect(await f.git("branch", "--show-current")).toBe("develop");
+    await expect(readFile(join(result.cwd, "node_modules/package.json"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("adopts an unoccupied local branch without losing unpublished commits", async () => {
+    const f = await fixture();
+    await f.git("checkout", "-b", "fix/existing");
+    await writeFile(join(f.primary, "local.md"), "unpublished work\n");
+    await f.git("add", ".");
+    await f.git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "local work");
+    const head = await f.git("rev-parse", "HEAD");
+    await f.git("checkout", "develop");
+    const result = await enterSessionRepositoryWorktree(f.identity, "fix/existing", undefined, f.options);
+    expect(await f.git("rev-parse", "fix/existing")).toBe(head);
+    expect(await readFile(join(result.cwd, "local.md"), "utf8")).toBe("unpublished work\n");
+  });
+
+  it("blocks divergent local/remote proposal history without creating or resetting a checkout", async () => {
+    const f = await fixture();
+    await f.git("checkout", "-b", "chore/proposal");
+    await writeFile(join(f.primary, "remote.md"), "remote\n");
+    await f.git("add", ".");
+    await f.git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "remote plan");
+    const remote = join(f.root, "remote.git");
+    await execute("git", ["clone", "--bare", f.primary, remote]);
+    await f.git("checkout", "develop");
+    await f.git("branch", "-D", "chore/proposal");
+    await f.git("checkout", "-b", "chore/proposal");
+    await writeFile(join(f.primary, "local.md"), "local\n");
+    await f.git("add", ".");
+    await f.git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "local plan");
+    const head = await f.git("rev-parse", "HEAD");
+    await f.git("checkout", "develop");
+    await f.git("remote", "add", "origin", remote);
+    await expect(enterSessionRepositoryWorktree(f.identity, "chore/proposal", undefined, f.options)).rejects.toMatchObject({ code: "worktree-branch-diverged" });
+    expect(await f.git("rev-parse", "chore/proposal")).toBe(head);
+    expect(await readActiveSessionRepositoryContext(f.identity, f.options)).toBeNull();
+    expect(await readdir(join(f.primary, ".worktrees"))).toEqual([]);
   });
 
   it("preserves the old attachment when a foreign, primary, locked, or busy checkout is requested", async () => {
