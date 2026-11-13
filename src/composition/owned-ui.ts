@@ -55,6 +55,7 @@ export interface OwnedUiCompositionOptions {
   readonly sessionSelection?: SessionSelection;
   readonly sessionColor?: UiAccentColor;
   readonly promptArguments?: readonly string[];
+  readonly runtimeOptions?: import("../foundation/launch-context/index.js").RuntimeLaunchOptions;
   /** Early bare-launch reservation; never supplied to comparison/noninteractive compositions. */
   readonly herdrBinding?: HerdrBindingReservation;
   readonly sessionForkPrompt?: PiSessionForkPrompt;
@@ -108,7 +109,6 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   // Invariant: process-wide engine state has one owner. The host installs the HTTP dispatcher, applies
   // the theme singletons, and announces startup notices once; every session is created through it.
   const host = await (options.createEngineHost ?? createPiEngineHost)(engineHostOptions(options, productMode, bareSettings, productPaths.runtimeDir));
-  const sessionForkPrompt = options.sessionForkPrompt;
   try {
     backend = await host.create({
       cwd,
@@ -117,7 +117,8 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         ? { worktreeCwdReader: sessionRuntimes.toolReaderFor(undefined) } : {}),
       ...(options.sessionPath === undefined ? {} : { sessionPath: options.sessionPath }),
       ...(options.sessionSelection === undefined ? {} : { sessionSelection: options.sessionSelection }),
-      ...(sessionForkPrompt === undefined ? {} : { sessionForkPrompt }),
+      ...(options.runtimeOptions === undefined ? {} : { runtimeOptions: options.runtimeOptions }),
+      ...(options.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: options.sessionForkPrompt }),
     });
   } catch (error) {
     await host.dispose();
@@ -237,7 +238,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       sessionColor.start();
       releaseUpdates.start();
     },
-    flush: startupPromptFlush(backend, bare ? options.promptArguments : undefined),
+    flush: startupPromptFlush(backend, bare ? options.promptArguments : undefined, () => terminalHost.runtime.renderNow()),
     waitUntilStopped: () => presenter.waitUntilStopped(),
     dispose: async () => {
       naming.dispose();
@@ -262,13 +263,15 @@ async function compositionSettings(options: OwnedUiCompositionOptions, agentProv
   });
 }
 
-function startupPromptFlush(backend: ComposedSessionBackend, arguments_?: readonly string[]) {
+function startupPromptFlush(backend: ComposedSessionBackend, arguments_: readonly string[] | undefined, present: () => void) {
   let prompt = arguments_?.join(" ");
   return async () => {
     await backend.session.flushEvents();
     const text = prompt;
     prompt = undefined;
     if (text?.trim() && !backend.identity.disposed) {
+      // Invariant: startup extension notices get a frame before prompt submission clears transient presentation.
+      present();
       await backend.session.execute({ type: "prompt", correlationId: randomUUID(), sessionId: backend.identity.sessionId, text });
     }
   };

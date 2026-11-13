@@ -91,6 +91,8 @@ Show the current version and the latest Develop and Release versions, from eithe
 a1 version
 ```
 
+Firstmate can opt into a packaged, PATH-scoped `pi` executable that launches **normal A1**, not comparison mode. See [Pi-compatible launch](docs/features/pi-compatible-launch.md) for the supported flags, profile/identity guarantees and remaining live acceptance requirements. No existing global Pi installation is replaced.
+
 Vanilla Pi oracle (`~/.pi/agent`):
 
 ```text

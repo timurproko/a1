@@ -172,7 +172,8 @@ describe("PiExtensionUiBinding", () => {
     const calls: string[] = [];
     let bound: unknown;
     let fail = false;
-    const current = session({ bindExtensions: async (bindings: unknown) => { if (fail) throw new Error("bridge refused"); bound = bindings; } });
+    const bindExtensions = async (bindings: unknown) => { if (fail) throw new Error("bridge refused"); bound = bindings; };
+    let current = session({ bindExtensions });
     const binding = new PiExtensionUiBinding({
       session: () => current,
       runtime: () => undefined,
@@ -188,11 +189,63 @@ describe("PiExtensionUiBinding", () => {
     expect(bound).toMatchObject({ mode: "tui" });
     expect(binding.attached).toBe(true);
     fail = true;
+    current = session({ bindExtensions });
     await binding.rebind();
     expect(binding.support().available).toBe(false);
     expect(calls).toEqual(["view", "error:extension-ui-bind:bridge refused", "view"]);
     await binding.unbind();
     expect(binding.attached).toBe(false);
+  });
+});
+
+describe("PiExtensionUiBinding completion isolation", () => {
+  const bridge = () => ({
+    ...Object.fromEntries(OWNED_UI_EXTENSION_UI_CALLBACKS.map(name => [name, () => {}])),
+    theme: Object.fromEntries(["fg", "bg", "bold", "italic", "underline", "inverse", "strikethrough", "getFgAnsi", "getBgAnsi", "getColorMode", "getThinkingBorderColor", "getBashModeBorderColor"].map(name => [name, () => ""])),
+  });
+
+  it("forwards changed UI targets without repeating startup on the same session", async () => {
+    let starts = 0;
+    let bound!: { uiContext: { notify(text: string): void } };
+    const current = session({ bindExtensions: async (value: typeof bound) => { starts++; bound = value; } });
+    const calls: string[] = [];
+    const binding = new PiExtensionUiBinding({ session: () => current, runtime: () => undefined, diagnostic: () => {}, emitView: () => {} });
+    await binding.bind({ ...bridge(), notify: () => calls.push("first") });
+    await binding.bind({ ...bridge(), notify: () => calls.push("second") });
+    await binding.rebind();
+    bound.uiContext.notify("current target");
+    expect(starts).toBe(1);
+    expect(calls).toEqual(["second"]);
+    expect(binding.support().available).toBe(true);
+    await binding.unbind();
+  });
+
+  it("ignores old-session completion and diagnostics after replacement", async () => {
+    const gate = Promise.withResolvers<void>();
+    let reportOldError!: (error: unknown) => void;
+    let current = session({ bindExtensions: async (bindings: { onError: typeof reportOldError }) => { reportOldError = bindings.onError; await gate.promise; } });
+    const calls: string[] = [];
+    const binding = new PiExtensionUiBinding({ session: () => current, runtime: () => undefined, diagnostic: () => calls.push("diagnostic"), emitView: () => calls.push("view") });
+    const old = binding.bind(bridge());
+    current = session({ bindExtensions: async () => {} });
+    await binding.rebind();
+    reportOldError({ error: "obsolete callback" });
+    gate.resolve(); await old;
+    expect(calls).toEqual(["view"]);
+    expect(binding.support().available).toBe(true);
+    await binding.unbind();
+  });
+
+  it.each([false, true])("does not publish detached startup completion (failure: %s)", async fail => {
+    const gate = Promise.withResolvers<void>();
+    const current = session({ bindExtensions: async () => { await gate.promise; if (fail) throw new Error("late refused"); } });
+    const calls: string[] = [];
+    const binding = new PiExtensionUiBinding({ session: () => current, runtime: () => undefined, diagnostic: () => calls.push("diagnostic"), emitView: () => calls.push("view") });
+    const pending = binding.bind(bridge());
+    await binding.unbind();
+    gate.resolve(); await pending;
+    expect(calls).toEqual([]);
+    expect(binding.support().available).toBe(false);
   });
 });
 

@@ -162,14 +162,16 @@ function bootstrapArguments(intent: BootstrapOptions["launchIntent"], profile: L
 async function assertStartupPayloadSupport(
   release: MaterializedRelease, selectedStoreRoot: string, startup?: InteractiveStartupArguments,
 ): Promise<void> {
-  if (startup?.sessionColor === undefined && startup?.promptArguments === undefined) return;
-  const startupEntry = "dist/features/launch/interactive-arguments.js";
+  if (startup?.sessionColor === undefined && startup?.promptArguments === undefined && startup?.runtimeOptions === undefined) return;
+  const startupEntry = startup?.runtimeOptions === undefined
+    ? "dist/features/launch/interactive-arguments.js"
+    : "dist/foundation/launch-context/runtime-options.js";
   if (release.files.some(file => file.path === startupEntry)) return;
   // Security: selection has established authority for this exact identity. Compact restart
   // evidence carries only executable entries, so absence requires its authenticated full inventory.
   const manifest = await readCertifiedReleaseManifest(release, selectedStoreRoot);
   if (!manifest.files.some(file => file.path === startupEntry)) {
-    throw new Error("Selected retained UI does not support invocation color/literal prompts; launch without the override or update A1.");
+    throw new Error("Selected retained UI does not support invocation color/literal prompts or runtime options; update A1 before retrying.");
   }
 }
 
