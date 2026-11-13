@@ -15,7 +15,7 @@
 ## 3. Preserve Firstmate extension contracts in A1's owned runtime
 
 - [x] 3.1 Address concrete lifecycle/UI/public SDK mismatches found with Firstmate's tracked primary/watch/supervision and generated worker extensions.
-  - [x] 3.1.1 Preserve Jiti's pinned public-entry context for cold TypeScript extension transformation in the built runtime.
-  - [x] 3.1.2 Refuse Firstmate-scoped catalog discovery before marker-writing factories can replace live host evidence.
-- [x] 3.2 Add real extension integration coverage in disposable state for startup context, tools, distinct run boundaries, queued messages and replacement isolation.
-- [x] 3.3 Preserve attachment-aware built-in tools and independent helper operational cwd; document packaged/live acceptance results and exact remaining limitations.
+- [x] 3.2 Preserve Jiti's pinned public-entry context for cold TypeScript extension transformation in the built runtime.
+- [x] 3.3 Refuse Firstmate-scoped catalog discovery before marker-writing factories can replace live host evidence.
+- [x] 3.4 Add real extension integration coverage in disposable state for startup context, tools, distinct run boundaries, queued messages and replacement isolation.
+- [x] 3.5 Preserve attachment-aware built-in tools and independent helper operational cwd; document packaged/live acceptance results and exact remaining limitations.
