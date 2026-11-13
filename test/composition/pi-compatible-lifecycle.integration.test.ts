@@ -62,11 +62,11 @@ async function fixture(promptArguments?: readonly string[]) {
   };
 }
 
-function transport(runtime: AgentSessionRuntime, tool: boolean | "metadata" = false, pause?: Promise<void>) {
+function transport(runtime: AgentSessionRuntime, tool: boolean | "metadata" = false, pause?: Promise<void> | ((turn: number) => Promise<void>)) {
   const contexts: string[] = [];
   runtime.session.agent.streamFunction = (async (model: Parameters<typeof runtime.session.agent.streamFunction>[0], context: Parameters<typeof runtime.session.agent.streamFunction>[1]) => {
     contexts.push(JSON.stringify(context.messages));
-    await pause;
+    await (typeof pause === "function" ? pause(contexts.length) : pause);
     const toolCall = tool && contexts.length === 1;
     const message = { role: "assistant" as const, content: toolCall ? [{ type: "toolCall", id: `compat-call-${runtime.session.messages.length}`, name: tool === "metadata" ? "compat_metadata" : "compat_watch", arguments: {} }] : [{ type: "text", text: "fixture-response" }], api: model.api, provider: model.provider, model: model.id, timestamp: Date.now(), stopReason: toolCall ? "toolUse" : "stop", usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
     return { result: async () => message, async *[Symbol.asyncIterator]() { yield { type: "start", partial: message }; yield { type: "done", reason: message.stopReason, message }; } };
@@ -111,7 +111,10 @@ describe("Pi compatibility through real A1 composition and SDK lifecycle", () =>
 
   it("calls extension tools/renderers, preserves attached writes and helper cwd, and delivers follow-ups before logical settlement", async () => {
     const f = await fixture(); await ready(f);
-    const contexts = transport(f.runtime, true);
+    const contexts = transport(f.runtime, true, async turn => {
+      // Concurrency: render the tool's transient notice before the follow-up user turn dismisses it.
+      if (turn === 2) await vi.waitFor(async () => expect(await frame(f)).toContain("completion-notification"));
+    });
     await f.runtime.session.prompt("queue-followup"); await f.runtime.session.waitForIdle();
     const notes = await f.notes();
     expect(notes.filter(note => note.event === "agent_start")).toHaveLength(2);

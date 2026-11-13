@@ -11,6 +11,13 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Evidence
 
+### Current-target CI repair
+
+- Trusted reconciliation merged `88efe404` (#921, Firstmate Pi compatibility) from develop and refinalized this candidate as `9c14593b`. The selected PR Full regression's completed Ubuntu Node 24 and Windows Node 24 core jobs fail on two newly stale compatibility expectations: missing consumer entries for `AgentSessionServices` and `resolveCliModel`, and three expected `ExtensionUIContext` occurrences instead of four after the forwarding proxy was added.
+- Ubuntu additionally misses `completion-notification` in the real-composition lifecycle fixture. The tool delivers its notification, but the subsequent queued user follow-up intentionally dismisses bare A1's dock notice. If both run between render frames, a fixed post-settlement sleep can never recover the missed transient frame. Hold the deterministic model transport after the tool until the existing notification assertion observes its rendered frame, then let the follow-up proceed. Preserve the final rendering assertion, lifecycle counts, queue behavior, and 15-second test timeout; no production behavior changes.
+- The completed Ubuntu job passes all original repair fixtures, including actual long-path Unix IPC, Darwin address boundaries, Herdr temp-alias boundaries, reporter behavior, and startup descriptor wiring. This is Linux evidence, not a claim of completed native macOS or final aggregate validation.
+- Local Windows reproduction of the three affected files produced the same two stale-expectation failures; the timing-sensitive notification case passed locally. After the repair, `npm run typecheck` and `npx vitest run test/repository-governance/pinned-pi-public-api.test.ts test/contracts/owned-ui/extension-ui-contract.test.ts test/composition/pi-compatible-lifecycle.integration.test.ts` pass all 18 tests. The generated API comparison changes only consumer paths, not versions, declarations, or export hashes.
+
 ### Focused implementation evidence
 
 - Windows/Node 24: `npm run typecheck` passed. The focused command `npx vitest run test/repository-governance/startup-descriptor.test.ts test/foundation/lifecycle/session-control.test.ts test/foundation/lifecycle/session-control-address.test.ts test/features/owned-ui/herdr-binding.test.ts test/features/owned-ui/herdr-reporter.test.ts test/composition/herdr-colors.integration.test.ts test/composition/session-colors.integration.test.ts test/composition/startup-color.test.ts` passed all 35 tests in eight files.
