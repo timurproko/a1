@@ -77,6 +77,7 @@ export interface PiEngineAdapterOptions {
   readonly engineHost?: PiEngineHostSessionPorts;
   readonly sessionPath?: string;
   readonly sessionSelection?: PiSessionSelection;
+  readonly runtimeOptions?: import("../../../foundation/launch-context/index.js").RuntimeLaunchOptions;
   readonly sessionForkPrompt?: PiSessionForkPrompt;
   readonly createRuntime?: PiEngineRuntimeFactory;
   readonly workflowHost?: Partial<PiWorkflowHost>;
@@ -188,9 +189,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
       cwd: options.cwd ?? process.cwd(),
       agentDir: this.#agentDir,
       sessionId: this.#sessionId,
-      sessionPath: options.sessionPath,
-      sessionSelection: options.sessionSelection,
-      sessionForkPrompt: options.sessionForkPrompt,
+      ...runtimeSessionRequest(options),
       projectTrustPrompt: options.projectTrustPrompt,
       createRuntime: options.createRuntime,
       checkPackageUpdates: options.checkPackageUpdates,
@@ -569,6 +568,15 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
   ): OwnedUiDiagnostics {
     return this.#state.diagnosticsState.record(severity, code, message, recoverable);
   }
+}
+
+function runtimeSessionRequest(options: PiEngineAdapterOptions) {
+  return {
+    sessionPath: options.sessionPath,
+    sessionSelection: options.sessionSelection,
+    sessionForkPrompt: options.sessionForkPrompt,
+    ...(options.runtimeOptions === undefined ? {} : { runtimeOptions: options.runtimeOptions }),
+  };
 }
 
 export async function createPiEngineAdapter(

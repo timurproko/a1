@@ -4,7 +4,7 @@ A1 embeds Pi 1.5.2 with an owned UI and independent A1 profile. Firstmate's adap
 
 ## Decisions
 
-1. Keep ordinary A1 command routing and `a1 pi` semantics. Add `a1-pi` and a shipped opt-in pi shim directory. Users opt into that directory only in a dedicated Firstmate launch environment; inherited PATH supplies the same executable to workers. No global pi bin registration.
+1. Keep ordinary A1 command routing and `a1 pi` semantics. Add `bin/pi-compatible.js` and a shipped opt-in pi shim directory; retain npm's sole globally registered a1 command. Users opt into that directory only in a dedicated Firstmate launch environment; inherited PATH supplies the same executable to workers. No global pi bin registration.
 2. Keep Pi knowledge in CLI/launch/Pi engine owners and composition wiring, not neutral UI contracts. Use the existing validated argv/startup payload path across immutable release/guardian boundaries; require exact selected-release support and fail closed for old consumers.
 3. Identity is engine family, not product branding. Publish AI_AGENT=pi and PI_CODING_AGENT=true before extensions. Clear FM_PI_SESSION_PID/START and parent shell metadata at independent UI process entry, never when creating Firstmate's second in-process AgentSession or ordinary helpers. Firstmate alone publishes/verifies its native ownership evidence.
 4. Resolve models and effort from the selected profile's real Pi catalog after explicit extensions register providers. Invocation overrides win over resumed state without rewriting saved defaults. Keep session writer coordination and project trust intact.

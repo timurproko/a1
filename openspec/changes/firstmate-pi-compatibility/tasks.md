@@ -6,11 +6,11 @@
 
 ## 2. Expose normal A1 through the packaged Pi-compatible launch contract
 
-- [ ] 2.1 Ship a separate compatibility entry and opt-in executable pi directory without changing comparison mode or global installation resolution.
-- [ ] 2.2 Parse bounded literal instructions and required flags, reject unsupported input, and expose truthful noninteractive help/version/catalog queries.
-- [ ] 2.3 Carry invocation options through bootstrap, guardian, selected-release compatibility, development launch and composition without shell reconstruction or saved-default writes.
-- [ ] 2.4 Resolve explicit models/effort, extensions and exclusions through the authoritative Pi runtime with resumed-session precedence and writer/trust guarantees.
-- [ ] 2.5 Add public CLI, transport, model/session and packaged-entry regression tests and maintained launch documentation.
+- [x] 2.1 Ship a separate compatibility entry and opt-in executable pi directory without changing comparison mode or global installation resolution.
+- [x] 2.2 Parse bounded literal instructions and required flags, reject unsupported input, and expose truthful noninteractive help/version/catalog queries.
+- [x] 2.3 Carry invocation options through bootstrap, guardian, selected-release compatibility, development launch and composition without shell reconstruction or saved-default writes.
+- [x] 2.4 Resolve explicit models/effort, extensions and exclusions through the authoritative Pi runtime with resumed-session precedence and writer/trust guarantees.
+- [x] 2.5 Add public CLI, transport, model/session and packaged-entry regression tests and maintained launch documentation.
 
 ## 3. Preserve Firstmate extension contracts in A1's owned runtime
 

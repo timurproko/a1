@@ -19,6 +19,7 @@ export interface PiEngineRuntimeFactoryInput {
   readonly sessionId: string;
   readonly sessionPath?: string;
   readonly sessionSelection?: PiSessionSelection;
+  readonly runtimeOptions?: import("../../../foundation/launch-context/index.js").RuntimeLaunchOptions;
   readonly sessionForkPrompt?: PiSessionForkPrompt;
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
   /** The host's signal; runtime creation steps that wait on the network stop with it. */
@@ -37,6 +38,7 @@ interface PiEngineRuntimeOptions {
   readonly sessionId: string;
   readonly sessionPath: string | undefined;
   readonly sessionSelection: PiSessionSelection | undefined;
+  readonly runtimeOptions?: import("../../../foundation/launch-context/index.js").RuntimeLaunchOptions;
   readonly sessionForkPrompt: PiSessionForkPrompt | undefined;
   readonly projectTrustPrompt: PiProjectTrustPreflightPrompt | undefined;
   readonly createRuntime: PiEngineRuntimeFactory | undefined;
@@ -165,6 +167,7 @@ export class PiEngineRuntime {
       ...(this.#options.worktreeCwdReader === undefined ? {} : { worktreeCwdReader: this.#options.worktreeCwdReader }),
       ...(this.#options.sessionPath === undefined ? {} : { sessionPath: this.#options.sessionPath }),
       ...(this.#options.sessionSelection === undefined ? {} : { sessionSelection: this.#options.sessionSelection }),
+      ...(this.#options.runtimeOptions === undefined ? {} : { runtimeOptions: this.#options.runtimeOptions }),
       ...(this.#options.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: this.#options.sessionForkPrompt }),
       ...(this.#options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: this.#options.projectTrustPrompt }),
     });
@@ -366,6 +369,7 @@ async function createDefaultPiRuntime(input: PiEngineRuntimeFactoryInput): Promi
     ...(input.worktreeCwdReader === undefined ? {} : { worktreeCwdReader: input.worktreeCwdReader }),
     ...(input.sessionPath === undefined ? {} : { sessionPath: input.sessionPath }),
     ...(input.sessionSelection === undefined ? {} : { sessionSelection: input.sessionSelection }),
+    ...(input.runtimeOptions === undefined ? {} : { runtimeOptions: input.runtimeOptions }),
     ...(input.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: input.sessionForkPrompt }),
     ...(input.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: input.projectTrustPrompt }),
   });
