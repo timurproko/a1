@@ -1,3 +1,5 @@
+export { validateRuntimeLaunchOptions } from "./runtime-options.js";
+export type { RuntimeLaunchOptions } from "./runtime-options.js";
 export { interactiveStartupArguments } from "./interactive-arguments.js";
 export type { InteractiveStartupArguments } from "./interactive-arguments.js";
 

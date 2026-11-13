@@ -47,6 +47,7 @@ export interface PiEngineHostOptions {
 export interface PiEngineSessionRequest extends OwnedUiSessionRequest {
   readonly sessionPath?: string;
   readonly sessionSelection?: PiSessionSelection;
+  readonly runtimeOptions?: import("../../../foundation/launch-context/index.js").RuntimeLaunchOptions;
   readonly sessionForkPrompt?: PiSessionForkPrompt;
   readonly repositoryContextReader?: PiRepositoryContextReader;
   readonly worktreeCwdReader?: import("./worktree-tools.js").PiWorktreeCwdReader;
@@ -152,6 +153,7 @@ class ProcessPiEngineHost implements PiEngineHost {
       ...(options.createRuntime === undefined ? {} : { createRuntime: options.createRuntime }),
       ...(request.sessionPath === undefined ? {} : { sessionPath: request.sessionPath }),
       ...(request.sessionSelection === undefined ? {} : { sessionSelection: request.sessionSelection }),
+      ...(request.runtimeOptions === undefined ? {} : { runtimeOptions: request.runtimeOptions }),
       ...(request.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: request.sessionForkPrompt }),
       ...(request.repositoryContextReader === undefined ? {} : { repositoryContextReader: request.repositoryContextReader }),
       ...(request.worktreeCwdReader === undefined ? {} : { worktreeCwdReader: request.worktreeCwdReader }),
