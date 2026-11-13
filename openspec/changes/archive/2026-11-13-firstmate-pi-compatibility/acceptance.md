@@ -30,7 +30,7 @@ The maintainer integration decision accepts these scenarios:
     "Attached built-in tool writes remain isolated from independent helper working directories and other worker sessions.",
     "Firstmate-scoped catalog probes refuse before extension factories can replace live markers instead of returning a misleading successful response."
   ],
-  "archiveDigest": "f9a73015657677a197a5c2a07ecf122de6d6fa46acb8fbcf2145d45bfe151fa6",
+  "archiveDigest": "b7012f857d59e9cdfd0633ed61c69410623a865de61fddbd859dc46a68decc29",
   "specDigest": "9f655aa2292bbe705ef19630d00e2e21d23cc6fbeeab1536fd686615020426b3",
   "tasksDigest": "5a0416604aec193446b8afde0de1b09ad278a622c0200619600c2097c8b293c9",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
