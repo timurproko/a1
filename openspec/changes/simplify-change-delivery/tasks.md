@@ -6,11 +6,11 @@
 
 Contract binding: R01-R04, R16-R20; consume the matching IDs in `delivery-cases.json` without rewriting expectations.
 
-- [ ] 1.1 Install the four frozen contract files at the exact R17 destinations and its exact AGENTS.md routing paragraph, replacing only duplicated repository-owned workflow rules with links; verify byte/hash identity, supported adapter bindings and unchanged OpenSpec assets.
-- [ ] 1.2 Support explicit repository/base/head planning publication with stdin and ordinary API interoperability; verify path boundaries, real planning commits, unchecked drafts and no checkout/setup side effects.
-- [ ] 1.3 Handle expected-head retries and partial publication; verify stale heads, duplicate requests and authentication failure preserve existing work without remote deletion.
+- [x] 1.1 Install the four frozen contract files at the exact R17 destinations and its exact AGENTS.md routing paragraph, replacing only duplicated repository-owned workflow rules with links; verify byte/hash identity, supported adapter bindings and unchanged OpenSpec assets.
+- [x] 1.2 Support explicit repository/base/head planning publication with stdin and ordinary API interoperability; verify path boundaries, real planning commits, unchecked drafts and no checkout/setup side effects.
+- [x] 1.3 Handle expected-head retries and partial publication; verify stale heads, duplicate requests and authentication failure preserve existing work without remote deletion.
 
-- [ ] 1.4 Reconcile already-started work before further affected implementation and record the inspected head, rule/case IDs, corrections and blockers in contract-reconciliation.md; verify existing code is preserved, expanded unsatisfied tasks are reopened and unrelated completion is not erased.
+- [x] 1.4 Reconcile already-started work before further affected implementation and record the inspected head, rule/case IDs, corrections and blockers in contract-reconciliation.md; verify existing code is preserved, expanded unsatisfied tasks are reopened and unrelated completion is not erased.
 
 ## 2. Existing branch continuation
 

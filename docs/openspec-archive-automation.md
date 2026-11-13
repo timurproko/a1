@@ -8,7 +8,7 @@ Version-1 and version-2 deliveries and their existing comments, acceptance PRs, 
 
 ## Agent operating guide
 
-This runbook owns the delivery lifecycle. The [worktree protocol](architecture/project-structure.md#development-worktrees) owns checkout creation, identity, ownership, and runtime adapters; [local cleanup](local-worktree-cleanup.md) owns removal decisions, commands, blockers, and recovery. `AGENTS.md`, the delivery skill, and OpenSpec context are concise entry points, not separate copies of these procedures. Detailed checks stay in their owning runbook and tooling.
+Read and follow [Shared delivery rules](delivery-rules.md), using this repository's entry in [Delivery adapters](delivery-adapters.json). This runbook supplies lifecycle command syntax and compatibility details. The [worktree protocol](architecture/project-structure.md#development-worktrees) supplies checkout and runtime operations; [local cleanup](local-worktree-cleanup.md) supplies removal commands and recovery. Policy is defined only by the shared rules, not independently by these operational references.
 
 ### Authorization without repeated confirmation
 
@@ -20,7 +20,7 @@ Implementation approval never grants merge permission, foreign-worktree ownershi
 
 Keep unrelated changes out. Use `type/short-description` branches with `feature`, `fix`, `refactor`, `docs`, `test`, `chore`, or `style`, and `type(scope): subject` commits; mark incompatible changes with `BREAKING CHANGE:`.
 
-Before pushing, run only quick targeted checks of what changed: typecheck, the test files covering the changed code, and strict OpenSpec validation. Do not run preflight, `test:fast`, `test:full`, `test:release`, or directory-wide suites unless reproducing a reported CI failure or explicitly requested by the maintainer. Preflight is diagnostic, not CI authority. Draft PRs run no Development test suites; ready finalized candidates receive the selected exact-head validation. Use [complete-regression ordering](#complete-regression-evidence-ordering) for trusted failed-Full repairs, not broader local test runs.
+Validation policy is [R06](delivery-rules.md#r06---validation-and-readiness-structure). Focused commands include `npm run typecheck`, selected test files, and strict OpenSpec validation. Preflight is diagnostic, not CI authority. Draft PRs run no Development test suites; ready finalized candidates receive selected exact-head validation. See [complete-regression ordering](#complete-regression-evidence-ordering) for trusted failed-Full repairs.
 
 After a push, do not watch CI in the foreground. Read and report its current result before unrelated work; do not poll for completion. Repair routine failed checks in the same branch/PR without weakening behavior, assertions, coverage, or required checks. Ask for approval only when a repair adds substantive scope. A changed candidate or target requires renewed applicable validation.
 
@@ -34,7 +34,7 @@ Failed-Full repair selection follows the immutable provenance checks in [complet
 
 Provide the absolute worktree, branch/commit, change, PR, behavior, known gaps, applicable run or inspection command, and whether editing ownership is handed over. For interactive checkout tests, build first and use `./scripts/dev` or `./scripts/dev pi`, never a direct Node launcher such as `node scripts/development/dev-launch.mjs`. Follow `AGENTS.md` for pasteable user-command formatting. End runnable implementation reports with `🧪 Manual test:` and the applicable command; a documentation-only change needs inspection, not a product build. Say when nothing is runnable instead of inventing a test.
 
-After exact-head required validation succeeds, park the exact candidate with the primary-checkout `handoff` command, and repeat after a validated repair. It registers/releases cleanup ownership without removing anything. Do not add a lifecycle body edit, rerun successful validation, wait for merge, or start a watcher. Leave integration to a current authorized maintainer decision. CI counts are not progress, and manual validation never blocks truthful task completion or readiness.
+Handoff policy is [R12](delivery-rules.md#r12---portable-handoff). The optional primary-checkout cleanup `handoff` command registers/releases local cleanup ownership; it does not prove publication or acceptance. See [local cleanup](local-worktree-cleanup.md#hand-off-and-sweep-the-ordinary-agent-path) for that command's exact local effect.
 
 ## Worktree context across agent environments
 
@@ -42,10 +42,10 @@ Follow the [development worktree protocol](architecture/project-structure.md#dev
 
 ## Version-3 lifecycle
 
-1. **Draft plan:** create one normally named branch/PR such as `feature/...`, `fix/...`, or `chore/...`. Start the body with `## Proposal`, use it for one or two sentences of intent, and follow it with one or more unchecked, outcome-sized task items under `## Implementation`, with no fixed maximum. Each item names a delivered code outcome, and `tasks.md` holds one task group per item in the same order. Omit generic process tasks; run, verify, validate, evidence, or manual-test items; quoted phase lines; and routine validation command lists, and keep machine linkage under final collapsed `Automation`. Keep it draft and include only planning artifacts until the maintainer approves the plan and explicitly requests implementation.
-2. **Same-PR implementation:** continue after explicit approval in the same worktree, branch, history, draft PR, and phase-free body. Follow the `Implementation progress` rule in `AGENTS.md`: deliver one item at a time, and once its code and tests are written and its task group is ticked, commit, push, and check that item before starting the next. An ordinary progress edit changes only `[ ]` to `[x]` and is never saved for handoff. Adding, removing, reordering, or rewriting an item is a scope refinement requiring explicit approval and coherent planning updates, with affected scope left unchecked. Reconcile approved refinements before corresponding code edits.
+1. **Draft plan:** use [R02-R03](delivery-rules.md#r03---portable-planning) and the body example below. Task mapping and progress follow [R05](delivery-rules.md#r05---progress-and-publication). The optional checkout-independent publisher accepts a JSON payload on stdin: `node scripts/governance/publish-delivery-plan.mjs`. Its fields are `repository`, `base`, observed `baseHead`, `branch`, `expectedHead` (null for create-only), `change`, `title`, `body`, and `files` containing `path`/UTF-8 `contents`. It uses ordinary GitHub APIs and reports partial publication without rollback.
+2. **Implementation checkpoints:** follow [R04-R05](delivery-rules.md#r04---isolated-implementation-and-resume). For checkout commands see the [worktree protocol](architecture/project-structure.md#development-worktrees). Keep the existing delivery identity; the local path is not its identity.
 3. **Complete implementation:** finish the code and its tests, substantive tasks, and explicit known-gap disposition. CI runs those tests after readiness; its success is objective evidence, not acceptance, and GitHub check counts are not Implementation task progress. Manual validation is the maintainer's optional choice before integrating and never blocks a checkbox, finalization, or merge.
-4. **Plain acceptance list:** before checking the final item, keep the body phase-free and add final `## Acceptance` with one to ten concise implementation-specific behavior-and-result bullets. Do not use checkboxes, generic review/CI/approval/archive statements, angle-bracket placeholders or HTML, URLs, mentions, or automated-test inventory.
+4. **Plain acceptance list:** add `## Acceptance` using [R06-R07](delivery-rules.md#r06---validation-and-readiness-structure). The body check below inspects structure; exact applicable acceptance binding remains a candidate check.
 5. **Automatic readiness and finalization:** reconcile and push current `origin/develop`, run the [delivery body check](#delivery-body-check) on the intended final body, then check the final item. That checkbox update completes the agent-owned implementation job; agents never mark implementation PRs ready themselves. Trusted automation revalidates the exact fully complete version-3 task-list snapshot and all pre-finalization inputs, marks the PR ready, and then conservatively synchronizes all deltas, moves the active change into its dated archive, stages the conditional acceptance manifest, commits that to the same branch with the archive App identity, and writes the emitted paths into the body's implementation fence. It never checks tasks or infers completion. Running the [finalization command](#finalization-command) locally first is optional and yields the same bytes.
 6. **Validate:** one normal exact-head workflow validates the finalized head: implementation, synchronized specs, archive, manifest, tasks/evidence, exact PR-body list, and every selected product/governance scope before emitting the stable protected aggregate. A new commit or acceptance-list change re-finalizes automatically when needed and requires full renewed validation; no lifecycle body edit or second workflow run is required.
 7. **Maintainer integration accepts:** after reviewing the finalized candidate, an authorized human manually merges the exact validated head, personally enables GitHub native auto-merge for that unchanged head, or explicitly asks the active agent to merge that identified head while it is currently eligible. The agent route re-reads authoritative state, requires the exact finalized head and acceptance list, current `develop`, successful `Development validation required`, positive mergeability, and the maintainer's authenticated human `User`, then issues one protected squash merge with expected-head enforcement. It never waits, arms auto-merge, retries later, uses automation credentials or merge queue, or bypasses protection. Each route means the listed scenarios are accepted. A candidate change invalidates the decision and requires the maintainer to choose again.
@@ -75,7 +75,7 @@ The implementation, synchronized canonical specs, conditional acceptance record,
 
 ## Draft PR body
 
-The first screen should separate purpose from delivery detail, not foreground CI mechanics. Distill `Proposal` into one or two sentences answering why the PR exists, then put one or more unchecked, implementation-specific outcomes under `Implementation`, with no fixed maximum. They are a coarse progress summary, not a copy of the detailed OpenSpec task ledger:
+Body structure is defined by [R06](delivery-rules.md#r06---validation-and-readiness-structure). For example:
 
 ```markdown
 ## Proposal
@@ -103,7 +103,7 @@ Do not add a quoted phase line, generic CI/review/acceptance/merge/archive tasks
 ```markdown
 ## Proposal
 
-<!-- one or two sentences explaining why the PR exists -->
+<!-- explain why the PR exists -->
 
 ## Implementation
 
@@ -112,7 +112,7 @@ Do not add a quoted phase line, generic CI/review/acceptance/merge/archive tasks
 
 ## Acceptance
 
-<!-- one to ten plain behavior-and-result bullets -->
+<!-- plain implementation-specific behavior-and-result bullets -->
 
 ## Automation
 
@@ -128,7 +128,7 @@ Keep acceptance absent during proposal review so unfinished intent is not mistak
 
 ## Agent scratch files
 
-When an agent chooses a path for a transient repository-delivery file—such as a PR/comment body, command payload, captured output, temporary patch/diff, or ad hoc log—it must use a purpose-specific descendant of the exact `.artifacts/` root in the worktree that owns the operation. Use the verified task worktree, not the primary checkout, another worktree, the operating-system temporary directory, home/desktop, or a sibling path. Address the worktree path explicitly; context verification and optional runtime association do not change tool cwd.
+Scratch policy is [R16](delivery-rules.md#r16---scratch-and-private-boundaries). The local examples below address implementation artifacts explicitly; checkout-independent planning can send the JSON publisher payload on stdin without creating a local body file.
 
 Keep these files ignored, unstaged, uncommitted, disposable, non-authoritative, and free of credentials or other prohibited sensitive data. Required durable evidence belongs in its declared tracked OpenSpec location. This rule governs paths selected by the agent; it does not relocate temporary storage internally selected by Git, GitHub CLI, OpenSpec, language/package tooling, product runtime code, test frameworks, or hermetic fixtures.
 
@@ -189,7 +189,7 @@ Use plain bullets:
 - Finalized specs and archive match the implementation.
 ```
 
-Each Implementation and Acceptance item is one line of 20 to 300 bytes. Draft promotion and the delivery body check reject an Implementation item that starts with `Manually`, `Validate`, `Verify`, `Confirm`, `Prove`, `Run`, or `Test`, mentions manual testing, records or captures evidence, or delivers work "with" coverage, evidence, or validation (`implementation-progress-validation`); merged bodies keep their earlier wording. It must not contain angle-bracket text such as `<job>` or other HTML, URLs, or `@` mentions, and Acceptance items must not be checkboxes. Write a concrete example instead of a placeholder, such as `Develop / Build process guardian`.
+See [R06](delivery-rules.md#r06---validation-and-readiness-structure) for body validation policy. The examples are illustrative, not a prose vocabulary, byte-length or item-count restriction.
 
 ### Delivery body check
 

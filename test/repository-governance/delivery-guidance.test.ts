@@ -3,6 +3,7 @@ import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parseDocument } from "yaml";
+import { DELIVERY_ROUTE, inspectContractInstallation } from "../../scripts/governance/delivery-contract.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const entryPoints = ["AGENTS.md", ".agents/skills/change-delivery/SKILL.md", "openspec/config.yaml"];
@@ -13,24 +14,22 @@ const procedureOwners = [
 ];
 const guidancePaths = [...entryPoints, procedureOwners[0]!, procedureOwners[2]!, "docs/features/session-exports.md"];
 
-const progress = "Plan `tasks.md` as one task group per PR `## Implementation` outcome, in the same order. Then work one outcome at a time: write its code and tests, tick its `tasks.md` tasks, commit and push, and tick that outcome in the PR body (`[ ]` to `[x]`, nothing else) before starting the next one. A tick means the code and tests are written: CI, broad test runs, and manual validation never delay it, and a later defect is fixed in a new commit. Never save ticks for handoff.";
-
-describe("implementation progress guidance", () => {
-  it("gives every agent one shared rule for ticking outcomes while implementing", async () => {
-    const agents = (await readFile(resolve(root, "AGENTS.md"), "utf8")).replaceAll("\r\n", "\n");
-    expect(agents).toContain(`## Implementation progress\n\n${progress}\n`);
-    expect(agents).toContain("never mark an implementation PR ready yourself");
-    const runbook = await readFile(resolve(root, procedureOwners[0]!), "utf8");
-    expect(runbook).toContain("one task group per item in the same order");
-    expect(runbook).toContain("commit, push, and check that item before starting the next");
+describe("shared delivery guidance", () => {
+  it("installs the approved bytes and exact root route once", async () => {
+    expect(await inspectContractInstallation(root)).toEqual({ passed: true, errors: [] });
+    const agents = await readFile(resolve(root, "AGENTS.md"), "utf8");
+    expect(agents.split(DELIVERY_ROUTE)).toHaveLength(2);
   });
 
-  it("keeps the rule in one place for Claude Code and the delivery skill", async () => {
+  it("routes Claude Code, the skill and runbooks without duplicating progress policy", async () => {
     const claude = await readFile(resolve(root, "CLAUDE.md"), "utf8");
     expect(claude.trim()).toBe("@AGENTS.md");
-    const skill = await readFile(resolve(root, ".agents/skills/change-delivery/SKILL.md"), "utf8");
-    expect(skill).toContain("Follow `Implementation progress` in `AGENTS.md`");
-    expect(skill).not.toContain(progress);
+    for (const path of [entryPoints[1]!, ...procedureOwners]) {
+      const source = await readFile(resolve(root, path), "utf8");
+      expect(source).toContain("delivery-rules.md");
+      expect(source).not.toContain("before starting the next");
+      expect(source).not.toContain("one task group per item");
+    }
   });
 });
 

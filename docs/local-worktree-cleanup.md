@@ -1,5 +1,7 @@
 # Local worktree cleanup after verified delivery
 
+Read and follow [Shared delivery rules](delivery-rules.md), using this repository's entry in [Delivery adapters](delivery-adapters.json). This runbook supplies command syntax, evidence formats and recovery details; the shared rules own preservation and deletion authority.
+
 Local cleanup completes the delivery order in [the archive runbook](openspec-archive-automation.md). For version 3 that is one authorized manual implementation/acceptance/archive merge, read-only verification, remote topic-ref deletion, then safe local cleanup. Legacy versions still require their applicable acceptance-record and automatic archive merges. GitHub Actions never reaches into a developer machine. Local cleanup never publishes archives or merges PRs; `complete`, `retire-redundant`, preview, and queue/watch do not delete remote refs, while explicitly confirmed closed-unmerged `discard` owns only its exact expected-SHA topic-ref deletion.
 
 The implementation is repository tooling, not part of the installed A1 product. It requires Node, Git, and GitHub read access; the explicit closed-unmerged discard operation additionally requires authenticated permission to delete its exact remote topic ref. No product build, dependency installation, interactive UI, or OS-service provisioning is needed. It supports this repository's `origin` on github.com, via HTTPS or SSH. The repository-local `remote.origin.url` must retain that canonical GitHub spelling; Git may still rewrite the effective transport through `url.*.insteadOf` to select an account-specific SSH host/key. A literal SSH alias remains unsupported because cleanup does not trust external SSH configuration as repository identity.
@@ -23,7 +25,7 @@ Automatic cleanup remains conservative. Explicit file decisions do not weaken wo
 
 ## Hand-off and sweep: the ordinary agent path
 
-The delivering agent's session usually ends before the maintainer merges, so cleanup is split into two commands that never need the same session. When the validated PR is handed to the maintainer, and again after any repair push, the owning agent parks the worktree from the primary checkout:
+Cleanup enrollment is the separately explicit local operation described in [R12](delivery-rules.md#r12---portable-handoff). To enroll an owned candidate from primary, use:
 
 ```bash
 node scripts/governance/local-worktree-cleanup.mjs handoff   --repo D:/Git/a1   --path D:/Git/a1/.worktrees/example-task   --change example-change   --pr 123
@@ -31,7 +33,7 @@ node scripts/governance/local-worktree-cleanup.mjs handoff   --repo D:/Git/a1   
 
 `handoff` registers the exact worktree if it is not registered yet (or reclaims the existing released entry), records its current HEAD and branch, applies the central disposable policy, and releases it. It evaluates nothing, deletes nothing, and does not enable the queue. That release is the candidate-scoped cleanup authorization for this worktree and its topic ref, exercised only once the merge, archive, validation, and remote-ref gates verify later; it never becomes discard authority for a PR that is later closed unmerged. It is idempotent per worktree: repeating it updates the recorded head instead of adding a second registration. Tracked, staged, unstaged, or untracked content outside the disposable roots blocks with `worktree-content` and the affected paths, because such content means unpushed work; unknown ignored content is judged at removal time, as it is for `complete`. A primary, foreign, replaced, or branch-changed path blocks with a named reason. A worktree that a session registered with the low-level `register` command and still owns is released by `handoff` (or `complete`) when `LOCAL_CLEANUP_OWNER_TOKEN` holds that registration's token; without it both block with `owned-worktree`, and a separate `release` is needed.
 
-Every delivery session then starts, before it creates a worktree, with one bounded sweep from the primary checkout, and runs it again when it verifies or is told of a merge:
+For a separately scoped bounded sweep of released registrations from primary ([R15](delivery-rules.md#r15---runtime-and-cleanup-boundaries)), use:
 
 ```bash
 node scripts/governance/local-worktree-cleanup.mjs sweep --repo D:/Git/a1
