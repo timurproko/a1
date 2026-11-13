@@ -28,4 +28,4 @@ None.
 - Documentation: `docs/architecture/response-copy-delivery.md`.
 - No Herdr source, customization, keybinding, native dependency, or pinned comparison-profile changes.
 
-This PR is planning-only. Implementation requires approval and an explicit implementation request.
+Implementation continues in this same PR under the approved scope; the detailed task ledger records completed work.
