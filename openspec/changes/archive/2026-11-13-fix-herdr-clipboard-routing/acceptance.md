@@ -26,7 +26,7 @@ The maintainer integration decision accepts these scenarios:
     "Terminal-provided paste inserts once without a redundant read, while raw native paste remains unavailable unless an explicit clipboard port supplies it.",
     "Non-Herdr destination rules, clipboard limits, delivery acknowledgement semantics, and the comparison profile remain unchanged."
   ],
-  "archiveDigest": "4fbb96d7164ca3049ad72ff692d4a0a093260bb32f20d0a4167f6fc2276465ac",
+  "archiveDigest": "bc4b1ce129589023cb216ae0a4604b5df86dedc88d30f98c3a0c0799dea3e571",
   "specDigest": "17ef3b6987a9b95f476f34122b9599b3d3fdb9246f64552232019844b7220b05",
   "tasksDigest": "0404d5bcdcd4ad7a1c09aab0f3136b4c51a23cabf2bf24a24e564bc91c558a2e",
   "evidenceDigest": "71d2e02f23ff115ead432dad590f7776348d7cd437ba05a173bb00dc19bb579d",
