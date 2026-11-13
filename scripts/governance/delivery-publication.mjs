@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { captureWorktree, gitRunner } from "./local-cleanup-git.mjs";
 import { parseImplementation } from "./openspec-archive-policy.mjs";
 import { readDeliveryAdapter } from "./delivery-contract.mjs";
+import { describeImplementationProgress } from "./delivery-progress.mjs";
 
 /** Read the live named remote twice around a fetch; tracking refs or a clean index are not publication proof. */
 export async function inspectPublication(identity, entry, { git = gitRunner() } = {}) {
@@ -30,7 +31,7 @@ export async function inspectPublication(identity, entry, { git = gitRunner() } 
 }
 
 /** Portable review handoff; this operation never registers/releases cleanup ownership or infers acceptance. */
-export async function inspectDeliveryHandoff({ identity, path, branch, change, pr, unfinished = [], checks = [], readRemotePlanning = defaultRemotePlanning, git = gitRunner() }) {
+export async function inspectDeliveryHandoff({ identity, path, branch, change, pr, unfinished = null, checks = [], readRemotePlanning = defaultRemotePlanning, git = gitRunner() }) {
   const adapter = await readDeliveryAdapter();
   if (identity.repository !== adapter.repository || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(change ?? "") || !Number.isSafeInteger(pr) || pr < 1) throw new Error("handoff-identity");
   if (path === undefined) {
@@ -41,7 +42,7 @@ export async function inspectDeliveryHandoff({ identity, path, branch, change, p
       || snapshot.pr.state !== "open" || snapshot.pr.head.sha !== snapshot.refHead
       || !/^[a-f0-9]{40}$/u.test(snapshot.refHead) || parseImplementation(snapshot.pr.body)?.change !== change) throw new Error("handoff-remote-identity");
     return { repository: identity.repository, branch, change, pr, localHead: null, remoteHead: snapshot.refHead,
-      publicationVerified: true, unfinished, checks };
+      publicationVerified: true, unfinished, checks, progress: describeImplementationProgress(snapshot.pr.body, { published: true }) };
   }
   const entry = await captureWorktree(identity, path, git);
   if (branch !== undefined && entry.ref !== `refs/heads/${branch}`) throw new Error("handoff-branch-mismatch");

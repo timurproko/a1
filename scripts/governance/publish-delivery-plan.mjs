@@ -4,7 +4,9 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { inspectDeliveryBody } from "./check-delivery-body.mjs";
 import { readDeliveryAdapter } from "./delivery-contract.mjs";
+import { deliveryAuthority } from "./delivery-authority.mjs";
 import { parseImplementation } from "./openspec-archive-policy.mjs";
+import { parseImplementationProgress } from "./openspec-acceptance-checklist.mjs";
 
 const SHA = /^[a-f0-9]{40}$/u;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
@@ -25,9 +27,13 @@ export async function publishDeliveryPlan(input, remote = githubPlanningRemote()
     || files.some(file => typeof file.path !== "string" || !file.path.startsWith(prefix)
       || file.path.includes("\\") || file.path.split("/").some(part => !part || part === "." || part === "..")
       || typeof file.contents !== "string" || Buffer.byteLength(file.contents) > 1024 * 1024)) throw failure("planning-paths");
-  if (typeof title !== "string" || !title.trim() || typeof body !== "string" || !/^## Proposal\r?\n/u.test(body)
-    || !inspectDeliveryBody(body).ok || !/^- \[ \] .+/mu.test(body) || /^- \[[xX]\] /mu.test(body)
-    || parseImplementation(body)?.change !== change) throw failure("planning-body");
+  if (typeof title !== "string" || !title.trim() || typeof body !== "string"
+    || !inspectDeliveryBody(body).ok || parseImplementation(body)?.change !== change) throw failure("planning-body");
+  const progress = parseImplementationProgress(body);
+  if (progress.format !== "checklist" || progress.items.some(item => item.checked)) throw failure("planning-body");
+  const authority = deliveryAuthority(input.authority ?? { planningRequested: true, planningPublicationRequested: true, planningOnly: true });
+  if (!authority.allowed.has("planning-publication")) return { status: "blocked", repository, base, branch, stage: "authorize", head: null, pr: null,
+    reason: authority.blockers[0] ?? "planning-publication-not-authorized", partial: false };
   let stage = "read", publishedHead = null, pr = null;
   try {
     if (await remote.baseHead(repository, base) !== baseHead) throw failure("planning-base-changed");

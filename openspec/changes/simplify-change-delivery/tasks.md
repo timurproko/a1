@@ -33,10 +33,10 @@ Contract binding: R12-R16; consume the matching IDs in `delivery-cases.json` wit
 
 Contract binding: R05-R08; consume the matching IDs in `delivery-cases.json` without rewriting expectations.
 
-- [ ] 4.1 Replace per-outcome push barriers with truthful checkpoints and material-scope approval; verify multi-outcome, unavailable-network, small-fix and test-only scenarios.
-- [ ] 4.2 Relax lexical/count/style gates while retaining structure and completion; verify valid prose/single outcomes pass, invalid states block and the audited suite-loader failure is diagnosed.
-- [ ] 4.3 Add delivery-hold to promotion/finalization/refresh/auto-merge; verify pause, release, archived repair, stale snapshots and idempotent events.
-- [ ] 4.4 Keep checks proportionate and evidence distinct; verify reports do not conflate code written, checks observed, pending CI or optional acceptance.
+- [x] 4.1 Replace per-outcome push barriers with truthful checkpoints and material-scope approval; verify multi-outcome, unavailable-network, small-fix and test-only scenarios.
+- [x] 4.2 Relax lexical/count/style gates while retaining structure and completion; verify valid prose/single outcomes pass, invalid states block and the audited suite-loader failure is diagnosed.
+- [x] 4.3 Add delivery-hold to promotion/finalization/refresh/auto-merge; verify pause, release, archived repair, stale snapshots and idempotent events.
+- [x] 4.4 Keep checks proportionate and evidence distinct; verify reports do not conflate code written, checks observed, pending CI or optional acceptance.
 
 ## 5. Integration, guidance and compatibility
 

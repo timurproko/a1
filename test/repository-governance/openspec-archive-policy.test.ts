@@ -61,7 +61,8 @@ describe("archive evidence metadata", () => {
     expect(() => parseImplementation("```openspec-implementation\n{}" )).toThrow("metadata-unclosed");
     const text = block("openspec-implementation", implementation);
     expect(() => parseImplementation(`${text}\n${text}`)).toThrow("metadata-duplicate");
-    expect(() => parseImplementation("x".repeat(256 * 1024 + 1))).toThrow("metadata-size");
+    expect(parseImplementation(`${"Meaningful proposal prose. ".repeat(12_000)}\n${text}`)).toEqual(implementation);
+    expect(() => parseImplementation(block("openspec-implementation", { ...implementation, change: "x".repeat(17 * 1024) }))).toThrow("metadata-size");
     expect(() => metadataBlock(text, "arbitrary.*")).toThrow("metadata-label");
   });
 

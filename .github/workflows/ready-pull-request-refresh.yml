@@ -3,7 +3,7 @@ name: Ready pull-request refresh
 on:
   pull_request_target:
     branches: [develop]
-    types: [closed]
+    types: [closed, labeled, unlabeled]
   workflow_run:
     workflows: [Documentation auto-merge]
     types: [completed]
@@ -18,7 +18,7 @@ concurrency:
 jobs:
   refresh:
     name: Refresh stale ready pull requests
-    if: github.event_name == 'workflow_run' || github.event.pull_request.merged == true
+    if: github.event_name == 'workflow_run' || github.event.pull_request.merged == true || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'delivery-hold')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

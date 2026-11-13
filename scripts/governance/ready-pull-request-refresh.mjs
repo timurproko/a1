@@ -1,3 +1,5 @@
+import { deliveryMutationBlocker, sameDeliverySnapshot } from "./delivery-control.mjs";
+
 const FULL_SHA = /^[0-9a-f]{40}$/;
 const TARGET = "develop";
 const PAGE_SIZE = 100;
@@ -15,6 +17,9 @@ export function classifyRefreshCandidate(pull, repository) {
   const fail = reason => ({ disposition: "failed", number: Number.isSafeInteger(number) ? number : null, headSha: headSha ?? null, reason });
   if (!Number.isSafeInteger(number) || number < 1) return fail("malformed pull request number");
   if (pull.state !== "open") return skip("pull request is not open");
+  const blocker = deliveryMutationBlocker(pull);
+  if (blocker) return skip(blocker);
+  if (pull.auto_merge) return skip("an existing auto-merge arm requires separate candidate-bound reconciliation before refresh");
   if (typeof pull.draft !== "boolean") return fail("draft state is malformed");
   if (pull.draft) return skip("draft pull request");
   if (pull.base?.ref !== TARGET) return skip("base branch is not develop");
@@ -99,6 +104,15 @@ export async function refreshReadyPullRequests({ repository, request, maxPages =
     const decision = decideRefresh(eligibility, comparison, targetSha);
     if (decision.disposition !== "update") return decision;
 
+    const current = (await request(`${prefix}/pulls/${number}`)).body;
+    const blocker = deliveryMutationBlocker(current);
+    if (blocker) return { ...decision, disposition: "skipped", reason: blocker };
+    const currentEligibility = classifyRefreshCandidate(current, repository);
+    if (currentEligibility.disposition !== "eligible") return currentEligibility;
+    if (!sameDeliverySnapshot(current, pull, repository)
+      || (await request(`${prefix}/git/ref/heads/${TARGET}`)).body?.object?.sha !== targetSha) {
+      return { ...decision, disposition: "deferred", reason: "candidate or target changed before update" };
+    }
     // Concurrency: the expected head binds this decision to the exact SHA just compared; GitHub rejects it if the branch moved.
     const response = await request(`${prefix}/pulls/${number}/update-branch`, {
       method: "PUT", body: { expected_head_sha: decision.headSha }, expected: [202, 422],

@@ -6,6 +6,7 @@ import { executeMergedBranchCleanup } from "./execute-merged-branch-cleanup.mjs"
 import { readArchiveMarker, archiveAuthorityCurrent } from "./openspec-archive-publication.mjs";
 import { parseImplementation } from "./openspec-archive-policy.mjs";
 import { assertHumanAutoMergeArm } from "./openspec-acceptance-policy.mjs";
+import { deliveryMutationBlocker, sameDeliverySnapshot } from "./delivery-control.mjs";
 
 class GitHubGraphQLError extends Error {
   constructor(status, body) {
@@ -84,6 +85,11 @@ async function processPullRequest(number, run) {
       }
       return await summary(`PR #${number}: closed without merge of the expected head; no branch mutation.`);
     }
+    const blocker = deliveryMutationBlocker(pull, { documentation: true });
+    if (blocker) {
+      await disableIfArmed(pull, blocker);
+      return await summary(`PR #${number}: documentation controller paused (${blocker}); no integration or arming attempted.`);
+    }
     const route = await isTrustedEligible(pull);
     if (!route) return;
     if (!sameHead) return await summary(`PR #${number}: head or identity changed during reconciliation; deferred.`);
@@ -127,6 +133,10 @@ async function processPullRequest(number, run) {
       : "waiting for successful current-head validation";
     if (action === "arm" && attempt < attempts) {
       try {
+        const current = await freshMutationSnapshot(pull);
+        if (!current || current.auto_merge) return;
+        const freshAction = planDocumentationAutoMerge({ validation, autoMergeArmed: false, mergeableState: current.mergeable_state, mergeable: current.mergeable });
+        if (freshAction !== "arm") return await summary(`PR #${number}: mergeability changed before arming; deferred.`);
         await graph(`mutation EnableDocumentationAutoMerge($pullRequestId: ID!) {
           enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: SQUASH }) {
             pullRequest { number }
@@ -160,6 +170,8 @@ async function readPullRequest(number) {
 
 async function isTrustedEligible(pull) {
   const number = pull.number;
+  const blocker = deliveryMutationBlocker(pull, { documentation: true });
+  if (blocker) { await disableIfArmed(pull, blocker); await summary(`PR #${number}: documentation controller paused (${blocker}).`); return false; }
   let files;
   try {
     files = await changedFiles(number);
@@ -254,8 +266,24 @@ async function readRelease(tag) {
   return await rest(`/repos/${owner}/${repository}/releases/tags/${encodeURIComponent(tag)}`);
 }
 
+async function freshMutationSnapshot(pull) {
+  const current = await readPullRequest(pull.number);
+  const blocker = deliveryMutationBlocker(current, { documentation: true });
+  if (blocker) { await disableIfArmed(current, blocker); await summary(`PR #${pull.number}: controller mutation paused (${blocker}).`); return null; }
+  if (!sameDeliverySnapshot(current, pull, repositoryName, { documentation: true })) {
+    await summary(`PR #${pull.number}: candidate changed before controller mutation; deferred.`); return null;
+  }
+  if (!await isTrustedEligible(current)) return null;
+  const target = await rest(`/repos/${owner}/${repository}/git/ref/heads/develop`);
+  if (target.object?.sha !== current.base?.sha) { await summary(`PR #${pull.number}: target changed before controller mutation; deferred.`); return null; }
+  return current;
+}
+
 async function mergeValidatedHead(pull, archiveBase) {
   const number = pull.number;
+  const current = await freshMutationSnapshot(pull);
+  if (!current) return;
+  if (current.mergeable !== true || !["clean", "unstable"].includes(current.mergeable_state)) return await summary(`PR #${number}: mergeability changed before merge; deferred.`);
   if (archiveBase) {
     const target = await rest(`/repos/${owner}/${repository}/git/ref/heads/develop`);
     if (target.object?.sha !== archiveBase) return await summary(`PR #${number}: archive base changed before merge; deferred.`);
@@ -309,6 +337,18 @@ async function changedFiles(number) {
 
 async function disableIfArmed(pull, reason) {
   if (!pull.auto_merge) return;
+  const current = await readPullRequest(pull.number);
+  const actor = current.auto_merge?.enabled_by;
+  if (!current.auto_merge) return;
+  if (actor?.type !== "Bot" || !["github-actions[bot]", "openspec-ci[bot]"].includes(actor.login)) {
+    return await summary(`PR #${pull.number}: unresolved human or unknown auto-merge arm ownership/binding; it was not cancelled, and safe pause or continuation is not promised.`);
+  }
+  if (current.node_id !== pull.node_id || current.state !== "open" || current.head?.sha !== pull.head?.sha
+    || current.head?.ref !== pull.head?.ref || current.head?.repo?.full_name !== pull.head?.repo?.full_name || current.body !== pull.body
+    || current.base?.sha !== pull.base?.sha || current.base?.ref !== pull.base?.ref
+    || deliveryMutationBlocker(current, { documentation: true }) !== deliveryMutationBlocker(pull, { documentation: true })) {
+    return await summary(`PR #${pull.number}: arm snapshot changed before withdrawal; deferred.`);
+  }
   await graph(`mutation DisableIneligibleAutoMerge($pullRequestId: ID!) {
     disablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId }) {
       pullRequest { number }

@@ -30,15 +30,19 @@ interface FakePull {
   raceTo?: string;
   updateStatus?: number;
   readStatus?: number;
+  labels?: string[];
 }
 
 function metadata(pull: FakePull): Record<string, unknown> {
   return {
     number: pull.number,
+    node_id: `PR_${pull.number}`,
+    body: "Implementation snapshot",
+    labels: pull.labels ?? [],
     state: pull.state ?? "open",
     draft: pull.draft ?? false,
-    base: { ref: pull.base ?? "develop", repo: { full_name: pull.baseRepository ?? repository } },
-    head: { sha: pull.head, repo: pull.headRepository === null ? null : { full_name: pull.headRepository ?? repository } },
+    base: { ref: pull.base ?? "develop", sha: target, repo: { full_name: pull.baseRepository ?? repository } },
+    head: { ref: `fix/task-${pull.number}`, sha: pull.head, repo: pull.headRepository === null ? null : { full_name: pull.headRepository ?? repository } },
   };
 }
 
@@ -160,6 +164,30 @@ describe("ready pull-request refresh reconciliation", () => {
     expect(github.calls.some(call => /merge|auto_merge|dispatches|check-runs|statuses|reviews/.test(call))).toBe(false);
   });
 
+  it("C21: hold pauses refresh and releasing it performs a fresh bounded evaluation", async () => {
+    const github = new FakeGitHub([{ number: 7, head: sha(1), behind: 1, labels: ["delivery-hold"] }]);
+    expect(await refreshReadyPullRequests({ repository, request: github.request })).toMatchObject([{ disposition: "skipped", reason: "delivery-hold" }]);
+    expect(github.updates).toHaveLength(0);
+    const request: RefreshRequester = async (path, options) => {
+      const response = await github.request(path, options);
+      return path.endsWith("/pulls/7") ? { ...response, body: { ...response.body, labels: [] } } : response;
+    };
+    expect(await refreshReadyPullRequests({ repository, request })).toMatchObject([{ disposition: "updated" }]);
+    expect(github.updates).toHaveLength(1);
+  });
+
+  it("rechecks hold, body and base immediately before update-branch", async () => {
+    for (const changed of [{ labels: ["delivery-hold"] }, { body: "changed acceptance" }, { base: { ref: "develop", sha: sha(44), repo: { full_name: repository } } }]) {
+      const github = new FakeGitHub([{ number: 7, head: sha(1), behind: 1 }]); let reads = 0;
+      const request: RefreshRequester = async (path, options) => {
+        const response = await github.request(path, options);
+        return path.endsWith("/pulls/7") && ++reads === 2 ? { ...response, body: { ...response.body, ...changed } } : response;
+      };
+      expect((await refreshReadyPullRequests({ repository, request }))[0]?.disposition).toMatch(/skipped|deferred/);
+      expect(github.updates).toHaveLength(0);
+    }
+  });
+
   it("is idempotent across duplicate triggers", async () => {
     const github = new FakeGitHub([{ number: 1, head: sha(1), behind: 2 }, { number: 2, head: sha(2), behind: 0 }]);
     await refreshReadyPullRequests({ repository, request: github.request });
@@ -234,7 +262,7 @@ describe("ready pull-request refresh command", () => {
 describe("ready pull-request refresh workflow", () => {
   it("runs trusted default-branch policy after merges and documentation integration, serialized without cancellation", async () => {
     const workflow = await readFile(".github/workflows/ready-pull-request-refresh.yml", "utf8");
-    expect(workflow).toMatch(/pull_request_target:\n {4}branches: \[develop\]\n {4}types: \[closed\]/);
+    expect(workflow).toMatch(/pull_request_target:\n {4}branches: \[develop\]\n {4}types: \[closed, labeled, unlabeled\]/);
     expect(workflow).toMatch(/workflow_run:\n {4}workflows: \[Documentation auto-merge\]\n {4}types: \[completed\]/);
     expect(workflow).toContain("if: github.event_name == 'workflow_run' || github.event.pull_request.merged == true");
     expect(workflow).toMatch(/concurrency:\n {2}group: ready-pull-request-refresh\n {2}cancel-in-progress: false/);

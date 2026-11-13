@@ -1,12 +1,11 @@
 import { createHash } from "node:crypto";
-import { archiveFailure } from "./openspec-archive-policy.mjs";
+import { archiveFailure, metadataBlock } from "./openspec-archive-policy.mjs";
 
 export const MIN_ACCEPTANCE_CHECKS = 1;
-export const MAX_ACCEPTANCE_CHECKS = 10;
+/** Compatibility export: meaningful scenarios no longer have a repository item-count ceiling. */
+export const MAX_ACCEPTANCE_CHECKS = Number.POSITIVE_INFINITY;
 export const MIN_IMPLEMENTATION_PROGRESS_ITEMS = 1;
 export const PHASE_FREE_VERSION3_BODY_POLICY = true;
-const MAX_BODY_BYTES = 256 * 1024;
-const MAX_CHECK_BYTES = 300;
 const genericChecks = [
   /^(?:review|check|verify|confirm)(?: the)?(?: linked)? (?:implementation )?(?:pull request|pr)\.?$/i,
   /^(?:review|check|verify|confirm)(?: that)? (?:the )?(?:required )?(?:ci|continuous integration)(?: checks?)? (?:passes|passed|is green|succeeded)\.?$/i,
@@ -22,16 +21,8 @@ const genericImplementationItems = [
   /^(?:merge|archive|finalize)(?: this| the)? (?:implementation|change|pull request|pr)?\.?$/i,
   /^(?:confirm )?(?:there are )?no (?:known )?(?:blocking |unresolved )?(?:gaps|issues)\.?$/i,
 ];
-// Rationale: validation is CI's job after readiness and the maintainer's at merge, so an item that names it can never be checked truthfully.
-const validationImplementationItems = [
-  /^(?:manually|validate|verify|confirm|prove|run|smoke[- ]test|test)\b/i,
-  /\bmanual(?:ly)? (?:test|validat|verif)/i,
-  /\b(?:record|capture|collect)\b.*\bevidence\b/i,
-  /\bwith (?:focused )?(?:regression )?(?:coverage|evidence|validation)\b/i,
-];
-
 const normalizedBody = value => {
-  if (typeof value !== "string" || Buffer.byteLength(value) > MAX_BODY_BYTES || value.replaceAll("\r\n", "").includes("\r")) {
+  if (typeof value !== "string" || value.replaceAll("\r\n", "").includes("\r")) {
     throw archiveFailure("acceptance-checklist-body");
   }
   return value.replaceAll("\r\n", "\n");
@@ -45,43 +36,70 @@ export function assertAcceptanceScenarios(values) {
     throw archiveFailure("acceptance-checklist-count");
   }
   const normalized = new Set();
-  for (const value of values) {
-    if (typeof value !== "string" || value !== value.trim() || Buffer.byteLength(value) < 20 || Buffer.byteLength(value) > MAX_CHECK_BYTES
-      || /[\r\n]/.test(value) || /^\[[ xX]\]\s/.test(value) || /^(?:#|>|```|~~~)/.test(value)
-      || /<\/?[A-Za-z][^>]*>|https?:\/\/|@[A-Za-z0-9_-]+/.test(value)) throw archiveFailure("acceptance-checklist-item");
+  for (const original of values) {
+    const value = typeof original === "string" ? original.trim() : original;
+    if (typeof value !== "string" || !value
+      || /[\r\n]/.test(value) || /^\[[ xX]\]\s/.test(value) || /^(?:#|>|```|~~~)/.test(value)) throw archiveFailure("acceptance-checklist-item");
     const identity = normalizedCheck(value);
     if (!identity || normalized.has(identity)) throw archiveFailure("acceptance-checklist-duplicate");
     if (genericChecks.some(pattern => pattern.test(value))) throw archiveFailure("acceptance-checklist-generic");
     normalized.add(identity);
   }
-  return [...values];
+  return values.map(value => value.trim());
+}
+
+function markdownHeadings(lines) {
+  const headings = [];
+  let fence = null, comment = false;
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    if (fence) { if (new RegExp(`^ {0,3}${fence.character}{${fence.length},}\\s*$`).test(line)) fence = null; continue; }
+    if (comment) { if (line.includes("-->")) comment = false; continue; }
+    if (line.includes("<!--")) { if (!line.includes("-->")) comment = true; continue; }
+    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+    if (marker) { fence = { character: marker[0], length: marker.length }; continue; }
+    const heading = /^ {0,3}##[ \t]+(\S.*?)(?:[ \t]+#+)?[ \t]*$/.exec(line);
+    if (heading) headings.push({ name: heading[1], index });
+  }
+  return headings;
+}
+
+/** Declared completion is observable even when another body input is malformed; it never authorizes promotion. */
+export function declaredImplementationComplete(body) {
+  if (typeof body !== "string") return false;
+  const lines = body.replaceAll("\r\n", "\n").split("\n"), headings = markdownHeadings(lines);
+  const section = headings.filter(heading => heading.name === "Implementation");
+  if (section.length !== 1) return false;
+  const start = section[0].index + 1, end = headings.find(heading => heading.index >= start)?.index ?? lines.length;
+  const items = lines.slice(start, end).filter(line => line.trim());
+  return items.length > 0 && items.every(line => /^ {0,3}[-*+]\s+\[[xX]\]\s+\S/.test(line));
+}
+
+/** Local final-form preview only: no task file, PR body or authoritative progress is written. */
+export function checkedImplementationPreview(body) {
+  const lines = normalizedBody(body).split("\n"), headings = markdownHeadings(lines);
+  const sections = headings.filter(heading => heading.name === "Implementation");
+  if (sections.length !== 1) return body;
+  const start = sections[0].index + 1, end = headings.find(heading => heading.index >= start)?.index ?? lines.length;
+  for (let index = start; index < end; index++) lines[index] = lines[index].replace(/^( {0,3}[-*+]\s+)\[ \](\s+)/, "$1[x]$2");
+  return lines.join("\n");
 }
 
 /** Extract the final reviewed handoff rather than deriving a robot list from source tasks. */
 function parseAcceptanceSection(body, heading) {
   const lines = normalizedBody(body).split("\n");
-  let fence = null;
-  const headings = [];
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
-    if (fence) {
-      if (new RegExp(`^ {0,3}${fence.character}{${fence.length},}\\s*$`).test(line)) fence = null;
-      continue;
-    }
-    if (marker) { fence = { character: marker[0], length: marker.length }; continue; }
-    if (line === `## ${heading}`) headings.push(index);
-  }
+  const headingIndices = new Set(markdownHeadings(lines).map(item => item.index));
+  const headings = markdownHeadings(lines).filter(item => item.name === heading).map(item => item.index);
   if (headings.length !== 1) throw archiveFailure(headings.length ? "acceptance-checklist-duplicate-section" : "acceptance-checklist-missing");
   const start = headings[0] + 1;
   let end = lines.length;
   for (let index = start; index < lines.length; index += 1) {
-    if (/^##\s+/.test(lines[index]) || lines[index] === "<details>") { end = index; break; }
+    if (headingIndices.has(index) || lines[index].trim() === "<details>") { end = index; break; }
   }
   const checks = [];
   for (const line of lines.slice(start, end)) {
     if (!line.trim()) continue;
-    const item = /^- (\S.*)$/.exec(line);
+    const item = /^ {0,3}[-*+]\s+(\S.*)$/.exec(line);
     if (!item) throw archiveFailure("acceptance-checklist-section");
     checks.push(item[1]);
   }
@@ -94,12 +112,13 @@ export function parseImplementationAcceptanceChecks(body) {
 
 export function parseImplementationProgress(body, { requireComplete = false } = {}) {
   const lines = normalizedBody(body).split("\n");
-  const headings = lines.flatMap((line, index) => line === "## Implementation" ? [index] : []);
+  const headingIndices = new Set(markdownHeadings(lines).map(item => item.index));
+  const headings = markdownHeadings(lines).filter(heading => heading.name === "Implementation").map(heading => heading.index);
   if (headings.length !== 1) throw archiveFailure(headings.length ? "implementation-progress-duplicate-section" : "implementation-progress-missing");
   const start = headings[0] + 1;
   let end = lines.length;
   for (let index = start; index < lines.length; index += 1) {
-    if (/^##\s+/.test(lines[index]) || lines[index] === "<details>") { end = index; break; }
+    if (headingIndices.has(index) || lines[index].trim() === "<details>") { end = index; break; }
   }
   const content = lines.slice(start, end).filter(line => line.trim());
   const taskSyntax = content.some(line => /^\s*[-*+]\s+\[/.test(line));
@@ -109,71 +128,54 @@ export function parseImplementationProgress(body, { requireComplete = false } = 
   }
   const identities = new Set();
   const items = content.map(line => {
-    const item = /^- \[([ x])\] (\S.*)$/.exec(line);
+    const item = /^ {0,3}[-*+]\s+\[([ xX])\]\s+(\S.*)$/.exec(line);
     if (!item) throw archiveFailure("implementation-progress-item");
-    const text = item[2];
-    if (text !== text.trim() || Buffer.byteLength(text) < 20 || Buffer.byteLength(text) > MAX_CHECK_BYTES
-      || /[\r\n]/.test(text) || /^(?:#|>|```|~~~)/.test(text)
-      || /<\/?[A-Za-z][^>]*>|https?:\/\/|@[A-Za-z0-9_-]+/.test(text)) throw archiveFailure("implementation-progress-item");
+    const text = item[2].trim();
+    if (!text
+      || /[\r\n]/.test(text) || /^(?:#|>|```|~~~)/.test(text)) throw archiveFailure("implementation-progress-item");
     const identity = normalizedCheck(text);
     if (!identity || identities.has(identity)) throw archiveFailure("implementation-progress-duplicate");
     if (genericImplementationItems.some(pattern => pattern.test(text))) throw archiveFailure("implementation-progress-generic");
     identities.add(identity);
-    return { checked: item[1] === "x", text };
+    return { checked: item[1] !== " ", text };
   });
   const complete = items.every(item => item.checked);
   if (requireComplete && !complete) throw archiveFailure("implementation-progress-incomplete");
   return { format: "checklist", complete, items };
 }
 
-/**
- * Reject Implementation items that name validation instead of a delivered outcome. Only draft promotion and the local
- * body check apply this, so merged bodies written under the earlier rule stay readable.
- */
+/** Keep substantive outcome checks without interpreting ordinary testing, coverage, links or notation as authority. */
 export function assertImplementationOnlyProgress(items) {
-  const texts = items.map(item => typeof item === "string" ? item : item.text);
-  if (texts.some(text => validationImplementationItems.some(pattern => pattern.test(text)))) {
-    throw archiveFailure("implementation-progress-validation");
-  }
+  if (!Array.isArray(items) || items.length === 0) throw archiveFailure("implementation-progress-count");
+  const texts = items.map(item => typeof item === "string" ? item : item?.text);
+  if (texts.some(text => typeof text !== "string" || !text.trim())) throw archiveFailure("implementation-progress-item");
+  if (texts.some(text => genericImplementationItems.some(pattern => pattern.test(text)))) throw archiveFailure("implementation-progress-generic");
 }
 
-function assertVersion3BodyLayout(body, { allowLegacyPhaseLine = false } = {}) {
+export function assertVersion3BodyLayout(body, { allowLegacyPhaseLine = false, acceptanceRequired = true } = {}) {
   const lines = normalizedBody(body).split("\n");
-  const firstLine = lines.find(line => line.trim());
+  const firstIndex = lines.findIndex(line => line.trim());
+  const firstLine = lines[firstIndex];
+  const headings = markdownHeadings(lines);
+  const startsWithProposal = headings[0]?.name === "Proposal" && headings[0].index === firstIndex;
   const legacyPhaseLine = ["> Phase: Implementation", "> Phase: Acceptance"].includes(firstLine);
   const phaseLines = lines.filter(line => /^> Phase:/.test(line));
-  if (allowLegacyPhaseLine ? firstLine !== "## Proposal" && !legacyPhaseLine : firstLine !== "## Proposal") {
+  if (allowLegacyPhaseLine ? !startsWithProposal && !legacyPhaseLine : !startsWithProposal) {
     throw archiveFailure("acceptance-layout-phase");
   }
   if (phaseLines.length !== (allowLegacyPhaseLine && legacyPhaseLine ? 1 : 0)) throw archiveFailure("acceptance-layout-phase");
-  const headings = [];
-  let fence = null;
-  let comment = false;
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    if (comment) { if (line.includes("-->")) comment = false; continue; }
-    if (line.includes("<!--")) { if (!line.includes("-->")) comment = true; continue; }
-    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
-    if (fence) {
-      if (new RegExp(`^ {0,3}${fence.character}{${fence.length},}\\s*$`).test(line)) fence = null;
-      continue;
-    }
-    if (marker) { fence = { character: marker[0], length: marker.length }; continue; }
-    const heading = /^## (\S.*)$/.exec(line);
-    if (heading) headings.push({ name: heading[1], index });
-  }
-  if (JSON.stringify(headings.map(({ name }) => name)) !== JSON.stringify(["Proposal", "Implementation", "Acceptance", "Automation"])) {
+  const names = headings.map(({ name }) => name);
+  const expected = acceptanceRequired || names.includes("Acceptance") ? ["Proposal", "Implementation", "Acceptance", "Automation"] : ["Proposal", "Implementation", "Automation"];
+  if (JSON.stringify(names) !== JSON.stringify(expected)) {
     throw archiveFailure("acceptance-layout-sections");
   }
   const proposalLines = lines.slice(headings[0].index + 1, headings[1].index).filter(line => line.trim());
   const proposal = proposalLines.join(" ").trim();
-  const sentenceCount = proposal.match(/[.!?](?=\s|$)/g)?.length ?? 0;
-  if (!proposal || Buffer.byteLength(proposal) > 600 || proposalLines.some(line => /^(?:[-*+] |#|>|<)/.test(line))
-    || sentenceCount < 1 || sentenceCount > 2 || !/[.!?]$/.test(proposal)) throw archiveFailure("acceptance-layout-proposal");
-  const automation = lines.slice(headings[3].index + 1);
+  if (!proposal.replaceAll(/<!--[\s\S]*?-->/g, "").trim()) throw archiveFailure("acceptance-layout-proposal");
+  const automation = lines.slice(headings.at(-1).index + 1);
   const visible = automation.filter(line => line.trim());
-  if (visible[0] !== "<details>" || visible[1] !== "<summary>Used by CI to link this PR to its OpenSpec change</summary>"
-    || visible.at(-1) !== "</details>" || !automation.some(line => line === "```openspec-implementation")) {
+  if (visible[0] !== "<details>" || !/^<summary>\S(?:.*\S)?<\/summary>$/.test(visible[1] ?? "")
+    || visible.at(-1) !== "</details>" || metadataBlock(automation.join("\n"), "openspec-implementation") === null) {
     throw archiveFailure("acceptance-layout-automation");
   }
 }

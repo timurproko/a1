@@ -221,6 +221,31 @@ describe("documentation auto-merge workflow", () => {
     expect(result.requests.some(request => request.body.includes("enablePullRequestAutoMerge"))).toBe(true);
   });
 
+  it.each(["delivery-hold", "no-auto-merge"])("C21/C31: %s blocks arming and integration", async label => {
+    const result = await runManager(validationEvent(), pullFixture({ mergeable_state: "clean", labels: [{ name: label }] }));
+    expect(result.requests.some(request => request.url.endsWith("/merge") || request.url === "/graphql")).toBe(false);
+    expect(result.stdout).toContain(label);
+  });
+
+  it("rechecks hold immediately before an automation-owned mutation", async () => {
+    let reads = 0;
+    const result = await runManager(validationEvent(), pullFixture({ mergeable_state: "clean" }), { respond: request => {
+      if (request.url === "/repos/owner/repository/pulls/42" && ++reads > 1) return { body: pullFixture({ mergeable_state: "clean", labels: [{ name: "delivery-hold" }] }) };
+      return undefined;
+    } });
+    expect(result.requests.some(request => request.url.endsWith("/merge") || request.url === "/graphql")).toBe(false);
+    expect(result.stdout).toContain("delivery-hold");
+  });
+
+  it("C28: unknown human arm binding is reported without cancellation or a safe-pause promise", async () => {
+    const result = await runManager(validationEvent(), pullFixture({ labels: [{ name: "delivery-hold" }],
+      auto_merge: { enabled_by: { type: "User", login: "maintainer" }, merge_method: "squash" } }));
+    expect(result.requests.some(request => request.url.endsWith("/merge") || request.url === "/graphql")).toBe(false);
+    expect(result.stdout).toContain("unresolved human or unknown");
+    expect(result.stdout).toContain("safe pause or continuation is not promised");
+    expect(result.stdout).not.toContain("preserved authorized human");
+  });
+
   it("retains trusted classification and ineligible disable guards", async () => {
     const manager = await readFile("scripts/governance/manage-documentation-auto-merge.mjs", "utf8");
     expect(manager).toContain('event.workflow_run.conclusion === "success"');
@@ -310,14 +335,16 @@ describe("single-PR implementation holds", () => {
     expect(result.stdout).toContain("preserved authorized human auto-merge for the exact finalized implementation head");
   });
 
-  it("disables stale, body-edited, and bot-authored implementation arms", async () => {
+  it("reports unresolved human bindings without cancelling them, and withdraws controller-owned implementation arms", async () => {
     const stale = await runManager(validationEvent(), pullFixture({ body: finalizedLink,
       auto_merge: { merge_method: "squash", enabled_by: reviewer } }), { respond: request => humanArmResponse(request, true) });
-    expect(stale.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+    expect(stale.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(false);
+    expect(stale.stdout).toContain("unresolved human or unknown");
 
     const edited = await runManager({ action: "edited", pull_request: { number: 42 } }, pullFixture({ body: finalizedLink,
       auto_merge: { merge_method: "squash", enabled_by: reviewer } }), { respond: request => humanArmResponse(request) });
-    expect(edited.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
+    expect(edited.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(false);
+    expect(edited.stdout).toContain("unresolved human or unknown");
 
     const bot = await runManager({ action: "auto_merge_enabled", pull_request: { number: 42 } }, pullFixture({ body: finalizedLink,
       auto_merge: { merge_method: "squash", enabled_by: { login: "github-actions[bot]", type: "Bot" } },
@@ -425,7 +452,7 @@ describe("documentation auto-merge state recovery", () => {
     ], { respond: rejectUnstableEnable });
     expectMerge(result.requests);
     expect(result.requests.filter(request => request.body.includes("enablePullRequestAutoMerge"))).toHaveLength(1);
-    expect(result.requests.filter(request => request.url.includes("/files?"))).toHaveLength(2);
+    expect(result.requests.filter(request => request.url.includes("/files?"))).toHaveLength(4);
     expect(result.stdout).toContain("unstable-status arming rejection; refreshing eligibility and validation");
   });
 
@@ -440,8 +467,8 @@ describe("documentation auto-merge state recovery", () => {
   it("bounds repeated arming rejections and performs a final fresh read", async () => {
     const result = await runManager(validationEvent(), pullFixture(), { respond: rejectUnstableEnable });
     expect(result.requests.filter(request => request.body.includes("enablePullRequestAutoMerge"))).toHaveLength(3);
-    expect(result.requests.filter(request => request.url === pullUrl)).toHaveLength(4);
-    expect(result.requests.filter(request => request.url.includes("/files?"))).toHaveLength(4);
+    expect(result.requests.filter(request => request.url === pullUrl)).toHaveLength(7);
+    expect(result.requests.filter(request => request.url.includes("/files?"))).toHaveLength(7);
     expect(result.requests.some(request => request.method === "PUT" || request.method === "DELETE")).toBe(false);
     expect(result.stdout).toContain("deferred; waiting for mergeability");
   });
@@ -467,7 +494,7 @@ describe("documentation auto-merge state recovery", () => {
       pullFixture({ mergeable_state: "unstable", auto_merge: { merge_method: "squash" }, ...changed }),
     ], { respond: rejectUnstableEnable });
     expect(result.requests.some(request => request.method === "PUT" || request.method === "DELETE")).toBe(false);
-    expect(result.requests.filter(request => request.url.includes("/files?"))).toHaveLength(2);
+    expect(result.requests.filter(request => request.url.includes("/files?"))).toHaveLength(3);
     expect(result.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(disabled);
   });
 
@@ -476,7 +503,7 @@ describe("documentation auto-merge state recovery", () => {
       pullFixture(), pullFixture({ mergeable_state: "unstable", auto_merge: { merge_method: "squash" }, changed_files: 101 }),
     ], {
       respond: (request, requests) => {
-        if (requests.filter(item => item.url === pullUrl).length > 1 && request.url.includes("/files?")) {
+        if (requests.filter(item => item.url === pullUrl).length > 2 && request.url.includes("/files?")) {
           return { body: request.url.endsWith("page=1")
             ? Array.from({ length: 100 }, (_, index) => ({ filename: `docs/${index}.md`, status: "modified" }))
             : [renamed
@@ -496,7 +523,7 @@ describe("documentation auto-merge state recovery", () => {
       pullFixture(), pullFixture({ mergeable_state: "unstable", auto_merge: { merge_method: "squash" } }),
     ], {
       expectFailure: true,
-      respond: (request, requests) => requests.filter(item => item.url === pullUrl).length > 1 && request.url.includes("/files?")
+      respond: (request, requests) => requests.filter(item => item.url === pullUrl).length > 2 && request.url.includes("/files?")
         ? { status: 503, body: { message: "unavailable" } }
         : rejectUnstableEnable(request),
     });
@@ -526,7 +553,7 @@ describe("documentation auto-merge state recovery", () => {
       respond: request => request.url === "/graphql" ? reply : undefined,
     });
     expect(result.exitCode).not.toBe(0);
-    expect(result.requests.filter(request => request.url === pullUrl)).toHaveLength(1);
+    expect(result.requests.filter(request => request.url === pullUrl)).toHaveLength(2);
     expect(result.requests.some(request => request.method === "PUT" || request.method === "DELETE")).toBe(false);
     expect(result.stdout).not.toContain("unstable-status arming rejection");
   });
@@ -739,12 +766,15 @@ function pullFixture(overrides: Record<string, unknown> = {}): Record<string, un
     draft: false,
     body: "",
     changed_files: 1,
-    base: { ref: "develop", sha: "b".repeat(40) },
+    labels: [],
+    base: { ref: "develop", sha: "b".repeat(40), repo: { full_name: "owner/repository" } },
     head: { ref: "docs/example", sha: headSha, repo: { full_name: "owner/repository" } },
     auto_merge: null,
     mergeable: true,
     mergeable_state: "blocked",
     ...overrides,
+    ...(overrides.auto_merge && typeof overrides.auto_merge === "object" && !("enabled_by" in overrides.auto_merge)
+      ? { auto_merge: { ...overrides.auto_merge, enabled_by: { login: "github-actions[bot]", type: "Bot" } } } : {}),
   };
 }
 
@@ -786,6 +816,8 @@ async function runManager(
         response.writeHead(204);
         response.end();
         return;
+      } else if (recorded.url === "/repos/owner/repository/git/ref/heads/develop" && recorded.method === "GET") {
+        body = { object: { sha: "b".repeat(40) } };
       } else if (recorded.url.includes("/git/ref/heads/") && recorded.method === "GET") {
         if (!branchExists) {
           response.writeHead(404, { "content-type": "application/json" });
@@ -796,7 +828,8 @@ async function runManager(
       } else if (recorded.url.includes("/branches/") && recorded.method === "GET") {
         body = { protected: false };
       } else if (recorded.url === "/repos/owner/repository/pulls/42") {
-        body = Array.isArray(pull) ? pull[Math.min(pullRead++, pull.length - 1)] : pull;
+        // Each scripted reconciliation snapshot includes its immediate pre-mutation reread.
+        body = Array.isArray(pull) ? pull[Math.min(Math.floor(pullRead++ / 2), pull.length - 1)] : pull;
       } else if (recorded.url === "/repos/owner/repository/pulls/42/files?per_page=100&page=1") {
         body = [{ filename: "docs/architecture/example.md", status: "modified" }];
       } else if (recorded.url === "/repos/owner/repository/pulls/42/merge" && recorded.method === "PUT") {

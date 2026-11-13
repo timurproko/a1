@@ -34,6 +34,8 @@ describe("declarative GitHub repository governance", () => {
     expect(value.environments).toEqual([expect.objectContaining({ name: "npm-publish", protection_rules: [] })]);
     expect(value.protectedRefs).toEqual(["refs/heads/develop", "refs/heads/master", "refs/tags/v*"]);
     expect(value.labels).toEqual([
+      expect.objectContaining({ name: "delivery-hold", color: expect.stringMatching(/^[0-9a-f]{6}$/) }),
+      expect.objectContaining({ name: "no-auto-merge", color: expect.stringMatching(/^[0-9a-f]{6}$/) }),
       expect.objectContaining({ name: "pi-upgrade-skipped", color: expect.stringMatching(/^[0-9a-f]{6}$/) }),
     ]);
     expect(value.workflows.map(workflow => workflow.path).sort()).toEqual((await readdir(".github/workflows")).map(name => `.github/workflows/${name}`).sort());
@@ -82,7 +84,7 @@ describe("declarative GitHub repository governance", () => {
       triggers: ["pull_request_target:closed"], trustedSource: "default-branch", permissions: ["contents: write"],
     });
     expect(inspected.find(workflow => workflow.name === "Ready pull-request refresh")).toMatchObject({
-      triggers: ["pull_request_target:closed", "workflow_run"], trustedSource: "default-branch", permissions: ["contents: read"],
+      triggers: ["pull_request_target", "workflow_run"], trustedSource: "default-branch", permissions: ["contents: read"],
       authority: ["ready-pull-request-branch-refresh"], concurrency: "ready-pull-request-refresh",
     });
     expect(inspected.find(workflow => workflow.name === "Nightly regression triage")).toMatchObject({

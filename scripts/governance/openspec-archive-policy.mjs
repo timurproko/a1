@@ -33,7 +33,7 @@ function boundedText(value, limit = MAX_TEXT) {
 }
 
 export function metadataBlock(text, label) {
-  boundedText(text);
+  requireValue(typeof text === "string", "metadata-size");
   requireValue(["openspec-implementation", "openspec-acceptance", "openspec-archive", "openspec-acceptance-request", "openspec-acceptance-receipt", "openspec-delivery"].includes(label), "metadata-label");
   const blocks = [];
   let fence = null;
@@ -53,7 +53,7 @@ export function metadataBlock(text, label) {
   requireValue(fence?.label !== label, "metadata-unclosed");
   requireValue(blocks.length <= 1, "metadata-duplicate");
   if (!blocks.length) return null;
-  return strictJson(blocks[0]);
+  return strictJson(blocks[0], label === "openspec-delivery" ? Number.POSITIVE_INFINITY : 16 * 1024);
 }
 
 /** Parse bounded JSON without silently accepting duplicate (including escaped) keys. */

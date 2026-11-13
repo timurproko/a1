@@ -6,12 +6,14 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { parseImplementation } from "../../scripts/governance/openspec-archive-policy.mjs";
 import { parseConditionalAcceptance } from "../../scripts/governance/openspec-delivery-policy.mjs";
-import { classifyFinalizationCandidate, reconcileFinalization } from "../../scripts/governance/openspec-finalization-publication.mjs";
+import { classifyFinalizationCandidate as classifyCandidate, reconcileFinalization } from "../../scripts/governance/openspec-finalization-publication.mjs";
 import { reportResult } from "../../scripts/governance/publish-openspec-finalization.mjs";
 
 const execute = promisify(execFile);
+const classifyFinalizationCandidate: typeof classifyCandidate = (pull, repository, options) => classifyCandidate({ labels: [], ...pull }, repository, options);
 const roots: string[] = [];
 const toolRoot = resolve("node_modules/@fission-ai/openspec");
+const expectedShared = async (id: string): Promise<unknown> => JSON.parse(await readFile(resolve("docs/delivery-cases.json"), "utf8")).cases.find((item: { id: string }) => item.id === id).expect;
 const requirement = (name: string, text: string) => `### Requirement: ${name}\nThe system SHALL ${text}.\n\n#### Scenario: ${name}\n- **WHEN** ${name.toLowerCase()} is evaluated\n- **THEN** it SHALL ${text}\n`;
 const spec = (body: string) => `# example Specification\n\n## Purpose\n\nDefine an example capability with enough detail for finalization tests.\n\n## Requirements\n\n${body}`;
 const proposal = `## Why\n\nImprove example behavior.\n\n## What Changes\n\n- Improve it.\n\n## Capabilities\n\n### New Capabilities\n\nNone.\n\n### Modified Capabilities\n\n- \`example\`: Improve behavior.\n\n## Impact\n\nFixture only.\n`;
@@ -65,14 +67,14 @@ async function fixture() {
     "src/app.txt": "feature\n",
   });
   await git(seed, ["push", "--quiet", "origin", "feature/example"]);
-  const state = { body: body(), draft: false, state: "open", bodyReads: [] as string[], readyCalls: 0 };
+  const state = { body: body(), draft: false, state: "open", labels: [] as string[], bodyReads: [] as string[], readyCalls: 0 };
   const mutations: { path: string; method: string; body: { body: string } }[] = [];
   const reader = { repository: "owner/repo", prefix: "/repos/owner/repo",
     async get(path: string) {
       if (path.endsWith("/git/ref/heads/develop")) return { object: { sha: await git(root, ["--git-dir", remote, "rev-parse", "refs/heads/develop"]) } };
       if (path.endsWith("/pulls/7")) {
         state.bodyReads.push(state.body);
-        return { number: 7, node_id: "PR_example", state: state.state, draft: state.draft, body: state.body,
+        return { number: 7, node_id: "PR_example", state: state.state, draft: state.draft, body: state.body, labels: [...state.labels],
           base: { ref: "develop", sha: await git(root, ["--git-dir", remote, "rev-parse", "refs/heads/develop"]),
             repo: { full_name: "owner/repo" } },
           head: { ref: "feature/example", sha: await git(root, ["--git-dir", remote, "rev-parse", "refs/heads/feature/example"]), repo: { full_name: "owner/repo" } } };
@@ -123,12 +125,17 @@ describe("trusted finalization publication", () => {
     const f = await fixture();
     const finalized = await f.reconcile();
     expect(finalized.disposition).toBe("finalized");
-    f.state.draft = true;
+    f.state.draft = true; f.state.labels = ["delivery-hold"];
     const writes = f.mutations.length;
+    await expect(f.reconcile()).resolves.toMatchObject({ disposition: "skipped", reason: "delivery-hold" });
+    f.state.labels = [];
     await expect(f.reconcile()).resolves.toMatchObject({ disposition: "promoted", head: finalized.pushedHead, promoted: true });
     expect(f.state).toMatchObject({ draft: false, readyCalls: 1 });
     expect(await f.remoteHead()).toBe(finalized.pushedHead);
     expect(f.mutations).toHaveLength(writes);
+    const active = await git(f.root, ["--git-dir", f.remote, "ls-tree", "--name-only", finalized.pushedHead!, "openspec/changes/example/"]);
+    expect({ freshValidationRequired: f.state.readyCalls === 1, activeArtifactsRecreated: active !== "",
+      oldMergeAuthorityReused: f.mutations.slice(writes).some(mutation => mutation.path.endsWith("/merge")) }).toEqual(await expectedShared("C22"));
     await expect(f.reconcile()).resolves.toMatchObject({ disposition: "already-finalized", commits: [] });
 
     // Invariant: a fence that claims the head is finalized while the active change is back is not promoted unchecked.
@@ -161,7 +168,7 @@ describe("trusted finalization publication", () => {
 
     const placeholder = await fixture();
     placeholder.state.draft = true;
-    placeholder.state.body = placeholder.state.body.replace("- Using the example preserves", "- Using <example> preserves");
+    placeholder.state.body = placeholder.state.body.replace("- Using the example preserves", "- [x] Using the example preserves");
     await expect(placeholder.reconcile()).resolves.toMatchObject({
       disposition: "blocked", reason: "draft-acceptance-checklist-item",
     });
@@ -169,11 +176,9 @@ describe("trusted finalization publication", () => {
 
     const validation = await fixture();
     validation.state.draft = true;
-    validation.state.body = validation.state.body.replace(/- \[x\] Reconcile[^\n]+/u, "- [x] Manually validate the example behavior in the development shell.");
-    await expect(validation.reconcile()).resolves.toMatchObject({
-      disposition: "blocked", reason: "draft-implementation-progress-validation",
-    });
-    expect(validation.state).toMatchObject({ draft: true, readyCalls: 0 });
+    validation.state.body = validation.state.body.replace(/- \[x\] Reconcile[^\n]+/u, "- [x] Test the example behavior using regression coverage.");
+    await expect(validation.reconcile()).resolves.toMatchObject({ disposition: "promoted" });
+    expect(validation.state).toMatchObject({ draft: false, readyCalls: 1 });
 
     const unfinishedPlaceholder = await fixture();
     unfinishedPlaceholder.state.draft = true;
@@ -311,7 +316,7 @@ describe("trusted finalization publication", () => {
 
     const edited = await fixture();
     const readerWithEdit = { ...edited.reader, async get(path: string) {
-      if (path.endsWith("/pulls/7") && edited.state.bodyReads.length === 1) edited.state.body = `${edited.state.body}\nEdited.\n`;
+      if (path.endsWith("/pulls/7") && edited.state.bodyReads.length === 2) edited.state.body = `${edited.state.body}\nEdited.\n`;
       return await edited.reader.get(path);
     } };
     const raceResult = await reconcileFinalization({ reader: readerWithEdit, publisher: edited.publisher, number: 7, toolRoot, remoteUrl: edited.remote, date: "2026-09-16" });
@@ -321,7 +326,7 @@ describe("trusted finalization publication", () => {
 
     const advanced = await fixture();
     const readerWithHeadAdvance = { ...advanced.reader, async get(path: string) {
-      if (path.endsWith("/pulls/7") && advanced.state.bodyReads.length === 1) {
+      if (path.endsWith("/pulls/7") && advanced.state.bodyReads.length === 2) {
         await git(advanced.seed, ["pull", "--quiet", "origin", "feature/example"]);
         await commit(advanced.seed, "fix: advance after finalization", { "src/app.txt": "advanced\n" });
         await git(advanced.seed, ["push", "--quiet", "origin", "feature/example"]);
@@ -379,6 +384,55 @@ describe("trusted finalization publication", () => {
     };
     await expect(f.reconcile({ reader })).rejects.toThrow("missing-implementation-association");
     expect(f.mutations).toHaveLength(0);
+  }, 60_000);
+
+  it("C20: a head changed before promotion cannot use the inspected ready snapshot", async () => {
+    const f = await fixture(); f.state.draft = true;
+    const before = await f.remoteHead();
+    const reader = { ...f.reader, async get(path: string) {
+      const current = await f.reader.get(path);
+      return path.endsWith("/pulls/7") && f.state.bodyReads.length > 1 ? { ...current, head: { ...current.head, sha: "f".repeat(40) } } : current;
+    } };
+    const result = await f.reconcile({ reader });
+    expect(result).toMatchObject({ disposition: "retry", reason: "draft-changed-before-ready" });
+    expect({ promoted: f.state.readyCalls > 0, staleSnapshotUsed: result.disposition === "promoted" }).toEqual(await expectedShared("C20"));
+    expect(await f.remoteHead()).toBe(before); expect(f.mutations).toHaveLength(0);
+  }, 60_000);
+
+  it("C21: hold prevents draft promotion and ready finalization without preparing Git mutations", async () => {
+    for (const draft of [true, false]) {
+      const f = await fixture(); f.state.draft = draft; f.state.labels = ["delivery-hold"];
+      const head = await f.remoteHead();
+      const gitImpl = async () => { throw new Error("held finalization must not enter Git preparation"); };
+      expect(await f.reconcile({ gitImpl })).toMatchObject({ disposition: "skipped", reason: "delivery-hold" });
+      expect(f.state.readyCalls).toBe(0); expect(f.mutations).toHaveLength(0); expect(await f.remoteHead()).toBe(head);
+    }
+  }, 60_000);
+
+  it("rechecks hold immediately before ready, push and body mutations", async () => {
+    for (const [draft, read] of [[true, 1], [false, 1], [false, 2]] as const) {
+      const f = await fixture(); f.state.draft = draft;
+      const reader = { ...f.reader, async get(path: string) {
+        if (path.endsWith("/pulls/7") && f.state.bodyReads.length === read) f.state.labels = ["delivery-hold"];
+        return f.reader.get(path);
+      } };
+      const head = await f.remoteHead();
+      expect(await f.reconcile({ reader })).toMatchObject({ disposition: "skipped", reason: "delivery-hold" });
+      expect(f.state.readyCalls).toBe(0); expect(f.mutations).toHaveLength(0);
+      if (read === 1) expect(await f.remoteHead()).toBe(head);
+      else {
+        expect(await f.remoteHead()).not.toBe(head);
+        f.state.labels = [];
+        expect(await f.reconcile()).toMatchObject({ disposition: "body-updated" });
+      }
+    }
+  }, 180_000);
+
+  it("C17: all-checked malformed linkage reports its blocker without readiness or finalization writes", async () => {
+    const f = await fixture(); f.state.draft = true; f.state.body = body({ version: 3, change: "../invalid" });
+    expect(await f.reconcile()).toMatchObject({ disposition: "blocked", reason: "draft-implementation-identity" });
+    expect(f.state.readyCalls).toBe(0); expect(f.mutations).toHaveLength(0);
+    expect(classifyCandidate({ state: "open", draft: true }, "owner/repo")).toEqual({ skip: "delivery-labels-unverifiable" });
   }, 60_000);
 
   it("fails closed on incomplete tasks without pushing", async () => {

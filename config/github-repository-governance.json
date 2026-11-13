@@ -123,6 +123,16 @@
   ],
   "labels": [
     {
+      "name": "delivery-hold",
+      "color": "b60205",
+      "description": "Pause delivery controllers; shared delivery rules define exact-candidate and human-arm safeguards."
+    },
+    {
+      "name": "no-auto-merge",
+      "color": "fbca04",
+      "description": "Opt out of automation-owned documentation integration."
+    },
+    {
       "name": "pi-upgrade-skipped",
       "color": "6e7781",
       "description": "Closing a Pi upgrade proposal with this label skips its version in the nightly upstream sync."
@@ -301,7 +311,7 @@
       "name": "Ready pull-request refresh",
       "path": ".github/workflows/ready-pull-request-refresh.yml",
       "state": "active",
-      "triggers": ["pull_request_target:closed", "workflow_run"],
+      "triggers": ["pull_request_target", "workflow_run"],
       "permissions": ["contents: read"],
       "trustedSource": "default-branch",
       "authority": ["ready-pull-request-branch-refresh"],

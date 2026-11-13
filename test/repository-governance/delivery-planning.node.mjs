@@ -11,7 +11,7 @@ const cases = JSON.parse(await readFile(new URL("../../docs/delivery-cases.json"
 const expected = id => cases.find(item => item.id === id).expect;
 const baseHead = "1".repeat(40), planHead = "2".repeat(40);
 const input = () => ({ repository: "timurproko/a1", base: "develop", baseHead, branch: "chore/example", expectedHead: null,
-  change: "example", title: "docs: plan example", body: '## Proposal\n\nPlan a useful change.\n\n## Implementation\n\n- [ ] Deliver the approved feature.\n\n## Automation\n\n```openspec-implementation\n{"version": 3, "change": "example"}\n```',
+  change: "example", title: "docs: plan example", body: '## Proposal\n\nPlan a useful change.\n\n## Implementation\n\n- [ ] Deliver the approved feature.\n\n## Automation\n\n<details>\n<summary>Planning linkage</summary>\n\n```openspec-implementation\n{"version": 3, "change": "example"}\n```\n\n</details>',
   files: [{ path: "openspec/changes/example/proposal.md", contents: "# A real proposal\n" }] });
 function fixture() {
   const calls = [];
@@ -41,6 +41,13 @@ test("C03/C42: planning publishes real selected artifacts without checkout/setup
   assert.deepEqual({ draft: f.state.pr.draft, implementationEdits: f.state.files.filter(file => !file.path.startsWith("openspec/changes/example/")).length,
     setupCalls: f.calls.filter(call => call.name === "setup").length, sweepCalls: f.calls.filter(call => call.name === "sweep").length,
     implementationOutcomesChecked: (f.state.pr.body.match(/^- \[x\] /gmu) ?? []).length }, expected("C03"));
+});
+
+test("edit-only authority blocks planning publication before remote effects", async () => {
+  const f = fixture();
+  const result = await publishDeliveryPlan({ ...input(), authority: { scopeApproved: true, implementationRequested: true, publicationRequested: true,
+    editOnly: true, frameworkRequirementsSatisfied: true } }, f.remote);
+  assert.equal(result.status, "blocked"); assert.equal(result.stage, "authorize"); assert.equal(f.calls.length, 0);
 });
 
 test("C07: stale observed head leaves existing work and remote refs unchanged", async () => {
