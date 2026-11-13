@@ -5,11 +5,23 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 ## Decisions
 
 - `28161cb` (#918) changed the trust-prompt call to include invocation color but left `startup-descriptor.test.ts` asserting the previous exact source string. Preserve the descriptor graph assertions and cover the current prompt wiring instead of reverting the new behavior.
-- `c39a955` (#917) placed Unix session sockets beneath the full runtime directory. macOS runner temp roots make the resulting pathname exceed Darwin's 104-byte `sockaddr_un.sun_path`, causing `listen EINVAL`. Keep discovery in the private runtime directory, but use a short, private, owner-checked Unix transport directory and a hashed socket name; preserve Windows named pipes and request identity fencing.
+- `c39a955` (#917) placed Unix session sockets beneath the full runtime directory. macOS runner temp roots make the resulting pathname exceed Darwin's 104-byte `sockaddr_un.sun_path`, causing `listen EINVAL`. Keep discovery in the private runtime directory, but use a short, private, owner-checked Unix transport directory and a hashed socket name only when the original path exceeds 103 UTF-8 bytes; preserve working short Unix endpoints, Windows named pipes, and request identity fencing.
 - `28161cb` (#918) rejects every symlink ancestor in Herdr binding paths. macOS's OS-selected temp root traverses `/var` (a system alias for `/private/var`), so reservation returns undefined before reporting. Canonicalize the OS-selected temp root only, continuing to reject caller-selected links below it and unsafe binding records.
 - Keep two detailed task groups matching the generated PR's two unchanged Implementation outcomes. Focused evidence belongs to the repair group, not a third outcome.
 
 ## Evidence
+
+### Focused implementation evidence
+
+- Windows/Node 24: `npm run typecheck` passed. The focused command `npx vitest run test/repository-governance/startup-descriptor.test.ts test/foundation/lifecycle/session-control.test.ts test/foundation/lifecycle/session-control-address.test.ts test/features/owned-ui/herdr-binding.test.ts test/features/owned-ui/herdr-reporter.test.ts test/composition/herdr-colors.integration.test.ts test/composition/session-colors.integration.test.ts test/composition/startup-color.test.ts` passed all 35 tests in eight files.
+- New transport fixtures exercise Darwin address selection on every platform, including UTF-8 byte length, short-path compatibility, restrictive permissions, and rejection before publication of foreign, linked, permissive, non-directory, or redirected transport roots. The long-path integration case exercises actual local IPC on every platform and, on Unix, also checks socket permissions and disposal.
+- New binding fixtures reproduce an OS-selected temp alias with a real symlink/junction, retain canonical generation fencing, and reject both a linked descendant and an unrelated alias without writing to their targets.
+- `npm run check:architecture`, `npm run check:names`, strict OpenSpec validation, and the final delivery-body check passed. No assertion, timeout, performance budget, or coverage selection was reduced.
+- Pre-finalization PR observation: #920 remains draft, so Development suites and PR Full regression are skipped; the generated App-authored proposal and immutable failed-run provenance remain unchanged. Full regression has not been claimed to pass locally. Trusted finalization must select the exact-head native lanes before validated handoff.
+
+### Known-gap disposition
+
+- No unresolved implementation gaps. Native macOS/Linux execution is not available on this Windows workstation; the selected PR Full regression owns that evidence. Mocked Darwin boundary tests and Windows junction fixtures are focused evidence, not a claim of native macOS success. Numbered-package nightly publication recovery remains independent and is not claimed by this repair.
 
 ### Investigation
 
