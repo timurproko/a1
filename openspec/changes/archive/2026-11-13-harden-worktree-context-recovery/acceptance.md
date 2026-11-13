@@ -26,7 +26,7 @@ The maintainer integration decision accepts these scenarios:
     "Detach preserves files, branches, history and other owners' claims, and failed ordinary operations never run elsewhere automatically.",
     "Recovery stays bound to the current live session, honors cancellation and tool exclusions, and is absent from comparison sessions."
   ],
-  "archiveDigest": "3f6018d55f24953e8c4d0a0f3b5995bb50aa360dd66418629a3cfe0d3fe1a92d",
+  "archiveDigest": "9b579495ba4cd5f90cf811882daa91a4fba88ed55f6bbd494ecbe10eecad27e2",
   "specDigest": "e7ffb5436bcd3acdec5989862de0f57d79bca768cf28526d15a06bc98b7ef9c4",
   "tasksDigest": "476b47b72b084e90b6ea115de55b33a88c99311b0aa28303b7a352a0887aada2",
   "evidenceDigest": "7018914a1562e995e4ae49bbed45cb7f01d6d2c5e98da28d4acf76dcdc04403b",
