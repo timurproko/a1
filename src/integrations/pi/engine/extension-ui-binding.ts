@@ -109,7 +109,8 @@ export class PiExtensionUiBinding {
     }
     const bound = await binding;
     if (!bound) this.#bindings.delete(session);
-    if (this.#ports.session() === session) this.#extensionBound = bound && this.#extensionUi !== undefined;
+    if (this.#ports.session() !== session || this.#extensionUi === undefined) return;
+    this.#extensionBound = bound;
     this.#ports.emitView();
   }
 
@@ -158,6 +159,7 @@ export class PiExtensionUiBinding {
         mode: "tui",
         shutdownHandler: () => this.#extensionShutdown?.(),
         onError: error => {
+          if (this.#ports.session() !== session || this.#extensionUi === undefined) return;
           const message = isRecord(error) && typeof error.error === "string"
             ? error.error
             : error instanceof Error ? error.message : String(error);
@@ -167,8 +169,9 @@ export class PiExtensionUiBinding {
       });
       return true;
     } catch (error) {
-      this.#ports.diagnostic("error", "extension-ui-bind", error instanceof Error ? error.message : String(error), true);
-      this.#ports.emitView();
+      if (this.#ports.session() === session && this.#extensionUi !== undefined) {
+        this.#ports.diagnostic("error", "extension-ui-bind", error instanceof Error ? error.message : String(error), true);
+      }
       return false;
     }
   }
