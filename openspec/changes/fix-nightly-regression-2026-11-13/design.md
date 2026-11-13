@@ -4,9 +4,20 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- `28161cb` (#918) changed the trust-prompt call to include invocation color but left `startup-descriptor.test.ts` asserting the previous exact source string. Preserve the descriptor graph assertions and cover the current prompt wiring instead of reverting the new behavior.
+- `c39a955` (#917) placed Unix session sockets beneath the full runtime directory. macOS runner temp roots make the resulting pathname exceed Darwin's 104-byte `sockaddr_un.sun_path`, causing `listen EINVAL`. Keep discovery in the private runtime directory, but use a short, private, owner-checked Unix transport directory and a hashed socket name; preserve Windows named pipes and request identity fencing.
+- `28161cb` (#918) rejects every symlink ancestor in Herdr binding paths. macOS's OS-selected temp root traverses `/var` (a system alias for `/private/var`), so reservation returns undefined before reporting. Canonicalize the OS-selected temp root only, continuing to reject caller-selected links below it and unsafe binding records.
+- Keep two detailed task groups matching the generated PR's two unchanged Implementation outcomes. Focused evidence belongs to the repair group, not a third outcome.
 
 ## Evidence
+
+### Investigation
+
+- On Windows/Node 24, `npm ci --ignore-scripts --no-audit --no-fund`, `npm run build:core`, then `npx vitest run test/repository-governance/startup-descriptor.test.ts` reproduced the exact failure at line 34: one failed and one passed test.
+- Read the complete failed logs of run 43360249051, attempt 1. Ubuntu Node 24 and Windows Node 22/24 core each fail only the stale startup assertion. macOS Node 24 has that failure plus seven Herdr reporter failures, five session-control failures, and the two color subprocess integration failures (15 failures in five files total).
+- The macOS session-color host reports `listen EINVAL` for `/private/var/folders/2s/vty41l455yv698g4xkgfv7z00000gn/T/session-color-api-CGAqhZ/runtime/session-controls/3ca29f04-5c27-4c7d-9d64-e527488bb902.sock`, beyond Darwin's socket pathname capacity. Herdr's subprocess reports `fixture reservation failed`; inspection of its ancestor guard explains the system-temp alias rejection.
+- The Windows core-shard aggregate and final complete-regression aggregate fail because their prerequisite lane failed; no independent orchestration defect is present. Retain all original failed owners and lanes below. No Full suite was rerun locally or dispatched during investigation.
+
 
 - Run [Full regression #92](https://github.com/timurproko/a1/actions/runs/43360249051) (attempt 1, schedule) on `41ab0cf` at 2026-11-13T03:37:52Z:
   - `vitest-full-without-isolated` (`architecture`, `dependency-policy`, `dist-integration`, `documentation-full`, `fast-remainder`, `fast-resource-sensitive`, `history-compatibility`, `image-compatibility`, `launch-integration`, `naming-full`, `package-contracts`, `package-smoke`, `package-startup`, `pi-engine-conformance`, `release-update`, `rendering-stability`, `typecheck`, `unix-release`, `update-performance`, `update-predecessor`) failed on macos-15-node24, ubuntu-24.04-node24, windows-2025-node22 (core shard), windows-2025-node24 (core shard) with exit 1.
