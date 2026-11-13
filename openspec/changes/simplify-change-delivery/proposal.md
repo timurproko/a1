@@ -4,6 +4,7 @@ Delivery ties remote planning and local checkout disposal to implementation and 
 
 ## What Changes
 
+- Install the exact shared `portable-delivery-v1` rulebook, explicit repository adapters and 50 fixed verification cases; copy approved guidance instead of independently interpreting workflow policy.
 - Allow analysis, remote PR administration and real planning-only draft commits without a clone, worktree, attachment, dependency setup or cleanup sweep.
 - Keep repository/branch/history/change/PR as durable task identity; resume an owned implementation checkout on whichever machine does the coding.
 - Add explicitly requested local-only removal for published open-PR checkouts with fresh commit-containment and content/ownership checks; preserve remote work and retain local branches by default.
@@ -14,6 +15,10 @@ Delivery ties remote planning and local checkout disposal to implementation and 
 ## Scope boundary
 
 OpenSpec skills and the OpenSpec framework are out of scope. Do not modify, regenerate, replace, or override `openspec-*` skills, generated OpenSpec/`opsx` commands, framework implementation, schemas, templates, or lifecycle semantics. Simplify only repository-owned delivery tooling and guidance around the unchanged framework. Project-specific proposal, design, tasks and specification deltas remain editable; that does not authorize framework changes. If an outcome requires changing OpenSpec, report the blocker and move that work to a separate explicitly approved scope instead of bundling it here.
+
+## Exact implementation inputs
+
+[Shared rules](delivery-rules.md), [repository adapters](delivery-adapters.json), [verification cases](delivery-cases.json) and [digest manifest](delivery-contract.json) are identical in both planning PRs. R17 specifies exact copy destinations and the root routing paragraph. R20 requires reconciliation of already-started work before further affected implementation. Conflicts require clarification, not agent-authored policy exceptions.
 
 ## Capabilities
 

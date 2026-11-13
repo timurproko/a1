@@ -413,7 +413,7 @@ Agents SHALL own truthful task and published progress; automation SHALL own read
 #### Scenario: Root guidance carries the rule
 
 - **WHEN** an agent of any runtime loads the repository's root instructions
-- **THEN** it SHALL receive the same single Implementation progress paragraph from `AGENTS.md`
+- **THEN** it SHALL follow the exact R17 routing paragraph in `AGENTS.md` to the shared `docs/delivery-rules.md` contract, including R05 progress rules
 - **AND** `CLAUDE.md` and the delivery skill SHALL refer to that paragraph rather than restate it
 
 #### Scenario: Outcome awaits only CI or manual validation
@@ -596,6 +596,30 @@ Automation SHALL validate structure, objective evidence, finalization, and exact
 - **AND** no body checkbox edit, acceptance PR, archive PR, or later acceptance command SHALL be required
 
 ## ADDED Requirements
+
+### Requirement: Both repositories implement one exact delivery contract
+
+Delivery simplification SHALL use the byte-identical `portable-delivery-v1` rulebook, adapter table, verification cases and digest manifest supplied by this change. Implementers SHALL copy them unchanged to the R17 destinations and use only the listed repository-specific bindings. They SHALL NOT paraphrase shared policy, change expected cases, invent exceptions or override OpenSpec.
+
+#### Scenario: Agent installs repository guidance
+- **WHEN** the approved delivery implementation installs guidance
+- **THEN** the four contract files SHALL match the approved planning bytes and SHA-256 digests
+- **AND** `AGENTS.md` SHALL contain the exact R17 routing paragraph once while other repository-owned entries link rather than restate policy
+
+#### Scenario: Existing implementation predates the contract
+- **WHEN** work has already started under an earlier plan
+- **THEN** the agent SHALL preserve it and record the inspected head, rule/case reconciliation, corrections and blockers before further affected implementation
+- **AND** unrelated completed tasks SHALL remain truthful without automatically discarding work
+
+#### Scenario: Shared verification is executed
+- **WHEN** either repository verifies implementation conformance
+- **THEN** its test bindings SHALL consume every identical case and assert actual behavior against the unchanged expected results
+- **AND** dropped cases, changed contract bytes, adapter drift or framework overrides SHALL fail verification rather than be silently accepted
+
+#### Scenario: Implementer encounters ambiguity
+- **WHEN** a requirement conflicts with the exact contract or a policy decision is unspecified
+- **THEN** the affected action SHALL stop for explicit clarification without inventing an exception
+- **AND** a contract refinement SHALL require matching approved updates in both repositories before affected implementation
 
 ### Requirement: Workflow simplification preserves the OpenSpec framework
 
