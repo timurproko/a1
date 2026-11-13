@@ -1,8 +1,8 @@
 ## 1. Publish Pi-family identity at independent A1 startup
 
-- [ ] 1.1 Set family markers before extension loading while preserving product/profile identity.
-- [ ] 1.2 Retire inherited Firstmate host claims and parent shell session metadata only at new interactive process boundaries, preserving same-process helpers.
-- [ ] 1.3 Add focused identity/profile/environment regression tests.
+- [x] 1.1 Set family markers before extension loading while preserving product/profile identity.
+- [x] 1.2 Retire inherited Firstmate host claims and parent shell session metadata only at new interactive process boundaries, preserving same-process helpers.
+- [x] 1.3 Add focused identity/profile/environment regression tests.
 
 ## 2. Expose normal A1 through the packaged Pi-compatible launch contract
 
