@@ -1,3 +1,5 @@
+> Scope constraint: OpenSpec skills, generated OpenSpec/`opsx` commands and framework implementation, schemas, templates and lifecycle semantics remain unchanged. All guidance tasks below apply only to repository-owned delivery guidance; no direct edits, regeneration or indirect overrides are authorized. Framework-dependent outcomes require a separately approved scope.
+
 ## 1. Checkout-independent planning and authorization
 
 - [ ] 1.1 Define shared operation-scoped guidance and a lightweight one-outcome path; verify planning-only, edit-only, PR-delivery and material-refinement permission fixtures.
@@ -28,5 +30,6 @@
 
 - [ ] 5.1 Preserve protected exact-candidate merge and coherent hold/opt-out; verify stale/pending/ambiguous/bot authority stays rejected.
 - [ ] 5.2 Exclude authority-changing docs from unattended integration; verify complete diffs and rename sources while routine docs keep their route without hosting changes.
-- [ ] 5.3 Reconcile root/tool/skill/runbook/context and canonical guidance; verify resolvable owners and behavioral tests instead of repeated exact paragraphs.
+- [ ] 5.3 Reconcile repository-owned root/tool/change-delivery-skill/runbook/project-context and canonical project guidance without modifying or overriding OpenSpec skills or framework behavior; verify resolvable owners and behavioral tests instead of repeated exact paragraphs.
 - [ ] 5.4 Preserve metadata, aliases, historical readers and cleanup records with paired rollout guidance; verify standalone paths require no runtime or hosting migration.
+- [ ] 5.5 Preserve the OpenSpec boundary in repository-owned guidance and tooling; verify the complete diff (including additions, deletions and rename paths) leaves OpenSpec skills, generated commands and framework assets unchanged, guidance contains no indirect overrides, and framework-dependent outcomes are reported as separately scoped blockers.

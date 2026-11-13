@@ -594,3 +594,24 @@ Automation SHALL validate structure, objective evidence, finalization, and exact
 - **WHEN** an authorized human manually merges the exact validated head
 - **THEN** the conditional manifest SHALL become the durable acceptance record for its listed scenarios
 - **AND** no body checkbox edit, acceptance PR, archive PR, or later acceptance command SHALL be required
+
+## ADDED Requirements
+
+### Requirement: Workflow simplification preserves the OpenSpec framework
+
+Workflow simplification SHALL be limited to repository-owned delivery tooling and guidance around the unchanged OpenSpec framework. It SHALL NOT modify, regenerate, replace, or override OpenSpec skills (including `openspec-*`), generated OpenSpec/`opsx` commands, framework implementation, schemas, templates, or lifecycle semantics. Project-specific proposals, designs, tasks and specification deltas MAY be edited without granting framework-change authority. Repository guidance SHALL NOT shadow or override OpenSpec instructions. Any outcome requiring a framework change SHALL be reported as blocked and moved to a separate explicitly approved scope.
+
+#### Scenario: Repository delivery guidance is simplified
+- **WHEN** this change simplifies root instructions, the repository-owned delivery skill, runbooks or project context
+- **THEN** the changes SHALL use supported integration points without changing or overriding OpenSpec skills or framework behavior
+- **AND** project-specific planning artifacts SHALL remain distinct from protected framework assets
+
+#### Scenario: Implementation diff is reviewed
+- **WHEN** the implementation candidate is reviewed
+- **THEN** the complete diff, including additions, deletions and rename sources/destinations, SHALL leave protected OpenSpec skills, commands and framework assets unchanged
+- **AND** repository guidance SHALL be inspected for indirect overrides, not only changes to protected paths
+
+#### Scenario: Simplification would require a framework change
+- **WHEN** a proposed outcome cannot be delivered without changing or overriding OpenSpec
+- **THEN** the agent SHALL report that outcome as blocked and seek a separate explicitly approved scope
+- **AND** it SHALL NOT bundle the framework change into this delivery

@@ -8,9 +8,15 @@ Instructions require a planning worktree and worktree-local scratch. Runtime ent
 
 Goals: portable identity; operation-scoped authorization; preservation-based local disposal; coherent progress/readiness; one owning procedure per operation; compatibility for existing PRs and records.
 
-Non-goals: a new workflow framework, distributed editing locks, weaker checks, agent-armed implementation auto-merge, independent bot integration, release changes, private export, forced metadata migration or deleting actual user resources in tests.
+Non-goals: changes to or overrides of OpenSpec skills, generated commands or framework behavior; a new workflow framework, distributed editing locks, weaker checks, agent-armed implementation auto-merge, independent bot integration, release changes, private export, forced metadata migration or deleting actual user resources in tests.
 
 ## Decisions
+
+### OpenSpec remains unchanged
+
+OpenSpec skills and the OpenSpec framework are out of scope. Do not modify, regenerate, replace, or override `openspec-*` skills, generated OpenSpec/`opsx` commands, framework implementation, schemas, templates, or lifecycle semantics. Simplify only repository-owned delivery tooling and guidance around the unchanged framework. Project-specific proposal, design, tasks and specification deltas remain editable; that does not authorize framework changes. If an outcome requires changing OpenSpec, report the blocker and move that work to a separate explicitly approved scope instead of bundling it here.
+
+Repository-owned `change-delivery` guidance, root instructions, runbooks and project context may describe repository responsibilities and supported integration points, but must not shadow or override OpenSpec instructions. Existing framework requirements are not redundant repository rituals to remove. Review the complete implementation diff, including additions, deletions and rename sources/destinations, to verify protected OpenSpec assets remain unchanged; also inspect repository guidance for indirect overrides. Do not run skill regeneration as part of this change.
 
 ### Independent state and authorization
 
@@ -48,7 +54,7 @@ Use delivery-hold across promotion, finalization, automated branch refresh and a
 
 Retain current explicit one-shot protected expected-head merge and personally armed exact-candidate routes. Do not add deferred merge promises, bot implementation merges, bypasses or inferred permission. Keep routine docs integration active but exclude governance/agent/cleanup authority and privileged-policy instructions even under docs/Markdown paths. Classify complete rename sources/destinations and lifecycle association; respect hold/opt-out. Required checks, strictness and live workflow activation stay unchanged.
 
-Root/tool/generic skill instructions route to lifecycle/worktree/cleanup owners, without competing approval/inventory/archive authority. Remote commands use explicit repository identity; local examples use platform-appropriate paths. Preserve aliases, metadata and historical evidence. Downstream runtime adapters require a compatible released interface; standalone Git/repository operations do not require installing A1.
+Repository-owned root/tool instructions, `.agents/skills/change-delivery/SKILL.md`, runbooks and project context route to lifecycle/worktree/cleanup owners without duplicating repository procedures. OpenSpec skills and generated commands remain unchanged; this routing does not override their instructions or framework semantics. Remote commands use explicit repository identity; local examples use platform-appropriate paths. Preserve aliases, metadata and historical evidence. Downstream runtime adapters require a compatible released interface; standalone Git/repository operations do not require installing A1.
 
 ## Risks / Trade-offs
 

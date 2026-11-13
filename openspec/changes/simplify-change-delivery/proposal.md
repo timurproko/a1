@@ -11,6 +11,10 @@ Delivery ties remote planning and local checkout disposal to implementation and 
 - Replace per-outcome push barriers and lexical body gates with truthful checkpoints, material-scope approval, structural readiness and an explicit hold.
 - Preserve protected exact-candidate integration and legacy records; exclude authority-changing docs from unattended integration.
 
+## Scope boundary
+
+OpenSpec skills and the OpenSpec framework are out of scope. Do not modify, regenerate, replace, or override `openspec-*` skills, generated OpenSpec/`opsx` commands, framework implementation, schemas, templates, or lifecycle semantics. Simplify only repository-owned delivery tooling and guidance around the unchanged framework. Project-specific proposal, design, tasks and specification deltas remain editable; that does not authorize framework changes. If an outcome requires changing OpenSpec, report the blocker and move that work to a separate explicitly approved scope instead of bundling it here.
+
 ## Capabilities
 
 ### New Capabilities
@@ -27,4 +31,4 @@ None.
 
 ## Impact
 
-Lifecycle/CLI/composition/tool integration; scripts/governance cleanup, readiness/body and docs integration; focused tests; AGENTS.md, delivery skill, runbooks and OpenSpec context. This draft authorizes no implementation, hosting apply, workflow activation, branch deletion, merge, private export or existing PR migration.
+Lifecycle/CLI/composition/tool integration; scripts/governance cleanup, readiness/body and docs integration; focused tests; AGENTS.md, the repository-owned `.agents/skills/change-delivery/SKILL.md`, runbooks and project-specific OpenSpec context, without modifying or overriding framework assets. This draft authorizes no implementation, hosting apply, workflow activation, branch deletion, merge, private export or existing PR migration.
