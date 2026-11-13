@@ -31,7 +31,7 @@ import type {
 import type { PiSettingsBridge } from "./settings-bridge.js";
 import type { PiProjectTrustPreflightPrompt } from "./project-trust-preflight.js";
 import type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
-import { PiCommandDispatch, performEngineCommand, type AdapterCommandResult, type EngineCommandContext } from "./command-dispatch.js";
+import { PiCommandDispatch, performEngineCommand, type AdapterCommandResult } from "./command-dispatch.js";
 import { PiEventDelivery, type PiEmittedEvent } from "./event-delivery.js";
 import { PiExtensionUiBinding } from "./extension-ui-binding.js";
 import { PiPromptSuggestions } from "./prompt-suggestions.js";
@@ -207,7 +207,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
       },
       rebindBlocked: () => this.#delivery.overloaded || this.#admissionStopped || this.#disposed,
       sessionReplacing: () => { this.#commands.cancelPending(["new-session", "resume-session"]); },
-      sessionReplaced: session => { this.#sessionReplaced(session); },
+      sessionReplaced: session => this.#sessionReplaced(session),
       rebound: () => { this.#emitView(); },
       event: event => { this.#events.handle(event); },
       compactionProgress: percent => { this.#events.compactionProgress(percent); },
@@ -251,7 +251,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
       sessionGeneration: () => this.#engine.generation,
       beginRunning: () => { this.#runningCommands++; },
       endRunning: () => { this.#runningCommands--; this.#delivery.recovery.resume(); },
-      perform: command => performEngineCommand(command, this.#commandContext()),
+      perform: command => this.#performCommand(command),
       emit: value => { this.#emitEvent(value); },
       emitView: () => { this.#emitView(); },
       diagnostic: (severity, code, message, recoverable) => { this.#addDiagnostic(severity, code, message, recoverable); },
@@ -335,6 +335,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
   }
 
   async flushEvents(): Promise<void> {
+    if (this.#extensions.attached) await this.#extensions.settle();
     const failed = this.#delivery.failed;
     await this.#delivery.settle();
     if (failed || this.#delivery.failed || this.#disposed && this.#state.lifecycle !== "stopped") {
@@ -384,6 +385,21 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     };
     assertOwnedUiSnapshot(snapshot);
     return snapshot;
+  }
+
+  async #performCommand(command: OwnedUiCommand): Promise<void> {
+    if (this.#extensions.attached && (command.type === "prompt" || command.type === "steer" || command.type === "follow-up")) {
+      const generation = this.#engine.generation;
+      await this.#extensions.settle();
+      if (this.#disposed || generation !== this.#engine.generation) throw new Error("Session changed during extension startup");
+    }
+    await performEngineCommand(command, {
+      engine: this.#engine,
+      state: this.#state,
+      admissionOpen: () => !this.#delivery.overloaded && !this.#admissionStopped,
+      emit: value => { this.#emitEvent(value); },
+      dispose: () => this.dispose(),
+    });
   }
 
   execute(command: OwnedUiCommand): Promise<AdapterCommandResult> {
@@ -444,16 +460,6 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     }), naming };
   }
 
-  #commandContext(): EngineCommandContext {
-    return {
-      engine: this.#engine,
-      state: this.#state,
-      admissionOpen: () => !this.#delivery.overloaded && !this.#admissionStopped,
-      emit: value => { this.#emitEvent(value); },
-      dispose: () => this.dispose(),
-    };
-  }
-
   #requireWorkflowSession(): PiSessionApi {
     if (this.#disposed || !this.#engine.runtime || !this.#engine.session) throw new Error("engine adapter is not running");
     return this.#engine.session;
@@ -473,7 +479,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
   }
 
   // Invariant: the runtime already advanced the generation and subscribed; this rebuilds what the view derives from a session.
-  #sessionReplaced(session: PiSessionApi): void {
+  async #sessionReplaced(session: PiSessionApi): Promise<void> {
     this.naming.reset();
     this.#delivery.discardObsolete(this.#engine.generation);
     this.#commands.reset();
@@ -486,7 +492,9 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     // Invariant: a new binding cannot inherit arguments/results from a reused invocation id.
     this.#setTranscript([]);
     this.#setTranscript(this.#projection.rebuild(session.messages, "finalized"));
-    if (this.#extensions.attached) void this.#extensions.rebind();
+    // Invariant: clear the old presenter's generation-scoped surfaces before new startup hooks populate them.
+    this.#emitView();
+    if (this.#extensions.attached) await this.#extensions.rebind();
   }
 
   #reconcileActiveModelAvailability(): void {

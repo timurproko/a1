@@ -238,7 +238,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       sessionColor.start();
       releaseUpdates.start();
     },
-    flush: startupPromptFlush(backend, bare ? options.promptArguments : undefined),
+    flush: startupPromptFlush(backend, bare ? options.promptArguments : undefined, () => terminalHost.runtime.renderNow()),
     waitUntilStopped: () => presenter.waitUntilStopped(),
     dispose: async () => {
       naming.dispose();
@@ -263,13 +263,15 @@ async function compositionSettings(options: OwnedUiCompositionOptions, agentProv
   });
 }
 
-function startupPromptFlush(backend: ComposedSessionBackend, arguments_?: readonly string[]) {
+function startupPromptFlush(backend: ComposedSessionBackend, arguments_: readonly string[] | undefined, present: () => void) {
   let prompt = arguments_?.join(" ");
   return async () => {
     await backend.session.flushEvents();
     const text = prompt;
     prompt = undefined;
     if (text?.trim() && !backend.identity.disposed) {
+      // Invariant: startup extension notices get a frame before prompt submission clears transient presentation.
+      present();
       await backend.session.execute({ type: "prompt", correlationId: randomUUID(), sessionId: backend.identity.sessionId, text });
     }
   };

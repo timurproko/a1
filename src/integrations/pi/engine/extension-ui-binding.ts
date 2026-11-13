@@ -32,6 +32,22 @@ export class PiExtensionUiBinding {
   #extensionUi: ExtensionUIContext | undefined;
   #extensionShutdown: (() => void | Promise<void>) | undefined;
   #extensionBound = false;
+  readonly #bindings = new WeakMap<AgentSession, Promise<boolean>>();
+  // Invariant: a presenter transfer changes the UI target, not the extension session lifecycle.
+  readonly #forwardedUi = new Proxy({} as ExtensionUIContext, {
+    get: (_target, key) => {
+      const ui = this.#extensionUi;
+      if (ui === undefined) throw new Error("Extension UI is detached");
+      const value: unknown = Reflect.get(ui, key, ui);
+      return typeof value === "function" ? (...args: unknown[]) => {
+        const current = this.#extensionUi;
+        if (current === undefined) throw new Error("Extension UI is detached");
+        return Reflect.apply(Reflect.get(current, key, current) as (...arguments_: unknown[]) => unknown, current, args);
+      } : value;
+    },
+    ownKeys: () => Reflect.ownKeys(this.#extensionUi ?? {}),
+    getOwnPropertyDescriptor: () => ({ configurable: true, enumerable: true }),
+  });
 
   constructor(ports: PiExtensionUiBindingPorts) {
     this.#ports = ports;
@@ -72,18 +88,36 @@ export class PiExtensionUiBinding {
     this.#extensionBound = false;
   }
 
-  /** Bind the attached bridge to the current session, reporting failures as diagnostics. */
+  /** Wait for startup already admitted by the owned shell before accepting its initial prompt. */
+  async settle(): Promise<void> {
+    const session = this.#ports.session();
+    if (session !== undefined) await this.#bindings.get(session);
+  }
+
+  /** Bind once per session; pinned SDK reload already restores bindings and emits its own startup. */
   async rebind(): Promise<void> {
     const session = this.#ports.session();
-    const ui = this.#extensionUi;
-    if (session === undefined || ui === undefined || session.bindExtensions === undefined) {
+    if (session === undefined || this.#extensionUi === undefined || session.bindExtensions === undefined) {
       this.#extensionBound = false;
       return;
     }
+    let binding = this.#bindings.get(session);
+    if (binding === undefined) {
+      this.#extensionBound = false;
+      binding = this.#bindSession(session);
+      this.#bindings.set(session, binding);
+    }
+    const bound = await binding;
+    if (!bound) this.#bindings.delete(session);
+    if (this.#ports.session() === session) this.#extensionBound = bound && this.#extensionUi !== undefined;
+    this.#ports.emitView();
+  }
+
+  async #bindSession(session: AgentSession): Promise<boolean> {
     try {
       const runtime = this.#ports.runtime();
       await session.bindExtensions({
-        uiContext: ui,
+        uiContext: this.#forwardedUi,
         ...(runtime === undefined ? {} : {
           commandContextActions: {
             waitForIdle: () => session.waitForIdle(),
@@ -97,25 +131,25 @@ export class PiExtensionUiBinding {
             switchSession: async (path, options) => {
               try {
                 const result = await runtime.switchSession(path, options);
-                if (!result.cancelled) ui.notify("Resumed session", "info");
+                if (!result.cancelled) this.#forwardedUi.notify("Resumed session", "info");
                 return result;
               } catch (error) {
                 const recovery = missingSessionCwdRecovery(error);
                 if (recovery === undefined) throw error;
-                const selected = await ui.select(recovery.message, recovery.options.map(option => option.label));
+                const selected = await this.#forwardedUi.select(recovery.message, recovery.options.map(option => option.label));
                 const choice = recovery.options.find(option => option.label === selected)?.id;
                 const cwd = recovery.cwdRecovery.fallbackCwd;
                 if (choice === "fork") {
                   const result = await switchToRecoveredFork(runtime, path, cwd, options);
-                  if (!result.cancelled) ui.notify(result.message, "info");
+                  if (!result.cancelled) this.#forwardedUi.notify(result.message, "info");
                   return { cancelled: result.cancelled };
                 }
                 if (choice === "continue") {
                   const result = await runtime.switchSession(path, { ...options, cwdOverride: cwd });
-                  if (!result.cancelled) ui.notify(`Resumed session in ${cwd}`, "info");
+                  if (!result.cancelled) this.#forwardedUi.notify(`Resumed session in ${cwd}`, "info");
                   return result;
                 }
-                ui.notify("Resume cancelled", "info");
+                this.#forwardedUi.notify("Resume cancelled", "info");
                 return { cancelled: true };
               }
             },
@@ -131,12 +165,11 @@ export class PiExtensionUiBinding {
           this.#ports.emitView();
         },
       });
-      this.#extensionBound = true;
-      this.#ports.emitView();
+      return true;
     } catch (error) {
-      this.#extensionBound = false;
       this.#ports.diagnostic("error", "extension-ui-bind", error instanceof Error ? error.message : String(error), true);
       this.#ports.emitView();
+      return false;
     }
   }
 }

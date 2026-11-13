@@ -16,19 +16,29 @@ A1 SHALL ship a separately named Pi-compatible entry and a real executable pi sh
 - **THEN** executable resolution SHALL select the packaged A1-compatible entry for both without changing global Pi resolution
 
 ### Requirement: Bounded invocation and discovery are truthful
-The compatibility entry SHALL honor positional instructions and the literal boundary, model/provider/thinking, repeated explicit extensions, session selection/storage and tool exclusions. It SHALL preserve prompt bytes within the existing bounded payload and fail clearly for unsupported, missing or oversized input. It SHALL expose truthful help/version and real available-model listing without an interactive session or LLM request. Optional trust/display flags SHALL NOT be advertised without implementation. Extension flags SHALL require an actual loaded registration.
+The compatibility entry SHALL honor positional instructions and the literal boundary, model/provider/thinking, repeated explicit extensions, session selection/storage and tool exclusions. It SHALL preserve prompt bytes within the existing bounded payload and fail clearly for unsupported, missing or oversized input. It SHALL expose truthful help/version and real available-model listing without an interactive session or LLM request. Optional trust/display flags SHALL NOT be advertised without implementation. Extension flags SHALL require an actual loaded registration. While Firstmate's primary extension publishes live loaded markers from its factory, a catalog invocation carrying Firstmate operational home/root/state selectors or inherited native-host claims SHALL fail explicitly before loading any extension factory rather than risk replacing a live session marker.
 
 #### Scenario: Explicit worker invocation
 - **WHEN** Firstmate supplies a complete positional instruction with model/provider/effort, extensions and excluded tools
 - **THEN** normal A1 SHALL receive the complete instruction once after successful startup and honor each selection through the real packaged launch path
 - **AND** invocation model/effort SHALL override resumed state without rewriting saved defaults
 
+#### Scenario: Firstmate-scoped catalog probe
+- **WHEN** catalog discovery inherits Firstmate operational selectors or native-host claims while factory-time marker publication remains present
+- **THEN** the compatibility entry SHALL refuse with focused lifecycle guidance before loading factories or touching live markers
+- **AND** it SHALL NOT report a successful catalog response or silently substitute a different profile
+
 #### Scenario: Unsupported selected release
 - **WHEN** the ultimately selected retained UI lacks authenticated support for compatibility options
 - **THEN** launch SHALL fail before rendering rather than drop options, forward unknown arguments, or retry without instructions
 
 ### Requirement: Real extension lifecycle retains owned UI and task isolation
-A1 SHALL preserve Firstmate's required public event bus, custom tools/renderers, status/widgets/notices and input delivery inside the owned UI. Startup context SHALL reach the model once. Agent start, turn end and logical settlement SHALL remain distinct. Queued follow-ups, steering and replacement SHALL retain their SDK meaning without duplicate supervision or lost pending notifications. Attached built-in tools SHALL use the task copy while independent helpers retain their intended operational cwd.
+A1 SHALL preserve Firstmate's required public event bus, custom tools/renderers, status/widgets/notices and input delivery inside the owned UI. Startup context SHALL reach the model once. Agent start, turn end and logical settlement SHALL remain distinct. Queued follow-ups, steering and replacement SHALL retain their SDK meaning without duplicate supervision or lost pending notifications. Attached built-in tools SHALL use the task copy while independent helpers retain their intended operational cwd. Asynchronous extension startup SHALL finish before an owned initial prompt or replacement callback is admitted. Reattaching the owned UI SHALL update its target without replaying session startup, and SDK reload SHALL retain its single startup event. Generation-scoped UI reset SHALL precede replacement startup widgets and notices.
+
+#### Scenario: Initial prompt waits for startup
+- **WHEN** a loaded extension's session startup is asynchronous and an initial literal prompt is supplied
+- **THEN** A1 SHALL await startup and present its startup surfaces before submitting that prompt once
+- **AND** extension-provided startup context SHALL reach the model through the real session hooks
 
 #### Scenario: Replace a supervised session
 - **WHEN** a session is replaced or reloaded

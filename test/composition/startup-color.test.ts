@@ -12,7 +12,7 @@ vi.mock("../../src/integrations/pi/engine/host.js", () => ({ createPiEngineHost:
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
 vi.mock("../../src/app/session-shell/session-shell.js", () => ({
   sessionTerminalHostOptions: () => ({}),
-  OwnedUiTerminalHost: class { attach() {} async dispose() {} },
+  OwnedUiTerminalHost: class { readonly runtime = { renderNow() {} }; attach() {} async dispose() {} },
   OwnedUiSessionPresenter: class { start() { painted.frames.push(painted.color); } },
 }));
 let root = "";
