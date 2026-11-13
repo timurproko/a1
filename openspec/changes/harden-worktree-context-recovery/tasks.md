@@ -1,9 +1,9 @@
 ## 1. Keep authoritative worktree identity independent of inherited Git redirection
 
-- [ ] 1.1 Add a narrowly scoped Git environment policy for explicitly rooted lifecycle worktree operations without mutating unrelated environment.
-- [ ] 1.2 Reject non-repository startup attachment with an actionable diagnostic while preserving prior context and claims.
-- [ ] 1.3 Add isolated Git regressions for temporary overrides, foreign identities, valid attachments, entry behavior and atomic rejection.
-- [ ] 1.4 Document startup repository requirements and environment-independent validation.
+- [x] 1.1 Add a narrowly scoped Git environment policy for explicitly rooted lifecycle worktree operations without mutating unrelated environment.
+- [x] 1.2 Reject non-repository startup attachment with an actionable diagnostic while preserving prior context and claims.
+- [x] 1.3 Add isolated Git regressions for temporary overrides, foreign identities, valid attachments, entry behavior and atomic rejection.
+- [x] 1.4 Document startup repository requirements and environment-independent validation.
 
 ## 2. Provide explicit session-bound detach when ordinary tools cannot resolve their cwd
 

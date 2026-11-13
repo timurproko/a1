@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
+import { worktreeGitEnvironment } from "./worktree-git-environment.js";
 import {
   detachSessionRepositoryContextForCompletion, readActiveSessionRepositoryContext, readSessionStartupRoot,
   sessionWorktreeClaimState, sessionWorktreeCompletionPath,
@@ -199,7 +200,7 @@ async function readRecord(path: string): Promise<CompletionRecord | null> {
 async function execute(command: string, arguments_: readonly string[], cwd: string, signal?: AbortSignal): Promise<string> {
   const { execFile } = await import("node:child_process");
   const { stdout } = await promisify(execFile)(command, [...arguments_], {
-    cwd, encoding: "utf8", windowsHide: true, timeout: CLEANUP_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024, signal,
+    cwd, env: worktreeGitEnvironment(), encoding: "utf8", windowsHide: true, timeout: CLEANUP_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024, signal,
   });
   return stdout;
 }

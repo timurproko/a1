@@ -7,6 +7,7 @@ import type { ProcessIdentity } from "./model.js";
 import { inspectLiveProcess } from "./process-liveness.js";
 import { resolveProductPaths } from "./paths.js";
 import { withSessionClaimSnapshot, withSessionClaimLock } from "./session-claim-lock.js";
+import { rethrowStartupGitFailure, worktreeGitEnvironment } from "./worktree-git-environment.js";
 
 const CONTEXT_SCHEMA = "a1-session-repository-context-v1";
 const RUNTIME_SCHEMA = "a1-session-runtime-v1";
@@ -189,7 +190,7 @@ export async function setSessionRepositoryContext(
   options: SessionRepositoryContextOptions = {},
 ): Promise<SessionRepositoryContext> {
   const header = await readSessionHeader(identity);
-  const startup = await readGitWorktreeIdentity(header.cwd, false, options.signal);
+  const startup = await readGitWorktreeIdentity(header.cwd, false, options.signal).catch(rethrowStartupGitFailure);
   const selected = await readGitWorktreeIdentity(worktreePath, true, options.signal);
   if (!samePath(startup.commonDir, selected.commonDir)) {
     throw contextError("associated worktree belongs to a different Git repository", "worktree-foreign-repository");
@@ -374,7 +375,7 @@ export async function listSessionRepositoryWorktrees(
   const header = await readSessionHeader(identity);
   const owner = { runtimeId: requireRuntimeId(options), agentId: requireAgentId(options) };
   await requireLiveRuntime(header, owner, options);
-  const startup = await readGitWorktreeIdentity(header.cwd, false, options.signal);
+  const startup = await readGitWorktreeIdentity(header.cwd, false, options.signal).catch(rethrowStartupGitFailure);
   const worktrees = await listGitWorktrees(startup.root, startup.commonDir, options.signal);
   if (worktrees.length > MAX_WORKTREES) throw contextError("worktree inventory exceeds its bounded limit", "worktree-inventory-limit");
   return await withSessionClaimSnapshot(claimStoreRoot(options), options, async () => {
@@ -836,7 +837,7 @@ async function executeGit(
 ): Promise<{ readonly stdout: string }> {
   const { execFile } = await import("node:child_process");
   const execute = promisify(execFile);
-  return await execute("git", [...arguments_], { cwd, windowsHide: true, timeout: GIT_TIMEOUT_MS, maxBuffer, encoding: "utf8", signal });
+  return await execute("git", [...arguments_], { cwd, env: worktreeGitEnvironment(), windowsHide: true, timeout: GIT_TIMEOUT_MS, maxBuffer, encoding: "utf8", signal });
 }
 
 async function withClaimLock<T>(options: SessionRepositoryContextOptions, operation: () => Promise<T>): Promise<T> {
