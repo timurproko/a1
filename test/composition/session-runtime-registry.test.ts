@@ -6,11 +6,14 @@ const context = vi.hoisted(() => ({
   register: vi.fn(async (..._args: unknown[]) => {}),
   release: vi.fn(async (..._args: unknown[]) => {}),
   releaseInvalid: vi.fn(async (..._args: unknown[]) => null as { worktreeRoot: string; startupRoot: string } | null),
+  clear: vi.fn(async (..._args: unknown[]) => {}),
+  startup: vi.fn(async (..._args: unknown[]) => "/startup"),
 }));
 vi.mock("../../src/foundation/lifecycle/session-repository-context.js", () => ({
   activateSessionRepositoryContext: context.activate,
   readActiveSessionRepositoryContext: context.observe,
-  readSessionStartupRoot: async () => "/startup",
+  readSessionStartupRoot: context.startup,
+  clearSessionRepositoryContext: context.clear,
   registerSessionRepositoryRuntime: context.register,
   releaseSessionRepositoryRuntime: context.release,
   releaseInvalidSessionRepositoryContext: context.releaseInvalid,
@@ -189,6 +192,82 @@ describe("SessionRuntimeRegistry", () => {
     expect(await tool("s1", "/s1.jsonl", signal)).toBe("/startup");
     context.observe.mockRejectedValueOnce(invalid);
     await expect(tool("s1", "/s1.jsonl", signal)).rejects.toBe(invalid);
+    await registry.dispose();
+  });
+
+  it("detaches before activation without reading Git context and scopes clearing to the bound agent", async () => {
+    const registry = new SessionRuntimeRegistry({ runtimeId: "runtime-1", inspectProcess: async () => owner });
+    const tool = registry.toolReaderFor("agent-2"), signal = new AbortController().signal;
+    try {
+      expect(await tool.detach("s2", "/s2.jsonl", signal)).toBe("/startup");
+      expect(context.activate).not.toHaveBeenCalled();
+      expect(context.observe).not.toHaveBeenCalled();
+      expect(context.register).toHaveBeenCalledWith({ sessionId: "s2", sessionFile: "/s2.jsonl" }, "runtime-1", owner, expect.objectContaining({ agentId: "agent-2", runtimeId: "runtime-1" }));
+      expect(context.clear).toHaveBeenCalledExactlyOnceWith({ sessionId: "s2", sessionFile: "/s2.jsonl" }, expect.objectContaining({ agentId: "agent-2", runtimeId: "runtime-1" }));
+      context.observe.mockResolvedValue(null);
+      expect(await tool("s2", "/s2.jsonl", signal)).toBe("/startup");
+      expect(context.activate).not.toHaveBeenCalled();
+    } finally { await registry.dispose(); }
+  });
+
+  it("recovers after strict lookup fails and clears an obsolete invalid-target notice", async () => {
+    const registry = new SessionRuntimeRegistry({ runtimeId: "runtime-1", inspectProcess: async () => owner });
+    const tool = registry.toolReaderFor(undefined), signal = new AbortController().signal;
+    try {
+      context.observe.mockRejectedValueOnce(new Error("startup is not a Git repository"));
+      await expect(tool("s1", "/s1.jsonl", signal)).rejects.toThrow("not a Git repository");
+      expect(await tool.detach("s1", "/s1.jsonl", signal)).toBe("/startup");
+      const invalid = Object.assign(new Error("gone"), { code: "worktree-attachment-invalid" });
+      context.observe.mockRejectedValueOnce(invalid).mockResolvedValue(null);
+      context.releaseInvalid.mockResolvedValueOnce({ worktreeRoot: "/lost", startupRoot: "/startup" });
+      await registry.readerFor(undefined)("s1", "/s1.jsonl", signal);
+      await tool.detach("s1", "/s1.jsonl", signal);
+      expect(await tool("s1", "/s1.jsonl", signal)).toBe("/startup");
+    } finally { await registry.dispose(); }
+  });
+
+  it("does not report successful detach or redirect tools when clearing fails", async () => {
+    const registry = new SessionRuntimeRegistry({ runtimeId: "runtime-1", inspectProcess: async () => owner });
+    const tool = registry.toolReaderFor(undefined), signal = new AbortController().signal;
+    try {
+      await tool("s1", "/s1.jsonl", signal);
+      context.observe.mockRejectedValue(new Error("uncertain startup"));
+      context.clear.mockRejectedValueOnce(new Error("clear denied"));
+      await expect(tool.detach("s1", "/s1.jsonl", signal)).rejects.toThrow("clear denied");
+      await expect(tool("s1", "/s1.jsonl", signal)).rejects.toThrow("uncertain startup");
+    } finally { await registry.dispose(); }
+  });
+
+  it("keeps recovery bounded to a live runtime and honors cancellation before mutation", async () => {
+    const registry = new SessionRuntimeRegistry({ runtimeId: "runtime-1", inspectProcess: async () => null });
+    const tool = registry.toolReaderFor(undefined), controller = new AbortController();
+    try {
+      controller.abort();
+      await expect(tool.detach("s1", "/s1.jsonl", controller.signal)).rejects.toThrow();
+      await expect(tool.detach("s1", "/s1.jsonl", new AbortController().signal)).rejects.toMatchObject({ code: "session-runtime-unverifiable" });
+      expect(context.register).not.toHaveBeenCalled();
+      expect(context.clear).not.toHaveBeenCalled();
+    } finally { await registry.dispose(); }
+    await expect(tool.detach("s1", "/s1.jsonl", new AbortController().signal)).rejects.toThrow("not active");
+  });
+
+  it.each(["replacement", "cancellation", "disposal"])("stops a delayed detach before mutation on %s", async transition => {
+    const registry = new SessionRuntimeRegistry({ runtimeId: "runtime-1", inspectProcess: async () => owner });
+    const tool = registry.toolReaderFor(undefined), controller = new AbortController();
+    let resume!: (cwd: string) => void;
+    context.startup.mockImplementationOnce(() => new Promise(resolve => { resume = resolve; }));
+    const detached = tool.detach("s1", "/s1.jsonl", controller.signal);
+    const rejected = expect(detached).rejects.toThrow();
+    await vi.waitFor(() => expect(context.startup).toHaveBeenCalledOnce());
+    const next = transition === "replacement" ? registry.readerFor(undefined)("s2", "/s2.jsonl", new AbortController().signal) : null;
+    const disposed = transition === "disposal" ? registry.dispose() : null;
+    if (transition === "cancellation") controller.abort();
+    resume("/startup");
+    await rejected;
+    await next;
+    await disposed;
+    expect(context.clear).not.toHaveBeenCalled();
+    expect(context.register).not.toHaveBeenCalled();
     await registry.dispose();
   });
 

@@ -22,7 +22,7 @@ import {
 import { openSelectedPiSession, resolveSessionArgumentPath, takeSelectedSessionWriter, type PiSessionForkPrompt, type PiSessionSelection } from "./session-selection.js";
 import { markStartupPhase, type StartupPhase } from "../../../foundation/startup/startup-runtime.js";
 import { createWindowsNulCleanupExtension } from "./windows-filesystem-hygiene.js";
-import { createSessionWorktreeTools, type PiWorktreeCwdReader } from "./worktree-tools.js";
+import type { PiWorktreeCwdReader } from "./worktree-tools.js";
 import {
   acquireSessionWriter,
   type SessionWriterHandle,
@@ -227,10 +227,14 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
         services,
         sessionManager: targetSessionManager,
         ...(options.worktreeCwdReader === undefined ? {} : {
-          customTools: createSessionWorktreeTools(cwd, signal => options.worktreeCwdReader!(
+          // Performance: comparison and non-claiming runtimes do not load attachment/recovery definitions.
+          customTools: (await import("./worktree-tools.js")).createSessionWorktreeTools(cwd, signal => options.worktreeCwdReader!(
             targetSessionManager.getSessionId(), targetSessionManager.getSessionFile()!,
             signal ?? options.signal ?? new AbortController().signal,
           ), options.worktreeCwdReader.settleShell === undefined ? undefined : signal => options.worktreeCwdReader!.settleShell!(
+            targetSessionManager.getSessionId(), targetSessionManager.getSessionFile()!,
+            signal ?? options.signal ?? new AbortController().signal,
+          ), options.worktreeCwdReader.detach === undefined ? undefined : signal => options.worktreeCwdReader!.detach!(
             targetSessionManager.getSessionId(), targetSessionManager.getSessionFile()!,
             signal ?? options.signal ?? new AbortController().signal,
           )).filter(tool => !services.resourceLoader.getExtensions().extensions.some(extension => extension.tools.has(tool.name))),
