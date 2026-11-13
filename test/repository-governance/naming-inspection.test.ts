@@ -71,6 +71,15 @@ describe("internal naming syntax policy", () => {
     expect(inspect('value: [', "yaml").internal.some(value => value.rule === "NAME002")).toBe(true);
   });
 
+  it("inspects the declared extensionless Pi shim as shell without admitting arbitrary bin sources", () => {
+    const path = "bin/pi-compatible/pi";
+    expect(namingSourceRole(path)).toBe("shell");
+    expect(inspectNamingSource(path, '#!/bin/sh\nexec node "$basedir/../pi-compatible.js" "$@"\n', policy).internal).toEqual([]);
+    expect(inspectNamingSource(path, '#!/bin/sh\nexport A1_PRIVATE_ROOT=value\n', policy).internal).toEqual(expect.arrayContaining([expect.objectContaining({ identifier: "A1_PRIVATE_ROOT" })]));
+    expect(namingSourceRole("bin/unknown-entry")).toBe("unsupported");
+    expect(namingSourceRole("bin/pi-compatible/pi.unknown")).toBe("unsupported");
+  });
+
   it.each(["ps1", "psm1"])("inspects PowerShell %s environment boundaries and hyphenated declarations", extension => {
     expect(namingSourceRole(`scripts/worker.${extension}`)).toBe("shell");
     expect(inspect('$env:A1_PRIVATE_ROOT = "path"', extension).internal.length).toBeGreaterThan(0);

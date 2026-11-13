@@ -54,6 +54,7 @@ export {
   parseSkillBlock,
   rawKeyHint,
   resolveModelScopeWithDiagnostics,
+  resolveCliModel,
 } from "@earendil-works/pi-coding-agent";
 
 export type * from "@earendil-works/pi-coding-agent";

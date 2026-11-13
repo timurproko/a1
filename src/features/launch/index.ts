@@ -9,6 +9,7 @@ export type { InteractiveLaunchIntent, LaunchIntent, LaunchProfileId, SessionSel
 export { configurationRootForProfile, resolveLaunchProfilePaths, resolvePromptHistoryDataDir } from "./profile-paths.js";
 export type { LaunchProfilePathOptions, LaunchProfilePaths } from "./profile-paths.js";
 export { prepareInteractiveLaunch } from "./prepare-launch.js";
+export { initializeInteractiveProcessIdentity } from "./process-identity.js";
 export type { PrepareInteractiveLaunchOptions, PreparedInteractiveLaunch } from "./prepare-launch.js";
 export { PRIMARY_SESSION_AGENT_ID, updateSessionRepositoryContext } from "./session-context.js";
 export type { SessionContextOutcome, SessionContextRequest, SessionContextRuntime } from "./session-context.js";
