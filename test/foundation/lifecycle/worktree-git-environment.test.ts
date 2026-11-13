@@ -13,7 +13,7 @@ describe("worktree Git environment policy", () => {
     const retained = {
       PATH: "/bin", HOME: "/home/user", GIT_SSH_COMMAND: "ssh -F config", GIT_ASKPASS: "askpass",
       GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "credential.helper", GIT_CONFIG_VALUE_0: "manager",
-      GIT_CONFIG_GLOBAL: "/home/user/.gitconfig", GIT_TERMINAL_PROMPT: "0", A1_DATA_DIR: "/a1",
+      GIT_CONFIG_GLOBAL: "/home/user/.gitconfig", GIT_TERMINAL_PROMPT: "0", UNRELATED_SETTING: "retained",
     };
     const environment = Object.freeze({ ...overrides, ...retained });
     expect(worktreeGitEnvironment(environment, "linux")).toEqual(retained);
