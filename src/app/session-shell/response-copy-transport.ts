@@ -15,7 +15,7 @@ export interface ResponseCopyJob {
 }
 export type CopyPhaseObserver = (phase: "extracted" | "encoded" | "submitting", bytes: number, transport: "native" | "terminal" | "platform" | "injected") => void;
 export type ResponseCopyExecutor = (snapshot: SelectionCopySnapshot, phase: CopyPhaseObserver) => ResponseCopyJob;
-/** The production executor also holds a spare helper; the owner warms it at start and disposes it at shutdown unless the pool is shared. */
+/** Owns a spare helper warmed at start and disposed at shutdown, unless shared. */
 export interface OwnedResponseCopyExecutor extends ResponseCopyExecutor {
   warm(): void;
   dispose(): void;
@@ -155,7 +155,7 @@ export function createResponseCopyExecutor(options: {
   }) as OwnedResponseCopyExecutor;
 }
 
-/** A spare-of-one pool of copy helpers; `createResponseCopyExecutor` takes its child and warms the next one after each copy. */
+/** Keeps one spare; the executor takes it and warms its replacement after each copy. */
 export function createCopyHelperPool(helper?: URL, idleMs?: number): HelperPool {
   return new HelperPool({ fork: () => forkCopyHelper(helper), stop: stopCopyHelper, ...(idleMs === undefined ? {} : { idleMs }) });
 }
