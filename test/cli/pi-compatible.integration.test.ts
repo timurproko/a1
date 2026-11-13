@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
+import { PRODUCT_IDENTITY } from "../../src/product-identity.js";
 
 const execute = promisify(execFile), roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))); });
@@ -80,6 +81,6 @@ describe("actual compatibility executable", () => {
     const result = await execute("bash", ["-c", 'export PATH="$(pwd -P)/bin/pi-compatible:$PATH"; type -P pi && pi --version'], { env: f.env, timeout: 15_000 });
     expect(result.stdout.replaceAll("\\", "/")).toContain("/bin/pi-compatible/pi");
     expect(result.stdout).toContain("Pi-compatible owned runtime");
-    expect(JSON.parse(await readFile("package.json", "utf8")).bin).toEqual({ a1: "bin/cli.js" });
+    expect(JSON.parse(await readFile("package.json", "utf8")).bin).toEqual({ [PRODUCT_IDENTITY.commandName]: PRODUCT_IDENTITY.artifacts.cliEntry });
   });
 });
