@@ -22,3 +22,5 @@ Retained release compatibility must not mistake an old startup parser for suppor
 ## Evidence
 
 Initial inspection: A1 0.2.7-dev at 41ab0cfa, pinned Pi 1.5.2. Firstmate branch fix/pi-windows-session-identity clean at a0d4b2072e09e2236891531a0034f622260b23bc. Cleanup sweep: nothing handed off, nothing to prune. Task attached through a1 worktree enter feature/firstmate-pi-compatibility.
+
+Outcome 1: family markers are prepared for both profiles; only bin/ui.js calls independent-host identity initialization before loading any Pi modules. It removes inherited FM_PI_SESSION_PID/START and shell session metadata, with Windows case handling. No in-process SDK session/helper path calls it. Build, source/bin typecheck, 7 focused launch/profile tests, strict OpenSpec validation and architecture/writer/product/ledger checks passed. A type inference defect found after the outcome commit was corrected in a separate follow-up. Firstmate native ownership and live metadata changes remain for real integration acceptance.
