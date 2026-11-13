@@ -78,8 +78,57 @@ describe("official Pi runtime integration", () => {
       expect(attached.session.getActiveToolNames().sort()).toEqual(ordinary.session.getActiveToolNames().sort());
       expect(attached.session.getToolDefinition("read")?.defaultActive).toBe(false);
       expect(ordinary.session.getToolDefinition("read")?.defaultActive).not.toBe(false);
+      expect(ordinary.session.getToolDefinition("worktree_detach")).toBeUndefined();
+      expect(attached.session.getToolDefinition("worktree_detach")).toBeUndefined();
     } finally { await ordinary.dispose(); await attached.dispose(); }
   });
+  it("binds recovery to the current session across replacement without invoking ordinary cwd lookup", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-worktree-recovery-runtime-")); roots.push(root);
+    const read = vi.fn(async () => { throw new Error("invalid startup Git identity"); });
+    const detach = vi.fn(async (..._args: unknown[]) => root);
+    const runtime = await createPiRuntimeIntegration({ cwd: root, agentDir: resolve(root, "agent"), worktreeCwdReader: Object.assign(read, { detach }) });
+    try {
+      const recover = async () => {
+        expect(runtime.session.getActiveToolNames()).toContain("worktree_detach");
+        const result = await runtime.session.getToolDefinition("worktree_detach")!.execute("recover", {}, undefined, undefined, {} as never);
+        expect(result.details).toEqual({ cwd: root });
+        expect(detach).toHaveBeenLastCalledWith(runtime.session.sessionId, runtime.session.sessionManager.getSessionFile(), expect.any(AbortSignal));
+      };
+      const first = runtime.session.sessionId;
+      await recover();
+      await replacePiRuntimeSession(runtime, { kind: "new" });
+      expect(runtime.session.sessionId).not.toBe(first);
+      await recover();
+      expect(detach).toHaveBeenCalledTimes(2);
+      expect(read).not.toHaveBeenCalled();
+    } finally { await runtime.dispose(); }
+  });
+
+  it("honors recovery tool exclusion", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-worktree-recovery-exclusion-")); roots.push(root);
+    const detach = vi.fn(async () => root);
+    const runtime = await createPiRuntimeIntegration({ cwd: root, agentDir: resolve(root, "agent"),
+      worktreeCwdReader: Object.assign(async () => root, { detach }), runtimeOptions: { excludeTools: ["worktree_detach"] } });
+    try {
+      expect(runtime.session.getToolDefinition("worktree_detach")).toBeUndefined();
+      expect(runtime.session.getActiveToolNames()).not.toContain("worktree_detach");
+      expect(detach).not.toHaveBeenCalled();
+    } finally { await runtime.dispose(); }
+  });
+
+  it("preserves an extension's recovery-name override instead of replacing it", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-worktree-recovery-override-")); roots.push(root);
+    const agentDir = resolve(root, "agent"), extensions = resolve(agentDir, "extensions");
+    await mkdir(extensions, { recursive: true });
+    await writeFile(resolve(extensions, "override.ts"), `export default function (pi) { pi.registerTool({ name: "worktree_detach", label: "Fixture", description: "fixture override", parameters: { type: "object", properties: {} }, execute: async () => ({ content: [{ type: "text", text: "fixture" }], details: {} }) }); }`);
+    const detach = vi.fn(async () => root);
+    const runtime = await createPiRuntimeIntegration({ cwd: root, agentDir, worktreeCwdReader: Object.assign(async () => root, { detach }) });
+    try {
+      expect(runtime.session.getToolDefinition("worktree_detach")?.description).toBe("fixture override");
+      expect(detach).not.toHaveBeenCalled();
+    } finally { await runtime.dispose(); }
+  });
+
   it.each(["runtime", "adapter"])("releases selected writer ownership through ordinary %s disposal", async owner => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-writer-disposal-")); roots.push(root);
     const saved = await writeResumeFixture(resolve(root, "sessions"), root);

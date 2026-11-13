@@ -12,6 +12,12 @@ Worktree commands own bounded retries; agents do not implement a recovery prefli
 
 Inventory reads editing claims under a bounded consistent snapshot and does not repair or acquire them. Ordinary global coordination contention produces internal waiting or an operation-level contention diagnostic, never a blanket unverifiable-ownership result for every worktree.
 
+## Explicit attachment recovery
+
+If startup or attachment validation blocks every ordinary tool, a bash request to run `a1 worktree detach` is blocked before the CLI starts. In a claim-owning bare session, ask the agent to invoke the dedicated `worktree_detach` tool instead. It accepts no arguments and runs sequentially without ordinary cwd resolution or Git validation. A1 verifies the current session/runtime, clears only its association and owner claims, and reports the original startup directory for later tools. No source, branch, worktree, history or foreign claim is deleted. Tool exclusions and extension overrides still apply; comparison sessions do not expose this tool.
+
+The CLI detach implementation also skips Git checkout validation, but requires the exact active shell-tool session environment. Do not fabricate another session's identity in an unrelated terminal, remove coordination files, or set Git directory/worktree overrides to force attachment. Automatic recovery still retains uncertain startup state: explicit recovery is a deliberate request, not permission for ordinary writes to fall back silently.
+
 ## Older lock files and mixed versions
 
 An existing regular-file `mutation.lock` belongs to the old protocol. Updated A1 cannot safely prove that no old writer/reclaimer is using it, even if a PID in the file is dead. It therefore retains the file and reports `worktree-legacy-recovery-required` rather than guessing or endlessly reporting generic busy.
@@ -35,5 +41,6 @@ When the old gate is absent, updated A1 initializes its compatibility barrier au
 | `worktree-owner-unverifiable` | The editing claim itself is uncertain. Gate recovery cannot make that claim available. |
 | `worktree-attachment-invalid` | The attached checkout is gone or replaced. A1 released this session's attachment; retry the call from the startup checkout. |
 | `worktree-not-attached` / `worktree-content` | Completion needs an attached checkout without uncommitted or untracked content. Nothing was changed. |
+| `worktree-startup-not-repository` | Start a new session inside the repository before enter/attach. A shell `cd` does not change the original session startup directory; Git directory/worktree overrides cannot establish a different startup identity. |
 
 Diagnostics do not expose another session's process identity, session file, transcript, or credentials. The mechanism does not repair arbitrary damaged claim records, change tool cwd, or grant Git/cleanup authority.

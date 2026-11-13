@@ -31,10 +31,7 @@ export class SessionRuntimeRegistry {
     return async (sessionId: string, sessionFile: string, signal: AbortSignal) => {
       const { runtimeId, inspectProcess } = this.#options;
       if (this.#disposed || runtimeId === undefined || inspectProcess === undefined) return null;
-      const previous = this.#identities.get(agentId);
-      const identity = previous?.sessionId === sessionId && previous.sessionFile === sessionFile
-        ? previous : { sessionId, sessionFile };
-      this.#identities.set(agentId, identity);
+      const identity = this.#bind(agentId, sessionId, sessionFile);
       // Invariant: initial activation or inspection failure must not disable retries.
       this.#arm();
       return await this.#enqueue(async () => {
@@ -113,7 +110,40 @@ export class SessionRuntimeRegistry {
         const { readSessionStartupRoot } = await import("../foundation/lifecycle/session-repository-context.js");
         return await readSessionStartupRoot({ sessionId, sessionFile });
       }, 8_000, signal);
-    }, { settleShell });
+    }, { settleShell, detach: (sessionId: string, sessionFile: string, signal: AbortSignal) => this.#detach(agentId, sessionId, sessionFile, signal) });
+  }
+
+  // Invariant: explicit recovery verifies the owner, not Git; normal cwd lookup may be broken.
+  async #detach(agentId: string | undefined, sessionId: string, sessionFile: string, signal: AbortSignal): Promise<string> {
+    signal.throwIfAborted();
+    const { runtimeId, inspectProcess } = this.#options;
+    if (this.#disposed || runtimeId === undefined || inspectProcess === undefined) throw new Error("worktree runtime is not active");
+    const identity = this.#bind(agentId, sessionId, sessionFile);
+    this.#arm();
+    const combined = AbortSignal.any([signal, this.#abort.signal]);
+    const assertCurrent = () => {
+      combined.throwIfAborted();
+      if (!this.#current(agentId, identity)) throw new Error("worktree session changed before detach completed");
+    };
+    const { retrySessionCoordination } = await import("../foundation/lifecycle/session-context-retry.js");
+    return await retrySessionCoordination(() => this.#enqueue(async () => {
+      assertCurrent();
+      const owner = await this.#ownerIdentity();
+      assertCurrent();
+      if (owner === null) throw Object.assign(new Error("worktree runtime identity cannot be verified"), { code: "session-runtime-unverifiable" });
+      const { clearSessionRepositoryContext, readSessionStartupRoot, registerSessionRepositoryRuntime } = await import("../foundation/lifecycle/session-repository-context.js");
+      const options = { runtimeId, inspectProcess, signal: combined, ...(agentId === undefined ? {} : { agentId }) };
+      const startup = await readSessionStartupRoot(identity);
+      assertCurrent();
+      // Invariant: recovery also works before activation or after a lost registration, without Git reads.
+      await registerSessionRepositoryRuntime(identity, runtimeId, owner, options);
+      assertCurrent();
+      await clearSessionRepositoryContext(identity, options);
+      assertCurrent();
+      this.#activated.set(agentId, identity);
+      this.#released.delete(agentId);
+      return startup;
+    }), 8_000, combined);
   }
 
   /** Drain publication before releasing claims; never republish after disposal. */
@@ -141,6 +171,14 @@ export class SessionRuntimeRegistry {
     // Performance: cache success, not failure.
     if (owner === null && this.#owner === pending) this.#owner = null;
     return owner;
+  }
+
+  #bind(agentId: string | undefined, sessionId: string, sessionFile: string): SessionIdentity {
+    const previous = this.#identities.get(agentId);
+    const identity = previous?.sessionId === sessionId && previous.sessionFile === sessionFile
+      ? previous : { sessionId, sessionFile };
+    this.#identities.set(agentId, identity);
+    return identity;
   }
 
   #current(agentId: string | undefined, identity: SessionIdentity): boolean {
