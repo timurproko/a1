@@ -18,7 +18,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-13-fix-herdr-clipboard-routing/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-13-fix-herdr-clipboard-routing/acceptance.md",
   "finalizedDate": "2026-11-13",
-  "specBaseSha": "41ab0cfa23a7793ed80bec89aff54c804d8973ec",
+  "specBaseSha": "88efe404f0790cbbd8fe5259036bd9525941bd73",
   "acceptanceScenarios": [
     "Herdr identity selects terminal-owned copy even when the emulator name is absent or overridden.",
     "Selection autocopy and explicit copy submit the complete text once without writing the agent host clipboard.",
