@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createResponseCopyExecutor, responseCopyDestination } from "../../../src/app/session-shell/response-copy-transport.js";
 import { MAX_COPY_BYTES, MAX_COPY_CONTROL_BYTES } from "../../../src/app/session-shell/response-copy-protocol.js";
 import type { SelectionCopySnapshot } from "../../../src/ui/components/selection-copy.js";
@@ -10,9 +10,64 @@ function source(text = "hello 界 e\u0301 👩‍💻"): SelectionCopySnapshot {
 
 /** Real isolated preparation, but a fake terminal: these tests never write the system clipboard. */
 describe("response-copy transport isolation", () => {
-  it.each([{}, { SSH_TTY: "tty" }, { SSH_CONNECTION: "remote" }, { TMUX: "mux" }, { STY: "screen" }, { WSL_DISTRO_NAME: "distro" }])("routes destination for %j", env => {
-    expect(responseCopyDestination(env)).toBe(Object.keys(env).length ? "terminal" : "native");
+  afterEach(() => vi.unstubAllEnvs());
+
+  it.each([
+    {}, { HC_TERMINAL_ID: "", TERM_PROGRAM: "" }, { TERM_PROGRAM: "ghostty" },
+    { HC_TERMINAL_ID: "", TERM_PROGRAM: "ghostty" },
+  ])("preserves local destination for %j", env => {
+    expect(responseCopyDestination(env)).toBe("native");
   });
+
+  it.each([
+    { HC_TERMINAL_ID: "terminal-id" },
+    { HC_TERMINAL_ID: "terminal-id", TERM_PROGRAM: "herdr" },
+    { HC_TERMINAL_ID: "terminal-id", TERM_PROGRAM: "ghostty" },
+    { HC_TERMINAL_ID: "terminal-id", TERM_PROGRAM: "" },
+    { TERM_PROGRAM: "herdr" }, { HC_TERMINAL_ID: "", TERM_PROGRAM: "herdr" },
+    { SSH_TTY: "tty" }, { SSH_CONNECTION: "remote" }, { SSH_CLIENT: "client" },
+    { TMUX: "mux" }, { STY: "screen" }, { WSL_DISTRO_NAME: "distro" },
+  ])("routes terminal-owned destination for %j", env => {
+    expect(responseCopyDestination(env)).toBe("terminal");
+  });
+
+  it.each([
+    { identity: "terminal-id", program: "ghostty", text: "How" },
+    { identity: "terminal-id", program: undefined, text: "hello 界 e\u0301 👩‍💻" },
+    { identity: undefined, program: "herdr", text: "program-only" },
+  ])("submits Herdr copy once even when native delivery would succeed ($program)", async ({ identity, program, text }) => {
+    for (const name of ["SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY", "TMUX", "STY", "WSL_DISTRO_NAME"]) vi.stubEnv(name, "");
+    vi.stubEnv("HC_TERMINAL_ID", identity);
+    vi.stubEnv("TERM_PROGRAM", program);
+    const submit = vi.fn(async () => {}), platformWriteText = vi.fn(async () => true);
+    const transports: string[] = [];
+    const execute = createResponseCopyExecutor({ terminal: { submit }, platformWriteText,
+      helper: new URL("./response-copy-native-fixture.mjs", import.meta.url) });
+    const job = execute(source(text), (_phase, _bytes, transport) => transports.push(transport));
+    try {
+      await expect(job.result).resolves.toEqual({ outcome: "submitted-unverified" });
+      await job.stopped;
+      expect(submit).toHaveBeenCalledExactlyOnceWith(`\u001b]52;c;${Buffer.from(text).toString("base64")}\u0007`, expect.any(AbortSignal));
+      expect(platformWriteText).not.toHaveBeenCalled();
+      expect(transports).toEqual(["terminal", "terminal", "terminal"]);
+    } finally { job.cancel(); execute.dispose(); }
+  }, 10_000);
+
+  it.each(["missing", "denied", "size"])("does not substitute host clipboard for a %s Herdr terminal route", async fault => {
+    vi.stubEnv("HC_TERMINAL_ID", "terminal-id");
+    const submit = vi.fn(async () => { if (fault === "denied") throw new Error("terminal unavailable"); });
+    const platformWriteText = vi.fn(async () => true);
+    const execute = createResponseCopyExecutor({ platformWriteText,
+      ...(fault === "missing" ? {} : { terminal: { submit, maxBytes: fault === "size" ? 8 : MAX_COPY_CONTROL_BYTES } }),
+      helper: new URL("./response-copy-native-fixture.mjs", import.meta.url) });
+    const job = execute(source("How"), () => {});
+    try {
+      await expect(job.result).resolves.toEqual({ outcome: "failed", failure: fault === "missing" ? "unsafe" : fault === "size" ? "size" : "transport" });
+      await job.stopped;
+      expect(platformWriteText).not.toHaveBeenCalled();
+      expect(submit).toHaveBeenCalledTimes(fault === "denied" ? 1 : 0);
+    } finally { job.cancel(); execute.dispose(); }
+  }, 10_000);
 
   it("prepares exact Unicode in a cold child while parent timers progress", async () => {
     const writes: string[] = [], phases: string[] = [];
