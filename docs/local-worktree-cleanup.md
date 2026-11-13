@@ -79,6 +79,20 @@ Since the `OpenSpec finalization` workflow pushes its commit onto the PR branch 
 
 The sweep also prunes local topic branches that have no live registration, such as the branch left behind when a worktree was deleted by hand. A branch is deleted only when all of these hold: its name follows `type/short-description` and is not `develop` or another protected or reserved name; no worktree has it checked out; the same-repository pull-request lookup by that head ref name returns at least one PR merged into `develop` and no open PR; the tip equals or is an ancestor of the most recent such merged PR's head; and `origin` no longer has the ref. Deletion is compare-and-delete against the tip reread immediately before. Everything else is reported and kept with `branch-no-pull-request`, `branch-open-pull-request`, `branch-closed-pull-request`, `branch-unmerged-commits`, `branch-checked-out`, or `branch-remote-present`. Branch pruning never deletes remote refs, worktrees, or registrations, and a preview never prunes.
 
+## Published local-only removal
+
+Policy is [R13-R15](delivery-rules.md#r13---explicit-published-local-removal). The distinct exact repository operation is:
+
+```bash
+node scripts/governance/local-worktree-cleanup.mjs remove-local --repo D:/Git/a1 --path D:/Git/a1/.worktrees/example-task --confirm-local-removal
+```
+
+`--preflight` inspects without enrolling or removing. `--runtime-preflight` additionally allows inspection of the runtime's still-attached checkout; it is accepted only with `--preflight` and never bypasses claims during execution. In an attached compatible A1 session use `a1 worktree remove-local`, whose committed `localRemoval.preflight` and `localRemoval.execute` declarations sequence inspection, detach, shell exit and exact repository execution. Missing support blocks before detach; no other cleanup operation is substituted.
+
+Reports identify observed local/remote heads, publication containment, preservation blockers and actual removal steps. The operation does not read PR/CI/archive eligibility or mutate remote resources. A `local-removal` cleanup role and `published-local-removal` completion note keep interrupted work outside sweep and protect retained branch refs from automatic pruning. Existing delivery associations stay recorded. Repeating a completed operation reports `already-absent`; a recreated checkout blocks. Interrupted removal resumes only through the journaled identity and fresh publication/preservation checks. Residue recovery uses individually verified unlink/rmdir operations, not recursive user-tree fallback.
+
+The shared rules' KEEP boundary is applied during this route's inspection, including inside generated roots. Development processes and live or unverifiable claims block; this operation has no process-stop or export option. Its code runs from primary, not from the checkout being removed. Existing merged-completion, explicit discard and historical records retain their distinct operations.
+
 ## Standard completed-delivery command
 
 The exact-candidate form remains for a session that is still alive at merge time or wants to finish one candidate by name. After authorized merge, accepted/archive verification, and remote topic-ref removal, the owning agent runs one command from the primary checkout:

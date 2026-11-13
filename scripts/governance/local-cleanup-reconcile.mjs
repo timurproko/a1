@@ -53,7 +53,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
     if (selectedIds && (selectedIds.size !== entryIds.length || entryIds.some(id => typeof id !== "string"))) fail("candidate-selection");
     if (heldIds.size !== heldEntryIds.length || heldEntryIds.some(id => typeof id !== "string") || [...heldIds].some(id => !selectedIds?.has(id))) fail("candidate-selection");
     const selected = entry => selectedIds === null || selectedIds.has(entry.id);
-    const entries = state.entries.filter(entry => entry.state !== "done" && !["discard", "redundant"].includes(entry.role) && selected(entry));
+    const entries = state.entries.filter(entry => entry.state !== "done" && !["discard", "redundant", "local-removal"].includes(entry.role) && selected(entry));
     if (selectedIds && !state.entries.some(selected)) fail("candidate-selection");
     report.coverage.total = entries.length;
     const start = entries.length ? state.cursor % entries.length : 0;
@@ -166,7 +166,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
       }
     }
     report.coverage.complete = report.coverage.visited === entries.length;
-    const completed = state.entries.filter(item => item.state === "done" && !["discard", "redundant"].includes(item.role) && selected(item)
+    const completed = state.entries.filter(item => item.state === "done" && !["discard", "redundant", "local-removal"].includes(item.role) && selected(item)
       && !report.results.some(row => row.id === item.id));
     const completedBudget = Math.max(0, 100 - report.coverage.visited);
     for (const entry of completed.slice(0, completedBudget)) {
@@ -216,7 +216,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
     if (pruneBranches && !preview) {
       // Rationale: an exhausted candidate pass defers branch pruning to the next sweep instead of failing the whole report.
       try { await enabled(); report.branches = await pruneMergedBranches({ identity, state, reader, git, deadline, now, ancestorOf, cancelled, enabled,
-        acquireResources: store.acquireResources, registeredRef: ref => store.locked(fresh => fresh.entries.some(entry => entry.state !== "done" && entry.ref === ref)) }); }
+        acquireResources: store.acquireResources, registeredRef: ref => store.locked(fresh => fresh.entries.some(entry => (entry.state !== "done" || entry.role === "local-removal") && entry.ref === ref)) }); }
       catch (error) { report.branches = { results: [], coverage: { total: 0, visited: 0, complete: false }, deferred: reason(error) }; }
     }
     if (!preview) await writeLocalCleanupReport(store, report, now());

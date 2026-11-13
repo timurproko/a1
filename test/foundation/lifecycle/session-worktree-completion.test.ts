@@ -1,5 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import { access, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -14,10 +14,10 @@ vi.mock("../../../src/foundation/lifecycle/native-claim-gate.js", () => {
   } };
 });
 import {
-  readActiveSessionRepositoryContext, registerSessionRepositoryRuntime, setSessionRepositoryContext,
+  readActiveSessionRepositoryContext, readSessionStartupRoot, registerSessionRepositoryRuntime, setSessionRepositoryContext,
 } from "../../../src/foundation/lifecycle/session-repository-context.js";
 import {
-  describeWorktreeCompletion, requestSessionWorktreeCompletion, settleSessionWorktreeCompletion,
+  describeWorktreeCompletion, requestSessionWorktreeCompletion, requestSessionWorktreeLocalRemoval, settleSessionWorktreeCompletion,
 } from "../../../src/foundation/lifecycle/session-worktree-completion.js";
 
 const execute = promisify(execFile);
@@ -69,6 +69,12 @@ async function attachedFixture(template?: string) {
 }
 
 const REMOVE = "node {script} {primary} {worktree}";
+
+function localRemovalTemplate(disposition = "eligible"): string {
+  const preflight = `console.log(JSON.stringify({operation: 'remove-local', preflight: true, results: [{path: process.argv[1], disposition: '${disposition}', reason: 'fixture-preservation-blocker'}]})); ${disposition === "eligible" ? "" : "process.exit(1);"}`;
+  const remove = "require('node:child_process').execFileSync('git', ['-C', process.argv[1], 'worktree', 'remove', process.argv[2]], {stdio: 'pipe'}); console.log(JSON.stringify({disposition: 'removed'}));";
+  return JSON.stringify({ localRemoval: { preflight: ["node", "-e", preflight, "{worktree}"], execute: ["node", "-e", remove, "{primary}", "{worktree}"] } });
+}
 
 describe("worktree completion", () => {
   it("ignores a declaration that exists only in the task checkout being left", async () => {
@@ -164,6 +170,60 @@ describe("worktree completion", () => {
       .resolves.toMatchObject({ kind: "cleanup-skipped", detail: expect.stringContaining("expired") });
     expect(await exists(expired.worktree)).toBe(true);
     await expect(settleSessionWorktreeCompletion(expired.identity, expired.options)).resolves.toBeNull();
+  });
+
+  it("C40: missing exact local-removal support keeps attachment without substituting merged completion", async () => {
+    const fixture = await attachedFixture(REMOVE), run = vi.fn();
+    await expect(requestSessionWorktreeLocalRemoval(fixture.identity, { ...fixture.options, run })).rejects.toMatchObject({ code: "worktree-local-removal-unavailable" });
+    expect(run).not.toHaveBeenCalled();
+    expect(await exists(fixture.worktree)).toBe(true);
+    expect(await readActiveSessionRepositoryContext(fixture.identity, fixture.options)).toMatchObject({ branch: "fix/task" });
+    expect(await settleSessionWorktreeCompletion(fixture.identity, { ...fixture.options, run })).toBeNull();
+  });
+
+  it("retains attachment and reports the actual local-removal preflight blocker", async () => {
+    const fixture = await attachedFixture(localRemovalTemplate("blocked"));
+    await expect(requestSessionWorktreeLocalRemoval(fixture.identity, fixture.options)).rejects.toMatchObject({
+      code: "worktree-local-removal-preflight", message: expect.stringContaining("fixture-preservation-blocker"),
+    });
+    expect(await readActiveSessionRepositoryContext(fixture.identity, fixture.options)).toMatchObject({ branch: "fix/task" });
+    expect(await exists(fixture.worktree)).toBe(true);
+  });
+
+  it("runs local-removal preflight before detach and the exact adapter only at settlement", async () => {
+    const fixture = await attachedFixture(localRemovalTemplate());
+    const request = await requestSessionWorktreeLocalRemoval(fixture.identity, fixture.options);
+    expect(request.operation).toBe("remove-local");
+    expect(await readActiveSessionRepositoryContext(fixture.identity, fixture.options)).toBeNull();
+    expect(await exists(fixture.worktree)).toBe(true);
+    const result = await settleSessionWorktreeCompletion(fixture.identity, fixture.options);
+    expect(result).toMatchObject({ operation: "remove-local", kind: "cleanup-finished" });
+    expect(await exists(fixture.worktree)).toBe(false);
+    expect(describeWorktreeCompletion(result!)).toContain("local removal");
+    expect(await settleSessionWorktreeCompletion(fixture.identity, fixture.options)).toBeNull();
+  });
+
+  it("C39: ownership appearing after detach retains both target and unrelated checkout outside a usable session", async () => {
+    const fixture = await attachedFixture(localRemovalTemplate());
+    const unrelated = join(fixture.root, "unrelated");
+    await execute("git", ["-C", fixture.primary, "worktree", "add", "-b", "fix/unrelated", unrelated]);
+    await requestSessionWorktreeLocalRemoval(fixture.identity, fixture.options);
+    await setSessionRepositoryContext(fixture.other, fixture.worktree, fixture.otherOptions);
+    const run = vi.fn();
+    expect(await settleSessionWorktreeCompletion(fixture.identity, { ...fixture.options, run })).toMatchObject({ kind: "cleanup-skipped" });
+    expect(run).not.toHaveBeenCalled();
+    expect(await exists(fixture.worktree)).toBe(true); expect(await exists(unrelated)).toBe(true);
+    expect(await readActiveSessionRepositoryContext(fixture.identity, fixture.options)).toBeNull();
+    expect((await readSessionStartupRoot(fixture.identity)).toLowerCase()).toBe((await realpath(fixture.primary)).toLowerCase());
+  });
+
+  it("does not execute a changed local-removal adapter after leaving the checkout", async () => {
+    const fixture = await attachedFixture(localRemovalTemplate());
+    await requestSessionWorktreeLocalRemoval(fixture.identity, fixture.options);
+    await writeFile(join(fixture.primary, ".a1", "worktree.json"), localRemovalTemplate("blocked"));
+    const run = vi.fn();
+    expect(await settleSessionWorktreeCompletion(fixture.identity, { ...fixture.options, run })).toMatchObject({ kind: "cleanup-unavailable" });
+    expect(run).not.toHaveBeenCalled(); expect(await exists(fixture.worktree)).toBe(true);
   });
 
   // Platform: a process started in a directory pins it; other platforms allow the removal and prove nothing here.

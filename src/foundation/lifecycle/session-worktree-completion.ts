@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -22,6 +22,7 @@ export interface WorktreeCompletionSelectors {
 }
 
 export interface WorktreeCompletionRequest {
+  readonly operation?: "remove-local";
   readonly startupRoot: string;
   readonly cwd: string;
   readonly branch: string;
@@ -43,6 +44,8 @@ export interface WorktreeCompletionSettleOptions extends SessionRepositoryContex
 }
 
 interface CompletionRecord extends WorktreeCompletionSelectors {
+  readonly operation?: "remove-local";
+  readonly adapterDigest?: string;
   readonly schema: typeof SCHEMA;
   readonly sessionId: string;
   readonly startupRoot: string;
@@ -51,6 +54,44 @@ interface CompletionRecord extends WorktreeCompletionSelectors {
   readonly worktreeGitDir: string;
   readonly branch: string;
   readonly requestedAt: number;
+}
+
+/** Inspect publication/preservation through the trusted exact adapter before releasing this session's attachment. */
+export async function requestSessionWorktreeLocalRemoval(
+  identity: SessionRepositoryIdentity,
+  options: WorktreeCompletionSettleOptions,
+): Promise<WorktreeCompletionRequest> {
+  const attached = await readActiveSessionRepositoryContext(identity, options);
+  if (attached === null) throw failure("worktree-not-attached", "no task worktree is attached");
+  if (attached.branch === null) throw failure("worktree-local-removal-unavailable", "published local removal requires a named task branch");
+  const startup = await realpath(await readSessionStartupRoot(identity));
+  const adapter = await readLocalRemovalAdapter(join(startup, CLEANUP_DECLARATION));
+  if (adapter === null || adapter === "invalid") throw failure("worktree-local-removal-unavailable", "this repository declares no compatible exact local-removal adapter; the attachment and files were retained");
+  const values: Readonly<Record<string, string>> = { primary: startup, worktree: attached.cwd, branch: attached.branch };
+  const expand = (parts: readonly string[]) => parts.map(part => part.replace(/\{([a-z]+)\}/gu, (_match, name: string) => {
+    const value = values[name];
+    if (value === undefined) throw failure("worktree-local-removal-unavailable", "the exact local-removal adapter uses an unavailable selector");
+    return value;
+  }));
+  const expanded = expand(adapter.preflight);
+  expand(adapter.execute);
+  const command = expanded[0];
+  if (command === undefined) throw failure("worktree-local-removal-unavailable", "the exact preflight command is missing");
+  let output: string, succeeded = true;
+  try { output = await (options.run ?? execute)(command, expanded.slice(1), startup, options.signal); }
+  catch (error) { succeeded = false; output = isRecord(error) && typeof error.stdout === "string" ? error.stdout : ""; }
+  let report: unknown;
+  try { report = JSON.parse(output); }
+  catch { throw failure("worktree-local-removal-preflight", "the repository local-removal preflight failed; the attachment and files were retained"); }
+  const rows = isRecord(report) && report.operation === "remove-local" && report.preflight === true ? report.results : null;
+  if (!succeeded || !Array.isArray(rows) || rows.length !== 1 || !isRecord(rows[0]) || rows[0].disposition !== "eligible"
+    || typeof rows[0].path !== "string" || !samePath(rows[0].path, attached.cwd)) {
+    const reason = Array.isArray(rows) && isRecord(rows[0]) && typeof rows[0].reason === "string" && /^[a-z0-9-]{1,80}$/u.test(rows[0].reason) ? ` (${rows[0].reason})` : "";
+    throw failure("worktree-local-removal-preflight", `the exact checkout did not pass repository publication/preservation preflight${reason}; the attachment and files were retained`);
+  }
+  const fresh = await readLocalRemovalAdapter(join(startup, CLEANUP_DECLARATION));
+  if (fresh === null || fresh === "invalid" || fresh.digest !== adapter.digest) throw failure("worktree-context-changed", "the local-removal adapter changed during preflight");
+  return await requestWorktreeOperation(identity, {}, options, { cwd: attached.cwd, branch: attached.branch, digest: adapter.digest });
 }
 
 /**
@@ -62,6 +103,13 @@ export async function requestSessionWorktreeCompletion(
   selectors: WorktreeCompletionSelectors,
   options: SessionRepositoryContextOptions,
 ): Promise<WorktreeCompletionRequest> {
+  return await requestWorktreeOperation(identity, selectors, options);
+}
+
+async function requestWorktreeOperation(
+  identity: SessionRepositoryIdentity, selectors: WorktreeCompletionSelectors, options: SessionRepositoryContextOptions,
+  localRemoval?: { cwd: string; branch: string; digest: string },
+): Promise<WorktreeCompletionRequest> {
   if (selectors.change !== undefined && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(selectors.change)) {
     throw failure("worktree-completion-selector", "the change selector must be a kebab-case change id");
   }
@@ -70,6 +118,7 @@ export async function requestSessionWorktreeCompletion(
   }
   const attached = await readActiveSessionRepositoryContext(identity, options);
   if (attached === null) throw failure("worktree-not-attached", "no task worktree is attached");
+  if (localRemoval && (!samePath(localRemoval.cwd, attached.cwd) || localRemoval.branch !== attached.branch)) throw failure("worktree-context-changed", "the attachment changed during local-removal preflight");
   const status = await execute("git", ["-c", "core.hooksPath=/dev/null", "status", "--porcelain", "--untracked-files=all"], attached.cwd, options.signal);
   const changed = status.split(/\r?\n/u).filter(Boolean);
   if (changed.length > 0) {
@@ -81,6 +130,7 @@ export async function requestSessionWorktreeCompletion(
     if (!samePath(left.worktreeRoot, attached.cwd)) throw failure("worktree-context-changed", "the attachment changed during completion");
     const record: CompletionRecord = {
       schema: SCHEMA, sessionId: identity.sessionId, startupRoot: left.startupRoot, commonDir: left.commonDir,
+      ...(localRemoval ? { operation: "remove-local" as const, adapterDigest: localRemoval.digest } : {}),
       worktreeRoot: left.worktreeRoot, worktreeGitDir: left.worktreeGitDir, branch: left.branch,
       ...(selectors.change === undefined ? {} : { change: selectors.change }),
       ...(selectors.pr === undefined ? {} : { pr: selectors.pr }),
@@ -93,7 +143,8 @@ export async function requestSessionWorktreeCompletion(
       await rename(temporary, path);
     } finally { await rm(temporary, { force: true }).catch(() => undefined); }
   });
-  return { startupRoot: detached.startupRoot, cwd: detached.worktreeRoot, branch: detached.branch };
+  return { startupRoot: detached.startupRoot, cwd: detached.worktreeRoot, branch: detached.branch,
+    ...(localRemoval ? { operation: "remove-local" as const } : {}) };
 }
 
 /**
@@ -108,7 +159,8 @@ export async function settleSessionWorktreeCompletion(
   const record = await readRecord(path);
   await rm(path, { force: true });
   if (record === null || record.sessionId !== identity.sessionId) return null;
-  const request = { startupRoot: record.startupRoot, cwd: record.worktreeRoot, branch: record.branch };
+  const request = { startupRoot: record.startupRoot, cwd: record.worktreeRoot, branch: record.branch,
+    ...(record.operation === "remove-local" ? { operation: "remove-local" as const } : {}) };
   const result = (kind: WorktreeCompletionResult["kind"], detail: string): WorktreeCompletionResult => ({ ...request, kind, detail });
   try {
     if ((options.now ?? Date.now)() - record.requestedAt > REQUEST_LIFETIME_MS) return result("cleanup-skipped", "the completion request expired before the runtime could settle it");
@@ -118,7 +170,11 @@ export async function settleSessionWorktreeCompletion(
     if (claim === "live") return result("cleanup-skipped", "a live session attached the checkout again");
     if (claim === "unverifiable") return result("cleanup-skipped", "the checkout's editing claim cannot be verified");
     // Security: the command is the primary checkout's committed declaration, never a file of the task checkout being left.
-    const declared = await readCleanupDeclaration(join(startup, CLEANUP_DECLARATION));
+    const localAdapter = record.operation === "remove-local" ? await readLocalRemovalAdapter(join(startup, CLEANUP_DECLARATION)) : null;
+    if (record.operation === "remove-local" && (localAdapter === null || localAdapter === "invalid" || localAdapter.digest !== record.adapterDigest)) {
+      return result("cleanup-unavailable", "the exact local-removal adapter is unavailable or changed since preflight; no other operation was substituted");
+    }
+    const declared = localAdapter && localAdapter !== "invalid" ? localAdapter.execute : await readCleanupDeclaration(join(startup, CLEANUP_DECLARATION));
     if (declared === null) return result("cleanup-unavailable", `this repository declares no cleanup command in ${CLEANUP_DECLARATION}; the checkout was retained`);
     if (declared === "invalid") return result("cleanup-unavailable", `${CLEANUP_DECLARATION} must hold {"cleanup": ["program", "argument", ...]}; the checkout was retained`);
     const values: Readonly<Record<string, string | undefined>> = {
@@ -155,7 +211,7 @@ export function describeWorktreeCompletion(result: WorktreeCompletionResult): st
     "cleanup-skipped": "cleanup was skipped; the checkout was retained",
   };
   return [
-    `Worktree completion (${result.kind}): ${headline[result.kind]}.`,
+    `Worktree ${result.operation === "remove-local" ? "local removal" : "completion"} (${result.kind}): ${headline[result.kind]}.`,
     `Session uses ${result.startupRoot}; left ${result.cwd} (${result.branch}). Do not attach it again while cleanup is partial.`,
     result.detail,
   ].join("\n");
@@ -178,12 +234,30 @@ async function readCleanupDeclaration(path: string): Promise<readonly string[] |
   }
 }
 
+interface LocalRemovalAdapter { readonly preflight: readonly string[]; readonly execute: readonly string[]; readonly digest: string }
+
+async function readLocalRemovalAdapter(path: string): Promise<LocalRemovalAdapter | "invalid" | null> {
+  try {
+    const metadata = await lstat(path);
+    if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size === 0 || metadata.size > MAX_RECORD_BYTES) return "invalid";
+    const value: unknown = JSON.parse(await readFile(path, "utf8"));
+    const adapter = isRecord(value) ? value.localRemoval : undefined;
+    if (adapter === undefined) return null;
+    const valid = (parts: unknown): parts is readonly string[] => Array.isArray(parts) && parts.length > 0 && parts.length <= 64
+      && parts.every(part => typeof part === "string" && part.length > 0 && part.length <= 2_048 && !part.includes("\0"));
+    if (!isRecord(adapter) || !valid(adapter.preflight) || !valid(adapter.execute)) return "invalid";
+    const command = { preflight: adapter.preflight, execute: adapter.execute };
+    return { ...command, digest: createHash("sha256").update(JSON.stringify(command)).digest("hex") };
+  } catch (error) { return isRecord(error) && error.code === "ENOENT" ? null : "invalid"; }
+}
+
 async function readRecord(path: string): Promise<CompletionRecord | null> {
   try {
     const metadata = await lstat(path);
     if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size === 0 || metadata.size > MAX_RECORD_BYTES) return null;
     const value: unknown = JSON.parse(await readFile(path, "utf8"));
     if (!isRecord(value) || value.schema !== SCHEMA) return null;
+    if (value.operation !== undefined && (value.operation !== "remove-local" || typeof value.adapterDigest !== "string" || !/^[a-f0-9]{64}$/u.test(value.adapterDigest))) return null;
     const text = (name: string) => typeof value[name] === "string" && value[name].length > 0 && value[name].length <= 32_768;
     if (!["sessionId", "startupRoot", "commonDir", "worktreeRoot", "worktreeGitDir", "branch"].every(text)) return null;
     if (typeof value.requestedAt !== "number" || !Number.isFinite(value.requestedAt)) return null;

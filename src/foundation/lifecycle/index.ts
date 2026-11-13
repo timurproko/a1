@@ -24,7 +24,7 @@ export {
 export { retrySessionCoordination } from "./session-context-retry.js";
 export { enterSessionRepositoryWorktree } from "./session-worktree-entry.js";
 export {
-  describeWorktreeCompletion, requestSessionWorktreeCompletion, settleSessionWorktreeCompletion,
+  describeWorktreeCompletion, requestSessionWorktreeCompletion, requestSessionWorktreeLocalRemoval, settleSessionWorktreeCompletion,
 } from "./session-worktree-completion.js";
 export type {
   WorktreeCompletionRequest, WorktreeCompletionResult, WorktreeCompletionSelectors,

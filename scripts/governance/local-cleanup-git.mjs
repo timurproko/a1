@@ -197,7 +197,7 @@ export async function statusBlockers(git, path, disposable, { ignored = true } =
 export async function inspectWorktree(identity, entry, {
   git = gitRunner(), cwd = process.cwd(), deadline = Infinity, now = Date.now,
   ordinaryEntryLimit = ORDINARY_CONTENT_ENTRY_LIMIT, generatedEntryLimit = GENERATED_CONTENT_ENTRY_LIMIT,
-  accepted = async () => false, remediationLink = null, remediationExport = null,
+  accepted = async () => false, remediationLink = null, remediationExport = null, preserveKeep = false,
 } = {}) {
   const actual = await captureWorktree(identity, entry.path, git);
   if (["path", "filesystem", "ref"].some(key => actual[key] !== entry[key])) fail("worktree-identity-changed");
@@ -242,6 +242,7 @@ export async function inspectWorktree(identity, entry, {
       if (now() >= deadline) fail("content-inspection-budget");
       if (!prefix && item.name === ".git") continue;
       const path = prefix + item.name;
+      if (preserveKeep && item.name === "KEEP") fail("preserved-keep-marker", { paths: [path] });
       visit(path);
       if (item.name === ".git") fail("nested-repository");
       if (item.isSymbolicLink()) {

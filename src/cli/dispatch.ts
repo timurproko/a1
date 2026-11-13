@@ -53,6 +53,7 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "worktree attach <path>",
     "worktree detach",
     "worktree complete [--change <id>] [--pr <number>]",
+    "worktree remove-local",
     "worktree list",
     "session color capabilities | list | get [--session <id>] | set <color> [--session <id>]",
     "session worktrees",
@@ -95,6 +96,7 @@ export function cliHelp(capabilities: CliCapabilities): string {
     `  ${command} worktree attach <path>`,
     `  ${command} worktree detach`,
     `  ${command} worktree complete [--change <id>] [--pr <number>]`,
+    `  ${command} worktree remove-local`,
     `  ${command} worktree list`,
     "",
     "Session colors (always JSON; explicit session id required outside the session shell):",
@@ -214,6 +216,9 @@ function parseWorktree(rest: readonly string[]): CliCommand {
   if ((action === "detach" || action === "list") && value === undefined) {
     return { kind: "session-context", request: { action: action === "detach" ? "unlink-worktree" : "worktrees" } };
   }
+  if (action === "remove-local" && value === undefined) {
+    return { kind: "session-context", request: { action: "remove-local-worktree" } };
+  }
   if (action === "complete") {
     const selectors = rest.slice(1);
     let change: string | undefined, pr: number | undefined;
@@ -228,7 +233,7 @@ function parseWorktree(rest: readonly string[]): CliCommand {
       return { kind: "session-context", request: { action: "complete-worktree", ...(change === undefined ? {} : { change }), ...(pr === undefined ? {} : { pr }) } };
     }
   }
-  return { kind: "error", message: PRODUCT_TEXT.diagnostic("worktree accepts enter <branch> [--base <branch>], attach <path>, detach, complete [--change <id>] [--pr <number>], or list.") };
+  return { kind: "error", message: PRODUCT_TEXT.diagnostic("worktree accepts enter <branch> [--base <branch>], attach <path>, detach, complete [--change <id>] [--pr <number>], remove-local, or list.") };
 }
 
 function parseSessionContext(rest: readonly string[]): CliCommand {

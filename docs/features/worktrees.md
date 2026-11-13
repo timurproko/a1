@@ -12,9 +12,10 @@ Run these commands through an active A1 session's shell tool:
 | `a1 worktree attach <absolute-path>` | Attach an existing registered task checkout in this session's repository. |
 | `a1 worktree detach` | Release this session's attachment without deleting files or branches. |
 | `a1 worktree complete [--change <id>] [--pr <number>]` | After a verified merge: return this session to the startup checkout, then run the repository's configured cleanup. |
+| `a1 worktree remove-local` | Preflight the attached checkout through its exact local-removal adapter, then detach and execute after the issuing shell exits. |
 | `a1 worktree list` | Informational same-repository inventory; never required after success. |
 
-Successful enter/attach returns the canonical root and branch after acquiring the editing claim. It is the complete attachment result: agents do not run a second inventory approval gate or implement their own retry loop. Temporary registration/coordination contention is retried within an operation budget. Actual ownership conflicts and uncertain records produce actionable failures rather than unsafe takeovers. A failed switch preserves the prior attachment. No command removes worktrees, branches, user files, or private workspace data itself; `complete` only runs the cleanup command the repository declares.
+Successful enter/attach returns the canonical root and branch after acquiring the editing claim. It is the complete attachment result: agents do not run a second inventory approval gate or implement their own retry loop. Temporary registration/coordination contention is retried within an operation budget. Actual ownership conflicts and uncertain records produce actionable failures rather than unsafe takeovers. A failed switch preserves the prior attachment. No command removes worktrees, branches, user files, or private workspace data itself; `complete` and `remove-local` run the corresponding commands the repository declares.
 
 Enter uses `.worktrees/<short-description>` under the primary checkout. An existing matching checkout is attached without rewriting its edits. Otherwise it fetches an existing origin task branch and starts a missing local branch at that observed proposal head. An unoccupied local branch retains its exact tip, including unpublished commits; divergent local/remote histories block entry. If neither task branch exists, it fetches the selected base before creating the branch. Base selection is explicit `--base`, local Git configuration `a1.worktreeBase`, then the origin default branch; local-only repositories fall back to the primary branch. Path collisions, primary checkouts, foreign repositories, and Git-locked worktrees remain protected. Setup commands, dependency installation, private-clone provisioning, and repository hooks are not executed by A1.
 
@@ -50,6 +51,14 @@ The cleanup command is declared once in the repository, in a committed `.a1/work
 ```
 
 A1 reads the file from the primary checkout the session started in, never from the task checkout being left, so a task branch cannot change what runs until it is merged. The list is run without a shell from the primary checkout, with `{primary}`, `{worktree}`, `{branch}`, `{change}`, and `{pr}` substituted in each element; the first element must be a real executable such as `node`, not a `.cmd` shim. A repository without the file needs nothing: completion detaches, keeps the checkout, and reports `cleanup-unavailable`, and the repository's ordinary cleanup still applies. The command keeps every eligibility and deletion safeguard; A1 adds no deletion of its own. Delivery evidence is the command's to judge, so completing an unmerged task ends detached with the files intact and the command's blocker.
+
+## Removing a published local checkout
+
+Policy is [R13-R15](../delivery-rules.md#r13---explicit-published-local-removal). `a1 worktree remove-local` requires the primary checkout's committed `.a1/worktree.json` to declare `localRemoval` with `preflight` and `execute` argument arrays. Each array uses the existing executable/argument and placeholder syntax (`primary`, `worktree`, `branch`). See this repository's declaration for exact wiring.
+
+Preflight runs from startup while this session still owns its attachment and must report one eligible exact path. Missing, malformed or failing support retains the attachment. After success, A1 records the adapter digest and detaches; settlement occurs only after the issuing shell exits. A changed declaration, a new live/unverifiable claim, or an expired request skips execution. The repository then independently rechecks publication, content and claims. Its report is authoritative; a post-detach blocker leaves the checkout intact and the session usable from startup. Runtime code does not remove checkout files or branch refs itself.
+
+This is a separate operation from merged `complete` and confirmed remote-destructive `discard`; it has no sweep fallback. Deploy a compatible A1 release before downstream instruction migration. Source code or a task-branch declaration does not prove installed support is available. Standalone repository removal remains usable without A1 after that repository's tooling integrates.
 
 ## Invalid attachments
 

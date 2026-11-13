@@ -26,7 +26,7 @@ export function validateIdentity(identity) {
   if (!exact(identity, identityKeys) || ![identity.primary, identity.root, identity.common].every(isAbsolute)
     || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(identity.repository) || identity.remote !== "origin") fail("repository-identity");
 }
-export const COMPLETION_NOTES = Object.freeze(["retired-nothing-left", "forgotten"]);
+export const COMPLETION_NOTES = Object.freeze(["retired-nothing-left", "forgotten", "published-local-removal"]);
 /** Entries written before completion notes existed read as ordinary completions. */
 export function normalizeEntry(entry) {
   if (entry && typeof entry === "object" && !Array.isArray(entry)) {
@@ -39,8 +39,8 @@ export function validateEntry(entry) {
   const keys = ["id", "path", "filesystem", "change", "sourcePr", "candidatePr", "role", "head", "ref", "disposable", "generation", "state", "ownerHash", "step", "completion", "completionReason"];
   if (!exact(entry, keys) || !uuid(entry.id) || !isAbsolute(entry.path) || typeof entry.filesystem !== "string"
     || !/^\d+:\d+:\d+(?:\.\d+)?$/.test(entry.filesystem) || typeof entry.change !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(entry.change)
-    || !["implementation", "archive", "acceptance", "discard", "redundant"].includes(entry.role)
-    || (entry.role === "redundant" ? entry.sourcePr !== 0 || entry.candidatePr !== 0 : !positive(entry.sourcePr) || !positive(entry.candidatePr))
+    || !["implementation", "archive", "acceptance", "discard", "redundant", "local-removal"].includes(entry.role)
+    || (entry.role === "redundant" || entry.role === "local-removal" && entry.sourcePr === 0 ? entry.sourcePr !== 0 || entry.candidatePr !== 0 : !positive(entry.sourcePr) || !positive(entry.candidatePr))
     || !sha(entry.head) || entry.ref !== null && !safeRef(entry.ref) || !Array.isArray(entry.disposable)
     || entry.disposable.some(value => !disposablePath(value)) || new Set(entry.disposable).size !== entry.disposable.length
     || !uuid(entry.generation) || !["owned", "released", "deleting", "done"].includes(entry.state)

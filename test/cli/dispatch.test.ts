@@ -54,6 +54,7 @@ describe("A1 CLI dispatch", () => {
     [["worktree", "detach"], { kind: "session-context", request: { action: "unlink-worktree" } }],
     [["worktree", "list"], { kind: "session-context", request: { action: "worktrees" } }],
     [["worktree", "complete"], { kind: "session-context", request: { action: "complete-worktree" } }],
+    [["worktree", "remove-local"], { kind: "session-context", request: { action: "remove-local-worktree" } }],
     [["worktree", "complete", "--pr", "914", "--change", "name-dot-spinner"], { kind: "session-context", request: { action: "complete-worktree", change: "name-dot-spinner", pr: 914 } }],
     [["session", "worktrees"], { kind: "session-context", request: { action: "worktrees" } }],
     [["session", "link-worktree", "D:/worktree"], { kind: "session-context", request: { action: "link-worktree", path: "D:/worktree" } }],
@@ -71,6 +72,7 @@ describe("A1 CLI dispatch", () => {
     ["attach", "D:/task", "extra"], ["detach", "extra"], ["list", "extra"], ["remove", "D:/task"],
     ["complete", "D:/task"], ["complete", "--pr"], ["complete", "--pr", "0"], ["complete", "--pr", "1", "--pr", "2"],
     ["complete", "--change", "Not_A_Change"], ["complete", "--force", "yes"],
+    ["remove-local", "D:/task"], ["remove-local", "--force"], ["remove-local", "--pr", "923"],
   ])("rejects incomplete or unsupported worktree arguments %j", (...args) => {
     expect(parseCliCommand(["worktree", ...args], PRERELEASE)).toMatchObject({ kind: "error" });
   });
@@ -84,6 +86,7 @@ describe("A1 CLI dispatch", () => {
     expect(cliHelp(PRERELEASE)).toContain("worktree enter <branch>");
     expect(cliHelp(PRERELEASE)).toContain("detach preserves files");
     expect(cliHelp(PRERELEASE)).toContain("worktree complete [--change <id>] [--pr <number>]");
+    expect(cliHelp(PRERELEASE)).toContain("worktree remove-local");
     expect(cliHelp(PRERELEASE)).toContain("session worktrees");
     expect(cliHelp(PRERELEASE)).toContain("session unlink-worktree");
     expect(cliHelp(PRERELEASE)).not.toContain("solo");
