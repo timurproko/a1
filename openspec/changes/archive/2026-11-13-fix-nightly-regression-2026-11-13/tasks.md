@@ -11,5 +11,6 @@
 - [x] 2.4 Reconcile Pi API consumer and UI-reference expectations after the current develop compatibility merge.
 - [x] 2.5 Synchronize the compatibility fixture on transient notification rendering before its follow-up user turn, preserving every lifecycle assertion and timeout.
 - [x] 2.6 Canonicalize the compatibility fixture root so macOS helper cwd equality compares the same physical directory without relaxing the assertion.
+- [x] 2.7 Wait for copy acknowledgement as well as OSC52 delivery within the existing clipboard fixture deadline, preserving the exact copy count and routing assertions.
 
 After finalization, the exact-head PR Full regression lanes and Development validation required must pass before manual handoff. Report final run/head/selection in Actions and handoff, not another committed design edit. Standalone dispatch is diagnostic, not a replacement for selected PR checks. Numbered-package nightly recovery remains independent.

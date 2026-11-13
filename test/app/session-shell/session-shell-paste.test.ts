@@ -449,9 +449,13 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       expect(selectedRow).toBeGreaterThan(0);
       const before = terminal.writes.length;
       terminal.input(`\u001b[<0;2;${selectedRow}M\u001b[<32;7;${selectedRow}M\u001b[<0;7;${selectedRow}m`);
-      await vi.waitFor(() => expect(
-        terminal.writes.slice(before).join("").match(/\u001b\]52;c;([^\u0007]*)\u0007/g),
-      ).toHaveLength(1));
+      // Concurrency: the OSC52 write precedes copy settlement and its visible acknowledgement.
+      await vi.waitFor(() => {
+        shell.runtime.renderNow();
+        const output = terminal.writes.slice(before).join("");
+        expect(output.match(/\u001b\]52;c;([^\u0007]*)\u0007/g)).toHaveLength(1);
+        expect(output).toContain("Copied 6 chars to clipboard");
+      });
       shell.runtime.renderNow();
       const output = terminal.writes.slice(before).join("");
       const copies = [...output.matchAll(/\u001b\]52;c;([^\u0007]*)\u0007/g)];

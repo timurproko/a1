@@ -11,6 +11,12 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Evidence
 
+### Clipboard acknowledgement ordering repair
+
+- The next finalized head passes the complete Ubuntu lane, both Windows Node 22/24 lanes, and all earlier compatibility and original-repair fixtures on macOS. macOS's remaining failure is `session-shell-paste.test.ts` / `preserves normal transcript scroll and copy behind /logout`: the observed output contains the correct six-character OSC52 write but not yet its visible copy acknowledgement.
+- The fixture waited only for the asynchronous clipboard side effect, then forced a render before the executor's result and shell acknowledgement callback had settled. Reuse the same bounded wait to require both exactly one OSC52 write and the visible acknowledgement, rendering on each observation. Preserve the final copy-count, escape-free payload, acknowledgement, scroll, routing, and no-overlay assertions. No production path, timeout, or validation selection changes.
+- Local Windows: `npm run typecheck`, `npm run build:core`, and `npx vitest run test/app/session-shell/session-shell-paste.test.ts -t 'preserves normal transcript scroll and copy'` pass all four targeted command variants. The other 80 tests in that file are intentionally not selected in this focused check; the complete native lanes remain required for the new finalized head.
+
 ### Current-target CI repair
 
 - Trusted reconciliation merged `88efe404` (#921, Firstmate Pi compatibility) from develop and refinalized this candidate as `9c14593b`. The selected PR Full regression's completed Ubuntu Node 24 and Windows Node 24 core jobs fail on two newly stale compatibility expectations: missing consumer entries for `AgentSessionServices` and `resolveCliModel`, and three expected `ExtensionUIContext` occurrences instead of four after the forwarding proxy was added.
