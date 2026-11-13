@@ -93,7 +93,7 @@ describe("owned extension UI contracts", () => {
     ]);
     expect(contract).not.toMatch(/@earendil-works|pi-coding-agent|pi-tui/);
     expect(adapter).not.toMatch(/ExtensionUIContext/);
-    expect(binding.match(/ExtensionUIContext/g)).toHaveLength(3);
+    expect(binding.match(/ExtensionUIContext/g)).toHaveLength(4);
     expect(binding).toContain("assertOwnedUiExtensionUiPort(value)");
     expect(`${adapter}${binding}`).not.toMatch(/createExtensionUIContext|getUIContext|InteractiveMode/);
   });

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, realpath, rename, rmdir, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
 export const HERDR_IDENTITY_LABELS = Object.freeze({
@@ -64,7 +64,13 @@ export async function withHerdrBinding(reservation: HerdrBindingReservation, act
 }
 
 async function safeDirectory(directory: string): Promise<string> {
-  const absolute = resolve(directory), ancestors: string[] = [];
+  const selected = resolve(directory), temporaryRoot = resolve(tmpdir());
+  const child = relative(temporaryRoot, selected);
+  // Compatibility: macOS's OS-selected temp root traverses /var -> /private/var.
+  // Security: canonicalize only that trusted root, never caller-selected links beneath it.
+  const absolute = child !== ".." && !child.startsWith(`..${sep}`) && !isAbsolute(child)
+    ? resolve(await realpath(temporaryRoot), child) : selected;
+  const ancestors: string[] = [];
   for (let path = absolute;; path = dirname(path)) { ancestors.unshift(path); if (dirname(path) === path) break; }
   for (const path of ancestors) {
     let stat;

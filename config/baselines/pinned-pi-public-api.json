@@ -108,6 +108,7 @@
           "kind": "interface",
           "hash": "2410a1e2a200e2814ffbc37251bd7d357c93d1bf5e90db98eb8e6f2d36641aff",
           "consumers": [
+            "src/integrations/pi/engine/launch-options.ts",
             "src/integrations/pi/engine/runtime-integration.ts",
             "src/integrations/pi/engine/session-runtime.ts",
             "src/integrations/pi/engine/workflow-support.ts"
@@ -2237,7 +2238,10 @@
           "name": "resolveCliModel",
           "kind": "function",
           "hash": "4a4247e8f7cd741df26c77862675129914029ce555dec2f5897a53645a5ba013",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/engine/launch-options.ts",
+            "src/integrations/pi/startup-public.ts"
+          ]
         },
         {
           "name": "ResolveCliModelResult",

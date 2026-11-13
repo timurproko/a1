@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { mkdtemp, rm, readdir, writeFile, mkdir, symlink } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { lstat, mkdtemp, rm, readdir, realpath, writeFile, mkdir, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -19,6 +19,32 @@ async function host(sessionId = randomUUID(), handle: (payload: unknown) => Prom
 }
 
 describe("bounded local session control", () => {
+  it("routes and removes private endpoints even beneath long multibyte runtime paths", async () => {
+    const longRuntime = join(runtimeDir, "runtime-" + "色".repeat(40), "nested-runtime");
+    const sessionId = randomUUID();
+    const target = await serveSessionControl({ runtimeDir: longRuntime, runtimeId: randomUUID(), identity: () => ({ sessionId, binding: 1 }), handle: async value => value });
+    hosts.push(target);
+    expect(await requestSessionControl({ runtimeDir: longRuntime, sessionId, payload: "long-path" })).toBe("long-path");
+    const directory = await realpath(join(longRuntime, "session-controls"));
+    const [record] = (await readdir(directory)).filter(name => name.endsWith(".json"));
+    let endpoint: string | undefined;
+    if (process.platform !== "win32") {
+      const transport = join(await realpath("/tmp"), `session-control-${process.getuid!()}`);
+      const id = record!.slice(0, -5);
+      const digest = createHash("sha256").update(`${directory}\0${id}`).digest("hex").slice(0, 32);
+      endpoint = join(transport, `${digest}.sock`);
+      expect(Buffer.byteLength(endpoint)).toBeLessThan(104);
+      const socket = await lstat(endpoint), parent = await lstat(transport);
+      expect(socket.isSocket()).toBe(true);
+      expect(socket.mode & 0o777).toBe(0o600);
+      expect(parent.mode & 0o077).toBe(0);
+      expect(parent.uid).toBe(process.getuid!());
+    }
+    await target.dispose();
+    expect(await readdir(directory)).toEqual([]);
+    if (endpoint) await expect(lstat(endpoint)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("routes exact sessions, checks runtime selectors, and releases discovery on disposal", async () => {
     const one = await host(), two = await host();
     expect(await requestSessionControl({ runtimeDir, sessionId: one.state.sessionId, payload: "one" })).toBe("one");

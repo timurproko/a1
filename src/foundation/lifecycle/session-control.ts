@@ -37,8 +37,20 @@ const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
 const SLUG = /^[a-z0-9-]{1,128}$/iu;
 const fail = (code: string, message: string) => Object.assign(new Error(message), { code });
 const hash = (value: string) => createHash("sha256").update(value).digest("hex").slice(0, 32);
-const address = (directory: string, id: string) => process.platform === "win32"
-  ? `\\\\.\\pipe\\session-control-${hash(directory)}-${id}` : join(directory, `${id}.sock`);
+async function address(directory: string, id: string, create: boolean): Promise<string> {
+  if (process.platform === "win32") return `\\\\.\\pipe\\session-control-${hash(directory)}-${id}`;
+  const local = join(directory, `${id}.sock`);
+  // Compatibility: retain working endpoints, but Darwin allows only 103 pathname bytes.
+  if (Buffer.byteLength(local) < 104) return local;
+  const uid = process.getuid!();
+  const transport = join(await realpath("/tmp"), `session-control-${uid}`);
+  if (create) await mkdir(transport, { mode: 0o700 }).catch(error => { if (error.code !== "EEXIST") throw error; });
+  const stat = await lstat(transport);
+  // Security: a shared temp root must never admit a foreign, linked, or permissive transport directory.
+  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== uid || (stat.mode & 0o077) !== 0
+    || await realpath(transport) !== transport) throw fail("control-boundary", "Session control transport directory is not private.");
+  return join(transport, `${hash(`${directory}\0${id}`)}.sock`);
+}
 
 async function privateDirectory(runtimeDir: string, create: boolean): Promise<string> {
   const selectedRoot = resolve(runtimeDir);
@@ -102,6 +114,7 @@ export async function serveSessionControl(options: SessionControlHostOptions): P
   const owner = await inspect(process.pid);
   if (!owner || owner.pid !== process.pid || !owner.startIdentity) throw fail("session-unavailable", "Runtime identity cannot be verified.");
   const id = randomUUID(), nonce = randomUUID(), file = join(directory, `${id}.json`);
+  const endpoint = await address(directory, id, true);
   let disposed = false, queue = Promise.resolve(), publication = Promise.resolve();
   const sockets = new Set<Socket>();
   const server = createServer(socket => {
@@ -131,7 +144,7 @@ export async function serveSessionControl(options: SessionControlHostOptions): P
       }).catch(() => { socket.destroy(); });
     });
   });
-  await new Promise<void>((done, reject) => { server.once("error", reject); server.listen(address(directory, id), () => { server.off("error", reject); done(); }); });
+  await new Promise<void>((done, reject) => { server.once("error", reject); server.listen(endpoint, () => { server.off("error", reject); done(); }); });
   server.on("error", () => {});
   server.maxConnections = 64;
   const publish = () => {
@@ -157,7 +170,7 @@ export async function serveSessionControl(options: SessionControlHostOptions): P
     await unlink(file).catch(() => {});
   };
   try {
-    if (process.platform !== "win32") await chmod(address(directory, id), 0o600);
+    if (process.platform !== "win32") await chmod(endpoint, 0o600);
     await publish();
   } catch (error) { await dispose(); throw error; }
   return { publish, dispose };
@@ -180,8 +193,9 @@ export async function requestSessionControl(options: SessionControlRequestOption
   }
   if (matches.length !== 1) throw fail(matches.length > 1 ? "ambiguous-session" : "session-unavailable", "Select one running bare session by its complete session id.");
   const record = matches[0]!;
+  const endpoint = await address(directory, record.id, false);
   return await new Promise((done, reject) => {
-    const socket = createConnection(address(directory, record.id));
+    const socket = createConnection(endpoint);
     const requestId = randomUUID();
     const timer = setTimeout(() => { socket.destroy(); reject(fail("request-expired", "Session request timed out; application was not acknowledged.")); }, Math.max(1, deadline - Date.now()));
     const finish = () => { clearTimeout(timer); socket.destroy(); };
