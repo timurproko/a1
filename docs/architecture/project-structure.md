@@ -47,7 +47,7 @@ Three layer boundaries hold regardless of the DAG: `src/contracts/*` import noth
 
 Every exported value under `src/` needs a production consumer: a file under `src/`, `bin/`, or `scripts/` that imports its module and names it. Owner public entries, declared entry modules, the product identity entry, copied upstream sources, and types are exempt. A value only a test reads stays private, and the test goes through the owner's public entry or an observable result.
 
-`src/cli` contains command policy but delegates runtime work. `src/composition` is the concrete dependency-injection boundary: it may know both neutral contracts and Pi implementations, while product features receive vendor-neutral ports. Foundation modules never import product features. Pi package knowledge remains inside the Pi adapter owners.
+`src/cli` contains command policy but delegates runtime work. `src/composition` is the concrete dependency-injection boundary: it may know both neutral contracts and Pi implementations, while product features receive vendor-neutral ports. Foundation modules never import product features. Pi package knowledge remains inside the Pi adapter owners. CLI, launch, composition and the Pi engine also consume the existing dependency-free `launch-context` owner for bounded structured invocation payloads shared with release/bootstrap transport; no Pi SDK or UI implementation moves into that contract.
 
 Shared code moves to foundation only when it is product-agnostic, has a precise contract, and has more than one real consumer. Do not create `core`, `common`, `utils`, or `misc` dumping grounds.
 

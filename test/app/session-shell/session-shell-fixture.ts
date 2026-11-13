@@ -164,7 +164,11 @@ export class Session {
     return { output: command, exitCode: 0, cancelled: false, truncated: false };
   }
   async bindExtensions(bindings: unknown): Promise<void> { this.extensionBindings = bindings; this.calls.push("bindExtensions"); }
-  async reload(): Promise<void> { this.calls.push("reload"); }
+  async reload(): Promise<void> {
+    this.calls.push("reload");
+    // Protocol: pinned Pi restores bound UI and emits reload startup itself; the host must not repeat it.
+    if (this.extensionBindings !== undefined) await this.bindExtensions(this.extensionBindings);
+  }
   async setModel(model: unknown, options?: unknown): Promise<void> {
     this.model = model;
     this.lastSetModelOptions = options;

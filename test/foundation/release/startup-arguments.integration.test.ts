@@ -55,7 +55,9 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })));
 });
 
+const runtimeOptions = { model: "provider/model", thinking: "high", extensionPaths: ["/extension with space.ts"], excludeTools: ["write"] } as const;
 const payloads = [
+  { name: "runtime options", intent: { runtimeOptions }, argv: ["--runtime-options", JSON.stringify(runtimeOptions)] },
   { name: "empty literal boundary", intent: { promptArguments: [] }, argv: ["--"] },
   { name: "color", intent: { sessionColor: "green" }, argv: ["--session-color", "green"] },
   { name: "literal prompt", intent: { promptArguments: ["--session-color", "pink", "$(literal)"] }, argv: ["--", "--session-color", "pink", "$(literal)"] },
@@ -100,6 +102,14 @@ describe("bootstrap selected-release startup payload", () => {
       expect(await runBootstrap(fixture.options)).toBe(0);
       expect(childArguments()).toEqual([]);
     }
+  });
+
+  it("does not mistake an older color/prompt parser for runtime option support", async () => {
+    const fixture = await packageFixture();
+    await rm(resolve(fixture.packageRoot, "dist/foundation/launch-context/runtime-options.js"));
+    await expect(runBootstrap({ ...fixture.options, launchIntent: { kind: "interactive", profileId: "a1", runtimeOptions } })).rejects.toThrow("does not support");
+    expect(spawn).not.toHaveBeenCalled();
+    expect(await runBootstrap({ ...fixture.options, launchIntent: { kind: "interactive", profileId: "a1", promptArguments: ["still supported"] } })).toBe(0);
   });
 
   it.each(["missing", "malformed", "different identity"])("rejects %s full manifest evidence after compact admission before UI spawn", async damage => {
@@ -174,6 +184,7 @@ async function packageFixture(supported = true, extraFiles = 0, version = "2.0.0
   const dataDir = resolve(root, "data");
   await mkdir(resolve(packageRoot, "bin"), { recursive: true });
   await mkdir(resolve(packageRoot, "dist/features/launch"), { recursive: true });
+  await mkdir(resolve(packageRoot, "dist/foundation/launch-context"), { recursive: true });
   await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({
     name: PRODUCT_IDENTITY.packageName,
     privateLaunchContract: "neutral-launch-v1",
@@ -181,7 +192,10 @@ async function packageFixture(supported = true, extraFiles = 0, version = "2.0.0
     files: ["bin", "dist"],
   }));
   await writeFile(resolve(packageRoot, "bin/ui.js"), "process.exit(0);");
-  if (supported) await writeFile(resolve(packageRoot, "dist/features/launch/interactive-arguments.js"), "export {};\n");
+  if (supported) {
+    await writeFile(resolve(packageRoot, "dist/features/launch/interactive-arguments.js"), "export {};\n");
+    await writeFile(resolve(packageRoot, "dist/foundation/launch-context/runtime-options.js"), "export {};\n");
+  }
   for (let index = 0; index < extraFiles; index += 1) await writeFile(resolve(packageRoot, `dist/extra-${index}.js`), `export default ${index};\n`);
   const options: BootstrapOptions = {
     packageRoot,

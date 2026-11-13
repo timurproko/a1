@@ -119,6 +119,20 @@ describe("repository-local development launch", () => {
     }
   });
 
+  it("preserves owned and compatible literal startup payloads in the actual development launch", async () => {
+    const home = await mkdtemp(resolve(tmpdir(), "a1-development-compatible-"));
+    const env = { ...process.env, A1_PROFILE_HOME: home };
+    const prompt = "quotes '\" spaces  🚢\n--model not-an-option";
+    try {
+      const ordinary = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", "--session-color", "green", "--", prompt], { env });
+      expect(JSON.parse(ordinary.stdout).childArguments).toEqual(["--session-color", "green", "--", prompt]);
+      const compatible = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", "--pi-compatible", "--model", "provider/model", "--thinking", "high", prompt], { env });
+      const result = JSON.parse(compatible.stdout);
+      expect(result).toMatchObject({ directProfile: "a1", selectedEntry: "bin/ui.js", profileConfigurationRoot: resolve(home, ".a1/agent") });
+      expect(result.childArguments).toEqual(["--runtime-options", JSON.stringify({ model: "provider/model", thinking: "high" }), "--", prompt]);
+    } finally { await rm(home, { recursive: true, force: true }); }
+  });
+
   it("returns silently for an unsupported non-profile development command", async () => {
     const result = await execute(process.execPath, ["scripts/development/start-local.mjs", "not-an-a1-command"]);
     expect(result).toMatchObject({ stdout: "", stderr: "" });

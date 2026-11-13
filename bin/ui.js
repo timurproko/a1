@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+// Invariant: only this independent UI process retires inherited host claims; embedded sessions retain them.
+const { initializeInteractiveProcessIdentity } = await import("../dist/features/launch/process-identity.js");
+initializeInteractiveProcessIdentity(process.env);
+
 // Invariant: one terminal module identity per process, decided before any A1 or Pi module loads.
 const { installPinnedPiTuiResolver } = await import("./module-resolver.js");
 installPinnedPiTuiResolver(new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1").replace(/\/$/, ""));

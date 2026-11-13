@@ -67,8 +67,13 @@ function preservePinnedPiModuleContext() {
   return {
     name: "preserve-pinned-pi-module-context",
     setup(buildContext) {
-      buildContext.onLoad({ filter: /\.js$/ }, async args => {
+      buildContext.onLoad({ filter: /\.m?js$/ }, async args => {
         const normalized = args.path.replaceAll("\\", "/");
+        // Compatibility: Jiti loads Babel lazily with createRequire(import.meta.url). Preserve its
+        // public entry's context too, or a cold typed extension resolves beside this bundle.
+        if (normalized.endsWith("/node_modules/jiti/lib/jiti.mjs")) {
+          return { contents: (await readFile(args.path, "utf8")).replaceAll("import.meta.url", '__piResolve("jiti")'), loader: "js", resolveDir: dirname(args.path) };
+        }
         const offset = normalized.lastIndexOf(marker);
         if (offset < 0) return undefined;
         const relativeModule = normalized.slice(offset + marker.length);

@@ -20,9 +20,16 @@ const launchArguments = process.argv.slice(2);
 const inspectedArguments = launchArguments[0] === "--print-environment" ? launchArguments.slice(1) : launchArguments;
 const { parseCliCommand, cliCapabilities } = await import("../../dist/cli/index.js");
 const { sessionSelectionArguments } = await import("../../dist/foundation/lifecycle/index.js");
-const command = parseCliCommand(inspectedArguments, cliCapabilities(release.version));
+const compatibility = inspectedArguments[0] === "--pi-compatible";
+const { parsePiCompatibleCommand } = await import("../../dist/cli/pi-compatible.js");
+const compatibleCommand = compatibility ? parsePiCompatibleCommand(inspectedArguments.slice(1)) : null;
+const command = compatibleCommand?.kind === "launch" ? { ...compatibleCommand.intent, kind: "launch" }
+  : compatibility ? { kind: "compatibility-probe" } : parseCliCommand(inspectedArguments, cliCapabilities(release.version));
+const { interactiveStartupArguments } = await import("../../dist/foundation/launch-context/index.js");
 const directProfile = command.kind === "launch" ? command.profileId : null;
-const childArguments = command.kind === "launch" ? sessionSelectionArguments(command.sessionSelection) : inspectedArguments;
+const childArguments = command.kind === "launch"
+  ? [...sessionSelectionArguments(command.sessionSelection), ...interactiveStartupArguments(command)]
+  : compatibility ? inspectedArguments.slice(1) : inspectedArguments;
 const prepared = directProfile === null ? null : await prepareDirectProfile(directProfile, environment);
 const { withLaunchContext } = await import("../../dist/foundation/launch-context/index.js");
 const profileEnvironment = prepared === null
@@ -33,7 +40,7 @@ const profileEnvironment = prepared === null
 const childEnvironment = directProfile === null ? profileEnvironment : { ...profileEnvironment, NODE_DISABLE_COMPILE_CACHE: "1" };
 // Rationale: a development launch runs the checkout's own build in place, so it skips release
 // selection and starts the UI entry directly; other commands go through the ordinary CLI.
-const entry = directProfile === null ? identity.artifacts.cliEntry : identity.artifacts.uiEntry;
+const entry = directProfile === null ? compatibility ? "bin/pi-compatible.js" : identity.artifacts.cliEntry : identity.artifacts.uiEntry;
 const selectedChildArguments = childArguments;
 
 if (launchArguments[0] === "--print-environment") {

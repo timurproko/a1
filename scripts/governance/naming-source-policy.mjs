@@ -14,7 +14,7 @@ export function namingSourceRole(path) {
   if (SCRIPT_EXTENSIONS.has(extension)) return "script";
   if (extension === ".py") return "python";
   if ([".json", ".yaml", ".yml"].includes(extension)) return "configuration";
-  if ([".sh", ".ps1", ".psm1"].includes(extension) || (path.startsWith("scripts/") && extension === "")) return "shell";
+  if ([".sh", ".ps1", ".psm1"].includes(extension) || (path.startsWith("scripts/") && extension === "") || path === "bin/pi-compatible/pi") return "shell";
   if (/^(src|bin|scripts|test)[/]/.test(path)) return "unsupported";
   return "data";
 }

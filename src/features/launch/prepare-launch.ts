@@ -20,7 +20,7 @@ export async function prepareInteractiveLaunch(
   const configurationRoot = configurationRootForProfile(intent.profileId, paths);
   if (configurationRoot !== null) await (options.initializeProfile ?? initializeProductProfile)(configurationRoot);
 
-  const childEnvironment = { ...environment };
+  const childEnvironment: NodeJS.ProcessEnv = { ...environment, AI_AGENT: "pi", PI_CODING_AGENT: "true" };
   if (configurationRoot === null) delete childEnvironment.PI_CODING_AGENT_DIR;
   else childEnvironment.PI_CODING_AGENT_DIR = configurationRoot;
 

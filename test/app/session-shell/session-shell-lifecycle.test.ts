@@ -365,6 +365,7 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
     ], [], true);
     Object.assign(engine.session, {
       sessionManager: {
+        ...engine.session.sessionManager,
         isPersisted: () => true,
         getSessionFile: () => path,
         getSessionId: () => "compact-id",
@@ -396,6 +397,7 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
     });
     Object.assign(engine.session, {
       sessionManager: {
+        ...engine.session.sessionManager,
         isPersisted: () => true,
         getSessionFile: () => path,
         getSessionId: () => "compact-id",
