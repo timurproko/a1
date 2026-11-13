@@ -53,7 +53,7 @@ describe("independent interactive host identity", () => {
       PI_CODING_AGENT_DIR: "/a1-profile", PATH: "/commands",
     });
     expect(parent.FM_PI_SESSION_PID).toBe("123");
-    // Firstmate's own publication must survive same-process sessions and ordinary helpers.
+    // Invariant: Firstmate's own publication must survive same-process sessions and ordinary helpers.
     Object.assign(child, { FM_PI_SESSION_PID: "789", FM_PI_SESSION_START: "999" });
     expect({ ...child }.FM_PI_SESSION_PID).toBe("789");
   });

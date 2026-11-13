@@ -23,6 +23,11 @@ try {
       return 0;
     },
     catalog: async (options, search) => {
+      // Security: Firstmate's current primary factory publishes a loaded marker even without a session.
+      // Refuse shared-state probes until that external lifecycle prerequisite is corrected.
+      if (["FM_HOME", "FM_ROOT_OVERRIDE", "FM_STATE_OVERRIDE", "FM_PI_SESSION_PID", "FM_PI_SESSION_START"].some(key => process.env[key])) {
+        throw new Error("Catalog discovery is unavailable in a Firstmate-scoped environment: its primary extension factory can replace live loaded markers before session_start. A Firstmate lifecycle correction is required; no extensions were loaded.");
+      }
       const prepared = await prepareInteractiveLaunch(interactiveLaunchIntent("a1"));
       if (prepared.configurationRoot === null) throw new Error("A1 profile is unavailable");
       process.env.PI_CODING_AGENT_DIR = prepared.configurationRoot;

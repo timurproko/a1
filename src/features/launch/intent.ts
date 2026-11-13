@@ -23,7 +23,7 @@ export function interactiveLaunchIntent(
   if (sessionSelection !== undefined && profileId !== "a1") {
     throw new Error("session selection requires the A1 profile");
   }
-  if (profileId !== "a1" && Object.keys(startup).some(key => startup[key as keyof typeof startup] !== undefined)) throw new Error("startup presentation requires the A1 profile");
+  if (profileId !== "a1" && (startup.sessionColor !== undefined || startup.promptArguments !== undefined || startup.runtimeOptions !== undefined)) throw new Error("startup presentation requires the A1 profile");
   const validated = parseInteractiveLaunchArguments([
     ...sessionSelectionArguments(sessionSelection),
     ...interactiveStartupArguments(startup),

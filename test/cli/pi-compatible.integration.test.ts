@@ -13,7 +13,7 @@ async function fixture() {
   const agentDir = resolve(home, ".a1/agent"); await mkdir(agentDir, { recursive: true });
   await writeFile(resolve(agentDir, "settings.json"), JSON.stringify({ defaultProjectTrust: "never" }));
   await writeFile(resolve(agentDir, "models.json"), JSON.stringify({ providers: { "fixture-cli": { baseUrl: "http://127.0.0.1:1/v1", api: "openai-completions", apiKey: "hermetic-no-network", models: [{ id: "fixture-model", name: "Fixture model", reasoning: false, input: ["text"], contextWindow: 4096, maxTokens: 128 }] } } }));
-  return { home, agentDir, env: { ...process.env, A1_PROFILE_HOME: home, PI_OFFLINE: "1", FM_PI_SESSION_PID: "parent-live-host", FM_PI_SESSION_START: "parent-start" } };
+  return { home, agentDir, env: { ...process.env, A1_PROFILE_HOME: home, PI_OFFLINE: "1", FM_HOME: "", FM_ROOT_OVERRIDE: "", FM_STATE_OVERRIDE: "", FM_PI_SESSION_PID: "", FM_PI_SESSION_START: "" } };
 }
 
 describe("actual compatibility executable", () => {
@@ -40,15 +40,36 @@ describe("actual compatibility executable", () => {
     await expect(readdir(resolve(f.agentDir, "sessions"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("refuses Firstmate-scoped catalog discovery before any marker-writing factory runs", async () => {
+    const f = await fixture();
+    const marker = resolve(f.home, "owned-marker"), extension = resolve(f.home, "marker-factory.ts");
+    await writeFile(marker, "live-main-sentinel");
+    await writeFile(extension, `import { writeFileSync } from "node:fs"; export default function() { writeFileSync(${JSON.stringify(marker)}, "probe-overwrite"); }`);
+    await expect(execute(process.execPath, ["bin/pi-compatible.js", "--list-models", "-e", extension], { env: { ...f.env, FM_HOME: f.home, FM_PI_SESSION_PID: "parent-live-host" }, timeout: 15_000 })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("Firstmate lifecycle correction") });
+    expect(await readFile(marker, "utf8")).toBe("live-main-sentinel");
+    const help = await execute(process.execPath, ["bin/pi-compatible.js", "--help"], { env: { ...f.env, FM_HOME: f.home } });
+    expect(help.stdout).toContain("normal A1 UI and profile");
+  });
+
+  it("transforms a cold TypeScript extension through the built loader", async () => {
+    const f = await fixture();
+    const extension = resolve(f.home, "cold-typed-extension.ts");
+    await writeFile(extension, `enum Provider { Fixture = "typed-fixture" }\nexport default function(pi: any): void { pi.registerProvider(Provider.Fixture, { api: "openai-completions", apiKey: "hermetic-no-network", baseUrl: "http://127.0.0.1:1/v1", models: [{ id: "typed-model", name: "Typed model", reasoning: false, input: ["text"], contextWindow: 4096, maxTokens: 128 }] }); }`);
+    const result = await execute(process.execPath, ["bin/pi-compatible.js", "--list-models", "typed-fixture/", "-e", extension], { env: f.env, timeout: 20_000 });
+    expect(result.stdout.trim()).toBe("typed-fixture/typed-model");
+  });
+
   it("packs the real compatibility shim and runs discovery from the extracted package", async () => {
     const f = await fixture();
     const packed = await execute("bash", ["-c", 'npm pack --ignore-scripts --json --pack-destination "$1"', "pack", f.home], { timeout: 30_000 });
     const filename = JSON.parse(packed.stdout)[0].filename as string;
     await execute("tar", ["-xzf", filename], { cwd: f.home, timeout: 15_000 });
     const packageRoot = resolve(f.home, "package");
-    // Use the pinned test installation; this is packaging smoke, not dependency-install certification.
+    // Rationale: use the pinned test installation; this is packaging smoke, not dependency-install certification.
     await symlink(resolve("node_modules"), resolve(packageRoot, "node_modules"), process.platform === "win32" ? "junction" : "dir");
-    const result = await execute("bash", ["-c", 'export PATH="$(pwd -P)/bin/pi-compatible:$PATH"; type -P pi && pi --version && pi --list-models fixture-cli/'], { cwd: packageRoot, env: f.env, timeout: 20_000 });
+    const typedExtension = resolve(f.home, "packaged-typed.ts");
+    await writeFile(typedExtension, 'enum Flag { Name = "packaged-enum" }; export default function(pi: any): void { pi.registerFlag(Flag.Name, { type: "boolean", description: "packaged transform fixture" }); }');
+    const result = await execute("bash", ["-c", 'export PATH="$(pwd -P)/bin/pi-compatible:$PATH"; type -P pi && pi --version && pi --list-models fixture-cli/ -e "$1"', "packaged-smoke", typedExtension], { cwd: packageRoot, env: f.env, timeout: 20_000 });
     expect(result.stdout).toContain("/package/bin/pi-compatible/pi");
     expect(result.stdout).toContain("Pi-compatible owned runtime");
     expect(result.stdout).toContain("fixture-cli/fixture-model");

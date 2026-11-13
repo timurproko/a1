@@ -39,7 +39,7 @@ export function parsePiCompatibleCommand(arguments_: readonly string[], cwd: str
         if (["--session", "--session-color"].includes(name)) owned.push(name, value);
         continue;
       }
-      // Loaded extension registrations are authoritative; never accept arbitrary short flags.
+      // Protocol: loaded extension registrations are authoritative; never accept arbitrary short flags.
       if (!/^--[a-z][a-z0-9-]*$/u.test(name)) throw new Error(`Unsupported option: ${name}`);
       const value = arguments_[index + 1];
       flags.push([name.slice(2), value !== undefined && !value.startsWith("-") ? arguments_[++index]! : true]);
