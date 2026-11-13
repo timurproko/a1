@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -33,7 +33,7 @@ afterEach(async () => {
 
 type Note = { event: string; reason?: string; session?: string; child?: string; ready?: boolean; text?: unknown; cwd?: string };
 async function fixture(promptArguments?: readonly string[]) {
-  const root = await mkdtemp(resolve(tmpdir(), "a1-compatible-lifecycle-")); roots.push(root);
+  const root = await realpath(await mkdtemp(resolve(tmpdir(), "a1-compatible-lifecycle-"))); roots.push(root);
   const agentDir = resolve(root, ".a1/agent"), task = resolve(root, "task"), operational = resolve(root, "operational");
   await Promise.all([agentDir, task, operational].map(path => mkdir(path, { recursive: true })));
   for (const [key, value] of Object.entries({ PI_OFFLINE: "1", PI_CODING_AGENT_DIR: agentDir, [PRODUCT_IDENTITY.environment.profileHome]: root, [PRODUCT_IDENTITY.environment.dataDir]: resolve(root, "data"), [PRODUCT_IDENTITY.environment.configDir]: resolve(root, "config"), [PRODUCT_IDENTITY.environment.runtimeDir]: resolve(root, "runtime") })) vi.stubEnv(key, value);
