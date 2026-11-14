@@ -24,10 +24,10 @@ The maintainer integration decision accepts these scenarios:
     "Transcript rails stay in the final viewport column through cached reuse, content replacement, scrolling, resize, and dock-height changes.",
     "Hiding and restoring rails leaves no stale content-area rail, and copying through the final content cell excludes the rail gutter."
   ],
-  "archiveDigest": "31b77ca22170745e2007369c8336306cefb444f549aadeaae3b155a34978b84e",
+  "archiveDigest": "5f735f5b094bfe153d0267c0aa5f7ebe8aa7b174bd8eb3be5cbb174f96a298af",
   "specDigest": "fca9e4f21b0c62940efc2ee8b7c44444d905d1110cc14003763068ab36eda53a",
   "tasksDigest": "c6e2bcb8e35a06da11908107ee5a495f67082abba52a9db250e414eb6a0c5212",
-  "evidenceDigest": "7b8c417f87bb0dd4ca916e693692ba9ae7315092f93d184ac92b997210a0a46f",
+  "evidenceDigest": "13bc6ba8d5c35479aee2d61d27df3356cd84fd244ba501b23030d2db545d8b56",
   "knownGaps": []
 }
 ```
