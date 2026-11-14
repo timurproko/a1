@@ -105,7 +105,7 @@ Integration, publication and user-controlled update/relaunch are separate later 
 
 ## Validation and investigation evidence
 
-Planning inspection only; no production or tracked test edits:
+Initial planning inspection, before implementation authorization (implementation results and scoped gap dispositions are in implementation-evidence.md):
 
 - A fresh attached task worktree was created from fetched `origin/develop`; no related open delivery was found. Primary and unrelated task copies were not edited.
 - The bounded startup cleanup sweep retained the unregistered `firstmate-launcher-integration` and `simplify-change-delivery` checkouts and their checked-out branches. Nothing was removed.

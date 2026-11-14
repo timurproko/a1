@@ -68,6 +68,23 @@ describe("shared product API lifecycle", () => {
     expect(options.identity()).toBeUndefined();
   });
 
+  it("coalesces replacement bursts behind a pending endpoint publication", async () => {
+    const f = fixture(), gate = Promise.withResolvers<void>();
+    const control = { publish: vi.fn().mockImplementationOnce(() => gate.promise).mockResolvedValue(undefined), dispose: vi.fn(async () => {}) };
+    const binding = new ReadySessionBinding(f.backend, control, f.context, 1);
+    const options = reporter.create.mock.calls[0]![0] as { identity(): unknown };
+    f.identity.sessionBindingGeneration++; f.emit();
+    await Promise.resolve();
+    for (let generation = 3; generation <= 100; generation++) { f.identity.sessionBindingGeneration = generation; f.emit(); }
+    expect(options.identity()).toBeUndefined();
+    expect(control.publish).toHaveBeenCalledOnce();
+    gate.resolve();
+    await vi.waitFor(() => expect(options.identity()).toMatchObject({ binding: 100 }));
+    expect(control.publish).toHaveBeenCalledTimes(2);
+    expect(reporter.request).toHaveBeenCalledOnce();
+    await binding.dispose();
+  });
+
   it("never creates a reporter for a mismatched reservation", async () => {
     const f = fixture();
     const binding = new ReadySessionBinding(f.backend, { publish: async () => {}, dispose: async () => {} }, createOwnedRuntimeContext(randomUUID(), f.context.herdrBinding), 1);

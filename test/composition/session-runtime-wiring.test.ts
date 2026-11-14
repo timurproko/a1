@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createOwnedRuntimeContext } from "../../src/features/owned-ui/index.js";
+import { createOwnedRuntimeContext, type OwnedRuntimeContext } from "../../src/features/owned-ui/index.js";
 import { parsePiCompatibleCommand } from "../../src/cli/pi-compatible.js";
 import { parseCliCommand } from "../../src/cli/dispatch.js";
 import { PRODUCT_IDENTITY } from "../../src/product-identity.js";
@@ -41,8 +41,8 @@ vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => (
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: (_settings: unknown, _references: unknown, options: OwnedRouteHostOptions) => {
   observed.routeOptions = options; return null;
 } }));
-vi.mock("../../src/composition/session-colors.js", () => ({ startSessionColorControl: async (_backend: unknown, _settings: unknown, _directory: string, runtimeId: string) => {
-  observed.controlRuntime = runtimeId; return { dispose: async () => {} };
+vi.mock("../../src/composition/session-colors.js", () => ({ startSessionColorControl: async (_backend: unknown, _settings: unknown, _directory: string, runtime: string | OwnedRuntimeContext) => {
+  observed.controlRuntime = typeof runtime === "string" ? runtime : runtime.runtimeId; return { dispose: async () => {} };
 } }));
 vi.mock("../../src/app/session-shell/system-clipboard.js", () => ({ writeSystemClipboardText: observed.clipboardWrite }));
 vi.mock("../../src/integrations/pi/session-presenters/presenters.js", async importOriginal => {

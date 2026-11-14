@@ -147,7 +147,7 @@ describe("endpoint-ready fenced Core reporting", () => {
 
   it("retains legacy publication lineage and refuses a later legacy reservation", async () => {
     const f = await fixture(), ticket = await f.reserve();
-    // Protocol fixture: the previous implementation reserves only under the shared I/O guard.
+    // Protocol: the previous implementation reserves only under the shared I/O guard.
     const legacyReserve = async () => {
       await mkdir(`${ticket.file}.lock`);
       try {
@@ -160,7 +160,7 @@ describe("endpoint-ready fenced Core reporting", () => {
     const legacy = await legacyReserve();
     const prior = own({ reservation: legacy, identity: () => ({ sessionId: fixtureSessionId, binding: 1 }), command: f.command, schedule: () => () => {} });
     await vi.waitFor(() => expect(f.labels()[LABELS.runtime]).toBe(legacy.runtimeId)); await tick();
-    // This ticket predates the committed legacy owner and must not take it over.
+    // Invariant: this ticket predates the committed legacy owner and must not take it over.
     const staleCommand = vi.fn(f.command);
     const stale = own({ reservation: ticket, identity: () => ({ sessionId: fixtureSessionId, binding: 1 }), command: staleCommand, schedule: () => () => {} });
     await tick(); expect(staleCommand).not.toHaveBeenCalled();

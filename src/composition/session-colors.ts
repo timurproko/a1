@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { UI_ACCENT_COLORS, type OwnedUiSessionBackend, type UiAccentColor } from "../contracts/owned-ui/index.js";
 import { serveSessionControl } from "../foundation/lifecycle/session-control.js";
 import { ReadySessionBinding } from "../features/owned-ui/ready-session-binding.js";
@@ -6,7 +5,8 @@ import { createOwnedRuntimeContext, type OwnedRuntimeContext } from "../features
 import type { HerdrBindingReservation } from "../features/owned-ui/herdr-binding.js";
 import type { OwnedSettingsManager } from "../ui/settings/manager.js";
 
-export async function startSessionColorControl(backend: OwnedUiSessionBackend, settings: OwnedSettingsManager, runtimeDir: string, runtimeId: string = randomUUID(), herdrBinding?: HerdrBindingReservation, context: OwnedRuntimeContext = createOwnedRuntimeContext(runtimeId, herdrBinding)) {
+export async function startSessionColorControl(backend: OwnedUiSessionBackend, settings: OwnedSettingsManager, runtimeDir: string, runtime: string | OwnedRuntimeContext = createOwnedRuntimeContext(), herdrBinding?: HerdrBindingReservation) {
+  const context = typeof runtime === "string" ? createOwnedRuntimeContext(runtime, herdrBinding) : runtime;
   const publishedBinding = backend.identity.sessionBindingGeneration;
   const identity = () => ({ sessionId: backend.identity.currentHistorySessionId() ?? backend.identity.sessionId, binding: backend.identity.sessionBindingGeneration });
   const control = await serveSessionControl({ runtimeDir, runtimeId: context.runtimeId, identity, handle: async payload => {

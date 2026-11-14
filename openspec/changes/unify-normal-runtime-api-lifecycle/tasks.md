@@ -15,7 +15,7 @@
 
 ## 3. Safe membership-driven color convergence for compatible sessions
 
-- [ ] 3.1 Add a disposable packaged compatible-start fixture through real CLI, bootstrap and UI composition, including a fresh start and same-terminal relaunch after a predecessor; public identity and acknowledged color commands must target the resulting live session rather than an injected reporter identity.
-- [ ] 3.2 Connect that producer to a fixture of the existing consumer contract and move same-machine membership between two spaces without focus changes; local and remote routing cases include inactive tabs and delayed adoption-label acknowledgement.
-- [ ] 3.3 Add stale/partial/expired/future/ambiguous, moved-again and replacement-during-pending-request cases; assertions preserve peer colors, Default color, invocation replacement policy and unrelated profile/extension state.
-- [ ] 3.4 Document mode-independent supported APIs, normal-versus-compatible parity, ownership-blocked availability limits and user-controlled relaunch requirements; retain the distinct comparison exclusion and make no live deployment or hot-patch claim.
+- [x] 3.1 Add a disposable packaged compatible-start fixture through real CLI, bootstrap and UI composition, including a fresh start and same-terminal relaunch after a predecessor; public identity and acknowledged color commands must target the resulting live session rather than an injected reporter identity.
+- [x] 3.2 Connect that producer to a fixture of the existing consumer contract and move same-machine membership between two spaces without focus changes; local and remote routing cases include inactive tabs and delayed adoption-label acknowledgement.
+- [x] 3.3 Add stale/partial/expired/future/ambiguous, moved-again and replacement-during-pending-request cases; assertions preserve peer colors, Default color, invocation replacement policy and unrelated profile/extension state.
+- [x] 3.4 Document mode-independent supported APIs, normal-versus-compatible parity, ownership-blocked availability limits and user-controlled relaunch requirements; retain the distinct comparison exclusion and make no live deployment or hot-patch claim.
