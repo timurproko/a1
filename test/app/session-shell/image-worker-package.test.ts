@@ -16,7 +16,7 @@ describe("packaged image worker", () => {
     await cp(resolve("dist/contracts"), join(root, "dist/contracts"), { recursive: true });
     const relative = "dist/app/session-shell";
     await mkdir(join(root, relative), { recursive: true });
-    for (const name of ["image-worker", "image-preparation-client", "image-preparation", "image-source", "clipboard-image", "system-clipboard"]) {
+    for (const name of ["image-worker", "image-preparation-client", "image-preparation", "image-file-preparation", "image-source", "clipboard-image", "system-clipboard"]) {
       await cp(resolve(relative, `${name}.js`), join(root, relative, `${name}.js`));
     }
     const inventory = JSON.parse(await readFile("dist/runtime-payload-inventory.json", "utf8")) as { paths: string[]; declaredAssets: string[] };
@@ -29,20 +29,24 @@ describe("packaged image worker", () => {
     await writeFile(join(root, "source.png"), screenshotPng());
     await writeFile(join(root, "probe.mjs"), `
       import { readFile } from 'node:fs/promises';
-      import { ImagePreparationClient } from './dist/app/session-shell/image-preparation-client.js';
+      import { fileURLToPath } from 'node:url';
+      import { ImagePreparationClient, runImageWorker } from './dist/app/session-shell/image-preparation-client.js';
       const client = new ImagePreparationClient();
       try {
-        const data = (await readFile(new URL('./source.png', import.meta.url))).toString('base64');
-        const result = await client.start(async () => ({kind:'image',data,mimeType:'image/png'})).result;
+        const source = new URL('./source.png', import.meta.url);
+        const data = (await readFile(source)).toString('base64');
+        const result = process.argv[2] === 'file'
+          ? {kind:'image', ...await runImageWorker({kind:'prepare-file',path:fileURLToPath(source)}, new AbortController().signal)}
+          : await client.start(async () => ({kind:'image',data,mimeType:'image/png'})).result;
         console.log(JSON.stringify({kind:result.kind,length:result.data.length,width:result.width,transformed:result.transformed}));
       } catch (error) { console.log(JSON.stringify({code:error.code})); }
-      finally { client.dispose(); }
+      finally { await client.dispose(); }
     `);
   }, 20_000);
   afterAll(async () => { if (root !== undefined) await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
 
-  it("runs the emitted worker using only inventoried runtime codec files, without tsx or Pi", async () => {
-    const { stdout, stderr } = await execute(process.execPath, [join(root, "probe.mjs")], { cwd: root, timeout: 20_000, env: { ...process.env, NODE_PATH: "" } });
+  it.each(["clipboard", "file"])("runs the emitted worker using only inventoried runtime codec files, without tsx or Pi (%s)", async source => {
+    const { stdout, stderr } = await execute(process.execPath, [join(root, "probe.mjs"), source], { cwd: root, timeout: 20_000, env: { ...process.env, NODE_PATH: "" } });
     expect(stderr).toBe("");
     const result = JSON.parse(stdout);
     expect(result).toMatchObject({ kind: "image", transformed: true });

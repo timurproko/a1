@@ -16,6 +16,7 @@ import {
 import type { ProcessIdentity } from "../../src/foundation/lifecycle/model.js";
 
 import type { PiEngineHostOptions } from "../../src/integrations/pi/engine/host.js";
+import type { OwnedRouteHostOptions } from "../../src/composition/settings-route-host.js";
 import type { ProgressSpinnerSource, ProgressSpinnerStyle } from "../../src/contracts/presentation/index.js";
 import type { PiSessionPresentersOptions } from "../../src/integrations/pi/session-presenters/presenters.js";
 
@@ -26,13 +27,17 @@ const observed = vi.hoisted(() => ({
   hosts: [] as PiEngineHostOptions[], readers: [] as Array<RepositoryContextReader | undefined>, tools: [] as Array<WorktreeCwdReader | undefined>, autoName: true,
   nameFormat: "sentence" as "kebab" | "sentence" | "title" | undefined, spinnerStyle: "current" as ProgressSpinnerStyle,
   spinnerSources: [] as Array<ProgressSpinnerSource | undefined>, colorStarts: 0, settingsListeners: new Set<() => void>(),
+  routeOptions: undefined as OwnedRouteHostOptions | undefined, clipboardWrite: vi.fn(async (_text: string) => {}),
 }));
 // Rationale: run the real composition, registry, and lifecycle store without provider, terminal, or user-file effects.
 vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async importOriginal => ({
   ...await importOriginal<object>(), applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {} }));
 vi.mock("../../src/integrations/pi/engine/host.js", () => ({ createPiEngineHost: vi.fn() }));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
-vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
+vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: (_settings: unknown, _references: unknown, options: OwnedRouteHostOptions) => {
+  observed.routeOptions = options; return null;
+} }));
+vi.mock("../../src/app/session-shell/system-clipboard.js", () => ({ writeSystemClipboardText: observed.clipboardWrite }));
 vi.mock("../../src/integrations/pi/session-presenters/presenters.js", async importOriginal => {
   const original = await importOriginal<typeof import("../../src/integrations/pi/session-presenters/presenters.js")>();
   return { ...original, createPiSessionPresenters(adapter: Parameters<typeof original.createPiSessionPresenters>[0], options: PiSessionPresentersOptions) {
@@ -90,6 +95,8 @@ afterEach(async () => {
   observed.spinnerSources = [];
   observed.settingsListeners.clear();
   observed.colorStarts = 0;
+  observed.routeOptions = undefined;
+  observed.clipboardWrite.mockClear();
   vi.unstubAllEnvs();
   await rm(root, { recursive: true, force: true });
 });
@@ -129,6 +136,18 @@ async function runtimeRecords(): Promise<Array<Record<string, unknown>>> {
 }
 
 describe("session runtime composition wiring", () => {
+  it("keeps settings copy bounded and defers the optional native writer until requested", async () => {
+    const composed = await compose();
+    try {
+      const copy = observed.routeOptions!.copyText!;
+      expect(observed.clipboardWrite).not.toHaveBeenCalled();
+      expect(copy("settings copy")).toBe(true);
+      await vi.waitFor(() => expect(observed.clipboardWrite).toHaveBeenCalledExactlyOnceWith("settings copy"));
+      expect(copy("x".repeat(16 * 1024 * 1024 + 1))).toBe(false);
+      expect(observed.clipboardWrite).toHaveBeenCalledOnce();
+    } finally { await composed.application.dispose(); }
+  });
+
   it.each(["bare", "comparison", "no-runtime"] as const)("supplies owner-bound recovery only to claim-owning bare sessions: %s", async mode => {
     if (mode === "no-runtime") vi.stubEnv(PRODUCT_IDENTITY.environment.sessionRuntimeId, undefined);
     const composed = await compose({ productMode: mode === "comparison" ? "comparison" : "bare" });

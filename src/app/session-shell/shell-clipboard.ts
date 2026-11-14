@@ -1,5 +1,6 @@
 import { ImageAttachmentError, type OwnedUiShellClipboardContent } from "../../contracts/owned-ui/index.js";
 import type { ClipboardImageData } from "./clipboard-image.js";
+import { nativePasteAccess } from "./clipboard-paste-policy.js";
 import type { OwnedUiClipboardServices } from "./clipboard-services.js";
 import { runImageWorker } from "./image-preparation-client.js";
 import type { PastePreparationClientOptions } from "./paste-preparation-client.js";
@@ -7,8 +8,7 @@ import type { PasteSource } from "./paste-protocol.js";
 import { ResponseCopyCoordinator } from "./response-copy-coordinator.js";
 import type { SelectionCopySnapshot } from "../../ui/components/index.js";
 import { MAX_COPY_CONTROL_BYTES, type CopyResult, type ResponseCopyEvent } from "./response-copy-protocol.js";
-import { createResponseCopyExecutor, responseCopyDestination, type OwnedResponseCopyExecutor, type ResponseCopyExecutor } from "./response-copy-transport.js";
-import { writeSystemClipboardText } from "./system-clipboard.js";
+import { createResponseCopyExecutor, type OwnedResponseCopyExecutor, type ResponseCopyExecutor } from "./response-copy-transport.js";
 
 /** A platform clipboard seam; production reads and writes through A1's system clipboard adapter. */
 export interface OwnedUiClipboardPort {
@@ -82,7 +82,8 @@ export class ShellClipboard {
     const write = () => {
       if (this.#options.disposed()) return Promise.resolve();
       this.#options.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`);
-      return clipboard === undefined ? writeSystemClipboardText(text) : clipboard.writeText?.(text) ?? Promise.resolve();
+      return clipboard === undefined ? import("./system-clipboard.js").then(({ writeSystemClipboardText }) => writeSystemClipboardText(text))
+        : clipboard.writeText?.(text) ?? Promise.resolve();
     };
     // Compatibility: comparison profiles retain their existing clipboard path.
     this.#pendingWrite = write().catch(() => {});
@@ -103,10 +104,11 @@ export class ShellClipboard {
   capturePaste(): PasteSource {
     const before = this.responseCopy?.capturePasteBarrier() ?? (async () => true);
     if (this.#options.clipboard !== undefined) return { kind: "provided", read: signal => this.#read(signal), before };
-    if (responseCopyDestination(process.env) === "terminal") return {
-      kind: "provided", before, read: async () => { throw new ImageAttachmentError("paste-unavailable"); },
+    const access = nativePasteAccess(process.env);
+    if (access === "denied") return {
+      kind: "provided", before, read: async () => { throw new ImageAttachmentError("paste-screenshot"); },
     };
-    return { kind: "native", before };
+    return { kind: "native", before, ...(access === "image" ? { imagesOnly: true } : {}) };
   }
 
   /** The extension clipboard writer: true once delivered, false when submitted without confirmation. */

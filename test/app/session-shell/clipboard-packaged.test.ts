@@ -14,7 +14,7 @@ describe("cold packaged clipboard executors", () => {
   it("includes all executor/worker entries in the release and the native adapter in its dependency inventory", async () => {
     const payload = await discoverReleasePayload(process.cwd());
     const inventory = JSON.parse(await readFile("dist/runtime-payload-inventory.json", "utf8")) as { paths: string[] };
-    for (const name of ["response-copy-helper", "paste-helper", "paste-text-worker", "image-worker", "path-chip-presentation"]) {
+    for (const name of ["response-copy-helper", "paste-helper", "paste-text-worker", "image-worker", "image-file-preparation", "path-chip-presentation"]) {
       expect(payload.paths).toContain(`dist/app/session-shell/${name}.js`);
     }
     expect(inventory.paths).toContain("node_modules/@mariozechner/clipboard/package.json");
