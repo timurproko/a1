@@ -1254,7 +1254,9 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
 
     const row = shell.root.editor.render(180).find(line => stripTerminalSequences(line).includes("Clipboard (6).png")) ?? "";
     const focused = stripTerminalSequences(fakeCursorPayload(row));
-    expect(focused).toBe(chips.at(-1));
+    expect(focused).toBe("[🖼️Clipboard (6).png]");
+    expect(shell.root.editor.selectedText?.()).toBe(chips.at(-1));
+    expect(shell.root.editor.getText()).toBe(chips.join(""));
     expect(focused).not.toContain("Clipboard (5).png");
 
     await shell.dispose();

@@ -208,6 +208,14 @@ describe("PromptChipStore", () => {
       expect(thirdChip).toBe("[📁 other/second/shared]");
       expect(fileChips).toEqual(["[📄 notes.txt]", "[📄 second/notes.txt]"]);
       expect(imageChips).toEqual(["[🖼️ photo.png]", "[🖼️ second/photo.png]"]);
+      const project = (source: string) => {
+        let visible = source;
+        for (const range of [...store.hiddenRanges(source)].reverse()) visible = visible.slice(0, range.start) + visible.slice(range.end);
+        return visible;
+      };
+      expect(fileChips.map(project)).toEqual(["[📄notes.txt]", "[📄notes.txt]"]);
+      expect(imageChips.map(project)).toEqual(["[🖼️photo.png]", "[🖼️photo.png]"]);
+      expect([firstChip, secondChip, thirdChip].map(project)).toEqual(["[📁shared]", "[📁shared]", "[📁shared]"]);
       expect(store.transformPastedContent({ kind: "text", text: second })).toBe(secondChip);
       expect(`${firstChip}${secondChip}${thirdChip}${fileChips.join("")}${imageChips.join("")}`).not.toMatch(/ #[a-f0-9]+\]/u);
       expect(store.atomicRanges(`${firstChip}${secondChip}${thirdChip}${fileChips.join("")}${imageChips.join("")}`)).toHaveLength(7);
