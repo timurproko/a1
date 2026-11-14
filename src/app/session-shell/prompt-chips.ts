@@ -7,6 +7,8 @@ import {
   canonicalPromptChipMatches,
   DEFAULT_PROMPT_IMAGE_LIMIT,
   ImageAttachmentError,
+  imageFilePromptChipTag,
+  imagePromptChipIdentifier,
   replaceCanonicalPromptChips,
 } from "../../contracts/owned-ui/index.js";
 import { ImagePreparationClient, type ImagePasteJob } from "./image-preparation-client.js";
@@ -41,18 +43,13 @@ interface PendingPaste {
   references: number;
   kind: "unknown" | "image" | "text";
   replacement?: string;
+  fileName?: string;
   error?: ImageAttachmentError;
   onComplete?: () => void;
 }
 
 const URL_SUBSTRING_PATTERN = /https?:\/\/[^\s\u0000-\u001f\u007f\]]+/giu;
-const IMAGE_CHIP_IDENTIFIER_PATTERN = /^\[📷 screenshot-([a-f0-9]+)(?:-resized)?\]$/u;
 const URL_DISPLAY_LENGTH = 40;
-
-function imageChipIdentifier(tag: string): string | null {
-  const match = IMAGE_CHIP_IDENTIFIER_PATTERN.exec(tag);
-  return match === null ? null : match[1] ?? null;
-}
 
 function rejectedImageMarker(marker: string, error: ImageAttachmentError): string {
   return error.code === "image-count" ? marker : marker.replace("screenshot-", "failed-");
@@ -146,8 +143,9 @@ export class PromptChipStore {
       if (value.kind === "image") return this.#addPreparedImage(value, id, owner);
       entry.kind = "text";
       return this.#adoptPreparedText(value, signal, owner);
-    }, () => {
+    }, fileName => {
       entry.kind = "image";
+      if (fileName !== undefined) entry.fileName = fileName;
       onImage();
       const imageLimit = this.#imageLimit();
       if (this.#imageCount(currentText) >= imageLimit) throw new ImageAttachmentError("image-count", imageLimit);
@@ -158,7 +156,10 @@ export class PromptChipStore {
       // Compatibility: typed image validation can fail before transfer identifies the payload to this store.
       if (entry.kind === "unknown" && entry.error.code.startsWith("image-") && entry.error.code !== "image-canceled") entry.kind = "image";
       if (entry.error.code !== "image-canceled" && entry.references === 0) onError(entry.error);
-      return entry.kind === "image" && entry.error.code !== "paste-screenshot" ? rejectedImageMarker(marker, entry.error) : "";
+      if (entry.kind !== "image" || entry.error.code === "paste-screenshot") return "";
+      if (entry.fileName === undefined) return rejectedImageMarker(marker, entry.error);
+      const tag = imageFilePromptChipTag(entry.fileName, id);
+      return entry.error.code === "image-count" ? tag : `${tag.slice(0, -1)}-failed]`;
     }).then(replacement => {
       entry.replacement = replacement;
       if (entry.error?.code === "image-count") this.#countRejectedImages.add(replacement);
@@ -262,8 +263,9 @@ export class PromptChipStore {
     return tags.size;
   }
 
-  #addPreparedImage(image: PreparedImage, id: string, owner?: symbol): string {
-    const tag = `[📷 screenshot-${id}${image.transformed ? "-resized" : ""}]`;
+  #addPreparedImage(image: PreparedImage & { readonly fileName?: string }, id: string, owner?: symbol): string {
+    const tag = image.fileName === undefined ? `[📷 screenshot-${id}${image.transformed ? "-resized" : ""}]`
+      : imageFilePromptChipTag(image.fileName, id, image.transformed);
     const attachment = Object.freeze({ type: "image" as const, data: image.data, mimeType: image.mimeType });
     assertPromptImages([attachment]);
     this.#chips.set(tag, { kind: "image", tag, image: attachment });
@@ -331,7 +333,8 @@ export class PromptChipStore {
   hiddenRanges(line: string): readonly OwnedUiShellEditorTextRange[] {
     const ranges: OwnedUiShellEditorTextRange[] = [];
     for (const entry of this.#pending.values()) {
-      if (entry.kind === "image") continue;
+      // Rationale: file-image reservations stay hidden rather than flashing a clipboard screenshot label.
+      if (entry.kind === "image" && entry.fileName === undefined) continue;
       let from = 0;
       while ((from = line.indexOf(entry.marker, from)) >= 0) {
         ranges.push({ start: from, end: from + entry.marker.length });
@@ -405,7 +408,7 @@ export class PromptChipStore {
       if (seen.has(tag)) continue;
       const chip = this.#chips.get(tag);
       if (chip === undefined || chip.kind !== "image") continue;
-      const identifier = imageChipIdentifier(tag);
+      const identifier = imagePromptChipIdentifier(tag);
       if (identifier === null) continue;
       seen.add(tag);
       results.push({ id: identifier, tag, image: chip.image });
@@ -424,7 +427,7 @@ export class PromptChipStore {
     // register a live image chip; misses silently strip the tag (no placeholder, no notice) per
     // the durability contract.
     const resolvedImages = replaceCanonicalPromptChips(text, match => {
-      const identifier = imageChipIdentifier(match.text);
+      const identifier = imagePromptChipIdentifier(match.text);
       if (identifier === null) return match.text;
       const attachment = resolveImage(identifier);
       if (attachment === null) return "";
