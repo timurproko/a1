@@ -18,6 +18,10 @@ Do not remove the selected prompt text, reconstruct logical soft wraps, trim eac
 
 Use focused viewport/selection and shell copy regression tests, TypeScript checks, and strict OpenSpec validation. Include the screenshot's prompt-plus-quote case; multiple submitted prompts; wrapped prompt continuation rows; forward/reverse and partial selections; Unicode, real indentation, and literal marker characters; off-screen selection; and automatic/explicit payload parity. A physical Herdr round trip remains optional manual confirmation, not evidence already obtained.
 
+## Implementation
+
+Per-row prompt-anchor classification replaces the whole-selection prompt-only condition. The shared prompt extractor accepts the renderer's known prefix width, accounting for the current three-cell inset as well as existing two-cell presentations. First-row timestamp handling and non-prompt assistant exclusion metadata remain unchanged. Both automatic and explicit copy consume the same immutable extraction result.
+
 ## Known gaps
 
-None proposed within this scope. Terminal-native copying that bypasses A1's selection owner is not changed; ordinary external clipboard text is not heuristically rewritten.
+None within the approved implementation scope. Terminal-native copying that bypasses A1's selection owner is not changed; ordinary external clipboard text is not heuristically rewritten.
