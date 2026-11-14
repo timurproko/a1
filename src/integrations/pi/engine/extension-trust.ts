@@ -11,7 +11,7 @@ export async function resolveExtensionProjectTrust(options: {
     hasUI: options.trustUi?.hasUI ?? false,
     ui: options.trustUi?.ui ?? { select: async () => undefined, confirm: async () => false, input: async () => undefined, notify() {} },
   };
-  // Snapshot before awaiting: handlers cannot register another handler for this emission.
+  // Concurrency: snapshot before awaiting; handlers cannot register another handler for this emission.
   const handlers = options.extensionsResult?.extensions.flatMap(extension => [...(extension.handlers.get("project_trust") ?? [])]) ?? [];
   for (const handler of handlers) {
     try {
@@ -24,7 +24,7 @@ export async function resolveExtensionProjectTrust(options: {
       return { trusted, source: "extension", diagnostic: null };
     } catch (error) {
       if (error instanceof Error && error.name === "ProjectTrustPromptExitError") throw error;
-      // Fail closed without copying handler error payloads (which can contain credentials).
+      // Security: fail closed without copying handler error payloads (which can contain credentials).
       return { trusted: false, source: "fail-closed", diagnostic: `Project resources in ${options.cwd} were withheld because an extension trust handler failed` };
     }
   }

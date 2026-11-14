@@ -21,7 +21,7 @@ const SWITCH_OPTIONS = new Map([
   ["--no-session", "--no-session"], ["--approve", "--approval"], ["-a", "--approval"],
   ["--no-approve", "--approval"], ["-na", "--approval"],
 ]);
-// Reserved public Pi contracts must never masquerade as extension flags or prompt text during rollout.
+// Invariant: reserved public Pi contracts must never masquerade as extension flags or prompt text during rollout.
 const PENDING_OPTIONS = new Set([
   "--mode", "--print", "-p", "--export",
   "--tools", "-t", "--no-tools", "-nt", "--no-builtin-tools", "-nbt", "--no-extensions", "-ne", "--no-mcp",

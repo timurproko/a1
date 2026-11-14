@@ -201,7 +201,8 @@ describe("A1 CLI dispatch", () => {
 
   it.each([
     ["--session"], ["--session", ""], ["--session", "   "], ["--session", "bad\u0000id"],
-    ["--session-dir"], ["--resume"], ["-r"], ["--continue"], ["-c"],
+    ["--session-dir"], ["--resume", "-r"], ["--continue", "-c"],
+    ["--fork", "saved", "-r"], ["--fork", "saved", "-c"],
     ["solo"], ["solo", "--session", "saved-id"], ["tabs"], ["tabs", "stop", "--all"],
     ["ui"], ["agent"], ["config"], ["update:develop"], ["update:develop", "107"],
     ["update:107"], ["update:0.1.8-dev.107"], ["update:next"], ["update:"],
@@ -245,6 +246,24 @@ describe("A1 CLI dispatch", () => {
     expect(transcript.stdout).not.toHaveBeenCalled();
     expectNoHandler(commands);
     expect(JSON.stringify(parseCliCommand(arguments_, PRERELEASE))).not.toMatch(/shell|cmd\.exe|sh -c/i);
+  });
+
+  it.each([
+    { flag: "--resume", runtimeOptions: { resumeSession: true } },
+    { flag: "-r", runtimeOptions: { resumeSession: true } },
+    { flag: "--continue", runtimeOptions: { continueSession: true } },
+    { flag: "-c", runtimeOptions: { continueSession: true } },
+  ] as const)("dispatches supported session selector $flag to the normal runtime", async ({ flag, runtimeOptions }) => {
+    const commands = handlers();
+    const transcript = output();
+    expect(await dispatchCli([flag], commands, transcript, PRERELEASE)).toBe(0);
+    expect(commands.launch).toHaveBeenCalledExactlyOnceWith({ kind: "interactive", profileId: "a1", runtimeOptions });
+    expect(commands.version).not.toHaveBeenCalled();
+    expect(commands.update).not.toHaveBeenCalled();
+    expect(commands.packages).not.toHaveBeenCalled();
+    expect(commands.sessionContext).not.toHaveBeenCalled();
+    expect(transcript.stdout).not.toHaveBeenCalled();
+    expect(transcript.stderr).not.toHaveBeenCalled();
   });
 
   it.each(["resume", "unknown", "sdjjhd"])("treats non-command word %s as the approved positional prompt", async text => {

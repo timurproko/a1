@@ -53,7 +53,7 @@ export async function selectPiLaunchSession(options: {
     return recent === undefined ? done(SessionManager.create(options.cwd, options.sessionDir))
       : done(await openSelectedPiSession({ ...options, selection: { target: recent.path }, guardWriter: true }));
   }
-  // A custom-ID lookup/create is serialized until the real guarded session header exists.
+  // Concurrency: a custom-ID lookup/create is serialized until the real guarded session header exists.
   // This reservation creates no synthetic session file and never replaces the real writer.
   const newManager = SessionManager.create(options.cwd, options.sessionDir, id === undefined ? undefined : { id });
   const directory = newManager.getSessionDir();

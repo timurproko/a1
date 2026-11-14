@@ -78,7 +78,7 @@ function transport(runtime: AgentSessionRuntime, tool: boolean | "metadata" = fa
 
 async function ready(f: Awaited<ReturnType<typeof fixture>>) {
   await f.release(); f.application.start();
-  // Await the real startup/delivery fence, not a one-second scheduling assumption.
+  // Concurrency: await the real startup/delivery fence, not a one-second scheduling assumption.
   await f.application.flush();
   expect(f.adapter.extensions.visualExtensionSupport().available).toBe(true);
 }

@@ -126,7 +126,7 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
       });
       const launch = options.runtimeOptions === undefined && !services.settingsManager.getEnabledModels()?.length ? undefined : await import("./launch-options.js");
       if (options.runtimeOptions !== undefined) launch!.assertPiInvocationResources(services, options.runtimeOptions);
-      // Explicit credentials must be available before scope resolution. Reapply keys
+      // Security: explicit credentials must be available before scope resolution. Reapply keys
       // only to their original provider; later UI model/effort choices remain intact.
       const explicitInvocation = options.runtimeOptions === undefined || (options.runtimeOptions.model === undefined && invocationKeyProvider === undefined) ? undefined
         : await launch!.resolvePiInvocationModel(services, options.runtimeOptions, undefined, invocationKeyProvider, initialInvocation);
@@ -205,7 +205,7 @@ async function createPiLaunchManager(options: PiRuntimeIntegrationOptions, sessi
     ...(options.runtimeOptions === undefined ? {} : { runtimeOptions: options.runtimeOptions }),
     ...(options.sessionForkPrompt === undefined ? {} : { forkPrompt: options.sessionForkPrompt }),
   };
-  // Default and existing explicit resumes do not load the optional selector/picker implementation.
+  // Performance: default and existing explicit resumes do not load the optional selector/picker implementation.
   if (options.runtimeOptions !== undefined && ["continueSession", "resumeSession", "forkSession", "sessionId", "noSession"].some(key => key in options.runtimeOptions!)) {
     return await (await import("./session-launch.js")).selectPiLaunchSession(request);
   }
