@@ -12,6 +12,9 @@ const canonical = [
   "[📁 C:/Git/a1 folder]",
   "[📄 C:/Git/a1/file.txt]",
   "[🖼  Clipboard (1).png]",
+  "[🖼 Clipboard (2).png]",
+  "[🖼️ Clipboard (3).png]",
+  "[🖼️ ℹ.png #abc123]",
   "[🔗 https://example.com/a useful link]",
 ];
 

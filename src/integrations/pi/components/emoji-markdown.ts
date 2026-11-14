@@ -1,6 +1,6 @@
 import { Marked } from "@earendil-works/pi-tui";
 import { canonicalPromptChipMatches } from "../../../contracts/owned-ui/index.js";
-import { emojiPresentation } from "../../../ui/components/index.js";
+import { emojiPresentation } from "../../../ui/components/emoji-presentation.js";
 
 interface MarkdownNode {
   readonly type?: string;
@@ -26,7 +26,7 @@ export function presentEmojiMarkdown(markdown: string): string {
     for (const node of nodes) {
       const raw = node.raw ?? node.text ?? "";
       const aligned = alignRaw(raw, parent, cursor);
-      if (aligned === undefined) return; // Fail closed rather than modify a mismatched parser projection.
+      if (aligned === undefined) return; // Invariant: a mismatched parser projection never modifies source.
       cursor = aligned.end;
       const mapped = aligned.positions.map(index => positions[index]!);
       if (node.type === "code" || node.type === "codespan" || node.type === "html" || node.type === "def"

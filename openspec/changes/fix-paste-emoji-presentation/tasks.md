@@ -6,6 +6,6 @@
 
 ## 2. Consistent generated and legacy chip presentation
 
-- [ ] 2.1 Reuse the shared presentation policy for generated image-file icons with one label separator while retaining other existing icons.
-- [ ] 2.2 Recognize new emoji-presentation and legacy bare image-file labels without rewriting historical text.
-- [ ] 2.3 Add focused regressions for canonical recognition, adjacent atomic chip geometry, and unchanged path expansion behavior.
+- [x] 2.1 Reuse the shared presentation policy for generated image-file icons with one label separator while retaining other existing icons.
+- [x] 2.2 Recognize new emoji-presentation and legacy bare image-file labels without rewriting historical text.
+- [x] 2.3 Add focused regressions for canonical recognition, adjacent atomic chip geometry, and unchanged path expansion behavior.

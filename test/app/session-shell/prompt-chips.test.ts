@@ -179,7 +179,7 @@ describe("PromptChipStore", () => {
     const fileChip = store.transformPastedContent({ kind: "text", text: file });
     const combinedChips = store.transformPastedContent({ kind: "text", text: `"${folder}" "${file}"` });
     expect(folderChip).toBe("[📁 source folder]");
-    expect(fileChip).toBe("[🖼  Clipboard (2).png]");
+    expect(fileChip).toBe("[🖼️ Clipboard (2).png]");
     expect(combinedChips).toBe(`${folderChip}${fileChip}`);
     expect(store.atomicRanges(`${folderChip} ${fileChip}`)).toHaveLength(2);
     expect(store.expandCopiedText(folderChip)).toBe(folder);
@@ -207,7 +207,7 @@ describe("PromptChipStore", () => {
       expect(secondChip).toBe("[📁 second/shared]");
       expect(thirdChip).toBe("[📁 other/second/shared]");
       expect(fileChips).toEqual(["[📄 notes.txt]", "[📄 second/notes.txt]"]);
-      expect(imageChips).toEqual(["[🖼  photo.png]", "[🖼  second/photo.png]"]);
+      expect(imageChips).toEqual(["[🖼️ photo.png]", "[🖼️ second/photo.png]"]);
       expect(store.transformPastedContent({ kind: "text", text: second })).toBe(secondChip);
       expect(`${firstChip}${secondChip}${thirdChip}${fileChips.join("")}${imageChips.join("")}`).not.toMatch(/ #[a-f0-9]+\]/u);
       expect(store.atomicRanges(`${firstChip}${secondChip}${thirdChip}${fileChips.join("")}${imageChips.join("")}`)).toHaveLength(7);

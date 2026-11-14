@@ -136,6 +136,8 @@ describe("Pi shell public component adapters", () => {
     "[📁 C:/workspace/folder]",
     "[📄 C:/workspace/file.txt]",
     "[🖼  converted-image.png]",
+    "[🖼️ converted-image.png]",
+    "[🖼️ image.png #abc123]",
     "[🔗 https://example.com/resource]",
   ])("moves a fitting queued chip intact to its next custom-viewport row: %s", marker => {
     const queued = createPiQueuedInputStatus([`${"x".repeat(70)}${marker}`], "custom-viewport");
@@ -627,6 +629,8 @@ describe("Pi shell public component adapters", () => {
       "[📁 C:/repo]",
       "[📄 C:/repo/file.txt]",
       "[🖼  Clipboard.png]",
+      "[🖼️ Clipboard.png]",
+      "[🖼️ image.png #abc123]",
       "[🔗 https://x.dev]",
     ];
     for (const chip of chips) {

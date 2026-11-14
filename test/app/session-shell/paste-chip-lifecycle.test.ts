@@ -37,7 +37,7 @@ describe("provisional paste chip ownership", () => {
       await vi.advanceTimersByTimeAsync(0);
       const second = store.beginPaste(first.marker, { kind: "text", text: "/work/second.png" }, error => errors.push(error));
       await vi.advanceTimersByTimeAsync(0);
-      expect(await second.result).toMatch(/^\[🖼 second\.png #[a-f0-9]+\]$/u);
+      expect(await second.result).toMatch(/^\[🖼️ second\.png #[a-f0-9]+\]$/u);
       expect(errors).toEqual([expect.objectContaining({ code: "image-count" })]);
       firstPhase("acquired-image");
       pending.resolve({ kind: "image", data: "eA==", mimeType: "image/png", width: 1, height: 1, transformed: false });
@@ -62,7 +62,7 @@ describe("provisional paste chip ownership", () => {
       pending.resolve({ kind: "image", fileName: "Clipboard (2).png", data: "eA==", mimeType: "image/png", width: 1, height: 1, transformed: true });
       await vi.advanceTimersByTimeAsync(0);
       const ready = await paste.result; paste.complete?.();
-      expect(ready).toMatch(/^\[🖼 Clipboard \(2\)\.png #[a-f0-9]+-resized\]$/u);
+      expect(ready).toMatch(/^\[🖼️ Clipboard \(2\)\.png #[a-f0-9]+-resized\]$/u);
       expect(store.hiddenRanges(ready)).toEqual([]);
       expect(store.expandCopiedText(ready)).toBe(ready);
       const history = store.prepareHistoryText(ready), records = store.imageChipAttachments(history);
@@ -85,7 +85,7 @@ describe("provisional paste chip ownership", () => {
       const paste = store.beginPaste("", { kind: "text", text: "/work/photo.png" }, error => errors.push(error));
       await vi.advanceTimersByTimeAsync(0);
       const rejected = await paste.result; paste.complete?.();
-      expect(rejected).toMatch(code === "image-count" ? /^\[🖼 photo\.png #[a-f0-9]+\]$/u : /^\[🖼 photo\.png #[a-f0-9]+-failed\]$/u);
+      expect(rejected).toMatch(code === "image-count" ? /^\[🖼️ photo\.png #[a-f0-9]+\]$/u : /^\[🖼️ photo\.png #[a-f0-9]+-failed\]$/u);
       expect(store.atomicRanges(rejected)).toHaveLength(1);
       expect(store.imageChipAttachments(rejected)).toEqual([]);
       if (code === "image-count") {
