@@ -1,5 +1,6 @@
 import type { OwnedUiShellKeybindings } from "../../../contracts/owned-ui/index.js";
 import { piKeybindings } from "./shell-shared-facade.js";
+import { presentEmojiMarkdown } from "./emoji-markdown.js";
 import { DynamicBorder } from "../startup-public.js";
 import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, visibleWidth } from "@earendil-works/pi-tui";
 import { PRODUCT_TEXT } from "../../../product-identity.js";
@@ -174,7 +175,8 @@ export function renderPiShellChangelogLines(markdown: string, width: number): re
 }
 
 function changelogMarkdown(markdown: string): Markdown {
-  return new Markdown(markdown.trim() || "No changelog entries found.", 1, 1, getPiMarkdownTheme());
+  return new Markdown(markdown.trim() || "No changelog entries found.", 1, 1, getPiMarkdownTheme(), undefined,
+    { transform: presentEmojiMarkdown });
 }
 
 function shortcutDisplay(key: string): string {

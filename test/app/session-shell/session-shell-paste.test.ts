@@ -1247,7 +1247,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
   it("keeps atomic focus within the exact brackets after preceding image icons", async () => {
     const { terminal, shell } = await fixture([], [], true);
     terminal.resize(180, 12);
-    const chips = Array.from({ length: 6 }, (_, index) => `[🖼  Clipboard (${index + 1}).png]`);
+    const chips = Array.from({ length: 6 }, (_, index) => `[🖼️ Clipboard (${index + 1}).png]`);
     shell.root.editor.setText(chips.join(""));
     terminal.input("\u001b[D");
     await nextImmediate();

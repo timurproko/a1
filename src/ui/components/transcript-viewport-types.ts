@@ -26,6 +26,8 @@ export interface TranscriptViewportTheme {
 
 export interface TranscriptViewportFrameInput {
   readonly documentRows: readonly string[];
+  /** Copy exclusions by document row, in original display columns. */
+  readonly copyExclusions?: ReadonlyMap<number, readonly { readonly from: number; readonly to: number }[]>;
   /** Optional paint-only transform; semantic selection and copying keep documentRows exact. */
   readonly paintDocumentRow?: (row: string) => string;
   /** Leading persistent document rows; later transient rows remain selectable visible-frame content. */

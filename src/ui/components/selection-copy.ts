@@ -41,16 +41,8 @@ export function selectionCopyLineContent(text: string, prompt: SelectionCopyProm
 /** Extracts one snapshot row with the existing grapheme/newline policy; run expensive rows off-thread. */
 export function selectionCopyRowText(snapshot: Pick<SelectionCopySnapshot, "selection" | "literal">, row: SelectionCopyRow, index: number): string {
   if (snapshot.literal) return row.text;
-  let plain = stripAnsi(row.text);
-  if (row.prompt === "first") {
-    const timestamp = /\s+\d{2}:\d{2}\s*$/.exec(plain);
-    if (timestamp !== null) plain = plain.slice(0, timestamp.index);
-  }
-  const from = row.prompt !== undefined ? 3 : plain.startsWith(" ") && !plain.startsWith("  ") ? 2 : 1;
-  // Performance: trailing chrome is excluded before extraction; full-row copy need not measure every grapheme.
-  plain = plain.trimEnd();
   return textSelectionText({
     start: { line: 0, column: index === snapshot.selection.start.line ? snapshot.selection.start.column : 0 },
     end: { line: 0, column: index === snapshot.selection.end.line ? snapshot.selection.end.column : Number.MAX_SAFE_INTEGER },
-  }, [plain], () => ({ from }));
+  }, [row.text], () => selectionCopyLineContent(row.text, row.prompt));
 }

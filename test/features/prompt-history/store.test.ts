@@ -173,6 +173,28 @@ describe("profile history store", () => {
     for (const id of filesOnDisk) expect(survivingIds).toContain(id);
   });
 
+  it("preserves named-image sidecars across reopen and reaps only unreferenced payloads", () => {
+    const dir = root(), imagesDir = join(dir, "images"), historyPath = join(dir, "history.sqlite3");
+    const sidecar = new PromptImageSidecar(imagesDir);
+    const store = new PromptHistoryStore(historyPath, "test-profile", 10, imagesDir);
+    const tags = ["[🖼 photo.png #aaaaaaaa]", "[📷 screenshot-bbbbbbbb]", "[🖼️ photo.png #cccccccc-resized]"];
+    for (const [index, id] of ["aaaaaaaa", "bbbbbbbb", "cccccccc"].entries()) {
+      sidecar.write(id, { tag: tags[index]!, data: `payload-${index}`, mimeType: "image/png", savedAt: "t" });
+      store.record({ id, text: tags[index]!, timestamp: index + 1, kind: "prompt" });
+    }
+    store.record({ id: "shared", text: tags[0]!, timestamp: 4, kind: "prompt" });
+    store.close();
+    const reopened = new PromptHistoryStore(historyPath, "test-profile", 10, imagesDir);
+    stores.push(reopened);
+    expect(sidecar.list().sort()).toEqual(["aaaaaaaa", "bbbbbbbb", "cccccccc"]);
+    expect(sidecar.read("aaaaaaaa")).toMatchObject({ tag: tags[0], data: "payload-0" });
+    expect(sidecar.read("cccccccc")).toMatchObject({ tag: tags[2], data: "payload-2" });
+    for (let index = 0; index < 8; index++) reopened.record({ id: `pad-${index}`, text: `padding-${index}`, timestamp: 10 + index, kind: "prompt" });
+    expect(sidecar.list().sort()).toEqual(["aaaaaaaa", "cccccccc"]);
+    reopened.record({ id: "last", text: "last", timestamp: 30, kind: "prompt" });
+    expect(sidecar.list()).toEqual(["aaaaaaaa"]);
+  });
+
   it("sweeps orphaned sidecars at store open when no row references them", () => {
     const dir = root();
     const imagesDir = join(dir, "images");
