@@ -5,10 +5,11 @@
  * private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input
  * frame and full-height gutters around an unpadded editor body, configurable empty-input placeholder
  * branch, transient contextual-suggestion branch, and explicit body geometry for selection and
- * above-prompt autocomplete with a one-cell outer gutter.
- * Bare A1 also clears a sole top-level slash-command search on Escape and completes a selected or
- * exact completed tunnel command with `:` and reopens the menu on its tunnel rows, and synchronously
- * retains then refreshes an exact top-level command menu after Tab applies its row.
+ * above-prompt autocomplete with a one-cell outer gutter. Typed border adapters retain full-width
+ * history and scroll annotations independently of body gutters. Bare A1 also clears a sole top-level
+ * slash-command search on Escape and completes a selected or exact completed tunnel command with `:`
+ * and reopens the menu on its tunnel rows, and synchronously retains then refreshes an exact top-level
+ * command menu after Tab applies its row.
  * Deviations: owned-shared-input-frame, above-prompt-autocomplete-placement,
  * clear-command-search-on-escape, command-tunnel-colon-completion, keep-command-menu-open-after-tab.
  */
@@ -61,7 +62,11 @@ export interface ShellEditorInstance extends EditorSurface {
   onAction(action: AppKeybinding, handler: () => void): void;
 }
 
-type EditorConstructor = new (tui: TUI, theme: EditorTheme, options?: EditorOptions) => EditorSurface;
+interface FramedEditorSurface extends EditorSurface {
+  renderInputBorder(edge: "top" | "bottom", width: number, hiddenLineCount: number): string;
+}
+
+type EditorConstructor = new (tui: TUI, theme: EditorTheme, options?: EditorOptions) => FramedEditorSurface;
 type ShellEditorConstructor = new (tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager, options?: OwnedEditorOptions) => ShellEditorInstance;
 
 export function createOwnedEditorClass(Base: EditorConstructor): ShellEditorConstructor {
@@ -283,21 +288,20 @@ return class extends Base {
         topRule: rows[0],
         bottomRule: rows[bottomBorder],
         after: rows.slice(bottomBorder + 1),
-        // Autocomplete's outer marker shares the one-cell input/status gutter.
+        // Compatibility: autocomplete's outer marker shares the one-cell input/status gutter.
         afterIndent: 1,
       };
     }, true, this.getPaddingX());
   }
 
-  // Compatibility: both editor bases expose these protected border hooks, but the
-  // structural editor port intentionally omits protected members. Body gutters must
-  // not shrink history/scroll annotations or move their centered full-frame cues.
+  // Compatibility: body gutters must not shrink history/scroll annotations or move
+  // their centered full-frame cues. Each base adapter supplies typed border rendering.
   protected renderTopBorder(width: number, hiddenLineCount: number): string {
-    return Reflect.get(Base.prototype, "renderTopBorder").call(this, this.#inputPresentation === undefined ? width : this.#frameWidth, hiddenLineCount);
+    return super.renderInputBorder("top", this.#inputPresentation === undefined ? width : this.#frameWidth, hiddenLineCount);
   }
 
   protected renderBottomBorder(width: number, hiddenLineCount: number): string {
-    return Reflect.get(Base.prototype, "renderBottomBorder").call(this, this.#inputPresentation === undefined ? width : this.#frameWidth, hiddenLineCount);
+    return super.renderInputBorder("bottom", this.#inputPresentation === undefined ? width : this.#frameWidth, hiddenLineCount);
   }
 
   #measureBodyRows(width: number, requestedPadding = this.getPaddingX()): number {
@@ -316,7 +320,13 @@ function normalizedPadding(padding: number): number {
   return Number.isFinite(padding) ? Math.max(0, Math.floor(padding)) : 0;
 }
 
-export class OwnedEditor extends createOwnedEditorClass(Editor) {}
+class FramedEditor extends Editor {
+  renderInputBorder(edge: "top" | "bottom", width: number, hiddenLineCount: number): string {
+    return edge === "top" ? super.renderTopBorder(width, hiddenLineCount) : super.renderBottomBorder(width, hiddenLineCount);
+  }
+}
+
+export class OwnedEditor extends createOwnedEditorClass(FramedEditor) {}
 
 interface RetainedAutocomplete {
   readonly value: string;

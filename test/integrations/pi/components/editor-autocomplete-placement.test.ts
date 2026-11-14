@@ -200,7 +200,7 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
             expect(actual.menu.some(row => stripTerminalSequences(row).includes("→ choice"))).toBe(true);
             if (counter) {
               const label = `${selected % items.length + 1}/12 `;
-              // The upstream list reserves two cells inside the shared two-gutter content area.
+              // Compatibility: the upstream list reserves two cells inside the shared two-gutter content area.
               if (width - 4 >= `  (${label.trimEnd()})`.length) expect(actual.body[0]).toContain(piTheme().fg("dim", label));
               else expect(stripTerminalSequences(actual.body[0]!)).toBe("─".repeat(width));
             } else expect(stripTerminalSequences(actual.body[0]!)).toBe("─".repeat(width));

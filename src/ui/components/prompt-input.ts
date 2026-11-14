@@ -49,7 +49,7 @@ export class PromptInput {
 
   geometry(width: number, padding = 0, promptGlyph = PROMPT_GLYPH) {
     const prefixWidth = Math.min(this.metrics.measure(promptGlyph), Math.max(0, width));
-    // Marker-bearing dialog fields already inherit their frame's inset; marker-free
+    // Rationale: marker-bearing dialog fields already inherit their frame's inset; marker-free
     // ruled inputs own both gutters here, including every continuation row.
     const requestedPadding = Math.max(promptGlyph.length === 0 ? 1 : 0, Number.isFinite(padding) ? Math.floor(padding) : 0);
     const paddingX = Math.min(requestedPadding, Math.max(0, Math.floor((width - prefixWidth - 1) / 2)));

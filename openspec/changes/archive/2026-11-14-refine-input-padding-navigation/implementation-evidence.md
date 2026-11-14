@@ -13,6 +13,12 @@
 - Final input-focused run: 287 tests passed across `prompt-input`, `line-input`, `prompt-input-ux`, `settings-app`, `editor-autocomplete-placement`, `editor-atomic-segmentation`, `editor-paste-presentation`, `history-editor-shell`, `pinned-editor-input-parity`, and real-shell `session-shell-selection` test files. This includes ordinary/persistent-history gutters, explicit/soft line breaks, empty rows, wide characters, larger configured padding, semantic selection/copy/submission, full-width annotations, autocomplete, and independent comparison-profile behavior.
 - Strict OpenSpec validation passed for `refine-input-padding-navigation`.
 
+## CI repair
+
+The first finalized run rejected a missing `.openspec.yaml`, unclassified implementation comments, and border delegation through host prototype inspection. Core validation then exposed stale copied-source hashes, and rendering validation still expected the old zero-inset input text. The repair adds the required change metadata, classifies the comments, replaces prototype inspection with explicit typed border adapters for both editor bases, refreshes their canonical provenance/hash ledger, and updates the rendering assertion to require the new left gutter without relaxing its content checks.
+
+After repair, source/bin typechecking, architecture and pinned-source governance, changed-file documentation checks, and 82 focused input/border/profile tests passed. Both scheduled rendering-content producers and all 15 source-ledger governance fixtures also passed. Local delivery inspection accepts the repaired archive for automatic re-finalization; exact-head CI remains authoritative.
+
 ## Known gaps
 
 None. Physical terminal/manual review was not performed and is not claimed; focused deterministic checks are not a substitute for required exact-head CI or maintainer acceptance. Broad test suites were intentionally left to trusted automation.
