@@ -2,9 +2,9 @@
 
 ### Requirement: Normal A1 accepts one explicit session selection grammar
 
-Ordinary and pi-named normal-product entries SHALL share the pinned session selectors through the existing session services: new default, continue, resume, explicit path/ID, custom session ID, fork, storage override, display name and no-persistence. Ordinary prompts SHALL retain the explicit literal boundary; these session options SHALL NOT introduce a bare resume subcommand or comparison fallback. Each selector SHALL enforce its documented value, ID and combination constraints plus explicit A1 writer admission. Valid session launch options MAY combine with the other documented execution options; standalone storage selection SHALL be supported for a new session.
+Ordinary and pi-named normal-product entries SHALL share the pinned session selectors through the existing session services: new default, continue, resume, explicit path/ID, custom session ID, fork, storage override, display name and no-persistence. Ordinary prompts SHALL accept the approved Pi positional and boundary grammar; these session options SHALL NOT introduce a bare resume subcommand or comparison fallback. Each selector SHALL enforce its documented value, ID and combination constraints plus explicit A1 writer admission. Valid session launch options MAY combine with the other documented execution options; standalone storage selection SHALL be supported for a new session.
 
-Persistent selections SHALL preserve profile isolation, actual history/active context and pinned effective-cwd semantics. In-memory selections SHALL remain genuinely nonpersistent without forged transcript files, file locks or resume hints; only specifically approved durable-capability limitations MAY differ. CLI/env/trusted-setting/default storage precedence and trust for the effective cwd SHALL be explicit. Every applicable interactive, print, JSON, RPC and programmatic path SHALL use the same writer-owning construction, replacement and disposal; raw upstream construction SHALL NOT bypass A1 guarantees.
+Persistent selections SHALL preserve profile isolation, actual history/active context and pinned effective-cwd semantics. In-memory selections SHALL remain genuinely nonpersistent without forged transcript files, file locks or resume hints; only specifically approved durable-capability limitations MAY differ. CLI/env/trusted-setting/default storage precedence and trust for the effective cwd SHALL be explicit. Delivered interactive paths SHALL use the same writer-owning construction, replacement and disposal. Planned machine/programmatic paths SHALL retain this requirement when implemented in their later approved delivery; P1 SHALL not claim those paths exist.
 
 #### Scenario: Select an existing session by ID
 
@@ -56,7 +56,7 @@ Persistent selections SHALL preserve profile isolation, actual history/active co
 
 ### Requirement: Session contract evidence spans public execution and programmatic boundaries
 
-Focused conformance SHALL exercise every documented selector and combination, supported session entry/message/projection format, replacement/cancellation, persistence choice and applicable transport through real SDK and public packaged/development boundaries. Tests SHALL use disposable history and deterministic providers without personal sessions, accounts or live fleet state. Method presence, parser success and fabricated session files SHALL NOT stand in for correct model context or ownership.
+Focused P1 conformance SHALL exercise delivered selectors and combinations, supported session context, replacement/cancellation and persistence choices through real SDK services and applicable public packaged/development boundaries. Undelivered protocol/SDK entry conformance remains explicitly pending. Tests SHALL use disposable history and deterministic providers without personal sessions, accounts or live fleet state. Method presence, parser success and fabricated session files SHALL NOT stand in for correct model context or ownership.
 
 #### Scenario: Transport and SDK replacement
 
