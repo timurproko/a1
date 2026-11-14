@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { integrationIdentity } from "../../scripts/governance/delivery-candidate.mjs";
+import { nativeArmBindingBytes, nativeArmBindingDigest } from "../../scripts/governance/delivery-native-arm.mjs";
 import {
   classifyDocumentationAutoMerge,
   planDocumentationAutoMerge,
@@ -20,8 +22,8 @@ function files(...paths: string[]): PullRequestChangedFile[] {
 
 describe("documentation auto-merge path policy", () => {
   it("allows OpenSpec, maintained docs, and the root README in any combination", () => {
-    expect(classifyDocumentationAutoMerge(files("openspec/changes/example/proposal.md")).eligible).toBe(true);
-    expect(classifyDocumentationAutoMerge(files("docs/ci-release-runbook.md")).eligible).toBe(true);
+    expect(classifyDocumentationAutoMerge(files("openspec/specs/example/spec.md")).eligible).toBe(true);
+    expect(classifyDocumentationAutoMerge(files("docs/features/example.md")).eligible).toBe(true);
     expect(classifyDocumentationAutoMerge(files("docs/README.md")).eligible).toBe(true);
     expect(classifyDocumentationAutoMerge(files("README.md")).eligible).toBe(true);
     expect(classifyDocumentationAutoMerge(files(
@@ -39,6 +41,12 @@ describe("documentation auto-merge path policy", () => {
     ["configuration", ["config/validation-suites.json"]],
     ["workflow", [".github/workflows/ci.yml"]],
     ["release history", ["docs/releases/0.2.2.md"]],
+    ["active implementation plan", ["openspec/changes/example/proposal.md"]],
+    ["delivery policy", ["docs/delivery-rules.md"]],
+    ["cleanup authority", ["docs/local-worktree-cleanup.md"]],
+    ["runtime authority", ["docs/architecture/project-structure.md"]],
+    ["agent skill under docs", ["docs/skills/example/SKILL.md"]],
+    ["code under docs", ["docs/scripts/execute.mjs"]],
     ["generated baseline", ["config/baselines/example.json"]],
     ["mixed docs and code", ["docs/architecture/example.md", "src/index.ts"]],
     ["mixed spec and code", ["openspec/changes/example/proposal.md", "src/index.ts"]],
@@ -293,10 +301,15 @@ describe("acceptance manual-only integration", () => {
 
 describe("single-PR implementation holds", () => {
   const link = '```openspec-implementation\n{"version":2,"change":"example"}\n```';
-  const finalizedLink = '```openspec-implementation\n{"version":3,"change":"example","archive":"openspec/changes/archive/2026-09-15-example/","acceptanceManifest":"openspec/changes/archive/2026-09-15-example/acceptance.md"}\n```';
+  const finalizedLink = `## Proposal\n\nDeliver the approved behavior.\n\n## Implementation\n\n- Preserve approved behavior and its evidence.\n\n## Acceptance\n\n- The exact finalized behavior remains supported after integration.\n\n## Automation\n\n<details>\n<summary>Delivery linkage</summary>\n\n\`\`\`openspec-implementation\n${JSON.stringify({version:3,change:"example",archive:"openspec/changes/archive/2026-09-15-example/",acceptanceManifest:"openspec/changes/archive/2026-09-15-example/acceptance.md",finalizedHead:headSha})}\n\`\`\`\n\n</details>\n`;
   const reviewer = { login: "reviewer", type: "User" };
-  const enabled = { event: "auto_merge_enabled", actor: reviewer, performed_via_github_app: null, created_at: "2026-09-15T11:59:00Z" };
+  const enabled = { id: 6, event: "auto_merge_enabled", actor: reviewer, performed_via_github_app: null, created_at: "2026-09-15T11:59:00Z" };
   const humanArmResponse = (request: RecordedRequest, stale = false): FakeResponse | undefined => {
+    const binding = { version: 1, ...integrationIdentity(JSON.parse(encodeGithubFixture(pullFixture({body: finalizedLink}))!)), owner: "reviewer", enableEventId: enabled.id,
+      enabledAt: enabled.created_at, workflowRun: 71, policySha: "b".repeat(40) };
+    if (request.url.includes("/issues/42/comments?")) return { body: [{ user: {login:"github-actions[bot]",type:"Bot"}, created_at: enabled.created_at, updated_at: enabled.created_at, body: nativeArmBindingBytes(binding) }] };
+    if (request.url === "/repos/owner/repository/actions/runs/71") return { body: {repository:{full_name:"timurproko/a1"},path:".github/workflows/documentation-auto-merge.yml",event:"pull_request_target",head_sha:binding.policySha,actor:reviewer} };
+    if (request.url.includes("/actions/runs/71/jobs?")) return { body: {total_count:1,jobs:[{name:`Verified native arm ${nativeArmBindingDigest(binding)}`,status:"completed",conclusion:"success"}]} };
     if (request.url.includes("/files?")) return { body: [{ filename: "src/example.ts", status: "modified" }] };
     if (request.url.endsWith("/collaborators/reviewer/permission")) return { body: { permission: "write" } };
     if (request.url.includes("/issues/42/timeline?")) return { body: stale
@@ -325,11 +338,11 @@ describe("single-PR implementation holds", () => {
   // Provenance: PR #742's timeline named every human enable `auto_squash_enabled`, and policy disarmed each one.
   it.each(["auto_squash_enabled", "auto_rebase_enabled"])("preserves a human arm recorded as %s after a disarmed attempt", async name => {
     const botDisabled = { event: "auto_merge_disabled", actor: { login: "github-actions[bot]", type: "Bot" }, created_at: "2026-09-15T11:58:30Z" };
-    const timeline = [{ event: "committed", sha: "c".repeat(40) }, { ...enabled, event: name, created_at: "2026-09-15T11:58:00Z" },
+    const timeline = [{ event: "committed", sha: "c".repeat(40) }, { ...enabled, id: 5, event: name, created_at: "2026-09-15T11:58:00Z" },
       botDisabled, { event: "committed", sha: headSha }, { ...enabled, event: name }];
     const result = await runManager({ action: "auto_merge_enabled", pull_request: { number: 42 } }, pullFixture({
       body: finalizedLink, head: { ref: "feature/example", sha: headSha, repo: { full_name: "owner/repository" } },
-      auto_merge: { merge_method: name === "auto_rebase_enabled" ? "rebase" : "squash", enabled_by: reviewer },
+      auto_merge: { merge_method: "squash", enabled_by: reviewer },
     }), { respond: request => request.url.includes("/issues/42/timeline?") ? { body: timeline } : humanArmResponse(request) });
     expectNoMutation(result.requests);
     expect(result.stdout).toContain("preserved authorized human auto-merge for the exact finalized implementation head");
@@ -341,7 +354,7 @@ describe("single-PR implementation holds", () => {
     expect(stale.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(false);
     expect(stale.stdout).toContain("unresolved human or unknown");
 
-    const edited = await runManager({ action: "edited", pull_request: { number: 42 } }, pullFixture({ body: finalizedLink,
+    const edited = await runManager({ action: "edited", pull_request: { number: 42 } }, pullFixture({ body: finalizedLink.replace("The exact finalized behavior remains supported", "A different scenario must be accepted"),
       auto_merge: { merge_method: "squash", enabled_by: reviewer } }), { respond: request => humanArmResponse(request) });
     expect(edited.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(false);
     expect(edited.stdout).toContain("unresolved human or unknown");
@@ -361,7 +374,7 @@ describe("single-PR implementation holds", () => {
           tree: request.url.includes(headSha) ? [{ path: "openspec/changes/example/proposal.md", mode: "100644", type: "blob", sha: "c".repeat(40) }] : [] } };
         return undefined;
       } });
-    expect(result.stdout).toContain("introduced-active-change");
+    expect(result.stdout).toContain("paths outside the auto-merge allowlist: openspec/changes/example/proposal.md");
     expect(result.requests.some(request => request.body.includes("disablePullRequestAutoMerge"))).toBe(true);
     expect(result.requests.some(request => request.method === "PUT")).toBe(false);
   });
@@ -374,21 +387,22 @@ describe("single-PR implementation holds", () => {
     expect(result.stdout).toContain("implementation-associated");
   });
 
-  it("allows a standalone existing-plan revision with authoritative trees", async () => {
+  it("holds existing active-plan revisions even with authoritative trees", async () => {
     const result = await runManager(validationEvent(), pullFixture({ mergeable_state: "clean" }), { respond: request => {
       if (request.url.includes("/files?")) return { body: [{ filename: "openspec/changes/example/design.md", status: "added" }] };
       if (request.url.includes("/git/trees/")) return { body: { truncated: false,
         tree: [{ path: "openspec/changes/example/.openspec.yaml", type: "blob", mode: "100644", sha: "c".repeat(40) }] } };
       return undefined;
     } });
-    expectMerge(result.requests);
+    expectNoMutation(result.requests);
+    expect(result.stdout).toContain("openspec/changes/example/design.md");
   });
 
-  it("disables an armed merge if tree or complete-diff evidence cannot be verified", async () => {
+  it("disables an armed merge if full-content or complete-diff evidence cannot be verified", async () => {
     const result = await runManager(validationEvent(), pullFixture({ auto_merge: { merge_method: "squash" } }), {
       expectFailure: true, respond: request => {
-        if (request.url.includes("/files?")) return { body: [{ filename: "openspec/changes/example/proposal.md", status: "modified" }] };
-        if (request.url.includes("/git/trees/")) return { status: 503, body: { message: "unavailable" } };
+        if (request.url.includes("/files?")) return { body: [{ filename: "docs/ordinary.md", status: "modified", patch: null }] };
+        if (request.url.includes("/contents/")) return { status: 503, body: { message: "unavailable" } };
         return undefined;
       },
     });
@@ -467,7 +481,7 @@ describe("documentation auto-merge state recovery", () => {
   it("bounds repeated arming rejections and performs a final fresh read", async () => {
     const result = await runManager(validationEvent(), pullFixture(), { respond: rejectUnstableEnable });
     expect(result.requests.filter(request => request.body.includes("enablePullRequestAutoMerge"))).toHaveLength(3);
-    expect(result.requests.filter(request => request.url === pullUrl)).toHaveLength(7);
+    expect(result.requests.filter(request => request.url === pullUrl)).toHaveLength(10);
     expect(result.requests.filter(request => request.url.includes("/files?"))).toHaveLength(7);
     expect(result.requests.some(request => request.method === "PUT" || request.method === "DELETE")).toBe(false);
     expect(result.stdout).toContain("deferred; waiting for mergeability");
@@ -553,7 +567,7 @@ describe("documentation auto-merge state recovery", () => {
       respond: request => request.url === "/graphql" ? reply : undefined,
     });
     expect(result.exitCode).not.toBe(0);
-    expect(result.requests.filter(request => request.url === pullUrl)).toHaveLength(2);
+    expect(result.requests.filter(request => request.url === pullUrl)).toHaveLength(3);
     expect(result.requests.some(request => request.method === "PUT" || request.method === "DELETE")).toBe(false);
     expect(result.stdout).not.toContain("unstable-status arming rejection");
   });
@@ -745,6 +759,17 @@ function expectNoMutation(requests: readonly RecordedRequest[]): void {
   expect(requests.every(request => request.method === "GET")).toBe(true);
 }
 
+/** Model real GitHub complete-patch metadata and the frozen a1 repository identity at the transport boundary. */
+function encodeGithubFixture(body: unknown): string | undefined {
+  const value = Array.isArray(body) ? body.map(item => {
+    if (!item || typeof item !== "object" || !("filename" in item)) return item;
+    const file = item as Record<string, unknown>;
+    const additions = file.status === "removed" ? 0 : 1, deletions = file.status === "added" ? 0 : 1;
+    return { additions, deletions, patch: `${deletions ? "-Old routine help.\n" : ""}${additions ? "+New routine help." : ""}`, ...file };
+  }) : body;
+  return JSON.stringify(value)?.replaceAll("owner/repository", "timurproko/a1");
+}
+
 interface FakeResponse {
   readonly status?: number;
   readonly body?: unknown;
@@ -795,7 +820,7 @@ async function runManager(
     request.on("end", () => {
       const recorded = {
         method: request.method ?? "GET",
-        url: request.url ?? "",
+        url: (request.url ?? "").replace("/repos/timurproko/a1", "/repos/owner/repository"),
         body: Buffer.concat(chunks).toString("utf8"),
       };
       requests.push(recorded);
@@ -806,7 +831,7 @@ async function runManager(
           return;
         }
         response.writeHead(override.status ?? 200, { "content-type": "application/json" });
-        response.end(override.raw ?? JSON.stringify(override.body));
+        response.end(override.raw ?? encodeGithubFixture(override.body));
         return;
       }
 
@@ -816,6 +841,10 @@ async function runManager(
         response.writeHead(204);
         response.end();
         return;
+      } else if (recorded.url === "/repos/owner/repository/actions/workflows/documentation-auto-merge.yml") {
+        body = { path: ".github/workflows/documentation-auto-merge.yml", state: "active" };
+      } else if (recorded.url === "/repos/owner/repository") {
+        body = { full_name: "owner/repository", allow_auto_merge: true };
       } else if (recorded.url === "/repos/owner/repository/git/ref/heads/develop" && recorded.method === "GET") {
         body = { object: { sha: "b".repeat(40) } };
       } else if (recorded.url.includes("/git/ref/heads/") && recorded.method === "GET") {
@@ -828,8 +857,8 @@ async function runManager(
       } else if (recorded.url.includes("/branches/") && recorded.method === "GET") {
         body = { protected: false };
       } else if (recorded.url === "/repos/owner/repository/pulls/42") {
-        // Each scripted reconciliation snapshot includes its immediate pre-mutation reread.
-        body = Array.isArray(pull) ? pull[Math.min(Math.floor(pullRead++ / 2), pull.length - 1)] : pull;
+        // Concurrency: each scripted snapshot covers initial inspection plus both immediate pre-mutation reads.
+        body = Array.isArray(pull) ? pull[Math.min(Math.floor(pullRead++ / 3), pull.length - 1)] : pull;
       } else if (recorded.url === "/repos/owner/repository/pulls/42/files?per_page=100&page=1") {
         body = [{ filename: "docs/architecture/example.md", status: "modified" }];
       } else if (recorded.url === "/repos/owner/repository/pulls/42/merge" && recorded.method === "PUT") {
@@ -843,7 +872,7 @@ async function runManager(
         return;
       }
       response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify(body));
+      response.end(encodeGithubFixture(body));
     });
   });
 
@@ -856,7 +885,7 @@ async function runManager(
 
   const temporary = await mkdtemp(join(tmpdir(), "a1-documentation-auto-merge-"));
   const eventPath = join(temporary, "event.json");
-  await writeFile(eventPath, JSON.stringify(event));
+  await writeFile(eventPath, encodeGithubFixture(event)!);
   try {
     const result = await execFileAsync(process.execPath, ["scripts/governance/manage-documentation-auto-merge.mjs"], {
       cwd: process.cwd(),
@@ -864,7 +893,7 @@ async function runManager(
         ...process.env,
         GITHUB_TOKEN: "test-token",
         GITHUB_EVENT_PATH: eventPath,
-        GITHUB_REPOSITORY: "owner/repository",
+        GITHUB_REPOSITORY: "timurproko/a1",
         GITHUB_API_URL: `http://127.0.0.1:${address.port}`,
         GITHUB_GRAPHQL_URL: `http://127.0.0.1:${address.port}/graphql`,
         DOCS_AUTO_MERGE_POLL_ATTEMPTS: "3",

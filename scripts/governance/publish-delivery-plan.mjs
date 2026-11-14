@@ -39,7 +39,7 @@ export async function publishDeliveryPlan(input, remote = githubPlanningRemote()
     if (await remote.baseHead(repository, base) !== baseHead) throw failure("planning-base-changed");
     if (await remote.matches(repository, baseHead, files)) throw failure("planning-no-change");
     let head = await remote.head(repository, branch);
-    // A retry may discover that its prior commit/PR succeeded even when the response was lost.
+    // Concurrency: a retry may discover that its prior commit/PR succeeded even when the response was lost.
     if (head !== null && head !== baseHead && await remote.matches(repository, head, files)) {
       const existing = await remote.findPr(repository, base, branch);
       if (existing && (!existing.draft || existing.body !== body)) throw failure("planning-pr-conflict");
@@ -49,7 +49,7 @@ export async function publishDeliveryPlan(input, remote = githubPlanningRemote()
       if (head !== expectedHead) throw failure("planning-head-changed");
       if (head === null) {
         stage = "create-ref";
-        await remote.createRef(repository, branch, baseHead); // create-only, never force or delete
+        await remote.createRef(repository, branch, baseHead); // Concurrency: create-only, never force or delete
         head = baseHead;
       }
       stage = "commit";
@@ -62,7 +62,7 @@ export async function publishDeliveryPlan(input, remote = githubPlanningRemote()
     pr ??= await remote.createPr(repository, base, branch, title, body);
     return { status: "published", repository, base, branch, head: publishedHead, pr: pr.number, draft: pr.draft };
   } catch (error) {
-    // Report uncertain publication rather than rolling back refs or hiding a possibly successful write.
+    // Protocol: report uncertain publication rather than rolling back refs or hiding a possibly successful write.
     return { status: "blocked", repository, base, branch, stage, head: publishedHead, pr: pr?.number ?? null,
       reason: error.deliveryCode ?? "planning-remote-unavailable", partial: stage !== "read" || publishedHead !== null };
   }

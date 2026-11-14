@@ -23,7 +23,7 @@ export function deliveryAuthority(facts) {
     if (!facts.scopeApproved) blockers.push("scope-approval-required");
   }
   if (allowed.has("publication")) allowed.add("planning-publication");
-  // Merge, remote abandonment, readiness, hosting and private export have distinct boundaries, never an inferred grant here.
+  // Security: merge, remote abandonment, readiness, hosting and private export have distinct boundaries, never an inferred grant here.
   return { allowed, blockers };
 }
 

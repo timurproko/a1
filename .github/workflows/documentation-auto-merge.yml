@@ -22,6 +22,8 @@ jobs:
     name: Enforce documentation auto-merge policy
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    outputs:
+      native-arm-binding: ${{ steps.reconcile.outputs.native-arm-binding }}
     steps:
       - name: Check out trusted policy
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -35,6 +37,19 @@ jobs:
           node-version: 24
 
       - name: Reconcile documentation auto-merge policy
+        id: reconcile
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/governance/manage-documentation-auto-merge.mjs
+
+  native-arm-binding:
+    needs: enforce
+    if: ${{ needs.enforce.outputs.native-arm-binding != '' }}
+    name: Verified native arm ${{ needs.enforce.outputs.native-arm-binding }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    permissions:
+      contents: read
+    steps:
+      - name: Retain the verified exact binding in trusted run metadata
+        run: echo "Native-arm evidence recorded; no integration permission was granted to automation."

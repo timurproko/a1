@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { inspectUnassociatedPull } from "./openspec-association-policy.mjs";
 import { inspectDeliveryBody } from "./check-delivery-body.mjs";
-import { deliveryMutationBlocker, sameDeliverySnapshot } from "./delivery-control.mjs";
+import { deliveryMutationBlocker, sameDeliverySnapshot, guardedDeliveryMutation } from "./delivery-control.mjs";
 import { prepareSinglePrDelivery, replaceImplementationMetadata } from "./openspec-delivery-finalization.mjs";
 import { readCanonicalSpecs } from "./openspec-delivery-git.mjs";
 import { archiveFailure, archivePaths, assertArchiveDiff, parseImplementation, SHA } from "./openspec-archive-policy.mjs";
@@ -150,7 +150,9 @@ async function promoteCompletedDraft({ reader, publisher, pull, implementation, 
   if (currentTarget !== target || !sameDeliverySnapshot(current, pull, reader.repository)) {
     return { disposition: "retry", reason: "draft-changed-before-ready", head: pull.head.sha, commits: [] };
   }
-  await publisher.ready(number, pull.node_id);
+  const guarded = await guardedDeliveryMutation({ read: () => reader.get(`${reader.prefix}/pulls/${number}`), expected: current,
+    repository: reader.repository, mutate: fresh => publisher.ready(number, fresh.node_id) });
+  if (!guarded.performed) return { disposition: "retry", reason: guarded.reason, head: pull.head.sha, commits: [] };
   return { disposition: "promoted", head: pull.head.sha, promoted: true, commits: [] };
 }
 

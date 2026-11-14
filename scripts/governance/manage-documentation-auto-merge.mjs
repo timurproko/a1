@@ -1,12 +1,13 @@
 import { appendFile, readFile } from "node:fs/promises";
-import { classifyDocumentationAutoMerge, planDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
+import { inspectDocumentationDiff, documentationControllerActive, planDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
 import { inspectDocumentationLifecycle } from "./documentation-lifecycle.mjs";
 import { classifyReleaseReopening } from "./release-reopening-auto-merge.mjs";
 import { executeMergedBranchCleanup } from "./execute-merged-branch-cleanup.mjs";
 import { readArchiveMarker, archiveAuthorityCurrent } from "./openspec-archive-publication.mjs";
 import { parseImplementation } from "./openspec-archive-policy.mjs";
-import { assertHumanAutoMergeArm } from "./openspec-acceptance-policy.mjs";
-import { deliveryMutationBlocker, sameDeliverySnapshot } from "./delivery-control.mjs";
+import { archiveReaderFromGet, inspectVersion3DeliverySnapshot } from "./openspec-archive-github.mjs";
+import { captureNativeArmBinding, verifyNativeArmBinding } from "./delivery-native-arm.mjs";
+import { deliveryMutationBlocker, sameDeliverySnapshot, guardedDeliveryMutation } from "./delivery-control.mjs";
 
 class GitHubGraphQLError extends Error {
   constructor(status, body) {
@@ -70,6 +71,7 @@ async function processPullRequest(number, run) {
   const delayMs = boundedPollingNumber("DOCS_AUTO_MERGE_POLL_MS", process.env.DOCS_AUTO_MERGE_POLL_MS, 2000);
   let expectedHead;
   let expectedId;
+  let nativeEventInspected = false;
   let reason = "waiting for mergeability";
   // Concurrency: every retry re-reads identity AND the complete diff, never just merge state.
   for (let attempt = 0; attempt <= attempts; attempt += 1) {
@@ -78,6 +80,15 @@ async function processPullRequest(number, run) {
     expectedHead ??= pull.head.sha;
     expectedId ??= pull.node_id;
     const sameHead = pull.head.sha === expectedHead && pull.node_id === expectedId;
+    if (!nativeEventInspected && event.action === "auto_merge_enabled" && event.pull_request?.number === number && event.pull_request?.auto_merge?.enabled_by?.type === "User") {
+      nativeEventInspected = true;
+      const reader = archiveReaderFromGet(repositoryName, rest);
+      const binding = await captureNativeArmBinding({ reader, pull, event, runId: Number(process.env.GITHUB_RUN_ID), policySha: process.env.GITHUB_SHA,
+        verifySnapshot: (original, implementation) => inspectVersion3DeliverySnapshot(reader, original, implementation, original.head.sha),
+        publish: body => rest(`${reader.prefix}/issues/${number}/comments`, { method: "POST", body: { body } }) });
+      if (binding.recorded && process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `native-arm-binding=${binding.bindingDigest}\n`);
+      await summary(`PR #${number}: native-arm binding ${binding.recorded ? "recorded" : `unresolved (${binding.reason})`}; no implementation arm or merge was created.`);
+    }
     if (pull.state !== "open") {
       if (pull.merged === true && sameHead) {
         await summary(`PR #${number}: already merged at expected head ${expectedHead}.`);
@@ -172,15 +183,15 @@ async function isTrustedEligible(pull) {
   const number = pull.number;
   const blocker = deliveryMutationBlocker(pull, { documentation: true });
   if (blocker) { await disableIfArmed(pull, blocker); await summary(`PR #${number}: documentation controller paused (${blocker}).`); return false; }
-  let files;
+  let files, classification;
   try {
     files = await changedFiles(number);
     if (!Number.isSafeInteger(pull.changed_files) || pull.changed_files !== files.length) throw new Error("incomplete changed-file response");
+    classification = await inspectDocumentationDiff(pull, files, readFileAt);
   } catch (error) {
     await disableIfArmed(pull, `classification failed: ${describe(error)}`);
     throw error;
   }
-  const classification = classifyDocumentationAutoMerge(files);
   const sameRepository = pull.head?.repo?.full_name === repositoryName;
   const trustedEligible = classification.eligible && sameRepository && !pull.draft && pull.base?.ref === "develop";
 
@@ -228,7 +239,7 @@ async function isTrustedEligible(pull) {
 async function preserveHumanImplementationArm(pull) {
   if (!pull.auto_merge || pull.state !== "open" || pull.draft !== false
     || pull.base?.ref !== "develop" || pull.head?.repo?.full_name !== repositoryName
-    || (event.pull_request && ["edited", "synchronize", "converted_to_draft"].includes(event.action))) return false;
+    ) return false;
   let implementation;
   try { implementation = parseImplementation(pull.body ?? ""); }
   catch { return false; }
@@ -240,7 +251,7 @@ async function preserveHumanImplementationArm(pull) {
       rest(`/repos/${owner}/${repository}/collaborators/${actor.login}/permission`),
       timelineEvents(pull.number),
     ]);
-    assertHumanAutoMergeArm(pull, permission.permission, events);
+    await verifyNativeArmBinding(archiveReaderFromGet(repositoryName, rest), pull, { required: true, permission: permission.permission, events });
     return true;
   } catch { return false; }
 }
@@ -276,7 +287,17 @@ async function freshMutationSnapshot(pull) {
   if (!await isTrustedEligible(current)) return null;
   const target = await rest(`/repos/${owner}/${repository}/git/ref/heads/develop`);
   if (target.object?.sha !== current.base?.sha) { await summary(`PR #${pull.number}: target changed before controller mutation; deferred.`); return null; }
-  return current;
+  const [liveWorkflow, liveRepository] = await Promise.all([
+    rest(`/repos/${owner}/${repository}/actions/workflows/documentation-auto-merge.yml`), rest(`/repos/${owner}/${repository}`),
+  ]);
+  if (!documentationControllerActive(repositoryName, liveWorkflow, liveRepository)) { await summary(`PR #${pull.number}: documentation controller activation is unavailable or differs from the adapter; deferred without enabling anything.`); return null; }
+  const guarded = await guardedDeliveryMutation({ read: () => readPullRequest(pull.number), expected: current, repository: repositoryName,
+    documentation: true, mutate: last => last });
+  if (!guarded.performed) {
+    if (guarded.current) await disableIfArmed(guarded.current, guarded.reason);
+    await summary(`PR #${pull.number}: controller mutation paused (${guarded.reason}); deferred.`); return null;
+  }
+  return guarded.value;
 }
 
 async function mergeValidatedHead(pull, archiveBase) {

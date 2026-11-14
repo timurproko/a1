@@ -19,6 +19,15 @@ export function deliveryMutationBlocker(pull, { documentation = false } = {}) {
   return null;
 }
 
+/** One final read owns the mutation gate; refusal performs no callback and carries no deferred action. */
+export async function guardedDeliveryMutation({ read, expected, repository, mutate, documentation = false }) {
+  const current = await read();
+  const blocker = deliveryMutationBlocker(current, { documentation });
+  if (blocker) return { performed: false, reason: blocker, current };
+  if (!sameDeliverySnapshot(current, expected, repository, { documentation })) return { performed: false, reason: "delivery-snapshot-changed" };
+  return { performed: true, value: await mutate(current) };
+}
+
 /** Match every candidate component and its hold immediately before a controller mutation. */
 export function sameDeliverySnapshot(current, expected, repository, { head = expected?.head?.sha, documentation = false } = {}) {
   return deliveryMutationBlocker(current, { documentation }) === null

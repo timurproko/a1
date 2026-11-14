@@ -1,4 +1,4 @@
-import { deliveryMutationBlocker, sameDeliverySnapshot } from "./delivery-control.mjs";
+import { deliveryMutationBlocker, sameDeliverySnapshot, guardedDeliveryMutation } from "./delivery-control.mjs";
 
 const FULL_SHA = /^[0-9a-f]{40}$/;
 const TARGET = "develop";
@@ -114,9 +114,8 @@ export async function refreshReadyPullRequests({ repository, request, maxPages =
       return { ...decision, disposition: "deferred", reason: "candidate or target changed before update" };
     }
     // Concurrency: the expected head binds this decision to the exact SHA just compared; GitHub rejects it if the branch moved.
-    const response = await request(`${prefix}/pulls/${number}/update-branch`, {
-      method: "PUT", body: { expected_head_sha: decision.headSha }, expected: [202, 422],
-    });
-    return interpretBranchUpdate(decision, response);
+    const guarded = await guardedDeliveryMutation({ read: async () => (await request(`${prefix}/pulls/${number}`)).body, expected: current, repository,
+      mutate: () => request(`${prefix}/pulls/${number}/update-branch`, { method: "PUT", body: { expected_head_sha: decision.headSha }, expected: [202, 422] }) });
+    return guarded.performed ? interpretBranchUpdate(decision, guarded.value) : { ...decision, disposition: "deferred", reason: guarded.reason };
   }
 }
