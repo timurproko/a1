@@ -28,10 +28,10 @@ The maintainer integration decision accepts these scenarios:
     "Ordinary README documentation retains its independently verified automation route, but authority-changing docs and renamed agent instructions remain ineligible; release-reopening automation continues only through its existing release-specific eligibility checks.",
     "Changing a finalized candidate head, base, body or acceptance list invalidates previous integration authority; a missing fresh maintainer request or unverifiable human arm produces a blocker without bot fallback, unrelated-arm cancellation, waiting or queued integration."
   ],
-  "archiveDigest": "47b881bc5d511f2973f12f790c5477366bd7690af33a6c454bab2914368ecef8",
+  "archiveDigest": "7e7006fd1044b1aae95f69cc3ad5e8da1afc9f860cf34d057206da01a1360872",
   "specDigest": "54595150db5c1e639210035e4d1e69b77cf3fceb3acac4b091a20ba820a7c91c",
   "tasksDigest": "8a2316c30f7d247d5439787718788790bb3903bba719220103693ff6baa18505",
-  "evidenceDigest": "2d6f5cbdeb34aaa00155edfae900999bd4abe14678b2e12cf57f3a747c949464",
+  "evidenceDigest": "9ebf4f9e00acf0689a7512a1621701e33b825caa8ff048044df3459aeb20514a",
   "knownGaps": []
 }
 ```
