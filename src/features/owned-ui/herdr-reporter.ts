@@ -27,11 +27,13 @@ export function createHerdrReporter(options: ReporterOptions) {
     }
   }
   async function publish(): Promise<void> {
-    await withHerdrBinding(options.reservation, async state => {
+    if (stopped || !options.identity()) return;
+    await withHerdrBinding(options.reservation, async (state, owns) => {
       const identity = options.identity();
       if (stopped || !identity || !validHerdrIdentity(options.reservation.terminalId, options.reservation.runtimeId, identity.sessionId)) return;
       const labels = await readLabels();
       if (!labels || !canOwn(labels, state.published)) return;
+      if (!await owns()) return;
       const current = options.identity();
       if (stopped || current?.sessionId !== identity.sessionId || current.binding !== identity.binding) return;
       const time = now();
@@ -57,12 +59,12 @@ export function createHerdrReporter(options: ReporterOptions) {
   async function shutdown() {
     stopped = true; dirty = false; cancelTimer();
     await running;
-    await withHerdrBinding(options.reservation, async state => {
+    await withHerdrBinding(options.reservation, async (state, owns) => {
       if (state.published?.runtimeId !== options.reservation.runtimeId) return;
       const labels = await readLabels();
-      if (!labels || !matches(labels, state.published)) return;
+      if (!labels || !matches(labels, state.published) || !await owns()) return;
       if (await invoke(["label", options.reservation.terminalId, `${HERDR_IDENTITY_LABELS.session}=`, `${HERDR_IDENTITY_LABELS.runtime}=`, `${HERDR_IDENTITY_LABELS.at}=`, "--json"]) !== undefined) delete state.published;
-    });
+    }, false);
   }
   return { request, dispose() { return disposal ??= shutdown(); } };
 }

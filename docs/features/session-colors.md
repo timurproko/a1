@@ -1,6 +1,7 @@
 # Session colors and local API
 
-Bare A1 offers two Settings → Appearance controls:
+Normal A1, launched ordinarily or through the packaged Pi-compatible entry, offers two Settings → Appearance controls. Both launchers expose the same public color API and native Herdr identity contract; the distinct `a1 pi` comparison profile remains excluded.
+
 
 - **Default color** is saved in the active profile as `defaultAccentColor`. It initially resolves to blue. It controls the next session start, not the running interface.
 - **Current color** applies immediately to this active session only. It is not saved to profile settings and does not propagate to other sessions on the same machine, profile, or project.
@@ -94,9 +95,11 @@ Subprocess invocation uses literal arguments and captures bounded output. Comman
 
 ### Ownership and cleanup
 
-A1 reserves an ordered per-terminal generation before asynchronous interactive startup. A small per-user local fence under `~/.a1/herdr-bindings/` serializes reporting runtimes independently of profile/release/development roots. Even alternate local Core contexts conservatively share this terminal-address fence. These are A1-owned runtime records, not profile settings or discovery of private color endpoint records.
+A1 records ordered per-terminal launch intent before asynchronous interactive startup. A short local metadata transaction orders that intent independently of slow Core calls. The original per-user settlement fence under `~/.a1/herdr-bindings/` still serializes actual reporting and committed publication ownership independently of profile/release/development roots. Even alternate local Core contexts conservatively share this terminal-address fence. These are A1-owned runtime records, not profile settings or discovery of private color endpoint records.
 
-A newer reservation permanently supersedes an older one: old heartbeats, late initial publication, replacement callbacks, and shutdown cannot reclaim or clear the newer binding, even after the successor exits. Refresh/cleanup checks both the local generation and the exact public runtime/session/timestamp binding under the fence. Shutdown stops scheduling/subscriptions, settles in-flight work, and removes only this runtime's still-owned native labels. Unrelated and legacy labels remain untouched.
+A legitimate predecessor publication can outlast a startup reservation attempt. The latest eligible runtime now retains pending intent and retries bounded promotion on the ordinary heartbeat or a committed replacement, rather than losing reporting permanently. Promotion waits for verified predecessor settlement and preserves its exact acknowledged public binding. A later intent permanently revokes an earlier pending one, including after the later runtime exits. Shutdown cancels pending work and never promotes an unready owner. Existing participating older reporters remain fenced by the original committed generation and settlement guard; unverifiable or conflicting records remain blocked.
+
+A newer ordered intent permanently supersedes an older one: old heartbeats, late initial publication, replacement callbacks, and shutdown cannot reclaim or clear the newer binding, even after the successor exits. Refresh/cleanup checks both the local generation and the exact public runtime/session/timestamp binding under the fence. Shutdown stops scheduling/subscriptions, settles in-flight work, and removes only this runtime's still-owned native labels. Unrelated and legacy labels remain untouched.
 
 Partial/foreign/malformed labels or unverifiable coordination fail closed rather than authorize a takeover or deletion. A crash or an unverified subprocess settlement leaves its fence locked: A1 does not steal locks based on age or PID. Subsequent reporting for that terminal may be disabled until an operator verifies and resolves the exact residue; normal A1 use continues and stale consumer bindings expire. Do not delete an ownership fence or its generation record while any related runtime or subprocess may still write. Core's label API has no conditional write, so this cooperative guarantee does not claim atomic protection against arbitrary external writers of native keys.
 
@@ -105,6 +108,10 @@ Partial/foreign/malformed labels or unverifiable coordination fail closed rather
 Herdr treats complete native `a1.*` identity as authoritative over the optional legacy companion's `custom.a1.*`. A partial native binding fails closed and cannot borrow legacy values; legacy fallback is permitted only when all three native keys are absent. A1 never edits companion package references or configuration.
 
 The supplied Herdr consumer freshness contract is 90 seconds with five seconds of future-clock tolerance. Fresh labels alone are not control authority: the host must also validate a live A1 target and current terminal/space/tab membership, use short-expiry requests, and honor acknowledged API responses. Do not infer a target from titles, PIDs, transcripts, or private endpoint files.
+
+Once a normal or compatible session reports its ready identity, same-machine tab moves use the existing consumer's current destination membership and adoption labels, including inactive tabs. No focus change, producer restart or alternate color API is needed. A move after the consumer's final membership check can still race an already-admitted color write: the host API does not provide a membership-and-color transaction.
+
+New producer code does not hot-patch an already running immutable release. An existing session with unavailable identity must be updated/relaunched by its owner when safe; never clear its labels or coordination files or restart it as an automatic color repair.
 
 First-frame space matching covers supported explicit Herdr A1-profile launches in an existing identified space. Herdr chooses the latest space color immediately before launch, requires both discovered capabilities, and passes no override when matching is disabled. Custom wrappers/unrelated profiles are not rewritten, and conflicting configured startup-color options should be refused rather than silently replaced. Manually launched Core-hosted A1 gains public identity and subsequent live matching, not a first-frame host handshake. Launches into new spaces without a known space ID retain live-sync fallback.
 

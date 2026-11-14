@@ -1,3 +1,7 @@
+export { createOwnedRuntimeContext } from "./runtime-context.js";
+export type { OwnedRuntimeContext } from "./runtime-context.js";
+export { RuntimeApiLifecycle } from "./runtime-api-lifecycle.js";
+export { ReadySessionBinding } from "./ready-session-binding.js";
 export { reserveHerdrBinding } from "./herdr-binding.js";
 export type { HerdrBindingReservation } from "./herdr-binding.js";
 export { createHerdrReporter } from "./herdr-reporter.js";
