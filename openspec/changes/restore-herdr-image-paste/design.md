@@ -50,7 +50,7 @@ Proposed access matrix:
 | Raw Herdr paste with a conventional SSH, WSL, tmux, or screen marker | Existing refusal |
 | Raw Herdr paste without those markers | Proposed image-only host acquisition; no native text or file-drop fallback |
 
-Herdr identity grants no locality knowledge in this table. The final row is an explicit proposed exception to the prior safety policy, restricted to an owned raw-paste gesture and image representations. It must not be enabled for supplied text, path-classification failure, file-transfer failure, or copy failure. Missing image content is a no-op; native acquisition errors remain recoverable. There is no hidden host-text fallback and no host-native write.
+Herdr identity grants no locality knowledge in this table. The final row is an explicit proposed exception to the prior safety policy, restricted to an owned raw-paste gesture and image representations. It must not be enabled for supplied text, path-classification failure, file-transfer failure, or copy failure. Missing image content and unavailable screenshot acquisition report “Couldn’t paste screenshot—try again.” without changing the draft; native acquisition errors remain recoverable. Known size/count/format limits retain their actionable diagnostics. There is no hidden host-text fallback and no host-native write.
 
 Carry image-only intent through the real native helper boundary; do not implement it by injecting a UI-thread image reader. Preserve format limits, read deadlines, predecessor failure semantics, and scalar-only diagnostics. Add source/emitted protocol tests because the helper must receive this intent.
 
@@ -76,13 +76,13 @@ Regression tests must use production source selection with hermetic native/platf
 
 Update current architecture documentation/specifications without rewriting archived PR #922 history. Ordinary progress is one completed task group/commit/push/body tick per PR outcome. Final Acceptance and current-target reconciliation precede the final outcome tick; trusted automation owns readiness/finalization.
 
-## Open decision: stronger safety versus A1-only raw-image compatibility
+## Decision and remaining limitation: A1-only raw-image compatibility
 
 The initial handoff requires both automatic local native acquisition and no host acquisition in remote/unknown attachment contexts. The examined A1 input and supported Herdr metadata cannot distinguish a local raw paste key from the same raw key forwarded by a markerless remote viewer. Supplied remote image paths/text avoid that ambiguity in the normal working route, but do not make every possible raw gesture safe.
 
 The proposed A1-only design meets the user's ordinary local/remote screenshot and text workflows by allowing raw host image acquisition in the final table row. It does NOT preserve the initial unconditional unknown-attachment no-native-read guarantee. A markerless remote raw gesture could paste an unrelated host image. Image-only access limits the exception, but cannot prove image ownership.
 
-User approval of that specific exception is required before implementation or detailed task planning. If the original absolute safety guarantee remains mandatory, this A1-only proposal must not be implemented; an attachment-bound read capability or viewer-supplied image content would be needed. Do not disguise that conflict as a locality heuristic, a successful test, a missing setting, or a Herdr defect.
+After discussion of this distinction, the user requested implementation with “Couldn’t paste screenshot—try again.” feedback and real-world testing. Implement the A1-only image-only acquisition policy and fail without fallback when a read or supplied-file preparation fails. A successful read of an unrelated host image remains indistinguishable from a valid local read; the retry message cannot detect that case. If the original absolute safety guarantee becomes mandatory again, an attachment-bound read capability or viewer-supplied image content would be needed. Do not disguise that conflict as a locality heuristic, a successful test, a missing setting, or a Herdr defect.
 
 ## Validation and physical acceptance
 

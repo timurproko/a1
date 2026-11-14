@@ -74,4 +74,4 @@ For an owned raw Herdr paste gesture without supplied content or an explicit cli
 #### Scenario: Raw Herdr paste has no image representation
 
 - **WHEN** image-only host acquisition finds no supported image representation
-- **THEN** A1 SHALL leave unrelated draft content unchanged without falling back to native text or file-drop contents
+- **THEN** A1 SHALL leave unrelated draft content unchanged and report “Couldn’t paste screenshot—try again.” without falling back to native text or file-drop contents
