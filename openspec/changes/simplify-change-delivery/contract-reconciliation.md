@@ -64,4 +64,6 @@ Only that conflict remains blocked (the coordinated-clarification portion of tas
 
 Preserved-work reconciliation: `e6e52727e4e9a00be3c6ab715d3a9e6d42925ef8` was clean and published before continuation. A normal topic merge of fetched `origin/develop` (`c362c4e8`) produced `e767634e772914f918f5a8840e7da18c3a05ab07`, retaining both histories, upstream identity/detach fixes and completed work. This was topic/base synchronization, not integration of PR #923; primary and remote protected integration were untouched. The task remains attached and no cleanup, release publication, hosting apply or PR merge is authorized.
 
+During checks, the observed base advanced to `82d030bf` (#925). After committing the independent work as `4d2cfdb5`, a second clean topic sync produced `c6d2bbf824d2b82460e59eb120d4c970cf27420d`; no observed base commits remained missing. Both topic merges preserve histories and are not integration of PR #923.
+
 Independent compatibility checks cover immutable version-1/2 receipts, legacy version-3 readers, existing CLI aliases, historical cleanup journals and standalone removal without runtime identity/credential storage. Paired rollout is documented in `docs/features/worktrees.md`; an installed compatible release, downstream adoption, live CI and human/device acceptance are not inferred from source tests.
