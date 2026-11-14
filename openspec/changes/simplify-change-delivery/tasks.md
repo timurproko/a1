@@ -42,10 +42,12 @@ Contract binding: R05-R08; consume the matching IDs in `delivery-cases.json` wit
 
 Contract binding: R01, R09-R11, R17-R20; consume the matching IDs in `delivery-cases.json` without rewriting expectations.
 
-Blocked under R18/C50 pending clarification of the native-arm acceptance conflict recorded in `contract-reconciliation.md`. Outcomes 1-4 remain completed and published; the frozen contract files and the group-5 scope remain unchanged.
+The maintainer explicitly authorized the native-arm delta reconciliation recorded in `contract-reconciliation.md`. The delta now routes to R09-R10 and the a1 acceptance binding without changing the frozen contract, completed outcomes or group-5 scope.
 
-- [ ] 5.1 Preserve protected exact-candidate merge and coherent hold/opt-out; verify stale/pending/ambiguous/bot authority stays rejected.
+A later R11/R18 conflict with the existing automatic release-reopening route is recorded in `contract-reconciliation.md`. Its disposition needs a concrete maintainer decision. Independent written/tested tasks are checked below; the affected integration route and remaining compatibility review keep the PR outcome unchecked. The passing local 50-case result does not silently grandfather that uncovered route.
+
+- [x] 5.1 Preserve protected exact-candidate merge and coherent hold/opt-out; verify stale/pending/ambiguous/bot authority stays rejected.
 - [ ] 5.2 Exclude authority-changing docs from unattended integration; verify complete diffs and rename sources while routine docs keep their route without hosting changes.
-- [ ] 5.3 Bind every unchanged shared verification case to actual repository behavior and enforce frozen contract bytes, adapter values and owner links; verify all case IDs run without skipped cases, copied expected-result stubs, policy paraphrases or OpenSpec overrides.
+- [x] 5.3 Bind every unchanged shared verification case to actual repository behavior and enforce frozen contract bytes, adapter values and owner links; verify all case IDs run without skipped cases, copied expected-result stubs, policy paraphrases or OpenSpec overrides.
 - [ ] 5.4 Preserve metadata, aliases, historical readers and cleanup records with paired rollout guidance; verify standalone paths require no runtime or hosting migration.
-- [ ] 5.5 Preserve the OpenSpec boundary in repository-owned guidance and tooling; verify the complete diff (including additions, deletions and rename paths) leaves OpenSpec skills, generated commands and framework assets unchanged, guidance contains no indirect overrides, and framework-dependent outcomes are reported as separately scoped blockers.
+- [x] 5.5 Preserve the OpenSpec boundary in repository-owned guidance and tooling; verify the complete diff (including additions, deletions and rename paths) leaves OpenSpec skills, generated commands and framework assets unchanged, guidance contains no indirect overrides, and framework-dependent outcomes are reported as separately scoped blockers.

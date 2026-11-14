@@ -40,4 +40,18 @@ Affected rules/case: R10, R18, C50. The unchanged project-specific `specs/change
 
 These statements do not supply one unambiguous acceptance/provenance contract for the final outcome. In particular, the non-automatic-only clause excludes the native route addressed by R10, while the arm-only scenario omits R10's required binding evidence. R18 and C50 require clarification rather than independently choosing an interpretation.
 
-Disposition: stop affected outcome-5 integration/provenance work and request approval to replace the conflicting project-specific wording with a direct normative reference to R09-R10 and the a1 adapter's acceptance binding. The proposed correction changes no frozen rule, adapter value, expected case, OpenSpec skill or framework asset. No correction has been made pending that decision. Preserve all implementation, planning history and completed task ticks; do not infer merge, hosting or deletion authority.
+Disposition: stop affected outcome-5 integration/provenance work and request approval to replace the conflicting project-specific wording with a direct normative reference to R09-R10 and the a1 adapter's acceptance binding. The proposed correction changes no frozen rule, adapter value, expected case, OpenSpec skill or framework asset. No correction was made before that decision. Preserve all implementation, planning history and completed task ticks; do not infer merge, hosting or deletion authority.
+
+### Authorized resolution
+
+At checkpoint `08cc1a7aaf43adb1494994366ef00fc67d082a89`, the maintainer explicitly authorized aligning only this project-specific delta with R09-R10 and the a1 adapter, preserving verified maintainer-owned native auto-merge versus forbidden agent/bot arming. The two conflicting statements now reference those normative owners. All four frozen files, expected cases, OpenSpec skills/framework and prior completed work remain unchanged. Outcome 5 resumes under the existing implementation/publication approval; merge and hosting changes remain unauthorized.
+
+## Later conflict: release-reopening integration
+
+Inspected published checkpoint: `08cc1a7aaf43adb1494994366ef00fc67d082a89`, plus the retained outcome-5 workspace. Current `origin/develop` was fetched at `c362c4e8`; it has not yet been reconciled into this topic. No history, unrelated completion or existing implementation was discarded.
+
+Affected rules/case: R11, R18, R20, C50. Frozen R11 permits automation-owned integration only for independently eligible routine documentation. The existing `manage-documentation-auto-merge.mjs` fallback accepts `classifyReleaseReopening()` even after ordinary documentation classification rejects the diff. That route explicitly modifies `package.json`, `package-lock.json` and `packages/a1-install/package.json`, plus the release note. Its reviewed release runbook and `scripts/release/check-release-documentation.mjs` require automatic integration after CI. It is not a routine documentation-only diff.
+
+No exception for release-reopening integration is present in the frozen adapter. Preserving this route as compliant would grandfather a conflicting interpretation; changing it to manual integration affects existing release behavior, guidance and assertions beyond the specifically authorized native-arm wording reconciliation. The affected route remains an explicit incomplete outcome, not a passing contract exception.
+
+Disposition: retain existing release code and history; leave outcome 5 unchecked. Request the maintainer's decision on making reopening PRs manual-integration-only and reconciling that project-specific release guidance/tests, without modifying frozen files or OpenSpec framework assets. No merge, workflow activation or hosting change is authorized. The 50-case local result is reported separately and does not establish whole-policy conformance for this uncovered conflict.

@@ -548,8 +548,8 @@ An agent SHALL NOT treat implementation approval, green CI, a standing preferenc
 
 #### Scenario: Maintainer accepts and enables auto-merge
 - **WHEN** an authorized maintainer reviews the finalized current-head candidate and personally enables native auto-merge
-- **THEN** the arm SHALL constitute acceptance of the listed scenarios for that exact candidate
-- **AND** GitHub MAY integrate it only after required current-head validation succeeds
+- **THEN** recognition and integration SHALL follow R09-R10 in `docs/delivery-rules.md` and `repositories.a1.acceptanceBinding` in `docs/delivery-adapters.json`
+- **AND** an agent- or bot-armed implementation route SHALL remain forbidden under R10
 
 #### Scenario: Maintainer requests an agent merge
 - **WHEN** an authorized maintainer explicitly instructs the active agent to merge one identified finalized candidate that is currently green and mergeable
@@ -574,7 +574,7 @@ An agent SHALL NOT treat implementation approval, green CI, a standing preferenc
 ### Requirement: Plain acceptance scenarios are bound to the final candidate
 A version-3 delivery SHALL contain one or more concise, distinct behavior-and-expected-result scenarios in a final `Acceptance` section of the ordinary PR and in its committed conditional acceptance manifest. They SHALL be plain bullets, not checkboxes. Generic review, CI, no-gap, approval, archive, source-task, or automated-test boilerplate SHALL be rejected. The trusted candidate check SHALL require exact normalized membership between the PR list and manifest and SHALL bind the manifest to the finalized change identity and archive contents.
 
-Automation SHALL validate structure, objective evidence, finalization, and exact current-head CI without asserting that human scenarios passed. Only an authorized human's non-automatic merge of that exact head SHALL activate the conditional manifest as acceptance. A body edit, changed manifest, changed head, missing check, or contradictory acceptance evidence SHALL fail closed or require renewed validation.
+Automation SHALL validate structure, objective evidence, finalization, and exact current-head CI without asserting that human scenarios passed. Activation of the conditional manifest SHALL follow R09-R10 in `docs/delivery-rules.md` and `repositories.a1.acceptanceBinding` in `docs/delivery-adapters.json`. The native toggle alone is not acceptance evidence. A body edit, changed manifest, changed head, missing check, or contradictory acceptance evidence SHALL fail closed or require renewed validation.
 
 #### Scenario: Candidate presents specific scenarios
 - **WHEN** a finalized implementation provides one or more unique observable scenarios as plain bullets
