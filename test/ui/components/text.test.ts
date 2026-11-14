@@ -60,6 +60,33 @@ describe("display width", () => {
     }
   });
 
+  it.each([
+    ["🖼", 1], ["🖼\uFE0E", 1], ["🖼\uFE0F", 2],
+    ["🖨", 1], ["🖨\uFE0E", 1], ["🖨\uFE0F", 2],
+  ] as const)("keeps %s at %i cells at padding, clipping, and slice boundaries", (symbol, width) => {
+    for (const styled of [false, true]) {
+      const text = styled ? `${RED}a${symbol}${symbol}z${RESET}` : `a${symbol}${symbol}z`;
+      expect(displayWidth(text)).toBe(2 + width * 2);
+      expect(padToWidth(text, 4 + width * 2)).toBe(`${text}  `);
+      for (const budget of [1, width, 1 + width, width * 2, 1 + width * 2]) {
+        const expected = budget < 1 + width ? "a" : budget < 1 + width * 2 ? `a${symbol}` : `a${symbol}${symbol}`;
+        const clipped = truncateToWidth(text, budget);
+        expect(stripAnsi(clipped)).toBe(expected);
+        if (styled) expect(clipped).toBe(`${RED}${expected}${RESET}`);
+      }
+      expect(displayColumnSlice(text, 1, 2)).toEqual({ from: 1, to: 1 + width, text: symbol });
+      expect(displayColumnSlice(text, 1 + width, 2 + width)).toEqual({ from: 1 + width, to: 1 + width * 2, text: symbol });
+    }
+  });
+
+  it("keeps text-presentation pictographs narrow through padding, clipping, and slicing", () => {
+    expect(displayWidth("🖼🖥🖨")).toBe(3);
+    expect(padToWidth(`${RED}🖼🖼x${RESET}`, 5)).toBe(`${RED}🖼🖼x${RESET}  `);
+    expect(truncateToWidth("🖼🖼xyz", 3)).toBe("🖼🖼x");
+    expect(displayColumnSlice(`${RED}🖼🖼xyz${RESET}`, 2, 3)).toEqual({ from: 2, to: 3, text: "x" });
+    expect(displayWordColumnRange("🖼 file", 3)).toEqual({ from: 2, to: 6 });
+  });
+
   it("keeps text symbols that terminals render narrow at one column", () => {
     expect(displayWidth("—")).toBe(1);
     expect(displayWidth("…")).toBe(1);

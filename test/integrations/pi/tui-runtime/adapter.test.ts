@@ -560,7 +560,8 @@ describe("PiTuiRuntimeAdapter", () => {
   it("keeps rendering content the shared geometry measures narrower than the pinned renderer", async () => {
     // Provenance: 2026-11-14 fatal exits. Each sample is one cell wider in the renderer than in
     // A1's shared helper, so a row padded with shared geometry overflows by exactly that cell.
-    const samples = ["\u{1f1fa}", "☰", "aः"];
+    // A lone regional indicator was a third sample until shared geometry measured it wide too.
+    const samples = ["☰", "aः"];
     for (const sample of samples) {
       const terminal = new TestTerminal();
       const before = containedRowCount();
