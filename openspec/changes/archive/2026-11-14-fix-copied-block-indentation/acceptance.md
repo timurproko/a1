@@ -24,10 +24,10 @@ The maintainer integration decision accepts these scenarios:
     "Automatic selection copy and explicit frame copy produce the same corrected block content.",
     "Transcript appearance, ordinary clipboard paste, editor-owned copy and cut, and comparison-profile behavior remain unchanged."
   ],
-  "archiveDigest": "4f8b56a77f6b9c101040e7cbf28211407cab7b2fb78f55c2d90fda0d036c1f20",
+  "archiveDigest": "4de74635823541c70946853d49f8748b2611ec4bd4d54e3ba2ca3ba06e15dca9",
   "specDigest": "078add93ae5348eeac9bc92e0b8e8c3cf1761067e30aa64092a326ce0c402a33",
   "tasksDigest": "c4a473bf3389420ae9c60c19700ca07b3b9612cf9c538a1db9c8310da369f0d6",
-  "evidenceDigest": "c08318888bbf841066bb8868e1b8a6f0dc467edc4da13989a89ce42227689d06",
+  "evidenceDigest": "d77dcd5cd62c91daea755e90432b468a408ea50fe44366f4be1d37738a4cd94a",
   "knownGaps": []
 }
 ```
