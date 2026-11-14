@@ -22,11 +22,11 @@ In `paste-helper.ts`, exactly one supported image-file path is promoted to a `pr
 
 1. Carry explicit image-file provenance from successful path classification through preparation/adoption. Do not infer file origin from MIME type, filename text inside raw pixels, or current clipboard state.
 2. Use the existing image-file visual convention with a filename-bearing label. Preserve quoting/space parsing and distinguish same-name sources or different attachment instances without overwriting bytes. Internal attachment identity must not depend on basename alone.
-3. Preserve stable sidecar identity for named images across history persistence, collection, pruning, restart, and missing-sidecar recall. Keep legacy screenshot tags readable; a visual change must not lose persisted image payloads.
+3. Preserve stable sidecar identity for named images across history persistence, collection, pruning, restart, and missing-sidecar recall. Named images use `[🖼 filename.png #hexid]`, with `-resized` after the identifier when transformed. The short independent identifier prevents basename collisions and cross-session sidecar overwrites. A shared contract recognizes both this representation and legacy screenshot tags; a visual change must not lose persisted image payloads.
 4. Keep raw clipboard screenshot labeling unchanged. Image-file conversion and validation still use the serialized worker and existing source/output limits; conversion failure or cancellation cannot leave a usable orphan chip.
 5. Preserve atomic copy/editing and the current actual-attachment submission contract, including exactly-once delivery, pending submission, steering/follow-up, and count-rejection behavior.
 
-## Focused checks after approval
+## Focused checks
 
 - Source and emitted helper cases for filename provenance, quoted/spaced paths, unchanged clipboard image output, malformed images, and cancellation.
 - Production-shell cases for dropped-file image labels, later typing, exact image bytes once, no native acquisition, same-name identity, count rejection, and undo/redo.
@@ -35,4 +35,4 @@ In `paste-helper.ts`, exactly one supported image-file path is promoted to a `pr
 
 ## Known gaps
 
-Physical desktop dragging has not been exercised in this planning session. The cause is confirmed by the production source path and existing shell assertions, not a claim of desktop certification. No implementation changes have been made; representation details remain subject to the approved goals and persistence constraints.
+Physical desktop dragging has not been exercised in this session. Source and emitted helper tests and production-shell input fixtures exercise the same supplied-path route; these results are not desktop certification. The task checkout is built for optional maintainer testing. Multiple/mixed image-file lists intentionally retain their existing path-reference semantics, as approved. There are no known unresolved implementation defects within the approved scope.
