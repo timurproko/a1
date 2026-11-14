@@ -7,7 +7,9 @@ Publication run 43634036658 uploaded both packages at 0.2.7-dev.1307, but all na
 ## What Changes
 
 - Download both exact registry tarballs and compute SHA-512 integrity and SHA-1 shasum before registry verification succeeds, retaining bounded ingestion polling.
-- Preserve sanitized, bounded failure evidence from published-installer smoke without weakening its success transcript or changing installer behavior.
+- Preserve sanitized, bounded failure evidence from published-installer smoke without weakening its success transcript.
+- Publish immutable candidates under a staging tag and promote next/latest only after native exact-candidate installation, update, and launch checks pass.
+- Make updater journal and recovery-launcher replacement tolerate bounded Windows sharing failures without deleting the prior destination, and keep guardian settlement independent of journal bookkeeping.
 
 ## Impact
 
