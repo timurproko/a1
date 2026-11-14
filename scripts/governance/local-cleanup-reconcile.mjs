@@ -6,6 +6,8 @@ import { discoverRepository, emptyDirectoryTree, exists, inside, inspectResidue,
 import { acceptedHead, mergedIntoDevelop, verifyCleanupEvidence } from "./local-cleanup-evidence.mjs";
 import { pruneMergedBranches } from "./local-cleanup-branches.mjs";
 import { cleanupPreflight } from "./local-cleanup-preflight.mjs";
+import { captureWorktreeCleanupSnapshot } from "../../src/foundation/lifecycle/worktree-cleanup-snapshot.mjs";
+import { withUnclaimedWorktree } from "../../src/foundation/lifecycle/worktree-claim-boundary.mjs";
 
 /** A folder Git left behind is removable only once it has sat untouched long enough that no worktree add or removal is mid-flight. */
 const EMPTY_DIRECTORY_GRACE_MS = 10 * 60 * 1000;
@@ -114,18 +116,21 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
           await enabled(); entry.state = "deleting"; entry.step = "remove-intent"; await save(state);
         }
         if (entry.step === "none") {
+          const approvedSnapshot = await captureWorktreeCleanupSnapshot(entry.path);
           evidence = await verify(reader, entry);
           if (evidence.disposition !== "eligible") { Object.assign(row, evidence); continue; }
           if (JSON.stringify(await discoverRepository(identity.primary, git)) !== JSON.stringify(identity)) fail("repository-changed");
           const content = await preflight(identity, entry, { inspect, git, cwd, deadline, now, accepted });
           if (!content.clean) { Object.assign(row, content, { disposition: deferred(content.reason) ? "deferred" : "blocked" }); continue; }
           // Invariant: generated roots go first with bounded retries, so a held handle blocks before any journaled intent.
-          await enabled(); await purge(entry, { deadline, now, containedLinks: content.containedLinks }); await enabled();
-          // Provenance: journal the accepted live HEAD so residue verification and ref deletion compare against the tree Git removes.
-          if (content.head !== entry.head) { entry.head = content.head; row.head = content.head; }
-          entry.state = "deleting"; entry.step = "remove-intent"; await save(state);
-          await remove(identity, entry, git); row.steps.push("worktree-removed");
-          entry.step = "worktree-removed"; await save(state);
+          await withUnclaimedWorktree(approvedSnapshot, {}, async () => {
+            await enabled(); await purge(entry, { deadline, now, containedLinks: content.containedLinks }); await enabled();
+            // Provenance: journal the accepted live HEAD so residue verification and ref deletion compare against the tree Git removes.
+            if (content.head !== entry.head) { entry.head = content.head; row.head = content.head; }
+            entry.state = "deleting"; entry.step = "remove-intent"; await save(state);
+            await remove(identity, entry, git); row.steps.push("worktree-removed");
+            entry.step = "worktree-removed"; await save(state);
+          });
         } else if (entry.step === "remove-intent") {
           // Protocol: an interrupted removal resumes only through verified residue or the exact intact worktree.
           const repaired = await repair(identity, entry, { git, cwd, deadline, now, inspect, remove, purge });

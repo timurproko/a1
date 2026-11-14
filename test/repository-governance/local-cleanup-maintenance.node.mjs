@@ -1,3 +1,4 @@
+import "./local-cleanup-runtime-fixture.mjs";
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";

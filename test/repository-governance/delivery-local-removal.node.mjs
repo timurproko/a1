@@ -11,6 +11,8 @@ import { createStateStore } from "../../scripts/governance/local-cleanup-state.m
 import { cleanupPreflight } from "../../scripts/governance/local-cleanup-preflight.mjs";
 import { removePublishedLocalWorktree } from "../../scripts/governance/local-cleanup-remove-local.mjs";
 import { pruneMergedBranches } from "../../scripts/governance/local-cleanup-branches.mjs";
+import { captureWorktreeCleanupSnapshot } from "../../src/foundation/lifecycle/worktree-cleanup-snapshot.mjs";
+import { executeUnclaimedWorktreeCleanup } from "../../src/foundation/lifecycle/worktree-claim-boundary.mjs";
 
 const execute = promisify(execFile), roots = [];
 const cases = JSON.parse(await readFile(new URL("../../docs/delivery-cases.json", import.meta.url), "utf8")).cases;
@@ -32,7 +34,7 @@ async function fixture() {
   const identity = await discoverRepository(primary), store = createStateStore(identity), calls = [], actual = gitRunner();
   const observedGit = async (cwd, args, options) => { calls.push(args); return actual(cwd, args, options); };
   const preflight = (identity, entry, options) => cleanupPreflight(identity, entry, { ...options, inspectProcesses: async () => [] });
-  const options = { identity, store, path, cwd: primary, confirmed: true, git: observedGit, preflight, deadline: Date.now() + 120_000 };
+  const options = { identity, store, path, cwd: primary, confirmed: true, git: observedGit, preflight, deadline: Date.now() + 120_000, claimOptions: { dataDir: join(root, "data") } };
   return { root, primary, remote, path, identity, store, git, calls, options };
 }
 
@@ -135,6 +137,31 @@ test("standalone CLI retains refs without runtime identity, credentials, setup o
   assert.equal(await f.git(f.primary, ["rev-parse", "fix/task"]), report.results[0].localHead);
   assert.equal(await f.git(f.primary, ["ls-remote", "origin", "refs/heads/fix/task"]), before);
   assert.deepEqual(await readdir(home), [], "standalone removal must not initialize runtime or credential storage");
+});
+
+test("supported runtime execution delegates one exact snapshot to the repository CLI without runtime storage", async () => {
+  const f = await fixture(), script = fileURLToPath(new URL("../../scripts/governance/local-worktree-cleanup.mjs", import.meta.url));
+  const snapshot = await captureWorktreeCleanupSnapshot(f.path), encoded = Buffer.from(JSON.stringify(snapshot)).toString("base64url"), dataDir = join(f.root, "execution-data");
+  const output = await executeUnclaimedWorktreeCleanup(snapshot, process.execPath, [script, "remove-local", "--repo", f.primary, "--path", f.path,
+    "--confirm-local-removal", "--approved-snapshot", encoded], { dataDir, cwd: f.primary });
+  assert.equal(JSON.parse(output).results[0].disposition, "removed");
+  assert.equal(await exists(f.path), false); assert.equal(await exists(dataDir), false);
+  assert.equal(await f.git(f.primary, ["rev-parse", "fix/task"]), snapshot.head);
+  assert.match(await f.git(f.primary, ["ls-remote", "origin", "refs/heads/fix/task"]), new RegExp(snapshot.head));
+});
+
+test("runtime CLI rejects the pre-detach snapshot before journaling a recreated checkout", async () => {
+  const f = await fixture(), script = fileURLToPath(new URL("../../scripts/governance/local-worktree-cleanup.mjs", import.meta.url));
+  const snapshot = Buffer.from(JSON.stringify(await captureWorktreeCleanupSnapshot(f.path))).toString("base64url");
+  await f.git(f.primary, ["worktree", "remove", f.path]); await f.git(f.primary, ["worktree", "add", f.path, "fix/task"]);
+  const home = join(f.root, "isolated-home"); await mkdir(home);
+  const env = { ...process.env, A1_DATA_DIR: home };
+  await assert.rejects(execute(process.execPath, [script, "remove-local", "--repo", f.primary, "--path", f.path, "--confirm-local-removal", "--approved-snapshot", snapshot],
+    { cwd: f.primary, env, timeout: 60_000 }), error => {
+      assert.match(error.stderr, /worktree-cleanup-snapshot-changed/u); return true;
+    });
+  assert.equal(await exists(f.path), true); assert.equal((await f.store.read()).entries.length, 0);
+  assert.equal(await readFile(join(f.path, "README.md"), "utf8"), "published content\n");
 });
 
 test("interrupted successful Git removal settles idempotently without ref deletion", async () => {

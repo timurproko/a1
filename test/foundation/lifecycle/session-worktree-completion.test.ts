@@ -31,6 +31,8 @@ const exists = (path: string) => access(path).then(() => true, () => false);
 const CLEANUP = `
 const { execFileSync } = require("node:child_process");
 const [primary, worktree, ...rest] = process.argv.slice(2);
+const approval = rest.indexOf("--approved-snapshot");
+if (approval >= 0) { JSON.parse(Buffer.from(rest[approval + 1], "base64url")); rest.splice(approval, 2); }
 if (rest.includes("fail")) { console.log(JSON.stringify({ disposition: "blocked", reason: "fixture-blocker" })); process.exit(1); }
 execFileSync("git", ["-C", primary, "worktree", "remove", worktree], { stdio: "pipe" });
 console.log(JSON.stringify({ disposition: "removed", cwd: process.cwd(), rest }));
@@ -48,7 +50,7 @@ async function attachedFixture(template?: string) {
   if (template !== undefined) {
     await mkdir(join(primary, ".a1"));
     await writeFile(join(primary, ".a1", "worktree.json"), template.startsWith("{") || template === "broken"
-      ? template : JSON.stringify({ cleanup: template.split(" ").map(part => part === "{script}" ? script : part),
+      ? template : JSON.stringify({ cleanup: [...template.split(" ").map(part => part === "{script}" ? script : part), "--approved-snapshot", "{snapshot}"],
         cleanupPreflight: ["node", "-e", "console.log(JSON.stringify({operation:'preservation-preflight',preflight:true,results:[{path:process.argv[1],disposition:'eligible'}]}))", "{worktree}"] }));
     await execute("git", ["-C", primary, "add", ".a1"]);
     await execute("git", ["-C", primary, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "commit", "-m", "declare cleanup"]);
@@ -74,10 +76,44 @@ const REMOVE = "node {script} {primary} {worktree}";
 function localRemovalTemplate(disposition = "eligible"): string {
   const preflight = `console.log(JSON.stringify({operation: 'remove-local', preflight: true, results: [{path: process.argv[1], disposition: '${disposition}', reason: 'fixture-preservation-blocker'}]})); ${disposition === "eligible" ? "" : "process.exit(1);"}`;
   const remove = "require('node:child_process').execFileSync('git', ['-C', process.argv[1], 'worktree', 'remove', process.argv[2]], {stdio: 'pipe'}); console.log(JSON.stringify({disposition: 'removed'}));";
-  return JSON.stringify({ localRemoval: { preflight: ["node", "-e", preflight, "{worktree}"], execute: ["node", "-e", remove, "{primary}", "{worktree}"] } });
+  return JSON.stringify({ localRemoval: { preflight: ["node", "-e", preflight, "{worktree}"], execute: ["node", "-e", remove, "{primary}", "{worktree}", "{snapshot}"] } });
 }
 
 describe("worktree completion", () => {
+  for (const operation of ["complete", "remove-local"] as const) for (const mutation of ["recreated", "published-head"] as const) {
+    it(`retains a ${mutation} checkout after ${operation} approved a different pre-detach snapshot`, async () => {
+      const fixture = await attachedFixture(operation === "complete" ? REMOVE : localRemovalTemplate());
+      const approved = (await execute("git", ["-C", fixture.worktree, "rev-parse", "HEAD"])).stdout.trim();
+      if (operation === "complete") await requestSessionWorktreeCompletion(fixture.identity, {}, fixture.options);
+      else await requestSessionWorktreeLocalRemoval(fixture.identity, fixture.options);
+      if (mutation === "recreated") {
+        await execute("git", ["-C", fixture.primary, "worktree", "remove", fixture.worktree]);
+        await execute("git", ["-C", fixture.primary, "worktree", "add", fixture.worktree, "fix/task"]);
+        expect((await execute("git", ["-C", fixture.worktree, "rev-parse", "HEAD"])).stdout.trim()).toBe(approved);
+      } else {
+        await writeFile(join(fixture.worktree, "README.md"), "new published user work\n");
+        await execute("git", ["-C", fixture.worktree, "add", "README.md"]);
+        await execute("git", ["-C", fixture.worktree, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "commit", "-m", "new published work"]);
+        const remote = join(fixture.root, "remote.git");
+        await execute("git", ["init", "--bare", remote]);
+        await execute("git", ["-C", fixture.primary, "remote", "add", "origin", remote]);
+        await execute("git", ["-C", fixture.worktree, "push", "origin", "fix/task"]);
+        const current = (await execute("git", ["-C", fixture.worktree, "rev-parse", "HEAD"])).stdout.trim();
+        expect(current).not.toBe(approved);
+        expect((await execute("git", ["-C", fixture.primary, "ls-remote", "origin", "refs/heads/fix/task"])).stdout).toContain(current);
+      }
+      const before = await readFile(join(fixture.worktree, "README.md")), run = vi.fn(async () => "must not execute");
+      await expect(settleSessionWorktreeCompletion(fixture.identity, { ...fixture.options, run })).resolves.toMatchObject({
+        kind: "cleanup-failed", detail: expect.stringContaining("approved checkout snapshot changed"),
+      });
+      expect(run).not.toHaveBeenCalled();
+      expect(await readFile(join(fixture.worktree, "README.md"))).toEqual(before);
+      await expect(readActiveSessionRepositoryContext(fixture.identity, fixture.options)).resolves.toBeNull();
+      await expect(readSessionStartupRoot(fixture.identity)).resolves.toBe(await realpath(fixture.primary));
+      await expect(settleSessionWorktreeCompletion(fixture.identity, fixture.options)).resolves.toBeNull();
+    });
+  }
+
   it("ignores a declaration that exists only in the task checkout being left", async () => {
     const fixture = await attachedFixture();
     await mkdir(join(fixture.worktree, ".a1"));
@@ -130,7 +166,8 @@ describe("worktree completion", () => {
     await expect(settleSessionWorktreeCompletion(bare.identity, bare.options)).resolves.toBeNull();
     await expect(readActiveSessionRepositoryContext(bare.identity, bare.options)).resolves.toMatchObject({ branch: "fix/task" });
     expect(await exists(bare.worktree)).toBe(true);
-    for (const malformed of ["broken", JSON.stringify({ cleanup: "node cleanup.cjs" }), JSON.stringify({ cleanup: [] })]) {
+    for (const malformed of ["broken", JSON.stringify({ cleanup: "node cleanup.cjs" }), JSON.stringify({ cleanup: [] }),
+      JSON.stringify({ cleanup: ["node", "cleanup.cjs", "{worktree}"], cleanupPreflight: ["node", "preflight.cjs", "{worktree}"] })]) {
       const invalid = await attachedFixture(malformed);
       await expect(requestSessionWorktreeCompletion(invalid.identity, {}, invalid.options)).rejects.toMatchObject({ code: "worktree-completion-unavailable" });
       await expect(settleSessionWorktreeCompletion(invalid.identity, invalid.options)).resolves.toBeNull();
@@ -174,6 +211,20 @@ describe("worktree completion", () => {
     expect(await readActiveSessionRepositoryContext(fixture.identity, fixture.options)).toMatchObject({ branch: "fix/task" });
     expect(await readFile(join(fixture.worktree, "late-content.txt"), "utf8")).toBe("new user content\n");
     expect(await settleSessionWorktreeCompletion(fixture.identity, fixture.options)).toBeNull();
+  });
+
+  it("writes a version-fenced approval and retains legacy requests even when they carry snapshot-shaped fields", async () => {
+    const fixture = await attachedFixture(REMOVE);
+    await requestSessionWorktreeCompletion(fixture.identity, {}, fixture.options);
+    const path = sessionWorktreeCompletionPath(fixture.identity, fixture.options);
+    const stored = JSON.parse(await readFile(path, "utf8"));
+    expect(stored.schema).toBe("a1-session-worktree-completion-v2");
+    expect(stored.approvedSnapshot.head).toMatch(/^[a-f0-9]{40}$/u);
+    stored.schema = "a1-session-worktree-completion-v1";
+    await writeFile(path, JSON.stringify(stored));
+    const run = vi.fn();
+    await expect(settleSessionWorktreeCompletion(fixture.identity, { ...fixture.options, run })).resolves.toMatchObject({ kind: "cleanup-unavailable" });
+    expect(run).not.toHaveBeenCalled(); expect(await exists(fixture.worktree)).toBe(true);
   });
 
   it("reads legacy pending records without executing cleanup lacking a preflight binding", async () => {

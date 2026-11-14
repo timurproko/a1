@@ -26,7 +26,7 @@ async function attachedSession({ cleanup = false } = {}) {
     await mkdir(join(primary, ".a1"));
     await writeFile(join(primary, ".a1", "worktree.json"), JSON.stringify({
       cleanupPreflight: ["node", "-e", "console.log(JSON.stringify({operation:'preservation-preflight',preflight:true,results:[{path:process.argv[1],disposition:'eligible'}]}))", "{worktree}"],
-      cleanup: ["node", "-e", "throw new Error('fixture cleanup must not run')", "{worktree}"],
+      cleanup: ["node", "-e", "throw new Error('fixture cleanup must not run')", "{worktree}", "{snapshot}"],
     }));
   }
   await execute("git", ["-C", primary, "add", "."]);

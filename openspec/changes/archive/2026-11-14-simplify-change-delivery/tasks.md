@@ -24,10 +24,10 @@ Contract binding: R04, R12; consume the matching IDs in `delivery-cases.json` wi
 
 Contract binding: R12-R16; consume the matching IDs in `delivery-cases.json` without rewriting expectations.
 
-- [ ] 3.1 Add exact remove-local with fresh publication and shared preservation gates; verify open-PR removal needs no merge/CI/archive and makes no remote write.
-- [ ] 3.2 Add compatible retirement bookkeeping and partial recovery; verify retained refs, interrupted deletion and later sweeps preserve unrelated/recreated resources.
-- [ ] 3.3 Integrate trusted exact-operation declaration and runtime settlement; verify preflight, detach, shell exit, post-detach checks and usable-session failure behavior.
-- [ ] 3.4 Cover dirty/unknown-ignored/nested/private/KEEP/link data, live claims, unpublished/divergent commits and outages; verify all unsafe fixtures retain data without force fallback.
+- [x] 3.1 Add exact remove-local with fresh publication and shared preservation gates; verify open-PR removal needs no merge/CI/archive and makes no remote write.
+- [x] 3.2 Add compatible retirement bookkeeping and partial recovery; verify retained refs, interrupted deletion and later sweeps preserve unrelated/recreated resources.
+- [x] 3.3 Integrate trusted exact-operation declaration and runtime settlement; verify preflight, detach, shell exit, post-detach checks and usable-session failure behavior.
+- [x] 3.4 Cover dirty/unknown-ignored/nested/private/KEEP/link data, live claims, unpublished/divergent commits and outages; verify all unsafe fixtures retain data without force fallback.
 
 ## 4. Progress, validation and pause/resume
 

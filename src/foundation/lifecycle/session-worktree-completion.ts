@@ -3,13 +3,16 @@ import { lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { worktreeGitEnvironment } from "./worktree-git-environment.js";
+import { assertWorktreeCleanupSnapshot, captureWorktreeCleanupSnapshot, type WorktreeCleanupSnapshot } from "./worktree-cleanup-snapshot.mjs";
+import { executeUnclaimedWorktreeCleanup, withUnclaimedWorktree } from "./worktree-claim-boundary.mjs";
 import {
   detachSessionRepositoryContextForCompletion, readActiveSessionRepositoryContext, readSessionStartupRoot,
   sessionWorktreeClaimState, sessionWorktreeCompletionPath,
   type SessionRepositoryContextOptions, type SessionRepositoryIdentity,
 } from "./session-repository-context.js";
 
-const SCHEMA = "a1-session-worktree-completion-v1";
+const SCHEMA = "a1-session-worktree-completion-v2";
+const LEGACY_SCHEMA = "a1-session-worktree-completion-v1";
 const CLEANUP_DECLARATION = ".a1/worktree.json";
 const MAX_RECORD_BYTES = 16 * 1024;
 const MAX_REPORT_CHARACTERS = 4_000;
@@ -47,7 +50,8 @@ export interface WorktreeCompletionSettleOptions extends SessionRepositoryContex
 interface CompletionRecord extends WorktreeCompletionSelectors {
   readonly operation?: "remove-local";
   readonly adapterDigest?: string;
-  readonly schema: typeof SCHEMA;
+  readonly approvedSnapshot?: WorktreeCleanupSnapshot;
+  readonly schema: typeof SCHEMA | typeof LEGACY_SCHEMA;
   readonly sessionId: string;
   readonly startupRoot: string;
   readonly commonDir: string;
@@ -76,7 +80,9 @@ async function requestPreflightedOperation(identity: SessionRepositoryIdentity, 
   const preflightFailure = kind === "remove-local" ? "worktree-local-removal-preflight" : "worktree-completion-preflight";
   const adapter = await readOperationAdapter(join(startup, CLEANUP_DECLARATION), kind);
   if (adapter === null || adapter === "invalid") throw failure(unavailable, "this repository declares no compatible exact preflight/cleanup adapter; the attachment and files were retained");
+  const approvedSnapshot = await captureWorktreeCleanupSnapshot(attached.cwd);
   const values: Readonly<Record<string, string | undefined>> = { primary: startup, worktree: attached.cwd, branch: attached.branch,
+    snapshot: Buffer.from(JSON.stringify(approvedSnapshot)).toString("base64url"),
     change: selectors.change, pr: selectors.pr === undefined ? undefined : String(selectors.pr) };
   const expand = (parts: readonly string[]) => parts.map(part => part.replace(/\{([a-z]+)\}/gu, (_match, name: string) => {
     const value = values[name];
@@ -101,7 +107,8 @@ async function requestPreflightedOperation(identity: SessionRepositoryIdentity, 
   }
   const fresh = await readOperationAdapter(join(startup, CLEANUP_DECLARATION), kind);
   if (fresh === null || fresh === "invalid" || fresh.digest !== adapter.digest) throw failure("worktree-context-changed", "the exact adapter changed during preflight");
-  return await requestWorktreeOperation(identity, selectors, options, { cwd: attached.cwd, branch: attached.branch, digest: adapter.digest, kind });
+  assertWorktreeCleanupSnapshot(approvedSnapshot, await captureWorktreeCleanupSnapshot(attached.cwd));
+  return await requestWorktreeOperation(identity, selectors, options, { cwd: attached.cwd, branch: attached.branch, digest: adapter.digest, kind, approvedSnapshot });
 }
 
 /**
@@ -120,7 +127,7 @@ export async function requestSessionWorktreeCompletion(
 
 async function requestWorktreeOperation(
   identity: SessionRepositoryIdentity, selectors: WorktreeCompletionSelectors, options: SessionRepositoryContextOptions,
-  settlement: { cwd: string; branch: string; digest: string; kind: "complete" | "remove-local" },
+  settlement: { cwd: string; branch: string; digest: string; kind: "complete" | "remove-local"; approvedSnapshot: WorktreeCleanupSnapshot },
 ): Promise<WorktreeCompletionRequest> {
   if (selectors.change !== undefined && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(selectors.change)) {
     throw failure("worktree-completion-selector", "the change selector must be a kebab-case change id");
@@ -135,9 +142,10 @@ async function requestWorktreeOperation(
   const path = sessionWorktreeCompletionPath(identity, options);
   const detached = await detachSessionRepositoryContextForCompletion(identity, options, async left => {
     if (!samePath(left.worktreeRoot, attached.cwd)) throw failure("worktree-context-changed", "the attachment changed during completion");
+    assertWorktreeCleanupSnapshot(settlement.approvedSnapshot, await captureWorktreeCleanupSnapshot(attached.cwd));
     const record: CompletionRecord = {
       schema: SCHEMA, sessionId: identity.sessionId, startupRoot: left.startupRoot, commonDir: left.commonDir,
-      adapterDigest: settlement.digest,
+      adapterDigest: settlement.digest, approvedSnapshot: settlement.approvedSnapshot,
       ...(settlement.kind === "remove-local" ? { operation: "remove-local" as const } : {}),
       worktreeRoot: left.worktreeRoot, worktreeGitDir: left.worktreeGitDir, branch: left.branch,
       ...(selectors.change === undefined ? {} : { change: selectors.change }),
@@ -182,10 +190,15 @@ export async function settleSessionWorktreeCompletion(
     if (adapter === null || adapter === "invalid" || adapter.digest !== record.adapterDigest) {
       return result("cleanup-unavailable", `the exact adapter in ${CLEANUP_DECLARATION} is unavailable, changed, or lacks a preservation-preflight binding; no other operation was substituted`);
     }
+    if (record.schema !== SCHEMA || !record.approvedSnapshot || !samePath(record.approvedSnapshot.path, record.worktreeRoot)
+      || !samePath(record.approvedSnapshot.commonDir, record.commonDir) || !samePath(record.approvedSnapshot.gitDir, record.worktreeGitDir)) {
+      return result("cleanup-unavailable", "the historical request lacks an exact approved checkout snapshot; files were retained");
+    }
     const declared = adapter.execute;
     const values: Readonly<Record<string, string | undefined>> = {
       primary: startup, worktree: record.worktreeRoot, branch: record.branch,
       change: record.change, pr: record.pr === undefined ? undefined : String(record.pr),
+      snapshot: Buffer.from(JSON.stringify(record.approvedSnapshot)).toString("base64url"),
     };
     const missing = new Set<string>();
     const [command, ...arguments_] = declared.map(part => part.replace(/\{([a-z]+)\}/gu, (_match, name: string) => {
@@ -196,9 +209,11 @@ export async function settleSessionWorktreeCompletion(
     if (missing.size > 0 || command === undefined) {
       return result("cleanup-unavailable", `the declared cleanup needs ${[...missing].map(name => `{${name}}`).join(" and ")}; run completion with the matching selector or the repository cleanup from primary`);
     }
-    const run = options.run ?? execute;
     try {
-      return result("cleanup-finished", bounded(await run(command, arguments_, startup, options.signal)));
+      const output = options.run
+        ? await withUnclaimedWorktree(record.approvedSnapshot, options, () => options.run!(command, arguments_, startup, options.signal))
+        : await executeUnclaimedWorktreeCleanup(record.approvedSnapshot, command, arguments_, { ...options, cwd: startup, environment: worktreeGitEnvironment(), timeoutMs: CLEANUP_TIMEOUT_MS });
+      return result("cleanup-finished", bounded(output));
     } catch (error) {
       const output = isRecord(error) ? [error.stdout, error.stderr].filter(value => typeof value === "string" && value.length > 0).join("\n") : "";
       return result("cleanup-failed", bounded(output || (error instanceof Error ? error.message : String(error))));
@@ -236,7 +251,8 @@ async function readOperationAdapter(path: string, kind: "complete" | "remove-loc
     const valid = (parts: unknown): parts is readonly string[] => Array.isArray(parts) && parts.length > 0 && parts.length <= 64
       && parts.every(part => typeof part === "string" && part.length > 0 && part.length <= 2_048 && !part.includes("\0"));
     if (!isRecord(adapter) || !valid(adapter.preflight) || !valid(adapter.execute)
-      || !adapter.preflight.some(part => part.includes("{worktree}")) || !adapter.execute.some(part => part.includes("{worktree}"))) return "invalid";
+      || !adapter.preflight.some(part => part.includes("{worktree}")) || !adapter.execute.some(part => part.includes("{worktree}"))
+      || !adapter.execute.some(part => part.includes("{snapshot}"))) return "invalid";
     const command = { preflight: adapter.preflight, execute: adapter.execute };
     return { ...command, digest: createHash("sha256").update(JSON.stringify(command)).digest("hex") };
   } catch (error) { return isRecord(error) && error.code === "ENOENT" ? null : "invalid"; }
@@ -247,7 +263,7 @@ async function readRecord(path: string): Promise<CompletionRecord | null> {
     const metadata = await lstat(path);
     if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size === 0 || metadata.size > MAX_RECORD_BYTES) return null;
     const value: unknown = JSON.parse(await readFile(path, "utf8"));
-    if (!isRecord(value) || value.schema !== SCHEMA) return null;
+    if (!isRecord(value) || value.schema !== SCHEMA && value.schema !== LEGACY_SCHEMA) return null;
     if (value.operation !== undefined && (value.operation !== "remove-local" || typeof value.adapterDigest !== "string" || !/^[a-f0-9]{64}$/u.test(value.adapterDigest))) return null;
     const text = (name: string) => typeof value[name] === "string" && value[name].length > 0 && value[name].length <= 32_768;
     if (!["sessionId", "startupRoot", "commonDir", "worktreeRoot", "worktreeGitDir", "branch"].every(text)) return null;

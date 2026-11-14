@@ -57,7 +57,7 @@ export async function gitFixture(t, { declaration = true } = {}) {
     const preflight = "console.log(JSON.stringify({operation:'remove-local',preflight:true,results:[{path:process.argv[1],disposition:'eligible'}]}))";
     const script = fileURLToPath(new URL("../../scripts/governance/local-worktree-cleanup.mjs", import.meta.url));
     await writeFile(join(primary, ".a1/worktree.json"), JSON.stringify({ localRemoval: { preflight: ["node", "-e", preflight, "{worktree}"],
-      execute: ["node", script, "remove-local", "--repo", "{primary}", "--path", "{worktree}", "--confirm-local-removal"] } }));
+      execute: ["node", script, "remove-local", "--repo", "{primary}", "--path", "{worktree}", "--confirm-local-removal", "--approved-snapshot", "{snapshot}"] } }));
   }
   await git(primary, ["add", "."]); await git(primary, ["commit", "-m", "base"]);
   await execute("git", ["clone", "--bare", primary, remote]);
@@ -68,7 +68,7 @@ export async function gitFixture(t, { declaration = true } = {}) {
   const identity = await discoverRepository(primary), store = createStateStore(identity), calls = [], actual = gitRunner();
   const observedGit = async (cwd, args, options) => { calls.push(args); return actual(cwd, args, options); };
   const preflight = (identity, entry, options) => cleanupPreflight(identity, entry, { ...options, inspectProcesses: async () => [] });
-  const options = { identity, store, path, cwd: primary, confirmed: true, git: observedGit, preflight, deadline: Date.now() + 120_000 };
+  const options = { identity, store, path, cwd: primary, confirmed: true, git: observedGit, preflight, deadline: Date.now() + 120_000, claimOptions: { dataDir: join(root, "data") } };
   const runtime = async () => {
     const context = await import("../../src/foundation/lifecycle/session-repository-context.ts");
     const dataDir = join(root, "data"), inspectProcess = async pid => ({ pid, startIdentity: `fixture:${pid}` });

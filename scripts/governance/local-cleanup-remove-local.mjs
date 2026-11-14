@@ -1,4 +1,6 @@
 import { randomBytes } from "node:crypto";
+import { captureWorktreeCleanupSnapshot } from "../../src/foundation/lifecycle/worktree-cleanup-snapshot.mjs";
+import { withUnclaimedWorktree } from "../../src/foundation/lifecycle/worktree-claim-boundary.mjs";
 import { resolve } from "node:path";
 import { captureWorktree, discoverRepository, exists, gitRunner, inspectWorktree, parseWorktrees, purgeDisposable, removeWorktree,
   REPOSITORY_DISPOSABLE_PATHS } from "./local-cleanup-git.mjs";
@@ -14,7 +16,7 @@ const same = (entry, snapshot) => ["path", "filesystem", "head", "ref"].every(ke
 export async function removePublishedLocalWorktree({ identity, store, path, confirmed = false, preflightOnly = false, runtimePreflight = false,
   ownerToken = null, cwd = process.cwd(), now = Date.now, deadline = now() + 60000, git = gitRunner({ deadline, now }),
   inspect = inspectWorktree, preflight = cleanupPreflight, publication = inspectPublication, purge = purgeDisposable,
-  remove = removeWorktree, repair = repairPublishedRemoval }) {
+  remove = removeWorktree, repair = repairPublishedRemoval, claimOptions = {} }) {
   const absolute = resolve(path).replaceAll("\\", "/");
   const report = { version: 1, operation: "remove-local", preflight: preflightOnly, results: [] };
   const row = { path: absolute, disposition: "blocked", steps: [] }; report.results.push(row);
@@ -27,7 +29,7 @@ export async function removePublishedLocalWorktree({ identity, store, path, conf
     const first = known?.role === "local-removal" ? known : await captureWorktree(identity, absolute, git);
     if (!first.ref) fail("publication-branch-required");
     release = await store.acquireResources([`path:${absolute}`, `ref:${first.ref}`]);
-    await store.session(async (state, save) => {
+    const operate = () => store.session(async (state, save) => {
       active();
       if (JSON.stringify(await discoverRepository(identity.primary, git)) !== JSON.stringify(identity)) fail("repository-changed");
       let prior = state.entries.find(entry => entry.path === absolute);
@@ -94,8 +96,10 @@ export async function removePublishedLocalWorktree({ identity, store, path, conf
       Object.assign(selected, { state: "done", step: "complete", completion: "published-local-removal", completionReason: null });
       await save(state); row.steps.push("local-and-remote-refs-retained"); row.disposition = "removed";
     });
+    if (preflightOnly || !await exists(absolute)) await operate();
+    else await withUnclaimedWorktree(await captureWorktreeCleanupSnapshot(absolute), claimOptions, operate);
   } catch (error) {
-    row.reason = error.cleanupCode ?? "local-operation-failed";
+    row.reason = error.cleanupCode ?? error.code ?? "local-operation-failed";
     if (error.paths) row.paths = error.paths;
     row.disposition = selected?.state === "deleting" ? "partial" : row.reason === "resource-busy" ? "deferred" : "blocked";
   } finally { if (release) await release(); }

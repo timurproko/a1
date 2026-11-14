@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { captureWorktreeCleanupSnapshot } from "../../src/foundation/lifecycle/worktree-cleanup-snapshot.mjs";
+import { executeCleanupCommand, verifyCleanupReservation, withUnclaimedWorktree } from "../../src/foundation/lifecycle/worktree-claim-boundary.mjs";
 import { lstat, realpath, readdir, readFile, rm, rmdir, unlink } from "node:fs/promises";
 import { resolve, relative, isAbsolute, join } from "node:path";
 import { fail, safeRef } from "./local-cleanup-state.mjs";
@@ -19,8 +21,10 @@ export function gitRunner({ deadline = Infinity, now = Date.now } = {}) {
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")));
     Object.assign(env, { GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0" });
     try {
-      const pending = execute("git", ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-c", "protocol.ext.allow=never", "-c", "gc.auto=0", "-c", "maintenance.auto=false", "-C", cwd, ...args],
-        { env, timeout: Math.min(10000, remaining), maxBuffer: 8 * 1024 * 1024, encoding: "utf8", windowsHide: true });
+      const commandArgs = ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-c", "protocol.ext.allow=never", "-c", "gc.auto=0", "-c", "maintenance.auto=false", "-C", cwd, ...args];
+      if (args[0] === "worktree" && args[1] === "remove") return await executeCleanupCommand("git", commandArgs,
+        { environment: env, timeoutMs: Math.min(10000, remaining), maxBuffer: 8 * 1024 * 1024, input, protectTarget: true });
+      const pending = execute("git", commandArgs, { env, timeout: Math.min(10000, remaining), maxBuffer: 8 * 1024 * 1024, encoding: "utf8", windowsHide: true });
       pending.child.stdin.on("error", () => {}); pending.child.stdin.end(input);
       return (await pending).stdout;
     } catch { fail("git-operation-failed"); }
@@ -271,6 +275,14 @@ export async function inspectWorktree(identity, entry, {
 
 /** Remove only the entry's declared disposable roots or files, after inspection has bounded them, so Git deletes tracked content alone. */
 export async function purgeDisposable(entry, timing = {}, { removeLink = removeLinkEntry } = {}) {
+  await verifyCleanupReservation(entry.path);
+  if (await exists(join(entry.path, ".git"))) {
+    return withUnclaimedWorktree(await captureWorktreeCleanupSnapshot(entry.path), {}, () => purgeDisposableContent(entry, timing, removeLink));
+  }
+  return purgeDisposableContent(entry, timing, removeLink);
+}
+
+async function purgeDisposableContent(entry, timing, removeLink) {
   const links = timing.containedLinks ?? [];
   if (!Array.isArray(links)) fail("content-link-drift");
   const seen = new Set();
@@ -444,9 +456,13 @@ export async function removeRemoteRef(identity, entry, git = gitRunner()) {
 
 /** The only destructive local Git primitives. A failed remove is never widened to recursive deletion. */
 export async function removeWorktree(identity, entry, git = gitRunner()) {
-  await git(identity.primary, ["worktree", "remove", entry.path]);
-  const rows = parseWorktrees(await git(identity.primary, ["worktree", "list", "--porcelain", "-z"]));
-  if (await exists(entry.path) || rows.some(row => resolve(row.worktree).replaceAll("\\", "/") === entry.path)) fail("worktree-removal-partial");
+  const snapshot = await captureWorktreeCleanupSnapshot(entry.path);
+  if (snapshot.head !== entry.head || snapshot.ref !== (entry.ref ?? "HEAD") || fingerprint(await lstat(entry.path)) !== entry.filesystem) fail("worktree-identity-changed");
+  await withUnclaimedWorktree(snapshot, {}, async () => {
+    await git(identity.primary, ["worktree", "remove", entry.path]);
+    const rows = parseWorktrees(await git(identity.primary, ["worktree", "list", "--porcelain", "-z"]));
+    if (await exists(entry.path) || rows.some(row => resolve(row.worktree).replaceAll("\\", "/") === entry.path)) fail("worktree-removal-partial");
+  });
 }
 export async function removeLocalRef(identity, entry, git = gitRunner(), accepted = async () => false) {
   if (!entry.ref) return "not-applicable";

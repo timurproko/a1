@@ -16,6 +16,7 @@ import { retireRedundantWorktree } from "./local-cleanup-redundant.mjs";
 import { preserveExport } from "./local-cleanup-export.mjs";
 import { removePublishedLocalWorktree } from "./local-cleanup-remove-local.mjs";
 import { inspectLocalPreservation } from "./local-cleanup-preservation.mjs";
+import { withUnclaimedWorktree } from "../../src/foundation/lifecycle/worktree-claim-boundary.mjs";
 
 const help = `Local worktree cleanup (disabled until explicitly enabled)
 Usage: node scripts/governance/local-worktree-cleanup.mjs COMMAND --repo PRIMARY [options]
@@ -77,8 +78,24 @@ function summary(state) {
     entries: state.entries.map(({ ownerHash, ...entry }) => entry) };
 }
 
-/** CLI mutators are explicit; importing the module has no effects. */
+/** Runtime execution carries the pre-detach approval; older runtimes cannot expand its required snapshot selector. */
 export async function main(args = process.argv.slice(2)) {
+  const index = args.indexOf("--approved-snapshot");
+  if (index < 0) return executeMain(args);
+  const encoded = args[index + 1], rest = [...args.slice(0, index), ...args.slice(index + 2)];
+  if (!encoded || encoded.length > 32768 || !/^[A-Za-z0-9_-]+$/u.test(encoded) || rest.includes("--approved-snapshot")
+    || !["complete", "remove-local"].includes(rest[0])) fail("approved-snapshot-arguments");
+  let approved;
+  try { approved = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")); } catch { fail("approved-snapshot-arguments"); }
+  const pathIndex = rest.indexOf("--path"), path = pathIndex < 0 ? null : rest[pathIndex + 1];
+  if (!path || typeof approved?.path !== "string") fail("approved-snapshot-arguments");
+  const normalize = value => process.platform === "win32" ? resolve(value).toLowerCase() : resolve(value);
+  if (normalize(path) !== normalize(approved.path)) fail("approved-snapshot-arguments");
+  return withUnclaimedWorktree(approved, {}, () => executeMain(rest));
+}
+
+/** CLI mutators are explicit; importing the module has no effects. */
+async function executeMain(args) {
   const { values, positionals } = parseArgs({ args, allowPositionals: true, strict: true, options: {
     repo: { type: "string" }, path: { type: "string" }, branch: { type: "string" }, change: { type: "string" }, pr: { type: "string" }, "source-pr": { type: "string" }, "candidate-pr": { type: "string" },
     role: { type: "string" }, disposable: { type: "string", multiple: true }, id: { type: "string" }, generation: { type: "string" },
