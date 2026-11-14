@@ -28,7 +28,7 @@ export function attachmentPromptChipHiddenRanges(text: string): readonly PromptC
   const ranges: PromptChipTextRange[] = [];
   for (const match of canonicalPromptChipMatches(text)) {
     const parts = /^(\[(?:📁|📄|🖼\uFE0F?))( {1,2})([^\]]+)\]$/u.exec(match.text);
-    if (parts === null) continue; // Already compact labels need no further interpretation.
+    if (parts === null) continue;
     const labelStart = parts[1]!.length + parts[2]!.length;
     const label = parts[3]!;
     const metadata = / #(?:[A-Za-z]:[\\/]|\/)[^\r\n]+$/u.exec(label)
@@ -37,7 +37,7 @@ export function attachmentPromptChipHiddenRanges(text: string): readonly PromptC
     const pathLabel = label.slice(0, labelEnd);
     const separator = /^(?:[A-Za-z]:\\|\\\\)/u.test(pathLabel)
       ? Math.max(pathLabel.lastIndexOf("/"), pathLabel.lastIndexOf("\\")) : pathLabel.lastIndexOf("/");
-    // Keep root-only labels visible.
+    // Invariant: retain root-only labels.
     const basenameStart = separator < pathLabel.length - 1 ? separator + 1 : 0;
     ranges.push({ start: match.start + parts[1]!.length, end: match.start + labelStart + basenameStart });
     if (metadata !== null) ranges.push({ start: match.start + labelStart + labelEnd, end: match.end - 1 });
