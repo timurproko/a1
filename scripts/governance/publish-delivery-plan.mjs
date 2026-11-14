@@ -12,6 +12,10 @@ const SHA = /^[a-f0-9]{40}$/u;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
 const branchPattern = /^(?:feature|fix|refactor|docs|test|chore|style)\/[a-z0-9][a-z0-9._/-]*$/u;
 const failure = code => Object.assign(new Error(code), { deliveryCode: code });
+// Protocol: only planning documents and the approved auxiliary contract/reconciliation artifacts are publishable.
+const planningArtifacts = new Set([".openspec.yaml", "proposal.md", "design.md", "tasks.md", "contract-reconciliation.md",
+  "r11-clarification.md", "implementation-evidence.md", "delivery-rules.md", "delivery-adapters.json", "delivery-cases.json", "delivery-contract.json"]);
+const planningArtifact = path => planningArtifacts.has(path) || /^specs\/[a-z0-9]+(?:-[a-z0-9]+)*\/spec\.md$/u.test(path);
 
 /** Explicit identity and stdin payloads deliberately have no Git cwd, dependency or runtime prerequisite. */
 export async function publishDeliveryPlan(input, remote = githubPlanningRemote()) {
@@ -27,6 +31,8 @@ export async function publishDeliveryPlan(input, remote = githubPlanningRemote()
     || files.some(file => typeof file.path !== "string" || !file.path.startsWith(prefix)
       || file.path.includes("\\") || file.path.split("/").some(part => !part || part === "." || part === "..")
       || typeof file.contents !== "string" || Buffer.byteLength(file.contents) > 1024 * 1024)) throw failure("planning-paths");
+  if (files.some(file => !planningArtifact(file.path.slice(prefix.length)))) throw failure("planning-artifact-required");
+  if (files.some(file => file.path === `${prefix}tasks.md` && /^\s*(?:[-*+]|\d+[.)])\s+\[[xX]\]/mu.test(file.contents))) throw failure("planning-tasks-already-complete");
   if (typeof title !== "string" || !title.trim() || typeof body !== "string"
     || !inspectDeliveryBody(body).ok || parseImplementation(body)?.change !== change) throw failure("planning-body");
   const progress = parseImplementationProgress(body);

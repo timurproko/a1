@@ -1,5 +1,11 @@
 # Contract reconciliation
 
+## Independent review rework at c2249c67
+
+Fetched the current PR branch and fast-forwarded the clean task from `473c9844` to reviewed head `c2249c673da57714eea680677599ca6260f8875a`. No newer remote work was present. Preserved both trusted re-finalizations, the develop merge and clipboard fix #926. Work remains in this existing archive; no active OpenSpec artifacts are manually recreated.
+
+The maintainer explicitly requests repair/publication of the independently reproduced P1 ownership race, P1 replacement/HEAD approval drift and P2 planning-payload admission. These violate R03/R14/R15/R19 despite the previously passing fixed cases (notably C03, C13, C37 and C40). Reopen only 1.2, 3.1–3.4 and 5.4, and their grouped PR outcomes; unrelated completion remains checked. Existing case results do not prove the missing race windows. Add real competing-process suspension/death coverage, exact pre-detach physical/HEAD binding for both operations and an explicit planning-artifact allowlist. Expose the minimal shared attachment/cleanup execution interface and document safe rollout; do not change frozen contract bytes, OpenSpec assets, release policy or activation. Integration remains unauthorized.
+
 Current R11 resolution (verified): the maintainer explicitly approved the paired scope clarification recorded in `r11-clarification.md`. R11 governs ordinary documentation auto-merge; existing release-specific automation remains unchanged under its existing eligibility and authorization rules. Both repositories' planning/deployed rulebooks and verification hashes are updated together. The historical R11 blocker below no longer requires approval; verify the clarified snapshot before recording completion. All other scope, validation and integration gates remain in force.
 
 ## Inspected checkpoint

@@ -83,6 +83,31 @@ test("planning boundaries reject escapes, fake linkage, checked drafts and authe
   assert.equal(result.status, "blocked"); assert.equal(result.partial, false); assert.equal(f.calls.length, 0);
 });
 
+test("planning rejects implementation payloads and completed detailed tasks before any remote call", async () => {
+  for (const path of ["implementation.mjs", "src/implementation.ts", "scripts/run.sh", "package.json", "specs/feature/implementation.mjs", "acceptance.md"]) {
+    const f = fixture();
+    await assert.rejects(publishDeliveryPlan({ ...input(), files: [{ path: `openspec/changes/example/${path}`, contents: "implementation" }] }, f.remote), { deliveryCode: "planning-artifact-required" });
+    assert.deepEqual(f.calls, []); assert.equal(f.state.head, null);
+  }
+  for (const contents of ["## Implementation\n- [x] 1.1 Implement behavior\n", "## Implementation\n  * [X] 1.1 Implement behavior\n", "1. [x] Implement behavior\n"]) {
+    const f = fixture();
+    await assert.rejects(publishDeliveryPlan({ ...input(), files: [{ path: "openspec/changes/example/tasks.md", contents }] }, f.remote), { deliveryCode: "planning-tasks-already-complete" });
+    assert.deepEqual(f.calls, []); assert.equal(f.state.head, null);
+  }
+});
+
+test("approved auxiliary planning artifacts retain retry and partial-publication recovery", async () => {
+  const files = ["proposal.md", "design.md", "tasks.md", ".openspec.yaml", "specs/example/spec.md", "contract-reconciliation.md", "r11-clarification.md",
+    "implementation-evidence.md", "delivery-rules.md", "delivery-adapters.json", "delivery-cases.json", "delivery-contract.json"]
+    .map(name => ({ path: `openspec/changes/example/${name}`, contents: name === "tasks.md" ? "## Implementation\n- [ ] 1.1 Implement behavior\n" : "planning artifact\n" }));
+  const f = fixture(); f.state.failPrResponse = true;
+  assert.equal((await publishDeliveryPlan({ ...input(), files }, f.remote)).partial, true);
+  const result = await publishDeliveryPlan({ ...input(), files }, f.remote);
+  assert.equal(result.status, "published"); assert.deepEqual(f.state.files, files);
+  assert.equal(f.calls.filter(call => call.name === "commit").length, 1);
+  assert.equal(f.calls.filter(call => call.name === "create-pr").length, 1);
+});
+
 test("GitHub writes use create-only refs and expectedHeadOid commits; no checkout or force API", async () => {
   const calls = [];
   const remote = githubPlanningRemote(async (args, payload) => { calls.push({ args, payload }); return { data: { createCommitOnBranch: { commit: { oid: planHead } } } }; });
