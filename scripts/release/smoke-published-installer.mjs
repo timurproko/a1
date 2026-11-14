@@ -1,9 +1,9 @@
 import crossSpawn from "cross-spawn";
-import { mkdtemp, mkdir, open, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, open, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { sanitizeDiagnostic } from "../../packages/a1-install/bin/a1-install.js";
+import { compareVersions, resolveInstallerNpmCli, sanitizeDiagnostic } from "../../packages/a1-install/bin/a1-install.js";
 
 /** Run published installation in disposable prefixes and retain safe evidence on either outcome. */
 export async function smokePublishedInstaller({ environment = process.env, spawnSync = crossSpawn.sync } = {}) {
@@ -60,6 +60,18 @@ export async function smokePublishedInstaller({ environment = process.env, spawn
       A1_RUNTIME_DIR: resolve(root, "runtime"),
       PATH: [applicationBin, bootstrapBin, environment.PATH ?? ""].join(delimiter),
     };
+    const bridgeBin = resolve(root, "npm-bridge");
+    await mkdir(bridgeBin);
+    const bridge = resolve(bridgeBin, "npm-cli.mjs");
+    await writeFile(bridge, await readFile(new URL("./published-candidate-npm-bridge.mjs", import.meta.url)));
+    const shellQuote = value => `'${value.replaceAll("'", `'"'"'`)}'`;
+    await writeFile(resolve(bridgeBin, "npm"), `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(bridge)} "$@"\n`);
+    await chmod(resolve(bridgeBin, "npm"), 0o755);
+    await writeFile(resolve(bridgeBin, "npm.cmd"), `@echo off\r\n"${process.execPath}" "${bridge}" %*\r\n`);
+    installedEnvironment.A1_SMOKE_NPM_CLI = resolveInstallerNpmCli(environment);
+    installedEnvironment.A1_SMOKE_VERSION = version;
+    installedEnvironment.npm_execpath = bridge;
+    installedEnvironment.PATH = [bridgeBin, installedEnvironment.PATH].join(delimiter);
     const args = channel === "next" ? ["--develop", version] : [];
     stage = "install-application";
     const installed = execute(installerLauncher, args, { cwd: root, encoding: "utf8", env: installedEnvironment, windowsHide: true, timeout: 10 * 60_000 });
@@ -76,10 +88,56 @@ export async function smokePublishedInstaller({ environment = process.env, spawn
     stage = "launch-application";
     execute(applicationLauncher, ["version"], { cwd: root, encoding: "utf8", env: installedEnvironment, windowsHide: true, timeout: 30_000 });
 
+    execute(applicationLauncher, ["--help"], { cwd: root, encoding: "utf8", env: installedEnvironment, windowsHide: true, timeout: 30_000 });
+
+    // A second prefix proves predecessor-owned replacement, not merely a fresh install.
+    stage = "resolve-predecessor";
+    const predecessor = execute(npm, ["view", `${applicationSource.name}@${channel}`, "version", "--json"], {
+      cwd: root, encoding: "utf8", env: acquisitionEnvironment, windowsHide: true, timeout: 30_000,
+    });
+    let predecessorVersion = JSON.parse(predecessor.stdout);
+    if (predecessorVersion === version) {
+      const published = execute(npm, ["view", applicationSource.name, "versions", "--json"], {
+        cwd: root, encoding: "utf8", env: acquisitionEnvironment, windowsHide: true, timeout: 30_000,
+      });
+      const candidates = JSON.parse(published.stdout);
+      if (!Array.isArray(candidates)) throw new Error("invalid published predecessor inventory");
+      predecessorVersion = candidates.filter(value => typeof value === "string" && /^\d+\.\d+\.\d+(?:-dev\.[1-9]\d*)?$/u.test(value)
+        && (channel === "next" ? value.includes("-dev.") : !value.includes("-")) && compareVersions(value, version) < 0)
+        .sort(compareVersions).at(-1);
+    }
+    if (typeof predecessorVersion !== "string" || !/^\d+\.\d+\.\d+(?:-dev\.[1-9]\d*)?$/u.test(predecessorVersion)) throw new Error("invalid published predecessor version");
+    if (predecessorVersion === version) throw new Error("published candidate is already advertised; predecessor update smoke requires a distinct public predecessor");
+    const updatePrefix = resolve(root, "update-application");
+    const updateBin = process.platform === "win32" ? updatePrefix : resolve(updatePrefix, "bin");
+    const updateEnvironment = {
+      ...installedEnvironment, npm_config_prefix: updatePrefix,
+      A1_CONFIG_DIR: resolve(root, "update-config"), A1_DATA_DIR: resolve(root, "update-data"), A1_RUNTIME_DIR: resolve(root, "update-runtime"),
+      A1_SMOKE_VERSION: predecessorVersion,
+      PATH: [bridgeBin, updateBin, bootstrapBin, environment.PATH ?? ""].join(delimiter),
+    };
+    stage = "install-predecessor";
+    execute(installerLauncher, channel === "next" ? ["--develop", predecessorVersion] : [], {
+      cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: 10 * 60_000,
+    });
+    stage = "update-predecessor";
+    updateEnvironment.A1_SMOKE_VERSION = version;
+    const updateLauncher = resolve(updateBin, process.platform === "win32" ? "a1.cmd" : "a1");
+    execute(updateLauncher, ["update", ...(channel === "next" ? ["--develop", version] : ["--release"])], {
+      cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: 10 * 60_000,
+    });
+    stage = "launch-updated-application";
+    const updatedRoot = resolve(updatePrefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", ...applicationSource.name.split("/"));
+    const updatedManifest = JSON.parse(await readFile(resolve(updatedRoot, "package.json"), "utf8"));
+    if (updatedManifest.name !== applicationSource.name || updatedManifest.version !== version) throw new Error("predecessor update selected the wrong application package");
+    execute(updateLauncher, ["--help"], { cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: 30_000 });
+
     await mkdir(dirname(output), { recursive: true });
     await writeFile(output, `${JSON.stringify({
       schema: "a1-published-installer-smoke-v1",
       outcome: "success",
+      predecessorVersion,
+      updateVerified: true,
       platform: process.platform,
       architecture: process.arch,
       nodeVersion: process.version,
@@ -107,6 +165,7 @@ export async function smokePublishedInstaller({ environment = process.env, spawn
   } finally {
     if (root) {
       await stopOwnedProcesses(resolve(root, "runtime"));
+      await stopOwnedProcesses(resolve(root, "update-runtime"));
       await rm(root, { recursive: true, force: true, maxRetries: 4, retryDelay: 200 });
     }
   }

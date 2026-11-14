@@ -10,8 +10,8 @@
 
 ## 3. Promote only exercised published candidates
 
-- [ ] 3.1 Upload under a staging tag and gate trusted next/latest promotion and release completion on every native smoke lane.
-- [ ] 3.2 Exercise exact staged installation, predecessor update, and launch without selecting the old public tag; cover promotion refusal, retries, and workflow wiring.
+- [x] 3.1 Upload under a staging tag and gate trusted next/latest promotion and release completion on every native smoke lane.
+- [x] 3.2 Exercise exact staged installation, predecessor update, and launch without selecting the old public tag; cover promotion refusal, retries, and workflow wiring.
 
 ## 4. Preserve callable launchers across updater failures
 

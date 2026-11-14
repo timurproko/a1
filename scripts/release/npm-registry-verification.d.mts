@@ -21,6 +21,7 @@ export interface PublishedPairVerificationOptions {
   readonly intervalMs?: number;
   readonly requestTimeoutMs?: number;
   readonly maxTarballBytes?: number;
+  readonly requireTag?: boolean;
 }
 
 export function verifyPublishedPair(options: PublishedPairVerificationOptions): Promise<{

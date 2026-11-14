@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -15,7 +16,7 @@ async function fixture() {
   const environment = {
     RELEASE_VERSION: version, RELEASE_CHANNEL: "next", PUBLISHED_INSTALLER_EVIDENCE: output,
     EXPECTED_APPLICATION_INTEGRITY: "sha512-application", EXPECTED_INSTALLER_INTEGRITY: "sha512-installer",
-    NODE_AUTH_TOKEN: "super-secret-fixture-token",
+    NODE_AUTH_TOKEN: "super-secret-fixture-token", PATH: process.env.PATH,
   };
   return { output, environment };
 }
@@ -36,8 +37,10 @@ describe("published installer smoke evidence", () => {
       disposable = options.cwd;
       expect(options.env.npm_config_cache).toBe(resolve(options.cwd, "npm-cache"));
       calls.push(args);
+      if (args[0] === "view") return { ...ok, stdout: JSON.stringify("0.2.7-dev.1305") };
+      if (args[0] === "update") writeManifest(options);
       if (args[0] === "--develop") {
-        writeManifest(options);
+        writeManifest(options, args[1]);
         return { ...ok, stdout: "a1 successfully installed\n" };
       }
       return ok;
@@ -45,7 +48,7 @@ describe("published installer smoke evidence", () => {
     expect(calls[0]).toContain(`@timurproko/a1-install@${version}`);
     expect(calls[1]).toEqual(["--develop", version]);
     expect(calls[2]).toEqual(["version"]);
-    expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({ outcome: "success", installedVersion: version, launcherVerified: true });
+    expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({ outcome: "success", installedVersion: version, launcherVerified: true, updateVerified: true });
     await expect(stat(disposable)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
@@ -79,6 +82,37 @@ describe("published installer smoke evidence", () => {
     const text = await readFile(output, "utf8");
     expect(text.length).toBeLessThan(12_000);
     expect(JSON.parse(text)).toMatchObject({ outcome: "failure", stage: "install-application" });
+  });
+
+  it.each(["latest", "next"])("checks a distinct predecessor update before %s promotion", async channel => {
+    const { output, environment } = await fixture();
+    const calls: string[][] = [];
+    await expect(smokePublishedInstaller({ environment: { ...environment, RELEASE_CHANNEL: channel }, spawnSync: (_command, args, options) => {
+      calls.push(args);
+      if (args[0] === "view") return { ...ok, stdout: JSON.stringify("0.2.6") };
+      if (args[0] === "update") return { ...ok, status: 1, stderr: "replacement failed" };
+      if (args.length === 0 || args[0] === "--develop") { writeManifest(options); return { ...ok, stdout: "a1 successfully installed\n" }; }
+      return ok;
+    } })).rejects.toThrow(/replacement failed/u);
+    expect(calls.at(-1)).toEqual(channel === "next" ? ["update", "--develop", version] : ["update", "--release"]);
+    expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({ outcome: "failure", stage: "update-predecessor" });
+  });
+
+  it("pins only A1 tag discovery while forwarding actual npm installs unchanged", async () => {
+    const { output } = await fixture();
+    const cli = resolve(output, "..", "fake-npm.mjs");
+    writeFileSync(cli, "console.log(JSON.stringify(process.argv.slice(2)));\n");
+    for (const [args, expected] of [
+      [["view", "@timurproko/a1@latest", "version"], ["view", `@timurproko/a1@${version}`, "version"]],
+      [["install", "--global", `@timurproko/a1@${version}`], ["install", "--global", `@timurproko/a1@${version}`]],
+      [["view", "other-package@latest", "version"], ["view", "other-package@latest", "version"]],
+    ]) {
+      const result = spawnSync(process.execPath, ["scripts/release/published-candidate-npm-bridge.mjs", ...args!], {
+        env: { ...process.env, A1_SMOKE_NPM_CLI: cli, A1_SMOKE_VERSION: version }, encoding: "utf8",
+      });
+      expect(result.status, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual(expected);
+    }
   });
 
   it("records spawn errors without invoking npm again", async () => {

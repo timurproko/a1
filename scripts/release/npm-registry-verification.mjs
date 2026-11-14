@@ -65,7 +65,7 @@ async function verifyTarball({ package_, manifest, fetch_, requestTimeoutMs, max
   }
 }
 
-async function verifyPackage({ package_, version, channel, fetch_, nonce, requestTimeoutMs, maxTarballBytes }) {
+async function verifyPackage({ package_, version, channel, fetch_, nonce, requestTimeoutMs, maxTarballBytes, requireTag }) {
   const encodedName = encodeURIComponent(package_.name);
   const encodedVersion = encodeURIComponent(version);
   const manifest = await registryJson(fetch_, `${REGISTRY}/${encodedName}/${encodedVersion}?verify=${nonce}`, `${package_.name}@${version}`, requestTimeoutMs);
@@ -73,8 +73,10 @@ async function verifyPackage({ package_, version, channel, fetch_, nonce, reques
   if (manifest?.dist?.integrity !== package_.integrity || manifest?.dist?.shasum !== package_.shasum) {
     throw new Error(`${package_.name}@${version} registry bytes differ from the validated package`);
   }
-  const tags = await registryJson(fetch_, `${REGISTRY}/-/package/${encodedName}/dist-tags?verify=${nonce}`, `${package_.name} dist-tags`, requestTimeoutMs);
-  if (tags?.[channel] !== version) throw new Error(`${package_.name} ${channel} tag differs from the published version`);
+  if (requireTag) {
+    const tags = await registryJson(fetch_, `${REGISTRY}/-/package/${encodedName}/dist-tags?verify=${nonce}`, `${package_.name} dist-tags`, requestTimeoutMs);
+    if (tags?.[channel] !== version) throw new Error(`${package_.name} ${channel} tag differs from the published version`);
+  }
   await verifyTarball({ package_, manifest, fetch_, requestTimeoutMs, maxTarballBytes });
 }
 
@@ -91,6 +93,7 @@ export async function verifyPublishedPair({
   intervalMs = REGISTRY_VERIFICATION_INTERVAL_MS,
   requestTimeoutMs = REGISTRY_REQUEST_TIMEOUT_MS,
   maxTarballBytes = REGISTRY_TARBALL_MAX_BYTES,
+  requireTag = true,
 }) {
   const exactVersion = requiredString(version, "release version");
   if (channel !== "latest" && channel !== "next") throw new Error(`unsupported npm publication channel: ${String(channel)}`);
@@ -106,7 +109,7 @@ export async function verifyPublishedPair({
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
       const nonce = `${now()}-${attempt}`;
-      for (const package_ of pair) await verifyPackage({ package_, version: exactVersion, channel, fetch_, nonce, requestTimeoutMs, maxTarballBytes });
+      for (const package_ of pair) await verifyPackage({ package_, version: exactVersion, channel, fetch_, nonce, requestTimeoutMs, maxTarballBytes, requireTag });
       return { version: exactVersion, channel, packages: pair.map(package_ => package_.name) };
     } catch (error) {
       lastError = error;
@@ -129,6 +132,7 @@ async function main(environment = process.env) {
     ],
     version: environment.RELEASE_VERSION,
     channel: environment.RELEASE_CHANNEL,
+    requireTag: environment.VERIFY_PUBLIC_TAG !== "false",
   });
   process.stdout.write(`Verified ${result.packages.join(" and ")} at ${result.version} under npm ${result.channel}.\n`);
 }
