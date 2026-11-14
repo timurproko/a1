@@ -14,6 +14,24 @@ function operations(mode: string): string[] {
 }
 
 describe.each(["source", "emitted"])("hermetic %s clipboard acquisition", entry => {
+  it.each(["image", "image-empty", "image-denied"])("keeps raw Herdr acquisition image-only (%s)", async mode => {
+    const root = await mkdtemp(join(tmpdir(), "clipboard-image-boundary-"));
+    const trace = join(root, "operations"), script = join(root, "fixture.mjs");
+    const source = new URL("./paste-fixture-base.mjs", import.meta.url).href;
+    const emitted = new URL("./clipboard-built-fixture-base.mjs", import.meta.url).href;
+    try {
+      await writeFile(script, entry === "source"
+        ? `import {runPasteFixture} from ${JSON.stringify(source)}; await runPasteFixture(${JSON.stringify(mode)},${JSON.stringify(trace)});`
+        : `import {runBuiltClipboardFixture} from ${JSON.stringify(emitted)}; await runBuiltClipboardFixture('paste-helper',${JSON.stringify(mode)},${JSON.stringify(trace)});`);
+      const job = startPasteExecutor(undefined, new AbortController().signal, () => {}, pathToFileURL(script), undefined, true);
+      try {
+        if (mode === "image") await expect(job.result).resolves.toMatchObject({ kind: "image", mimeType: "image/png", width: 1, height: 1 });
+        else await expect(job.result).rejects.toMatchObject({ code: "paste-screenshot", message: "Couldn’t paste screenshot—try again." });
+      } finally { job.cancel(); await job.stopped; }
+      expect((await readFile(trace, "utf8")).trim().split("\n")).toEqual(mode === "image-empty" ? ["image-probe"] : ["image-probe", "native-image"]);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  }, 10_000);
+
   it.each(["native", "native-empty", "empty", "denied", "fallback"])("keeps the real helper/classifier and observes the actual backend (%s)", async mode => {
     const root = await mkdtemp(join(tmpdir(), "clipboard-boundary-"));
     const trace = join(root, "operations");

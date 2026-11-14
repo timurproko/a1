@@ -3,13 +3,16 @@ import { Worker } from "node:worker_threads";
 import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import { readSystemClipboardContent } from "./system-clipboard.js";
 import { MAX_SOURCE_IMAGE_BYTES } from "./image-source.js";
+import { imageFileMimeType } from "./image-file-preparation.js";
+import type { ImageWorkerRequest } from "./image-worker.js";
 import { preparePasteText, type PreparedPasteText } from "./paste-text-preparation.js";
 import { PASTE_CHUNK_UNITS, PASTE_TEXT_BYTES, pasteFragments, type PasteHelperInput, type PasteHelperOutput, type PreparedPaste } from "./paste-protocol.js";
 
 const abort = new AbortController();
 let header: Extract<PasteHelperInput, { kind: "begin" }> | undefined;
 let fragments: string[] = [], bytes = 0;
-let image: Extract<OwnedUiShellClipboardContent, { kind: "image" }> | undefined;
+type ImagePreparationRequest = Extract<ImageWorkerRequest, { kind: "prepare" | "prepare-file" }>;
+let image: ImagePreparationRequest | undefined;
 let output: Generator<PasteHelperOutput> | undefined;
 let finished = false;
 function send(message: PasteHelperOutput): void { process.send?.(message); }
@@ -49,8 +52,8 @@ async function classifyText(text: string): Promise<PreparedPasteText> {
   });
 }
 
-function imagePreparation(source: Extract<OwnedUiShellClipboardContent, { kind: "image" }>): Promise<PreparedPaste> {
-  const worker = workerFor("image-worker", { kind: "prepare", source });
+function imagePreparation(source: ImagePreparationRequest): Promise<PreparedPaste> {
+  const worker = workerFor("image-worker", source);
   return new Promise((resolve, reject) => {
     let done = false;
     worker.once("message", message => {
@@ -102,21 +105,23 @@ async function receive(message: PasteHelperInput): Promise<void> {
   }
   if (abort.signal.aborted || finished) return;
   if (message?.kind === "begin" && !header) {
-    if (!["native", "text", "image"].includes(message.source) || (message.mimeType?.length ?? 0) > 256) throw new Error("protocol");
+    if (!["native", "native-image", "text", "image"].includes(message.source) || (message.mimeType?.length ?? 0) > 256) throw new Error("protocol");
     header = message; send({ kind: "ready" });
-  } else if (message?.kind === "data" && header && header.source !== "native") {
+  } else if (message?.kind === "data" && header && header.source !== "native" && header.source !== "native-image") {
     if (typeof message.data !== "string" || message.data.length > PASTE_CHUNK_UNITS) throw new Error("protocol");
     bytes += Buffer.byteLength(message.data);
     if (bytes > (header.source === "text" ? PASTE_TEXT_BYTES : Math.ceil(MAX_SOURCE_IMAGE_BYTES / 3) * 4 + 4)) throw new ImageAttachmentError(header.source === "text" ? "paste-size" : "image-source-size");
     fragments.push(message.data); send({ kind: "ready" });
   } else if (message?.kind === "finish" && header) {
-    const content: OwnedUiShellClipboardContent | null = header.source === "native" ? await readSystemClipboardContent(abort.signal, true)
+    const content: OwnedUiShellClipboardContent | null = header.source === "native" || header.source === "native-image"
+      ? await readSystemClipboardContent(abort.signal, true, header.source === "native-image")
       : header.source === "image" ? { kind: "image", mimeType: header.mimeType ?? "", data: fragments.join("") }
       : { kind: "text", text: fragments.join("") };
     fragments = [];
     if (abort.signal.aborted) return;
+    if (header.source === "native-image" && content?.kind !== "image") throw new ImageAttachmentError("paste-screenshot");
     if (content?.kind === "image") {
-      image = content; send({ kind: "phase", phase: "acquired-image", bytes: Buffer.byteLength(content.data) });
+      image = { kind: "prepare", source: content }; send({ kind: "phase", phase: "acquired-image", bytes: Buffer.byteLength(content.data) });
     } else {
       const text = content?.text ?? "";
       const size = Buffer.byteLength(text);
@@ -124,7 +129,13 @@ async function receive(message: PasteHelperInput): Promise<void> {
       send({ kind: "phase", phase: "acquired-text", bytes: size });
       if (!text) { present(null); return; }
       send({ kind: "phase", phase: "classifying", bytes: size });
-      present(await classifyText(text));
+      const prepared = await classifyText(text);
+      const file = prepared.kind === "paths" && prepared.paths.length === 1 ? prepared.paths[0] : undefined;
+      if (file?.kind === "file" && imageFileMimeType(file.fullPath) !== undefined) {
+        // Concurrency: file intake waits for the same conversion grant as native image bytes.
+        image = { kind: "prepare-file", path: file.fullPath };
+        send({ kind: "phase", phase: "acquired-image" });
+      } else present(prepared);
     }
   } else if (message?.kind === "convert" && image) {
     const source = image; image = undefined;

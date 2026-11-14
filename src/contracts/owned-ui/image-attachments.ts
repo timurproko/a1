@@ -11,6 +11,7 @@ export const MAX_IMAGE_DATA_BYTES = 8 * 1024 * 1024;
 const MESSAGES = {
   "paste-timeout": "Clipboard paste timed out. The editor is still available.",
   "paste-unavailable": "Could not paste; the clipboard is unavailable.",
+  "paste-screenshot": "Couldn’t paste screenshot—try again.",
   "paste-size": "Pasted text exceeds the 16 MiB limit.",
   "paste-busy": "Clipboard preparation is full (8 pending pastes).",
   "paste-write-failed": "Paste skipped because the preceding copy failed.",

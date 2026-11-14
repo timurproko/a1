@@ -1,5 +1,6 @@
 import { execFile, fork, type ChildProcess, type ForkOptions, type SpawnOptions } from "node:child_process";
 import { HelperPool } from "./helper-pool.js";
+import { responseCopyDestination } from "./response-copy-policy.js";
 import type { SelectionCopySnapshot } from "../../ui/components/selection-copy.js";
 import { COPY_CHUNK_UNITS, COPY_CLEANUP_MS, MAX_COPY_BYTES, MAX_COPY_CONTROL_BYTES, type CopyHelperInput, type CopyHelperOutput, type CopyResult } from "./response-copy-protocol.js";
 
@@ -25,13 +26,6 @@ interface ResponseCopyTerminal {
   readonly maxBytes?: number;
   /** A supported non-blocking submission boundary, not clipboard acknowledgment. */
   submit(control: string, signal: AbortSignal): Promise<void>;
-}
-
-/** Never substitute the agent host's clipboard for a remote, multiplexed, or Herdr terminal user's clipboard. */
-export function responseCopyDestination(env: NodeJS.ProcessEnv): "native" | "terminal" {
-  return env.HC_TERMINAL_ID || env.TERM_PROGRAM === "herdr"
-    || env.SSH_CONNECTION || env.SSH_CLIENT || env.SSH_TTY || env.TMUX || env.STY || env.WSL_DISTRO_NAME
-    ? "terminal" : "native";
 }
 
 function platformClipboardCommands(): readonly { readonly command: string; readonly args: readonly string[] }[] {

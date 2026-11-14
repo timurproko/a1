@@ -459,9 +459,11 @@ Bare A1 SHALL treat standard text clipboard writing as a required capability on 
 
 ### Requirement: Herdr-hosted clipboard operations target the user's terminal
 
-Bare A1 SHALL classify a session with a nonempty `HC_TERMINAL_ID` or `TERM_PROGRAM=herdr` as having a terminal-owned clipboard, regardless of SSH markers or native clipboard availability. A nonempty Herdr terminal identity SHALL retain this classification when `TERM_PROGRAM` names another emulator or is absent. Owned text-copy operations SHALL use the existing bounded terminal clipboard route and SHALL NOT write the agent host's native or platform clipboard instead of, or in addition to, that route. Terminal submission SHALL retain its unverified delivery classification. Existing non-Herdr destination decisions, payload limits, cancellation, ordering, and comparison-profile behavior SHALL remain unchanged.
+Bare A1 SHALL classify a session with a nonempty `HC_TERMINAL_ID` or `TERM_PROGRAM=herdr` as having a terminal-owned clipboard for text copy, regardless of SSH markers or native clipboard availability. A nonempty Herdr terminal identity SHALL retain this classification when `TERM_PROGRAM` names another emulator or is absent. Owned text-copy operations SHALL use the existing bounded terminal clipboard route and SHALL NOT write the agent host's native or platform clipboard instead of, or in addition to, that route. Terminal submission SHALL retain its unverified delivery classification. Existing non-Herdr destination decisions, payload limits, cancellation, ordering, and comparison-profile behavior SHALL remain unchanged.
 
-The shared paste policy SHALL NOT read an unrelated host-native clipboard for a Herdr-hosted session. Nonempty terminal-provided paste SHALL retain its existing exactly-once payload handling without a redundant native clipboard read. Explicit injected clipboard ports SHALL retain their existing contract.
+Paste acquisition SHALL have an independent policy rather than using the text-copy destination as a complete read-access decision. Nonempty terminal-provided paste SHALL retain its existing exactly-once payload handling without a redundant native clipboard read. Supplied image-file paths SHALL use their destination-side file preparation route without native clipboard acquisition. A failure to prepare supplied content SHALL NOT trigger host-clipboard acquisition. Explicit injected clipboard ports SHALL retain their existing precedence, predecessor, and cancellation contract.
+
+For an owned raw Herdr paste gesture without supplied content or an explicit clipboard port, A1 SHALL refuse native acquisition when a conventional SSH, WSL, tmux, or screen marker applies. Otherwise A1 SHALL permit image-only acquisition from the process host through its existing isolated helper, without native text or file-drop fallback. This raw-gesture exception SHALL NOT be described as proof of viewer locality: a markerless remote raw gesture can read the process host's image, whereas supplied remote image paths and text SHALL never use that exception. The raw exception SHALL require no setting and SHALL NOT alter copy routing. A non-Herdr local paste SHALL retain full native image/file/text acquisition.
 
 #### Scenario: Copy from a remote Herdr session without SSH markers
 
@@ -505,6 +507,28 @@ The shared paste policy SHALL NOT read an unrelated host-native clipboard for a 
 
 #### Scenario: A raw paste gesture cannot acquire the remote host clipboard
 
-- **WHEN** A1 receives an owned paste gesture in a Herdr-hosted session without supplied clipboard text or an explicit clipboard port
-- **THEN** A1 SHALL retain unavailable-native-paste behavior rather than read the agent host's clipboard
+- **WHEN** A1 receives an owned raw Herdr paste gesture and a conventional SSH, WSL, tmux, or screen marker applies
+- **THEN** A1 SHALL refuse host-native acquisition
 - **AND** terminal-provided paste SHALL remain supported
+
+#### Scenario: A local Herdr screenshot uses isolated image-only acquisition
+
+- **WHEN** a raw paste gesture reaches a local Herdr A1 session without supplied content, a provided clipboard port, or conventional remote/multiplexer markers
+- **THEN** A1 SHALL acquire the host clipboard's image through its isolated helper and prepare one usable image chip
+- **AND** SHALL NOT acquire native text or file-drop fallback content in that image-only mode
+
+#### Scenario: A markerless remote raw gesture is not a locality guarantee
+
+- **WHEN** a remote Herdr viewer sends a raw paste gesture with no supplied content and the agent has no conventional remote/multiplexer markers
+- **THEN** the same image-only host acquisition policy SHALL apply
+- **AND** A1 SHALL NOT claim that it has verified the clipboard belongs to that viewer
+
+#### Scenario: Supplied content failure does not become a host read
+
+- **WHEN** supplied text or a supplied image path fails preparation or validation
+- **THEN** A1 SHALL preserve recoverable preparation failure behavior without attempting native host acquisition
+
+#### Scenario: Raw Herdr paste has no image representation
+
+- **WHEN** image-only host acquisition finds no supported image representation
+- **THEN** A1 SHALL leave unrelated draft content unchanged and report “Couldn’t paste screenshot—try again.” without falling back to native text or file-drop contents

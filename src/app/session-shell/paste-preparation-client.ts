@@ -110,8 +110,7 @@ export class PastePreparationClient {
             const read = await source.read(controller.signal);
             clearRead();
             if (controller.signal.aborted) return;
-            if (read?.kind !== "image") onText();
-            if (read === null) { emit("inserting"); resolve(await adopt(null, controller.signal)); await committed; return; }
+            if (read === null) { onText(); emit("inserting"); resolve(await adopt(null, controller.signal)); await committed; return; }
             content = read;
           }
           executor = this.#execute(content, controller.signal, (phase, bytes) => {
@@ -120,11 +119,12 @@ export class PastePreparationClient {
             if (phase === "acquired-text" || phase === "acquired-image") clearRead();
             if (controller.signal.aborted) return;
             if (phase === "acquired-image") onImage();
-            if (phase === "acquired-text") onText();
             emit(phase, bytes);
-          }, this.#helper, this.#pool);
+          }, this.#helper, this.#pool, source.kind === "native" && source.imagesOnly === true);
           const value = await executor.result;
           if (controller.signal.aborted) return;
+          // Invariant: acquired text may still classify as an image file; retain its provisional image slot until then.
+          if (value?.kind !== "image") onText();
           emit("inserting");
           const insertion = await adopt(value, controller.signal);
           if (controller.signal.aborted) return;
