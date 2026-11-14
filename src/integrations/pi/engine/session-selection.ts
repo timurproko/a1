@@ -1,12 +1,13 @@
 import { accessSync, constants, existsSync, realpathSync, statSync } from "node:fs";
-import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { SessionManager, type SessionInfo } from "../startup-public.js";
+import { resolvePiSessionDirectory, resolveSessionArgumentPath } from "./project-trust-preflight.js";
+import { holdSelectedWriter } from "./session-writers.js";
+export { resolvePiSessionDirectory, resolveSessionArgumentPath };
 import {
   acquireExisting,
   acquireSessionWriter,
   SessionWriterConflict,
-  type SessionWriterHandle,
 } from "../../../foundation/session-writer-lock/index.js";
 
 // Invariant: the engine accepts a storage request, not launch/control infrastructure.
@@ -40,19 +41,6 @@ interface SessionSelectionOptions {
   };
 }
 
-const selectedSessionWriters = new WeakMap<SessionManager, SessionWriterHandle>();
-
-export function takeSelectedSessionWriter(manager: SessionManager): SessionWriterHandle | undefined {
-  const writer = selectedSessionWriters.get(manager);
-  selectedSessionWriters.delete(manager);
-  return writer;
-}
-
-function holdSelectedWriter(manager: SessionManager, writer: SessionWriterHandle): SessionManager {
-  selectedSessionWriters.set(manager, writer);
-  return manager;
-}
-
 /** A1 CLI selection policy over pinned SDK APIs, including missing-folder recovery. */
 export async function openSelectedPiSession(options: SessionSelectionOptions): Promise<SessionManager> {
   const sessions = options.sessions ?? SessionManager;
@@ -60,22 +48,7 @@ export async function openSelectedPiSession(options: SessionSelectionOptions): P
   const directory = options.selection.sessionDir ?? options.sessionDir ?? process.env.PI_CODING_AGENT_SESSION_DIR;
   const sessionDir = directory === undefined ? undefined : resolveSessionArgumentPath(directory, cwd);
   try {
-    const target = options.selection.target;
-    let path: string;
-    let global: SessionInfo | undefined;
-    if (target.includes("/") || target.includes("\\") || target.endsWith(".jsonl")) {
-      path = resolveSessionArgumentPath(target, cwd);
-    } else {
-      const local = matchSession(await sessions.list(cwd, sessionDir), target);
-      const globalMatch = local ? undefined : matchSession(await sessions.listAll(sessionDir), target);
-      // Compatibility: macOS may expose one temporary directory as /var to one process
-      // and /private/var to another. Physical path identity must not turn that alias into
-      // a cross-project fork prompt.
-      global = globalMatch && !sameProjectDirectory(globalMatch.cwd, cwd) ? globalMatch : undefined;
-      const matched = local ?? globalMatch;
-      if (!matched) throw new PiSessionSelectionError(`No session found matching '${target}'`);
-      path = matched.path;
-    }
+    const { path, global } = await resolveSelectedTarget(options, cwd, sessionDir);
     assertResumeFile(path);
     if (global && existsSync(global.cwd)) {
       const choice = await options.forkPrompt?.({ sourceCwd: global.cwd });
@@ -134,6 +107,34 @@ export async function openSelectedPiSession(options: SessionSelectionOptions): P
   }
 }
 
+/** Explicit fork reads its source without taking or changing the source writer. */
+export async function forkSelectedPiSession(options: SessionSelectionOptions & { readonly id?: string }): Promise<SessionManager> {
+  try {
+    const { path } = await resolveSelectedTarget(options, options.cwd, options.sessionDir);
+    assertResumeFile(path);
+    assertCwd(options.cwd);
+    const manager = (options.sessions ?? SessionManager).forkFrom(path, options.cwd, options.sessionDir, options.id === undefined ? undefined : { id: options.id });
+    const target = manager.getSessionFile();
+    if (target === undefined) throw new PiSessionSelectionError("Fork did not create a session file");
+    return holdSelectedWriter(manager, acquireSessionWriter(target));
+  } catch (error) {
+    if (error instanceof PiSessionSelectionError) throw error;
+    throw new PiSessionSelectionError(`Could not fork session: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+async function resolveSelectedTarget(options: SessionSelectionOptions, cwd: string, sessionDir?: string): Promise<{ path: string; global?: SessionInfo }> {
+  const target = options.selection.target;
+  if (target.includes("/") || target.includes("\\") || target.endsWith(".jsonl")) return { path: resolveSessionArgumentPath(target, cwd) };
+  const sessions = options.sessions ?? SessionManager;
+  const local = matchSession(await sessions.list(cwd, sessionDir), target);
+  const globalMatch = local ? undefined : matchSession(await sessions.listAll(sessionDir), target);
+  const matched = local ?? globalMatch;
+  if (!matched) throw new PiSessionSelectionError(`No session found matching '${target}'`);
+  // Compatibility: physical cwd aliases must not manufacture cross-project forks.
+  return { path: matched.path, ...(globalMatch && !sameProjectDirectory(globalMatch.cwd, cwd) ? { global: globalMatch } : {}) };
+}
+
 function sameProjectDirectory(left: string, right: string): boolean {
   try {
     const first = realpathSync.native(resolve(left));
@@ -146,12 +147,6 @@ function sameProjectDirectory(left: string, right: string): boolean {
 
 function matchSession(sessions: readonly SessionInfo[], target: string): SessionInfo | undefined {
   return sessions.find(session => session.id === target) ?? sessions.find(session => session.id.startsWith(target));
-}
-
-/** Resolve before switching effective cwd, including quoted home-relative paths. */
-export function resolveSessionArgumentPath(path: string, cwd: string): string {
-  const expanded = path === "~" ? homedir() : /^~[/\\]/.test(path) ? resolve(homedir(), path.slice(2)) : path;
-  return resolve(cwd, expanded);
 }
 
 function assertResumeFile(path: string): void {

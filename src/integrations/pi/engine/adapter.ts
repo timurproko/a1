@@ -29,7 +29,7 @@ import type {
   PiWorkflowResult,
 } from "./workflows.js";
 import type { PiSettingsBridge } from "./settings-bridge.js";
-import type { PiProjectTrustPreflightPrompt } from "./project-trust-preflight.js";
+import type { PiProjectTrustPreflightPrompt, PiProjectTrustUi } from "./project-trust-preflight.js";
 import type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
 import { PiCommandDispatch, performEngineCommand, type AdapterCommandResult } from "./command-dispatch.js";
 import { PiEventDelivery, type PiEmittedEvent } from "./event-delivery.js";
@@ -89,6 +89,7 @@ export interface PiEngineAdapterOptions {
   readonly availableThemes?: () => readonly string[];
   readonly settingsProductMode?: "bare" | "comparison";
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
+  readonly projectTrustUi?: PiProjectTrustUi;
   /**
    * Startup extension-package update probe, mirroring pinned Pi's interactive
    * mode. Returns display names of packages with updates available.
@@ -191,6 +192,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
       sessionId: this.#sessionId,
       ...runtimeSessionRequest(options),
       projectTrustPrompt: options.projectTrustPrompt,
+      ...(options.projectTrustUi === undefined ? {} : { projectTrustUi: options.projectTrustUi }),
       createRuntime: options.createRuntime,
       checkPackageUpdates: options.checkPackageUpdates,
       signal: this.#engineHost.signal,

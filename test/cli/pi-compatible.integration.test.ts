@@ -14,27 +14,31 @@ async function fixture() {
   const agentDir = resolve(home, ".a1/agent"); await mkdir(agentDir, { recursive: true });
   await writeFile(resolve(agentDir, "settings.json"), JSON.stringify({ defaultProjectTrust: "never" }));
   await writeFile(resolve(agentDir, "models.json"), JSON.stringify({ providers: { "fixture-cli": { baseUrl: "http://127.0.0.1:1/v1", api: "openai-completions", apiKey: "hermetic-no-network", models: [{ id: "fixture-model", name: "Fixture model", reasoning: false, input: ["text"], contextWindow: 4096, maxTokens: 128 }] } } }));
-  return { home, agentDir, env: { ...process.env, A1_PROFILE_HOME: home, PI_OFFLINE: "1", FM_HOME: "", FM_ROOT_OVERRIDE: "", FM_STATE_OVERRIDE: "", FM_PI_SESSION_PID: "", FM_PI_SESSION_START: "" } };
+  return { home, agentDir, env: { ...process.env, A1_PROFILE_HOME: home, A1_CONFIG_DIR: resolve(home, "config"), A1_DATA_DIR: resolve(home, "data"), A1_RUNTIME_DIR: resolve(home, "runtime"), PI_OFFLINE: "1", FM_HOME: "", FM_ROOT_OVERRIDE: "", FM_STATE_OVERRIDE: "", FM_PI_SESSION_PID: "", FM_PI_SESSION_START: "" } };
 }
 
-describe("actual compatibility executable", () => {
+describe.each(["bin/cli.js", "bin/pi-compatible.js"])("actual normal-product executable %s", entry => {
   it("returns truthful help/version and rejects invalid launch input with nonzero status", async () => {
     const f = await fixture();
-    const help = await execute(process.execPath, ["bin/pi-compatible.js", "--help"], { env: f.env });
-    expect(help.stdout).toContain("normal A1 UI and profile");
+    const marker = resolve(f.home, "probe-factory-ran");
+    await mkdir(resolve(f.agentDir, "extensions"), { recursive: true });
+    await writeFile(resolve(f.agentDir, "extensions/probe.ts"), `import {writeFileSync} from 'node:fs'; export default function() { writeFileSync(${JSON.stringify(marker)}, 'unexpected'); }`);
+    const help = await execute(process.execPath, [entry, "--help"], { env: f.env });
+    expect(help.stdout).toContain("--model <pattern>");
     expect(help.stdout).not.toContain("--tui-mode");
-    const version = await execute(process.execPath, ["bin/pi-compatible.js", "--version"], { env: f.env });
+    const version = await execute(process.execPath, [entry, "--version"], { env: f.env });
     const manifest = JSON.parse(await readFile("package.json", "utf8"));
-    expect(version.stdout).toContain(`A1 ${manifest.version}`);
-    expect(version.stdout).toContain(`Pi engine ${manifest.dependencies["@earendil-works/pi-coding-agent"]}`);
+    expect(version.stdout).toContain(manifest.version);
+    if (entry.includes("pi-compatible")) expect(version.stdout).toContain(`Pi engine ${manifest.dependencies["@earendil-works/pi-coding-agent"]}`);
+    await expect(readFile(marker)).rejects.toMatchObject({ code: "ENOENT" });
     for (const args of [["--model"], ["--thinking", "ultra"], ["--mode", "rpc"], ["--help", "unexpected"]]) {
-      await expect(execute(process.execPath, ["bin/pi-compatible.js", ...args], { env: f.env })).rejects.toMatchObject({ code: 2 });
+      await expect(execute(process.execPath, [entry, ...args], { env: f.env })).rejects.toMatchObject({ code: 2 });
     }
   });
 
   it("lists the effective A1 profile catalog and exits without UI/session startup", async () => {
     const f = await fixture();
-    const result = await execute(process.execPath, ["bin/pi-compatible.js", "--list-models", "fixture-cli/"], { env: f.env, timeout: 20_000 });
+    const result = await execute(process.execPath, [entry, "--list-models", "fixture-cli/"], { env: f.env, timeout: 20_000 });
     expect(result.stdout.trim()).toBe("fixture-cli/fixture-model");
     expect(result.stdout).not.toContain("parent-live-host");
     const { readdir } = await import("node:fs/promises");
@@ -46,20 +50,23 @@ describe("actual compatibility executable", () => {
     const marker = resolve(f.home, "owned-marker"), extension = resolve(f.home, "marker-factory.ts");
     await writeFile(marker, "live-main-sentinel");
     await writeFile(extension, `import { writeFileSync } from "node:fs"; export default function() { writeFileSync(${JSON.stringify(marker)}, "probe-overwrite"); }`);
-    await expect(execute(process.execPath, ["bin/pi-compatible.js", "--list-models", "-e", extension], { env: { ...f.env, FM_HOME: f.home, FM_PI_SESSION_PID: "parent-live-host" }, timeout: 15_000 })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("Firstmate lifecycle correction") });
+    await expect(execute(process.execPath, [entry, "--list-models", "-e", extension], { env: { ...f.env, FM_HOME: f.home, FM_PI_SESSION_PID: "parent-live-host" }, timeout: 15_000 })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("Firstmate lifecycle correction") });
     expect(await readFile(marker, "utf8")).toBe("live-main-sentinel");
-    const help = await execute(process.execPath, ["bin/pi-compatible.js", "--help"], { env: { ...f.env, FM_HOME: f.home } });
-    expect(help.stdout).toContain("normal A1 UI and profile");
+    const help = await execute(process.execPath, [entry, "--help"], { env: { ...f.env, FM_HOME: f.home } });
+    expect(help.stdout).toContain("--model <pattern>");
   });
 
   it("transforms a cold TypeScript extension through the built loader", async () => {
     const f = await fixture();
     const extension = resolve(f.home, "cold-typed-extension.ts");
     await writeFile(extension, `enum Provider { Fixture = "typed-fixture" }\nexport default function(pi: any): void { pi.registerProvider(Provider.Fixture, { api: "openai-completions", apiKey: "hermetic-no-network", baseUrl: "http://127.0.0.1:1/v1", models: [{ id: "typed-model", name: "Typed model", reasoning: false, input: ["text"], contextWindow: 4096, maxTokens: 128 }] }); }`);
-    const result = await execute(process.execPath, ["bin/pi-compatible.js", "--list-models", "typed-fixture/", "-e", extension], { env: f.env, timeout: 20_000 });
+    const result = await execute(process.execPath, [entry, "--list-models", "typed-fixture/", "-e", extension], { env: f.env, timeout: 20_000 });
     expect(result.stdout.trim()).toBe("typed-fixture/typed-model");
   });
 
+});
+
+describe("optional pi naming executable", () => {
   it("packs the real compatibility shim and runs discovery from the extracted package", async () => {
     const f = await fixture();
     const packed = await execute("bash", ["-c", 'npm pack --ignore-scripts --json --pack-destination "$1"', "pack", f.home], { timeout: 30_000 });
@@ -72,7 +79,7 @@ describe("actual compatibility executable", () => {
     await writeFile(typedExtension, 'enum Flag { Name = "packaged-enum" }; export default function(pi: any): void { pi.registerFlag(Flag.Name, { type: "boolean", description: "packaged transform fixture" }); }');
     const result = await execute("bash", ["-c", 'export PATH="$(pwd -P)/bin/pi-compatible:$PATH"; type -P pi && pi --version && pi --list-models fixture-cli/ -e "$1"', "packaged-smoke", typedExtension], { cwd: packageRoot, env: f.env, timeout: 20_000 });
     expect(result.stdout).toContain("/package/bin/pi-compatible/pi");
-    expect(result.stdout).toContain("Pi-compatible owned runtime");
+    expect(result.stdout).toContain("normal owned runtime");
     expect(result.stdout).toContain("fixture-cli/fixture-model");
   }, 45_000);
 
@@ -80,7 +87,7 @@ describe("actual compatibility executable", () => {
     const f = await fixture();
     const result = await execute("bash", ["-c", 'export PATH="$(pwd -P)/bin/pi-compatible:$PATH"; type -P pi && pi --version'], { env: f.env, timeout: 15_000 });
     expect(result.stdout.replaceAll("\\", "/")).toContain("/bin/pi-compatible/pi");
-    expect(result.stdout).toContain("Pi-compatible owned runtime");
+    expect(result.stdout).toContain("normal owned runtime");
     expect(JSON.parse(await readFile("package.json", "utf8")).bin).toEqual({ [PRODUCT_IDENTITY.commandName]: PRODUCT_IDENTITY.artifacts.cliEntry });
   });
 });

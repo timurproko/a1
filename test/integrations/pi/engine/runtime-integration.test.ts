@@ -410,9 +410,12 @@ describe("official Pi runtime integration", () => {
         },
         createServices: async options => {
           expect(options?.cwd).toBe(savedCwd);
-          expect(order).toEqual(["trust"]);
-          order.push("services");
+          expect(order).toEqual([]);
+          expect(options!.settingsManager!.isProjectTrusted()).toBe(false);
+          order.push("services:global");
           const services = await createAgentSessionServices(options);
+          expect(order).toEqual(["services:global", "trust"]);
+          expect(services.settingsManager.isProjectTrusted()).toBe(false);
           await services.modelRuntime.setRuntimeApiKey("openai", "offline-fixture-never-sent");
           return services;
         },

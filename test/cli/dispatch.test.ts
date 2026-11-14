@@ -58,10 +58,7 @@ describe("A1 CLI dispatch", () => {
     [["session", "worktrees"], { kind: "session-context", request: { action: "worktrees" } }],
     [["session", "link-worktree", "D:/worktree"], { kind: "session-context", request: { action: "link-worktree", path: "D:/worktree" } }],
     [["session", "unlink-worktree"], { kind: "session-context", request: { action: "unlink-worktree" } }],
-    [["solo"], { kind: "noop" }],
-    [["solo", "--session", "saved-id"], { kind: "noop" }],
-    [["tabs"], { kind: "noop" }],
-    [["tabs", "stop", "--all"], { kind: "noop" }],
+    [["explain this repository"], { kind: "launch", profileId: "a1", promptArguments: ["explain this repository"] }],
   ] as const)("parses %j", (arguments_, expected) => {
     expect(parseCliCommand(arguments_, PRERELEASE)).toEqual(expected);
   });
@@ -88,7 +85,7 @@ describe("A1 CLI dispatch", () => {
     expect(cliHelp(PRERELEASE)).toContain("session unlink-worktree");
     expect(cliHelp(PRERELEASE)).not.toContain("solo");
     expect(cliUsage(PRERELEASE)).not.toContain("solo");
-    expect(parseCliCommand(["solo"], RELEASE)).toEqual({ kind: "noop" });
+    expect(parseCliCommand(["solo"], RELEASE)).toMatchObject({ kind: "error" });
   });
 
   it.each([PRERELEASE, RELEASE])("dispatches explicit session selection in either option order (%j)", async capabilities => {
@@ -189,20 +186,7 @@ describe("A1 CLI dispatch", () => {
   });
 
   it.each([
-    ["--resume"], ["-r"], ["--continue"], ["-c"], ["resume"], ["pi", "--session", "saved-id"],
-    ["unknown"],
-    ["sdjjhd"],
-    ["ui"],
-    ["agent"],
-    ["config"],
-    ["update", "self"],
-    ["update", "self", "extra"],
-    ["update:develop"],
-    ["update:develop", "107"],
-    ["update:107"],
-    ["update:0.1.8-dev.107"],
-    ["update:next"],
-    ["update:"],
+    ["pi", "--session", "saved-id"],
     ["pi", "extra"],
     ["pi", "config"],
   ])("silently ignores unsupported grammar %j", async (...arguments_) => {
@@ -217,11 +201,16 @@ describe("A1 CLI dispatch", () => {
 
   it.each([
     ["--session"], ["--session", ""], ["--session", "   "], ["--session", "bad\u0000id"],
-    ["--session-dir", "store"], ["--session-dir"],
+    ["--session-dir"], ["--resume", "-r"], ["--continue", "-c"],
+    ["--fork", "saved", "-r"], ["--fork", "saved", "-c"],
+    ["solo"], ["solo", "--session", "saved-id"], ["tabs"], ["tabs", "stop", "--all"],
+    ["ui"], ["agent"], ["config"], ["update:develop"], ["update:develop", "107"],
+    ["update:107"], ["update:0.1.8-dev.107"], ["update:next"], ["update:"],
     ["--session", "one", "--session", "two"],
     ["--session", "one", "--session-dir", "a", "--session-dir", "b"],
-    ["--session", "--session-dir", "store"], ["--session", "one", "extra"],
-    ["--session", "one", "--unknown", "value"],
+    ["--session", "--session-dir", "store"],
+    ["--session", "one", "--runtime-options", "{}"], ["--session", "one", "-z"],
+    ["update", "self"], ["update", "self", "extra"],
     ["update", "--develop", "0"],
     ["update", "--develop", "0.1.8"],
     ["update", "--develop", "7eabe9e"],
@@ -257,6 +246,32 @@ describe("A1 CLI dispatch", () => {
     expect(transcript.stdout).not.toHaveBeenCalled();
     expectNoHandler(commands);
     expect(JSON.stringify(parseCliCommand(arguments_, PRERELEASE))).not.toMatch(/shell|cmd\.exe|sh -c/i);
+  });
+
+  it.each([
+    { flag: "--resume", runtimeOptions: { resumeSession: true } },
+    { flag: "-r", runtimeOptions: { resumeSession: true } },
+    { flag: "--continue", runtimeOptions: { continueSession: true } },
+    { flag: "-c", runtimeOptions: { continueSession: true } },
+  ] as const)("dispatches supported session selector $flag to the normal runtime", async ({ flag, runtimeOptions }) => {
+    const commands = handlers();
+    const transcript = output();
+    expect(await dispatchCli([flag], commands, transcript, PRERELEASE)).toBe(0);
+    expect(commands.launch).toHaveBeenCalledExactlyOnceWith({ kind: "interactive", profileId: "a1", runtimeOptions });
+    expect(commands.version).not.toHaveBeenCalled();
+    expect(commands.update).not.toHaveBeenCalled();
+    expect(commands.packages).not.toHaveBeenCalled();
+    expect(commands.sessionContext).not.toHaveBeenCalled();
+    expect(transcript.stdout).not.toHaveBeenCalled();
+    expect(transcript.stderr).not.toHaveBeenCalled();
+  });
+
+  it.each(["resume", "unknown", "sdjjhd"])("treats non-command word %s as the approved positional prompt", async text => {
+    const commands = handlers();
+    expect(await dispatchCli([text], commands, output(), PRERELEASE)).toBe(0);
+    expect(commands.launch).toHaveBeenCalledExactlyOnceWith({ kind: "interactive", profileId: "a1", promptArguments: [text] });
+    expect(commands.update).not.toHaveBeenCalled();
+    expect(commands.packages).not.toHaveBeenCalled();
   });
 
   it.each([

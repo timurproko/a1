@@ -163,9 +163,14 @@ async function assertStartupPayloadSupport(
   release: MaterializedRelease, selectedStoreRoot: string, startup?: InteractiveStartupArguments,
 ): Promise<void> {
   if (startup?.sessionColor === undefined && startup?.promptArguments === undefined && startup?.runtimeOptions === undefined) return;
-  const startupEntry = startup?.runtimeOptions === undefined
-    ? "dist/features/launch/interactive-arguments.js"
-    : "dist/foundation/launch-context/runtime-options.js";
+  const guardedServices = startup?.runtimeOptions !== undefined && ["continueSession", "resumeSession", "forkSession", "sessionId", "sessionName", "noSession", "projectTrust", "modelPatterns", "apiKey"].some(key => key in startup.runtimeOptions!);
+  const startupEntry = guardedServices
+    ? "dist/integrations/pi/engine/session-launch.js"
+    : startup?.runtimeOptions?.promptSequence === true
+    ? "dist/cli/interactive-options.js"
+    : startup?.runtimeOptions === undefined
+      ? "dist/features/launch/interactive-arguments.js"
+      : "dist/foundation/launch-context/runtime-options.js";
   if (release.files.some(file => file.path === startupEntry)) return;
   // Security: selection has established authority for this exact identity. Compact restart
   // evidence carries only executable entries, so absence requires its authenticated full inventory.

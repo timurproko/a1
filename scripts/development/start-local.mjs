@@ -44,7 +44,8 @@ const entry = directProfile === null ? compatibility ? "bin/pi-compatible.js" : 
 const selectedChildArguments = childArguments;
 
 if (launchArguments[0] === "--print-environment") {
-  process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: inspectedArguments, childArguments: selectedChildArguments, directProfile, selectedEntry: entry, profileConfigurationRoot: prepared?.configurationRoot ?? null, environment: {
+  const { redactInteractiveArguments } = await import("../../dist/cli/interactive-options.js");
+  process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: redactInteractiveArguments(inspectedArguments), childArguments: redactInteractiveArguments(selectedChildArguments), directProfile, selectedEntry: entry, profileConfigurationRoot: prepared?.configurationRoot ?? null, environment: {
     A1_CONFIG_DIR: childEnvironment.A1_CONFIG_DIR,
     A1_DATA_DIR: childEnvironment.A1_DATA_DIR,
     A1_DEV_HISTORY_DATA_DIR: childEnvironment.A1_DEV_HISTORY_DATA_DIR,

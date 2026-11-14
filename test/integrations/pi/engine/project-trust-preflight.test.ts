@@ -149,7 +149,7 @@ describe("project trust preflight", () => {
     expect(await resolvePiProjectTrustPreflight(options())).toMatchObject({ trusted: false, source: "saved" });
   });
 
-  it("resolves trust before constructing project settings or resource services", async () => {
+  it("constructs only global services before the loader resolves project trust", async () => {
     const order: string[] = [];
     const fakeSettings = {};
     const fakeServices = { marker: "services" };
@@ -166,13 +166,15 @@ describe("project trust preflight", () => {
           return fakeSettings as never;
         },
         async createServices(input) {
-          order.push("resources");
+          order.push("resources:global");
           expect(input.settingsManager).toBe(fakeSettings);
+          const trusted = await input.resourceLoaderReloadOptions!.resolveProjectTrust!({ extensionsResult: { extensions: [], errors: [], runtime: {} as never } });
+          order.push(`resources:project:${String(trusted)}`);
           return fakeServices as never;
         },
       },
     });
-    expect(order).toEqual(["trust", "settings:false", "resources"]);
+    expect(order).toEqual(["settings:false", "resources:global", "trust", "resources:project:false"]);
     expect(result.services).toBe(fakeServices);
   });
 });
