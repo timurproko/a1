@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { DamageAwareTerminalAdapter, PiTuiRuntimeAdapter, PiTuiRuntimeError, PI_TERMINAL_RUNTIME, classifyPiTuiInput } from "../../../../src/integrations/pi/tui-runtime/index.js";
+import { DamageAwareTerminalAdapter, PiTuiRuntimeAdapter, PiTuiRuntimeError, PI_TERMINAL_RUNTIME, classifyPiTuiInput, containedRowCount } from "../../../../src/integrations/pi/tui-runtime/index.js";
 import type { TerminalComponentPort, TerminalPort } from "../../../../src/contracts/presentation/index.js";
+import { displayWidth, padToWidth } from "../../../../src/ui/components/text.js";
 
 describe("owned-screen Ctrl+Shift arrow decoding", () => {
   it.each([
@@ -453,27 +454,129 @@ describe("PiTuiRuntimeAdapter", () => {
     await comparison.stop({ drainInput: false, preserveScreen: true });
   });
 
-  it("accepts Kitty image payloads but still rejects excess ordinary columns on the same row", async () => {
+  it("preserves Kitty image payloads while clipping excess ordinary columns on the same row", async () => {
     const terminal = new TestTerminal();
+    const before = containedRowCount();
     terminal.columns = 5;
     const image = "\u001b_Ga=T,f=100;AQID\u001b\\";
     const root = new TestComponent([image + "12345"]);
     const runtime = new PiTuiRuntimeAdapter({ root, terminal });
     runtime.start();
     expect(() => runtime.renderNow()).not.toThrow();
-    root.render = () => [image + "123456"];
-    expect(() => runtime.renderNow()).toThrow("exceeds available width 5");
+    expect(containedRowCount()).toBe(before);
+    root.lines = [image + "123456"];
+    terminal.writes.length = 0;
+    expect(() => runtime.renderNow(true)).not.toThrow();
+    expect(containedRowCount()).toBeGreaterThan(before);
+    const painted = terminal.writes.join("");
+    expect(painted).toContain(image);
+    expect(painted).toContain("12345");
+    expect(painted).not.toContain("123456");
     await runtime.stop();
   });
 
-  it("rejects over-width component rows instead of silently rewriting source layout", async () => {
+  it("clips over-width component rows instead of ending the session", async () => {
     const terminal = new TestTerminal();
+    const before = containedRowCount();
     terminal.columns = 5;
-    const root = new TestComponent(["123456"]);
+    const root = new TestComponent(["123456", "fits"]);
     const runtime = new PiTuiRuntimeAdapter({ root, terminal });
     runtime.start();
-    expect(() => runtime.renderNow()).toThrow("component row 0 exceeds available width 5");
+    expect(() => runtime.renderNow()).not.toThrow();
+    expect(containedRowCount()).toBeGreaterThan(before);
+    const painted = terminal.writes.join("");
+    expect(painted).toContain("12345");
+    expect(painted).not.toContain("123456");
+    expect(painted).toContain("fits");
     await runtime.stop();
+  });
+
+  it("returns fitting rows unchanged and reports no contained rows", async () => {
+    const terminal = new TestTerminal();
+    const before = containedRowCount();
+    terminal.columns = 5;
+    const root = new TestComponent(["\u001b[31m12345\u001b[0m", "ab"]);
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+    runtime.start();
+    runtime.renderNow();
+    expect(containedRowCount()).toBe(before);
+    expect(terminal.writes.join("")).toContain("\u001b[31m12345\u001b[0m");
+    await runtime.stop();
+  });
+
+  it("closes style and hyperlink state on a clipped row without splitting a grapheme", async () => {
+    const terminal = new TestTerminal();
+    const before = containedRowCount();
+    terminal.columns = 5;
+    const family = "\u{1f468}‍\u{1f469}‍\u{1f467}";
+    const root = new TestComponent([
+      `\u001b[31m\u001b]8;;https://example.test\u0007abcd${family}tail\u001b]8;;\u0007\u001b[0m`,
+      "next",
+    ]);
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+    runtime.start();
+    expect(() => runtime.renderNow()).not.toThrow();
+    expect(containedRowCount()).toBeGreaterThan(before);
+    const painted = terminal.writes.join("");
+    const clippedRow = painted.slice(painted.indexOf("abcd"), painted.indexOf("next"));
+    // Invariant: the wide cluster cannot fit the one remaining cell, so it is dropped whole rather than split.
+    expect(clippedRow).not.toContain("\u{1f468}");
+    expect(clippedRow).not.toContain("tail");
+    expect(clippedRow).toContain("\u001b[0m");
+    expect(clippedRow).toContain("\u001b]8;;\u0007");
+    await runtime.stop();
+  });
+
+  it("contains over-width overlay and layout-mounted component rows", async () => {
+    const terminal = new TestTerminal();
+    const before = containedRowCount();
+    terminal.columns = 20;
+    const root = new TestComponent(["root"]);
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+    runtime.start();
+    runtime.renderNow();
+    expect(containedRowCount()).toBe(before);
+    runtime.showOverlay(new TestComponent(["overlay-row-wider-than-six"]), { width: 6, anchor: "center" });
+    expect(() => runtime.renderNow()).not.toThrow();
+    expect(containedRowCount()).toBeGreaterThan(before);
+    expect(terminal.writes.join("")).not.toContain("overlay-row-wider-than-six");
+    await runtime.stop();
+
+    const mountedTerminal = new TestTerminal();
+    mountedTerminal.columns = 5;
+    const mounted = new PiTuiRuntimeAdapter({
+      root: new TestComponent(["root"]),
+      terminal: mountedTerminal,
+      mode: "fullscreen",
+      layoutRoot: { type: "component", component: new TestComponent(["mounted-too-wide"]) },
+    });
+    mounted.start();
+    expect(() => mounted.renderNow()).not.toThrow();
+    expect(containedRowCount()).toBeGreaterThan(before);
+    expect(mountedTerminal.writes.join("")).not.toContain("mounted-too-wide");
+    await mounted.stop();
+  });
+
+  it("keeps rendering content the shared geometry measures narrower than the pinned renderer", async () => {
+    // Provenance: 2026-11-14 fatal exits. Each sample is one cell wider in the renderer than in
+    // A1's shared helper, so a row padded with shared geometry overflows by exactly that cell.
+    const samples = ["\u{1f1fa}", "☰", "aः"];
+    for (const sample of samples) {
+      const terminal = new TestTerminal();
+      const before = containedRowCount();
+      terminal.columns = 12;
+      const row = padToWidth(`x${sample}`, terminal.columns - 1) + "|";
+      expect(displayWidth(row)).toBe(terminal.columns);
+      const root = new TestComponent([row, "after"]);
+      const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+      runtime.start();
+      expect(() => runtime.renderNow()).not.toThrow();
+      expect(containedRowCount()).toBe(before + 1);
+      const painted = terminal.writes.join("");
+      expect(painted).toContain(sample);
+      expect(painted).toContain("after");
+      await runtime.stop();
+    }
   });
 
   it("supports adapter-owned input interception without exposing Pi listener types", async () => {
