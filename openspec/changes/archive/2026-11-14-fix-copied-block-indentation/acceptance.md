@@ -17,7 +17,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-14-fix-copied-block-indentation/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-14-fix-copied-block-indentation/acceptance.md",
   "finalizedDate": "2026-11-14",
-  "specBaseSha": "2d5c3646784941978b9847b606705e3602c3f888",
+  "specBaseSha": "64a2430263b0a95ae4a0d22d881a3b8424097a26",
   "acceptanceScenarios": [
     "Copied multiline assistant quotes paste without renderer-added continuation offsets or quote borders.",
     "Code indentation, literal border characters, internal blank lines, and selected Unicode text retain their content.",
