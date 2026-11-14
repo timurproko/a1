@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -119,15 +119,22 @@ test("C41: interrupted removal cannot delete a recreated checkout or retained re
     retainedRefsPreserved: await f.git(f.primary, ["rev-parse", "fix/task"]) === head }, expected("C41"));
 });
 
-test("CLI exact remove-local preflight and execution retain refs without requiring GitHub CI or PR APIs", async () => {
+test("standalone CLI retains refs without runtime identity, credentials, setup or hosting migration", async () => {
   const f = await fixture(), script = fileURLToPath(new URL("../../scripts/governance/local-worktree-cleanup.mjs", import.meta.url));
+  const home = join(f.root, "standalone-home"); await mkdir(home);
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(?:A1_|PI_|GITHUB_|GH_|LOCAL_CLEANUP_)/.test(key)));
+  Object.assign(env, { HOME: home, USERPROFILE: home, LOCALAPPDATA: home, APPDATA: home, XDG_DATA_HOME: home, XDG_CONFIG_HOME: home });
+  const options = { cwd: f.primary, timeout: 120_000, env };
   const args = [script, "remove-local", "--repo", f.primary, "--path", f.path, "--confirm-local-removal"];
-  const preflight = JSON.parse((await execute(process.execPath, [...args, "--preflight"], { cwd: f.primary, timeout: 120_000 })).stdout);
+  const before = await f.git(f.primary, ["ls-remote", "origin", "refs/heads/fix/task"]);
+  const preflight = JSON.parse((await execute(process.execPath, [...args, "--preflight"], options)).stdout);
   assert.equal(preflight.results[0].disposition, "eligible"); assert.equal(await exists(f.path), true);
   assert.equal((await f.store.read()).entries.length, 0);
-  const report = JSON.parse((await execute(process.execPath, args, { cwd: f.primary, timeout: 120_000 })).stdout);
+  const report = JSON.parse((await execute(process.execPath, args, options)).stdout);
   assert.equal(report.results[0].disposition, "removed"); assert.equal(await exists(f.path), false);
   assert.equal(await f.git(f.primary, ["rev-parse", "fix/task"]), report.results[0].localHead);
+  assert.equal(await f.git(f.primary, ["ls-remote", "origin", "refs/heads/fix/task"]), before);
+  assert.deepEqual(await readdir(home), [], "standalone removal must not initialize runtime or credential storage");
 });
 
 test("interrupted successful Git removal settles idempotently without ref deletion", async () => {

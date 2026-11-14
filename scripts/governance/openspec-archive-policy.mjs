@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { classifyDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
+import { inspectDocumentationScope } from "./documentation-diff-scope.mjs";
 
 export const ARCHIVE_TASKS = Object.freeze({
   recordEvidence: "Record verified implementation acceptance and merge evidence for archive preparation.",
@@ -160,7 +160,8 @@ export function assertMergedImplementation(pull, repository, files, { allowDocum
     assertRepositoryPath(file.filename);
     if (file.status === "renamed") assertRepositoryPath(file.previous_filename);
   }
-  requireValue(allowDocumentation || !classifyDocumentationAutoMerge(files).eligible, "planning-or-archive-pr");
+  // Compatibility: a manual-only document is not operational implementation; auto-merge authority is a separate decision.
+  requireValue(allowDocumentation || !inspectDocumentationScope(files).documentationOnly, "planning-or-archive-pr");
 }
 
 export function assertRepositoryPath(value) {

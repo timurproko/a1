@@ -94,6 +94,25 @@ describe("A1 CLI dispatch", () => {
     expect(parseCliCommand(["solo"], RELEASE)).toEqual({ kind: "noop" });
   });
 
+  it.each([PRERELEASE, RELEASE])("preserves session worktree aliases without setup or nested launch (%j)", async capabilities => {
+    for (const [current, legacy] of [
+      [["worktree", "attach", "D:/task"], ["session", "link-worktree", "D:/task"]],
+      [["worktree", "detach"], ["session", "unlink-worktree"]],
+      [["worktree", "list"], ["session", "worktrees"]],
+    ] as const) {
+      const parsed = parseCliCommand(current, capabilities);
+      expect(parseCliCommand(legacy, capabilities)).toEqual(parsed);
+      if (parsed.kind !== "session-context") throw new Error("expected a context-only command");
+      for (const args of [current, legacy]) {
+        const commands = handlers(); commands.sessionContext.mockResolvedValue(19);
+        expect(await dispatchCli(args, commands, output(), capabilities)).toBe(19);
+        expect(commands.sessionContext).toHaveBeenCalledExactlyOnceWith(parsed.request);
+        expect(commands.launch).not.toHaveBeenCalled(); expect(commands.update).not.toHaveBeenCalled();
+        expect(commands.packages).not.toHaveBeenCalled(); expect(commands.version).not.toHaveBeenCalled();
+      }
+    }
+  });
+
   it.each([PRERELEASE, RELEASE])("dispatches explicit session selection in either option order (%j)", async capabilities => {
     for (const arguments_ of [
       ["--session", "saved-id"],

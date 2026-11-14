@@ -65,6 +65,21 @@ Preflight runs from startup while this session still owns its attachment and mus
 
 This is a separate operation from merged `complete` and confirmed remote-destructive `discard`; it has no sweep fallback. Deploy a compatible A1 release before downstream instruction migration. Source code or a task-branch declaration does not prove installed support is available. Standalone repository removal remains usable without A1 after that repository's tooling integrates.
 
+## Paired runtime and repository rollout
+
+Interface rollout follows [R15](../delivery-rules.md#r15---runtime-and-cleanup-boundaries); historical records remain governed by [R07](../delivery-rules.md#r07---trusted-finalization).
+
+| Surface | Compatibility and deployment detail |
+| --- | --- |
+| Session commands | `session link-worktree`, `unlink-worktree` and `worktrees` dispatch the same requests/results as attach, detach and list. They do not install dependencies or create a nested runtime. |
+| Completion adapters | Deploy compatible A1 support before adopting the paired primary-checkout `cleanupPreflight`/`cleanup` or `localRemoval.preflight`/`execute` declarations. Task-branch source and a version string alone are not proof that the installed runtime supports the interface. |
+| Older pending completion | A record without the preflight digest remains readable, but settlement reports `cleanup-unavailable` and retains the checkout; it never substitutes a sweep or invents an old preflight. |
+| Historical delivery evidence | Version-1/2 linkage, accepted records and immutable legacy version-3 layouts keep their existing readers. Rollout does not rewrite them into the new manifest/native-binding representation. |
+| Cleanup journals | Older entries without newer completion-note fields load without an on-disk migration. Publication, ownership and accepted evidence remain separate facts. |
+| Standalone repository tools | Checkout-independent planning uses explicit identity and ordinary GitHub authentication. Exact local removal uses the repository CLI and ordinary Node/Git; neither operation requires an A1 session, runtime registration, label creation or hosting-settings migration. |
+
+The declaration is read from trusted primary, and repository cleanup still rechecks its own applicable evidence after the runtime leaves. An unavailable runtime interface does not prevent a separately authorized safe standalone operation. No package publication, companion-repository migration or live activation is implied by these instructions.
+
 ## Invalid attachments
 
 If the attached checkout disappears, loses its Git pointer, or is replaced by a different worktree while the startup checkout still verifies, A1 releases this session's own association and editing claim. The built-in tool call that discovers it fails once with `worktree-attachment-invalid`, naming the released path and the startup checkout now in use, so work addressed to the lost checkout is never silently applied elsewhere. The next call runs from the startup checkout, and a resumed session recovers the same way. Uncertain results such as a timeout or an unverifiable startup checkout release nothing. `a1 worktree detach` works without validating the attached checkout. No file, branch, or other session's claim is removed.

@@ -161,6 +161,21 @@ describe("worktree completion", () => {
     expect(await exists(fixture.worktree)).toBe(true);
   });
 
+  it("retains content appearing after successful repository preflight before detaching", async () => {
+    const fixture = await attachedFixture(REMOVE);
+    const run = vi.fn(async (_command: string, args: readonly string[]) => {
+      const path = args.at(-1);
+      if (!path) throw new Error("fixture preflight lacks its exact target");
+      await writeFile(join(path, "late-content.txt"), "new user content\n");
+      return JSON.stringify({ operation: "preservation-preflight", preflight: true, results: [{ path, disposition: "eligible" }] });
+    });
+    await expect(requestSessionWorktreeCompletion(fixture.identity, {}, { ...fixture.options, run })).rejects.toMatchObject({ code: "worktree-content" });
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(await readActiveSessionRepositoryContext(fixture.identity, fixture.options)).toMatchObject({ branch: "fix/task" });
+    expect(await readFile(join(fixture.worktree, "late-content.txt"), "utf8")).toBe("new user content\n");
+    expect(await settleSessionWorktreeCompletion(fixture.identity, fixture.options)).toBeNull();
+  });
+
   it("reads legacy pending records without executing cleanup lacking a preflight binding", async () => {
     const fixture = await attachedFixture(REMOVE);
     await requestSessionWorktreeCompletion(fixture.identity, {}, fixture.options);

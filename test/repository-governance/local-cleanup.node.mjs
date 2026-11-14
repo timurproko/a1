@@ -1681,8 +1681,9 @@ test("journals written before completion notes still load and report", async t =
   const f = await fixture(t, true);
   const path = join(f.store.directory, "state.json"), state = JSON.parse(await readFile(path, "utf8"));
   for (const entry of state.entries) { delete entry.completion; delete entry.completionReason; }
-  await writeFile(path, JSON.stringify(state));
+  const original = JSON.stringify(state); await writeFile(path, original);
   const read = await f.store.read(); assert.equal(read.entries[0].completion, null); assert.equal(read.entries[0].completionReason, null);
+  assert.equal(await readFile(path, "utf8"), original, "read-only compatibility must not rewrite the historical journal");
   assert.throws(() => validateState({ ...read, entries: [{ ...read.entries[0], completion: "retired-nothing-left" }] }, f.identity), /registration-state/);
   assert.throws(() => validateState({ ...read, entries: [{ ...read.entries[0], completion: "made-up" }] }, f.identity), /registration-schema/);
 });

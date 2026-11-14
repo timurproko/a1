@@ -70,6 +70,7 @@ async function requestPreflightedOperation(identity: SessionRepositoryIdentity, 
   const attached = await readActiveSessionRepositoryContext(identity, options);
   if (attached === null) throw failure("worktree-not-attached", "no task worktree is attached");
   if (attached.branch === null) throw failure(`worktree-${kind}-unavailable`, "exact cleanup requires a named task branch");
+  await assertCleanAttachment(attached.cwd, options.signal);
   const startup = await realpath(await readSessionStartupRoot(identity));
   const unavailable = kind === "remove-local" ? "worktree-local-removal-unavailable" : "worktree-completion-unavailable";
   const preflightFailure = kind === "remove-local" ? "worktree-local-removal-preflight" : "worktree-completion-preflight";
@@ -130,12 +131,7 @@ async function requestWorktreeOperation(
   const attached = await readActiveSessionRepositoryContext(identity, options);
   if (attached === null) throw failure("worktree-not-attached", "no task worktree is attached");
   if (!samePath(settlement.cwd, attached.cwd) || settlement.branch !== attached.branch) throw failure("worktree-context-changed", "the attachment changed during preservation preflight");
-  const status = await execute("git", ["-c", "core.hooksPath=/dev/null", "status", "--porcelain", "--untracked-files=all"], attached.cwd, options.signal);
-  const changed = status.split(/\r?\n/u).filter(Boolean);
-  if (changed.length > 0) {
-    const listed = changed.slice(0, 5).map(line => line.slice(3)).join(", ");
-    throw failure("worktree-content", `the attached worktree holds uncommitted or untracked content (${listed}${changed.length > 5 ? ", ..." : ""})`);
-  }
+  await assertCleanAttachment(attached.cwd, options.signal);
   const path = sessionWorktreeCompletionPath(identity, options);
   const detached = await detachSessionRepositoryContextForCompletion(identity, options, async left => {
     if (!samePath(left.worktreeRoot, attached.cwd)) throw failure("worktree-context-changed", "the attachment changed during completion");
@@ -262,6 +258,16 @@ async function readRecord(path: string): Promise<CompletionRecord | null> {
     return value as unknown as CompletionRecord;
   } catch {
     return null;
+  }
+}
+
+/** Report actual local content before adapter lookup and repeat the check after repository preflight. */
+async function assertCleanAttachment(cwd: string, signal?: AbortSignal): Promise<void> {
+  const status = await execute("git", ["-c", "core.hooksPath=/dev/null", "status", "--porcelain", "--untracked-files=all"], cwd, signal);
+  const changed = status.split(/\r?\n/u).filter(Boolean);
+  if (changed.length > 0) {
+    const listed = changed.slice(0, 5).map(line => line.slice(3)).join(", ");
+    throw failure("worktree-content", `the attached worktree holds uncommitted or untracked content (${listed}${changed.length > 5 ? ", ..." : ""})`);
   }
 }
 

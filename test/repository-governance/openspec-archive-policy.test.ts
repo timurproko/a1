@@ -127,13 +127,15 @@ describe("implementation merge classification", () => {
     expect(() => assertMergedImplementation({ ...pull(), ...override }, "owner/repo", files)).toThrow();
   });
   it("rejects planning and archive PRs even if their metadata claims implementation", () => {
-    for (const filename of ["openspec/changes/example/tasks.md", "openspec/changes/archive/example/tasks.md", "docs/example.md"]) {
+    for (const filename of ["openspec/changes/example/tasks.md", "openspec/changes/archive/example/tasks.md", "docs/example.md", "docs/local-worktree-cleanup.md", "docs/governance/rules.md"]) {
       expect(() => assertMergedImplementation(pull(), "owner/repo", [{ filename, status: "modified" }])).toThrow("planning-or-archive-pr");
     }
   });
   it("checks rename provenance before classification", () => {
     expect(() => assertMergedImplementation(pull(), "owner/repo", [{ filename: "docs/example.md", status: "renamed" }])).toThrow();
     expect(() => assertMergedImplementation(pull(), "owner/repo", [{ filename: "docs/example.md", previous_filename: "scripts/example.mjs", status: "renamed" }])).not.toThrow();
+    expect(() => assertMergedImplementation(pull(), "owner/repo", [{ filename: "docs/ordinary.md", previous_filename: "docs/governance/rules.md", status: "renamed" }])).toThrow("planning-or-archive-pr");
+    expect(() => assertMergedImplementation(pull(), "owner/repo", [{ filename: "docs/governance/rules.md", previous_filename: "docs/ordinary.md", status: "renamed" }])).toThrow("planning-or-archive-pr");
   });
 });
 
