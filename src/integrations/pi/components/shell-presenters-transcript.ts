@@ -119,8 +119,8 @@ export function createPiShellTranscriptComponent(
       if (expanded === next) return;
       expanded = next;
       if (submittedPrompt !== undefined && isPiPromptStyleCompaction(block)) return;
-      const expandable = component;
-      if ("setExpanded" in expandable && typeof expandable.setExpanded === "function") mutate(() => expandable.setExpanded(expanded));
+      const expand = "setExpanded" in component ? component.setExpanded : undefined;
+      if (typeof expand === "function") mutate(() => expand.call(component, expanded));
       else component = rebuild();
     },
     setOutputPad(padding) {
