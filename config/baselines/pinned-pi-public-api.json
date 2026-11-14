@@ -3784,6 +3784,7 @@
           "kind": "class",
           "hash": "694dd689afe27c6f699233598faca02bca27fe8f9b4318f54946ea08f988b21b",
           "consumers": [
+            "src/integrations/pi/components/emoji-markdown.ts",
             "src/integrations/pi/components/upstream/components/mermaid.ts"
           ]
         },

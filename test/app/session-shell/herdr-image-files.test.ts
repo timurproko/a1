@@ -111,7 +111,7 @@ describe("Herdr supplied screenshots in the production shell", () => {
       terminal.input(" after");
       await vi.waitFor(() => expect(shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).images).toHaveLength(1));
       const draft = shell.root.editor.getText();
-      expect(draft).toMatch(/^\[🖼 transferred screenshot\.png #[a-f0-9]+\] after$/u);
+      expect(draft).toMatch(/^\[🖼️ transferred screenshot\.png #[a-f0-9]+\] after$/u);
       expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain(draft.slice(0, -6));
       expect(shell.root.promptChips.atomicRanges(draft)).toHaveLength(1);
       const attachment = { type: "image", data: bytes.toString("base64"), mimeType: "image/png" };
@@ -143,7 +143,7 @@ describe("Herdr supplied screenshots in the production shell", () => {
       terminal.input(`\u001b[200~"${path}"\u001b[201~`);
       terminal.input(" after");
       await vi.waitFor(() => expect(shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).images).toHaveLength(2));
-      expect(shell.root.editor.getText()).toMatch(/^\[🖼 transferred screenshot\.png #[a-f0-9]+\] between \[🖼 transferred screenshot\.png #[a-f0-9]+\] after$/u);
+      expect(shell.root.editor.getText()).toMatch(/^\[🖼️ transferred screenshot\.png #[a-f0-9]+\] between \[🖼️ transferred screenshot\.png #[a-f0-9]+\] after$/u);
       await expect(readFile(trace, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
     } finally { await shell.dispose(); await rm(root, { recursive: true, force: true }); }
   }, 10_000);
@@ -158,8 +158,8 @@ describe("Herdr supplied screenshots in the production shell", () => {
       await vi.waitFor(() => expect(shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).images).toHaveLength(2));
       const draft = shell.root.editor.getText(), records = shell.root.promptChips.imageChipAttachments(draft);
       expect(records.map(record => record.tag)).toEqual([
-        expect.stringMatching(/^\[🖼 transferred screenshot\.png #[a-f0-9]+\]$/u),
-        expect.stringMatching(/^\[🖼 transferred screenshot\.png #[a-f0-9]+\]$/u),
+        expect.stringMatching(/^\[🖼️ transferred screenshot\.png #[a-f0-9]+\]$/u),
+        expect.stringMatching(/^\[🖼️ transferred screenshot\.png #[a-f0-9]+\]$/u),
       ]);
       expect(new Set(records.map(record => record.id)).size).toBe(2);
       expect(shell.root.promptChips.prepareSubmission(draft).images.map(image => image.data))

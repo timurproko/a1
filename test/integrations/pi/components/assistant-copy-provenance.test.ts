@@ -60,6 +60,13 @@ describe("assistant copy provenance", () => {
     expect(copied(value, 40)).toBe("new quote 界 é 👩‍💻");
   });
 
+  it("restores emoji source choices while excluding generated quote prefixes", () => {
+    const value = component("> ℹ then ℹ️ and ➡\uFE0E\n\n```\n    ➡\n```");
+    const rows = value.render(50).map(stripAnsi).join("\n");
+    expect(rows).toContain("ℹ️ then ℹ️ and ➡\uFE0E");
+    expect(copied(value, 50)).toBe("ℹ then ℹ️ and ➡\uFE0E\n\n```\n    ➡\n```");
+  });
+
   it("does not interpret literal border text as renderer decoration", () => {
     expect(copied(component("Literal │ border\n\n```\n│ keep\n    │ also keep\n```"), 80))
       .toBe("Literal │ border\n\n```\n│ keep\n    │ also keep\n```");

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { emojiPresentation } from "../../ui/components/emoji-presentation.js";
 import type { ClipboardPath, PreparedPasteText } from "./paste-types.js";
 
 const PATH_CHIP_PRESENTATION_UNITS = 4096;
@@ -31,7 +32,7 @@ export function* pathChipLabelCandidates(fullPath: string): Iterable<string> {
 
 /** Formats one path label with the established folder/file/image-file icon. */
 function pathChipTag(item: ClipboardPath, label = basePathLabel(item.fullPath)): string {
-  const icon = item.kind === "folder" ? "📁" : IMAGE_EXTENSION.test(item.fullPath) ? "🖼 " : "📄";
+  const icon = item.kind === "folder" ? "📁" : IMAGE_EXTENSION.test(item.fullPath) ? emojiPresentation("🖼") : "📄";
   return `[${icon} ${label}]`;
 }
 

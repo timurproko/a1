@@ -1,5 +1,6 @@
 import { Box, Markdown, Text, type Component } from "@earendil-works/pi-tui";
 import type { OwnedUiTranscriptBlock, PromptChipWrapProtection } from "../../../contracts/owned-ui/index.js";
+import { presentEmojiMarkdown } from "./emoji-markdown.js";
 import { protectPiPromptChipPresentation } from "./prompt-chip-presentation.js";
 import { getPiMarkdownTheme, piTheme } from "./theme.js";
 
@@ -37,11 +38,13 @@ export function createPiSubmittedPromptComponent(
     {
       preserveOrderedListMarkers: true,
       preserveBackslashEscapes: true,
-      ...(block.kind === "user" ? { transform: (text: string, width: number) => {
-        const wrapping = protectPiPromptChipPresentation(text, width);
+      transform: (text: string, width: number) => {
+        const presented = presentEmojiMarkdown(text);
+        if (block.kind !== "user") return presented;
+        const wrapping = protectPiPromptChipPresentation(presented, width);
         chipWrapping = wrapping;
         return wrapping.text;
-      } } : {}),
+      },
     },
   );
   const content: Component = {

@@ -177,7 +177,7 @@ describe("profile history store", () => {
     const dir = root(), imagesDir = join(dir, "images"), historyPath = join(dir, "history.sqlite3");
     const sidecar = new PromptImageSidecar(imagesDir);
     const store = new PromptHistoryStore(historyPath, "test-profile", 10, imagesDir);
-    const tags = ["[🖼 photo.png #aaaaaaaa]", "[📷 screenshot-bbbbbbbb]", "[🖼 photo.png #cccccccc-resized]"];
+    const tags = ["[🖼 photo.png #aaaaaaaa]", "[📷 screenshot-bbbbbbbb]", "[🖼️ photo.png #cccccccc-resized]"];
     for (const [index, id] of ["aaaaaaaa", "bbbbbbbb", "cccccccc"].entries()) {
       sidecar.write(id, { tag: tags[index]!, data: `payload-${index}`, mimeType: "image/png", savedAt: "t" });
       store.record({ id, text: tags[index]!, timestamp: index + 1, kind: "prompt" });
