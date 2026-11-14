@@ -10,6 +10,7 @@ import { ToolExecutionComponent } from "./upstream/components/tool-execution.js"
 import { SkillInvocationMessageComponent } from "./upstream/components/skill-invocation-message.js";
 import { piToolArguments as toolArguments, updatePiToolResult as updateToolResult } from "./tool-result-adapter.js";
 import { createTranscriptImageResolver } from "./transcript-image-resolver.js";
+import { presentEmojiMarkdown } from "./emoji-markdown.js";
 import { createMermaidMarkdownTransformer, type MermaidRenderingMode } from "./upstream/components/mermaid.js";
 import {
   Container,
@@ -235,14 +236,15 @@ function transcriptComponent(
       const visibleBlock = submittedPrompt === undefined || block.userPresentation === undefined ? block
         : { ...block, text: block.userPresentation.visibleText };
       const skill = parseSkillBlock(visibleBlock.text);
-      if (!skill) return submittedPrompt ? createPiSubmittedPromptComponent(visibleBlock, submittedPrompt) : new UserMessageComponent(visibleBlock.text);
-      const invocation = new SkillInvocationMessageComponent(skill, getPiMarkdownTheme(), outputPad);
+      if (!skill) return submittedPrompt ? createPiSubmittedPromptComponent(visibleBlock, submittedPrompt)
+        : new UserMessageComponent(visibleBlock.text, getPiMarkdownTheme(), outputPad, [presentEmojiMarkdown]);
+      const invocation = new SkillInvocationMessageComponent(skill, getPiMarkdownTheme(), outputPad, [presentEmojiMarkdown]);
       invocation.setExpanded(expanded);
       if (!skill.userMessage) return invocation;
       const container = new Container();
       container.addChild(invocation);
       container.addChild(new Spacer(1));
-      container.addChild(new UserMessageComponent(skill.userMessage));
+      container.addChild(new UserMessageComponent(skill.userMessage, getPiMarkdownTheme(), outputPad, [presentEmojiMarkdown]));
       return container;
     }
     case "assistant":
@@ -266,16 +268,15 @@ function transcriptComponent(
         timestamp: numericPayload(block, "timestamp") || 0,
       }, getPiMarkdownTheme(), outputPad, [
         createMermaidMarkdownTransformer({ getMode: () => mermaidRenderingMode, theme: piTheme() }),
+        presentEmojiMarkdown,
       ], block.id);
       component.setExpanded(expanded);
       return component;
     }
     case "retry":
-      return new Text(piTheme().fg("warning", `Retry: ${block.text}`), outputPad, 0);
     case "error":
-      return new Text(piTheme().fg("error", `Error: ${block.text}`), outputPad, 0);
     case "system":
-      return new Text(piTheme().fg("dim", block.text), outputPad, 0);
+      return new Text(transcriptText(block), outputPad, 0);
     case "custom":
       return customMessageComponent(block, expanded, extensions, outputPad);
     case "bash":
@@ -326,7 +327,7 @@ function assistantComponent(
 ): AssistantMessageComponent {
   const transformer = createMermaidMarkdownTransformer({ getMode: () => mermaidRenderingMode, theme: piTheme() });
   const component = new AssistantMessageComponent(
-    undefined, hideThinkingBlock, getPiMarkdownTheme(), undefined, outputPad, [transformer],
+    undefined, hideThinkingBlock, getPiMarkdownTheme(), undefined, outputPad, [transformer, presentEmojiMarkdown],
   );
   component.updateContent(validatedAssistantMessage(block), block.status === "live");
   return component;
@@ -456,7 +457,7 @@ function customMessageComponent(
     timestamp: numericPayload(block, "timestamp") || 0,
   };
   const renderer = validatedMessageRenderer(extensions?.getMessageRenderer(message.customType));
-  const component = new CustomMessageComponent(message, renderer, getPiMarkdownTheme(), outputPad);
+  const component = new CustomMessageComponent(message, renderer, getPiMarkdownTheme(), outputPad, [presentEmojiMarkdown]);
   component.setExpanded(expanded);
   return component;
 }
@@ -497,9 +498,10 @@ function completeBashComponent(component: BashExecutionComponent, block: OwnedUi
 }
 
 function transcriptText(block: OwnedUiTranscriptBlock): string {
-  if (block.kind === "retry") return piTheme().fg("warning", `Retry: ${block.text}`);
-  if (block.kind === "error") return piTheme().fg("error", `Error: ${block.text}`);
-  return piTheme().fg("dim", block.text);
+  const text = presentEmojiMarkdown(block.text);
+  if (block.kind === "retry") return piTheme().fg("warning", `Retry: ${text}`);
+  if (block.kind === "error") return piTheme().fg("error", `Error: ${text}`);
+  return piTheme().fg("dim", text);
 }
 
 

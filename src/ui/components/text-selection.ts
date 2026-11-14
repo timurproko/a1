@@ -1,3 +1,4 @@
+import { emojiSourceSlice } from "./emoji-presentation.js";
 import { backgroundSgrSpan } from "./spans.js";
 import { displayWidth, stripAnsi } from "./text.js";
 
@@ -202,7 +203,7 @@ export function textSelectionText(
     const contentTo = Math.max(contentFrom, (content?.to ?? Number.MAX_SAFE_INTEGER) - 1);
     const from = Math.max(baseFrom, contentFrom);
     const to = Math.max(from, Math.min(baseTo, contentTo));
-    parts.push(plain.slice(indexAtDisplayBoundary(plain, from, "start"), indexAtDisplayBoundary(plain, to, "end")).trimEnd());
+    parts.push(emojiSourceSlice(rows[line] ?? "", indexAtDisplayBoundary(plain, from, "start"), indexAtDisplayBoundary(plain, to, "end")).trimEnd());
   }
   return parts.join("\n");
 }
