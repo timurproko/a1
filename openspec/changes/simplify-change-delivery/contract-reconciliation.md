@@ -1,6 +1,6 @@
 # Contract reconciliation
 
-Current R11 resolution: the maintainer explicitly approved the paired scope clarification recorded in `r11-clarification.md`. R11 governs ordinary documentation auto-merge; existing release-specific automation remains unchanged under its existing eligibility and authorization rules. Both repositories' planning/deployed rulebooks and verification hashes are updated together. The historical R11 blocker below no longer requires approval; verify the clarified snapshot before recording completion. All other scope, validation and integration gates remain in force.
+Current R11 resolution (verified): the maintainer explicitly approved the paired scope clarification recorded in `r11-clarification.md`. R11 governs ordinary documentation auto-merge; existing release-specific automation remains unchanged under its existing eligibility and authorization rules. Both repositories' planning/deployed rulebooks and verification hashes are updated together. The historical R11 blocker below no longer requires approval; verify the clarified snapshot before recording completion. All other scope, validation and integration gates remain in force.
 
 ## Inspected checkpoint
 
@@ -69,3 +69,11 @@ Preserved-work reconciliation: `e6e52727e4e9a00be3c6ab715d3a9e6d42925ef8` was cl
 During checks, the observed base advanced to `82d030bf` (#925). After committing the independent work as `4d2cfdb5`, a second clean topic sync produced `c6d2bbf824d2b82460e59eb120d4c970cf27420d`; no observed base commits remained missing. Both topic merges preserve histories and are not integration of PR #923.
 
 Independent compatibility checks cover immutable version-1/2 receipts, legacy version-3 readers, existing CLI aliases, historical cleanup journals and standalone removal without runtime identity/credential storage. Paired rollout is documented in `docs/features/worktrees.md`; an installed compatible release, downstream adoption, live CI and human/device acceptance are not inferred from source tests.
+
+### Verified published paired clarification and final continuation
+
+Fetched PR #923's maintainer-published `147ea76f976f65dd3fb29cb9142a268f2f4f3901` and fast-forwarded the clean existing task from `f45c10971975a6908237974dcbd0729433964cd0`, preserving all implementation and completed work. The maintainer's PR notice and the current instruction explicitly resolve R11; no further R11 approval is required or requested.
+
+Verified all eight planning/deployed contract paths against `timurproko/xrbuild` PR #19's immutable published head `90336d61028c850b85da08a0f8aec931de7af839` using read-only GitHub contents requests, without a checkout, installation or migration of that repository. Both copies match the approved rulebook hash `f2518a1e49317eef3c64c79733162b80613afee0cbdaf6e6945117e1a6be9876` and manifest hash `940f241fbdb925c79b2c9717ead2b41e64f05e93b5ff4d9edd96fb3b11f1faa1`. Cases and adapter hashes remain unchanged, and a byte comparison outside R11 confirms all other rule sections are unchanged. Release controller/reopening/checker/workflow code is unchanged by this continuation and the clarification.
+
+Ordinary-docs operational wording now follows the approved scope. The current common-case run, ordinary-docs/release regressions and read-only finalization inspection passed; all source tasks are checked. Publish this evidence and the final PR outcome tick with plain Acceptance scenarios, keeping publication separate from local completion. Trusted automation retains readiness/finalization ownership. Downstream runtime-release availability remains a deployment prerequisite, not a claim of an installed release. No merge, release publication, hosting apply, label creation, private export or user-worktree cleanup is authorized.

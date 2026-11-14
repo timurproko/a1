@@ -1,6 +1,6 @@
 # Implementation observations
 
-Current R11 disposition: the maintainer-approved paired clarification in `r11-clarification.md` resolves the later wording blocker described below. Prior observations remain historical; this clarification changes no release behavior, case expectations or adapter values and does not claim new full-suite or CI results.
+Current R11 disposition: the maintainer-approved paired clarification in `r11-clarification.md` resolves the later wording blocker described below. Prior observations remain historical; this clarification changes no release behavior, case expectations or adapter values. Current local verification is recorded below, separately from CI and acceptance.
 
 ## Written and published checkpoints
 
@@ -9,7 +9,7 @@ Current R11 disposition: the maintainer-approved paired clarification in `r11-cl
 - `9f0835a0`: existing task-branch continuation and fresh publication-aware handoff.
 - `05eac02a`: distinct published local removal, retained-ref bookkeeping, bounded preservation/recovery and the exact runtime adapter.
 - `dbf0a60d`: written preservation repairs for merged-completion preflight, adapter binding, KEEP/claim gates and forbidden process stopping.
-- `e214a019`: written exact-candidate integration, authenticated native-arm evidence, live documentation activation checks, scope guards and the executable common-case verifier. The overall fifth PR outcome remains incomplete.
+- `e214a019`: written exact-candidate integration, authenticated native-arm evidence, live documentation activation checks, scope guards and the executable common-case verifier. At that checkpoint the overall fifth PR outcome remained incomplete.
 - Publication is verified separately at handoff. Task/PR progress is not a CI or acceptance verdict.
 
 ## Focused local checks actually observed
@@ -41,9 +41,20 @@ The maintainer directed that release-specific automation remain unchanged and ou
 - The full common-case runner passed again after these independent repairs: 50 unchanged cases, all 11 preservation hazards, 51 passing tests including completeness, zero skipped. The canonical-target late-content fixture was corrected without weakening its expected error or data/attachment assertions.
 - Core build, typecheck, architecture, code-documentation governance, strict OpenSpec validation, frozen-byte/scope inspection and whitespace checks passed. These are local observations, not installed-runtime, live-CI or human/device acceptance evidence.
 
+## Approved R11 verification and implementation completion
+
+Fetched and preserved the maintainer's `147ea76f976f65dd3fb29cb9142a268f2f4f3901` update. The maintainer's PR notice and `r11-clarification.md` explicitly approve the paired refinement; no further R11 decision is pending. Read-only contents verification confirmed all eight planning/deployed contract paths match across both published PRs at their observed immutable heads. The new rulebook/manifest hashes match the approved anchors; the 50 cases, adapters and all non-R11 rule sections remain byte-identical.
+
+- The current common-case runner passed all 50 unchanged cases and all 11 hazards, plus its final completeness assertion: 51 passed, zero failed/skipped.
+- Six focused guidance, planning/contract, ordinary-docs/release controller, integration/provenance, release-documentation and repository-governance files passed all 175 tests. Existing release-specific expectations and release code/workflows are unchanged.
+- Updated only ordinary-docs operational wording to route to R11 rather than a blanket docs prefix or blind human-arm cancellation. Added guidance consistency coverage while preserving the existing release-route description and checker.
+- Typecheck, architecture, full code-documentation governance, strict OpenSpec validation, contract installation/scope inspection and whitespace checks passed for the clarified snapshot.
+- Intended-body validation passed both before and after the previewed final tick. A fresh fetch found no missing `develop` commits; read-only finalization inspection returned `would-finalize` against that current base, validating tasks, Acceptance, archive/delta preparation and the conditional manifest in a temporary sandbox. No archive/spec synchronization was applied to this checkout and the agent did not mark the PR ready.
+- All implementation tasks are written and checked. Plain implementation-specific Acceptance scenarios are prepared for the PR; publication and the final PR checkbox are separate from trusted readiness/finalization and required finalized-head CI. Compatible installed A1 support before downstream adoption, live activation and optional human/device observation remain deployment/evidence boundaries, not unperformed source tasks or claimed validation.
+
 ## Evidence still separate
 
-The executable fixed-dispatch verifier subsequently passed all 50 unchanged cases, asserting every expected field, with all 11 C37 preservation hazards and no skipped cases. Its private invocation receipts reject expected-result-returning adapters without actual implementation calls. The local command was `node --import tsx --test test/repository-governance/portable-delivery-cases.node.mjs`; it reported 51 passing tests including the final completeness assertion. Twenty-seven additional integration/provenance tests and ten scope/scratch tests passed, including a hold appearing on the final pre-merge read. Initial failures in test transport instrumentation/fixtures were repaired without changing the frozen expectations; a real one-shot diagnostic defect was fixed so changed raw body/head/base snapshots require a fresh decision even when the new body is invalid. These results do not complete outcome 5: the later release-reopening conflict is explicitly recorded in `contract-reconciliation.md`, and focused preservation/guidance checks remain independently reported.
+The executable fixed-dispatch verifier subsequently passed all 50 unchanged cases, asserting every expected field, with all 11 C37 preservation hazards and no skipped cases. Its private invocation receipts reject expected-result-returning adapters without actual implementation calls. The local command was `node --import tsx --test test/repository-governance/portable-delivery-cases.node.mjs`; it reported 51 passing tests including the final completeness assertion. Twenty-seven additional integration/provenance tests and ten scope/scratch tests passed, including a hold appearing on the final pre-merge read. Initial failures in test transport instrumentation/fixtures were repaired without changing the frozen expectations; a real one-shot diagnostic defect was fixed so changed raw body/head/base snapshots require a fresh decision even when the new body is invalid. Those observations alone did not complete outcome 5 at that checkpoint; the later release-reopening conflict and its subsequent approved resolution are recorded in `contract-reconciliation.md`. Current completion evidence is in the approved R11 verification section above.
 
 ## Subsequent focused repairs and observations
 

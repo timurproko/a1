@@ -21,6 +21,17 @@ describe("shared delivery guidance", () => {
     expect(agents.split(DELIVERY_ROUTE)).toHaveLength(2);
   });
 
+  it("routes ordinary documentation to clarified R11 without replacing the release-specific route", async () => {
+    const delivery = await readFile(resolve(root, "docs/openspec-archive-automation.md"), "utf8");
+    const ci = await readFile(resolve(root, "docs/ci-release-runbook.md"), "utf8");
+    expect(delivery).toContain("Ordinary documentation integration follows [R11]");
+    expect(delivery).toContain("existing release-reopening route retains its own eligibility and authorization checks");
+    expect(delivery).not.toContain("Before finalization or without valid human provenance, any arm is disabled");
+    expect(ci).toContain("a docs\nprefix alone is not eligibility");
+    expect(ci).toContain("except in the verified release reopening PR");
+    expect(ci).toContain("Human arms follow R08/R10 ownership and exact-binding safeguards");
+  });
+
   it("routes Claude Code, the skill and runbooks without duplicating progress policy", async () => {
     const claude = await readFile(resolve(root, "CLAUDE.md"), "utf8");
     expect(claude.trim()).toBe("@AGENTS.md");
