@@ -1026,6 +1026,10 @@ describe("Pi shell public component adapters", () => {
       if (action!.includes("prompt")) expect(row).not.toContain("Ctrl+Home");
       if (action!.includes("prompt")) expect(row).not.toContain("Ctrl+End");
     }
+    const promptJump = owned.split("\n").find(line => line.includes("Previous / next prompt or compaction"));
+    expect(promptJump).toContain("Ctrl+Shift+Up");
+    expect(promptJump).toContain("Ctrl+Shift+Down");
+    expect(pinned).not.toContain("Previous / next prompt or compaction");
     expect(pinned).not.toContain("Start of content");
     expect(pinned.split("\n").find(line => line.includes("Start of line"))).toContain("Home/Ctrl+A");
     expect(pinned.split("\n").find(line => line.includes("End of line"))).toContain("End/Ctrl+E");

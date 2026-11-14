@@ -44,6 +44,7 @@ import type {
 const LEGACY_KEY_BYTES: Readonly<Record<string, string>> = {
   escape: "\u001b", up: "\u001b[A", down: "\u001b[B", right: "\u001b[C", left: "\u001b[D",
   "shift+up": "\u001b[1;2A", "shift+down": "\u001b[1;2B", pageUp: "\u001b[5~", pageDown: "\u001b[6~",
+  "shift+ctrl+up": "\u001b[1;6A", "shift+ctrl+down": "\u001b[1;6B",
   home: "\u001b[H", end: "\u001b[F", "ctrl+home": "\u001b[1;5H", "ctrl+end": "\u001b[1;5F",
   enter: "\r", tab: "\t", "shift+tab": "\u001b[Z", backspace: "\u007f", delete: "\u001b[3~",
   space: " ", "ctrl+c": "\u0003", "ctrl+z": "\u001a",
