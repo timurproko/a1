@@ -26,7 +26,7 @@ The maintainer integration decision accepts these scenarios:
     "Whole-chip transcript copying retains its original source while partial filename selection copies only selected visible characters.",
     "The Pi comparison route retains its existing attachment chip presentation."
   ],
-  "archiveDigest": "51bff80dc0d13f814aa9c41f14a8ef6f72fe5a2471d6703b1742f71f6961cc34",
+  "archiveDigest": "705e3eaee7293985520c3ac66d1311fd6f24e60d049ace309fe4b21fbc7233b1",
   "specDigest": "6af877ee466d7b1e792d78717cbe360a846b6132870d88c8cbc6fe010010c556",
   "tasksDigest": "3ad43f7de3dfce524803e6aa8d648b9ced3df51c9e6047a45f54242909116ec9",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
