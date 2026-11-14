@@ -1,5 +1,7 @@
 export const REGISTRY_VERIFICATION_ATTEMPTS: 180;
 export const REGISTRY_VERIFICATION_INTERVAL_MS: 10000;
+export const REGISTRY_REQUEST_TIMEOUT_MS: 30000;
+export const REGISTRY_TARBALL_MAX_BYTES: number;
 
 export interface RegistryPackageIdentity {
   readonly name: string;
@@ -17,6 +19,8 @@ export interface PublishedPairVerificationOptions {
   readonly report?: (message: string) => void;
   readonly attempts?: number;
   readonly intervalMs?: number;
+  readonly requestTimeoutMs?: number;
+  readonly maxTarballBytes?: number;
 }
 
 export function verifyPublishedPair(options: PublishedPairVerificationOptions): Promise<{

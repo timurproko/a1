@@ -1,7 +1,7 @@
 ## 1. Gate publication on downloadable validated tarballs
 
-- [ ] 1.1 Stream and hash both exact registry tarballs with bounded URL, request, and size checks while retaining ingestion polling.
-- [ ] 1.2 Add focused registry readiness and byte-integrity regression tests and update the operator runbook.
+- [x] 1.1 Stream and hash both exact registry tarballs with bounded URL, request, and size checks while retaining ingestion polling.
+- [x] 1.2 Add focused registry readiness and byte-integrity regression tests and update the operator runbook.
 
 ## 2. Preserve published-installer failure diagnostics
 
