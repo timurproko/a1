@@ -54,6 +54,7 @@ describe("A1 CLI dispatch", () => {
     [["worktree", "detach"], { kind: "session-context", request: { action: "unlink-worktree" } }],
     [["worktree", "list"], { kind: "session-context", request: { action: "worktrees" } }],
     [["worktree", "complete"], { kind: "session-context", request: { action: "complete-worktree" } }],
+    [["worktree", "remove-local"], { kind: "session-context", request: { action: "remove-local-worktree" } }],
     [["worktree", "complete", "--pr", "914", "--change", "name-dot-spinner"], { kind: "session-context", request: { action: "complete-worktree", change: "name-dot-spinner", pr: 914 } }],
     [["session", "worktrees"], { kind: "session-context", request: { action: "worktrees" } }],
     [["session", "link-worktree", "D:/worktree"], { kind: "session-context", request: { action: "link-worktree", path: "D:/worktree" } }],
@@ -71,6 +72,7 @@ describe("A1 CLI dispatch", () => {
     ["attach", "D:/task", "extra"], ["detach", "extra"], ["list", "extra"], ["remove", "D:/task"],
     ["complete", "D:/task"], ["complete", "--pr"], ["complete", "--pr", "0"], ["complete", "--pr", "1", "--pr", "2"],
     ["complete", "--change", "Not_A_Change"], ["complete", "--force", "yes"],
+    ["remove-local", "D:/task"], ["remove-local", "--force"], ["remove-local", "--pr", "923"],
   ])("rejects incomplete or unsupported worktree arguments %j", (...args) => {
     expect(parseCliCommand(["worktree", ...args], PRERELEASE)).toMatchObject({ kind: "error" });
   });
@@ -84,11 +86,31 @@ describe("A1 CLI dispatch", () => {
     expect(cliHelp(PRERELEASE)).toContain("worktree enter <branch>");
     expect(cliHelp(PRERELEASE)).toContain("detach preserves files");
     expect(cliHelp(PRERELEASE)).toContain("worktree complete [--change <id>] [--pr <number>]");
+    expect(cliHelp(PRERELEASE)).toContain("worktree remove-local");
     expect(cliHelp(PRERELEASE)).toContain("session worktrees");
     expect(cliHelp(PRERELEASE)).toContain("session unlink-worktree");
     expect(cliHelp(PRERELEASE)).not.toContain("solo");
     expect(cliUsage(PRERELEASE)).not.toContain("solo");
     expect(parseCliCommand(["solo"], RELEASE)).toEqual({ kind: "noop" });
+  });
+
+  it.each([PRERELEASE, RELEASE])("preserves session worktree aliases without setup or nested launch (%j)", async capabilities => {
+    for (const [current, legacy] of [
+      [["worktree", "attach", "D:/task"], ["session", "link-worktree", "D:/task"]],
+      [["worktree", "detach"], ["session", "unlink-worktree"]],
+      [["worktree", "list"], ["session", "worktrees"]],
+    ] as const) {
+      const parsed = parseCliCommand(current, capabilities);
+      expect(parseCliCommand(legacy, capabilities)).toEqual(parsed);
+      if (parsed.kind !== "session-context") throw new Error("expected a context-only command");
+      for (const args of [current, legacy]) {
+        const commands = handlers(); commands.sessionContext.mockResolvedValue(19);
+        expect(await dispatchCli(args, commands, output(), capabilities)).toBe(19);
+        expect(commands.sessionContext).toHaveBeenCalledExactlyOnceWith(parsed.request);
+        expect(commands.launch).not.toHaveBeenCalled(); expect(commands.update).not.toHaveBeenCalled();
+        expect(commands.packages).not.toHaveBeenCalled(); expect(commands.version).not.toHaveBeenCalled();
+      }
+    }
   });
 
   it.each([PRERELEASE, RELEASE])("dispatches explicit session selection in either option order (%j)", async capabilities => {

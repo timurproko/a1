@@ -53,12 +53,10 @@ export async function enterSessionRepositoryWorktree(
   if (await lstat(path).then(() => true, error => { if (hasCode(error, "ENOENT")) return false; throw error; })) {
     throw failure("worktree-path-collision", "the task path already exists; existing files were preserved");
   }
-  if (await git("branch", "--list", branch)) {
-    throw failure("worktree-branch-collision", "the branch already exists without a matching checkout; existing history was preserved");
-  }
+  const { resumed, remotes } = await prepareExistingTaskBranch(branch, path, git);
+  if (resumed) return await setSessionRepositoryContext(identity, path, options);
   // Security: never execute repository setup. The selected base is data, not a shell expression.
   const configured = base ?? await git("config", "--get", "a1.worktreeBase").catch(() => "");
-  const remotes = (await git("remote")).split(/\r?\n/u);
   let selectedBase = configured;
   if (remotes.includes("origin")) {
     if (!selectedBase) {
@@ -84,6 +82,36 @@ export async function enterSessionRepositoryWorktree(
   }
   await git("worktree", "add", "--no-track", "-b", branch, path, selectedBase);
   return await setSessionRepositoryContext(identity, path, options);
+}
+
+async function prepareExistingTaskBranch(branch: string, path: string, git: (...args: string[]) => Promise<string>): Promise<{ resumed: boolean; remotes: string[] }> {
+  const local = await git("branch", "--list", branch);
+  const remotes = (await git("remote")).split(/\r?\n/u);
+  let remoteTip: string | undefined;
+  if (remotes.includes("origin")) {
+    const advertised = await git("ls-remote", "--heads", "origin", `refs/heads/${branch}`);
+    if (advertised) {
+      const match = /^([a-f0-9]{40,64})\s+refs\/heads\/(.+)$/u.exec(advertised);
+      if (!match || match[2] !== branch) throw failure("worktree-remote-invalid", "the remote branch identity could not be verified");
+      await git("fetch", "--no-tags", "origin", `refs/heads/${branch}:refs/remotes/origin/${branch}`);
+      remoteTip = await git("rev-parse", `refs/remotes/origin/${branch}`);
+      if (remoteTip !== match[1]) throw failure("worktree-remote-changed", "the remote branch changed while fetching; existing work was preserved");
+    } else if (local) await git("fetch", "--no-tags", "origin");
+  }
+  if (local) {
+    if (remoteTip !== undefined) {
+      const ancestor = async (left: string, right: string) => {
+        try { await git("merge-base", "--is-ancestor", left, right); return true; }
+        catch (error) { if (error instanceof Error && "code" in error && error.code === 1) return false; throw error; }
+      };
+      if (!await ancestor(`refs/heads/${branch}`, remoteTip) && !await ancestor(remoteTip, `refs/heads/${branch}`)) {
+        throw failure("worktree-branch-diverged", "local and remote task history diverged; neither was reset or replaced");
+      }
+    }
+    // Invariant: an unoccupied local branch keeps its exact tip, including unpublished commits.
+    await git("worktree", "add", path, branch);
+  } else if (remoteTip !== undefined) await git("worktree", "add", "--no-track", "-b", branch, path, remoteTip);
+  return { resumed: Boolean(local) || remoteTip !== undefined, remotes };
 }
 
 function samePath(left: string, right: string): boolean {

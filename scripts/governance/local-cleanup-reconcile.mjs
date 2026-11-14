@@ -6,7 +6,6 @@ import { discoverRepository, emptyDirectoryTree, exists, inside, inspectResidue,
 import { acceptedHead, mergedIntoDevelop, verifyCleanupEvidence } from "./local-cleanup-evidence.mjs";
 import { pruneMergedBranches } from "./local-cleanup-branches.mjs";
 import { cleanupPreflight } from "./local-cleanup-preflight.mjs";
-import { stopCheckoutDevelopmentProcesses } from "../development/checkout-process-inspection.mjs";
 
 /** A folder Git left behind is removable only once it has sat untouched long enough that no worktree add or removal is mid-flight. */
 const EMPTY_DIRECTORY_GRACE_MS = 10 * 60 * 1000;
@@ -37,10 +36,11 @@ export async function writeLocalCleanupReport(store, report, now) {
 export async function reconcileLocalCleanup({ identity, store, reader, preview = true, now = Date.now, deadline = now() + 60000,
   cancelled = () => false, git = gitRunner({ deadline, now }), verify = verifyCleanupEvidence, inspect = inspectWorktree,
   remove = removeWorktree, removeRef = removeLocalRef, purge = purgeDisposable, repair = repairResidue,
-  preflight = cleanupPreflight, stopDevProcesses = false, stopProcesses = stopCheckoutDevelopmentProcesses,
+  preflight = cleanupPreflight, stopDevProcesses = false,
   cwd = process.cwd(), entryIds = null, heldEntryIds = [], requireEnabled = true, includeUnmanaged = true, stopSince = null, pruneBranches = false,
   ancestorOf = (sha, head) => acceptedHead(reader, sha, head), merged = entry => mergedIntoDevelop(reader, entry) }) {
   const report = { version: 1, preview, results: [], coverage: { total: 0, visited: 0, complete: false }, at: now() };
+  if (stopDevProcesses) return { ...report, error: "process-termination-forbidden" };
   // Protocol: a completed-delivery HEAD or tip is accepted when every reachable commit is reachable from the merged head.
   const acceptedFor = (entry, evidence) => {
     const head = entry.role === "acceptance" ? null : evidence[entry.role === "archive" ? "archiveHead" : "sourceHead"];
@@ -53,7 +53,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
     if (selectedIds && (selectedIds.size !== entryIds.length || entryIds.some(id => typeof id !== "string"))) fail("candidate-selection");
     if (heldIds.size !== heldEntryIds.length || heldEntryIds.some(id => typeof id !== "string") || [...heldIds].some(id => !selectedIds?.has(id))) fail("candidate-selection");
     const selected = entry => selectedIds === null || selectedIds.has(entry.id);
-    const entries = state.entries.filter(entry => entry.state !== "done" && !["discard", "redundant"].includes(entry.role) && selected(entry));
+    const entries = state.entries.filter(entry => entry.state !== "done" && !["discard", "redundant", "local-removal"].includes(entry.role) && selected(entry));
     if (selectedIds && !state.entries.some(selected)) fail("candidate-selection");
     report.coverage.total = entries.length;
     const start = entries.length ? state.cursor % entries.length : 0;
@@ -94,18 +94,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
         // Protocol: a released path deleted by hand is judged by its journal, not by a directory that no longer exists.
         const absentBeforeRemoval = entry.step === "none" && !await exists(entry.path);
         if (entry.step === "none" && !absentBeforeRemoval) {
-          let content = await preflight(identity, entry, { inspect, git, cwd, deadline, now, accepted });
-          if (!preview && stopDevProcesses && content.blockers?.length && content.blockers.every(item => item.reason === "development-processes-running")) {
-            await enabled();
-            const currentEvidence = await verify(reader, entry);
-            if (currentEvidence.disposition !== "eligible") { Object.assign(row, currentEvidence); continue; }
-            const currentContent = await inspect(identity, entry, { git, cwd, deadline, now, accepted });
-            if (!currentContent.clean) { Object.assign(row, currentContent, { disposition: "blocked" }); continue; }
-            const stopped = await stopProcesses(entry.path, { deadline });
-            row.stoppedDevelopmentProcesses = stopped.stopped;
-            if (stopped.survivors.length) { Object.assign(row, content, { reason: "development-process-survivors", survivors: stopped.survivors, blockers: [{ reason: "development-process-survivors", pids: stopped.survivors }], disposition: "blocked" }); continue; }
-            content = await preflight(identity, entry, { inspect, git, cwd, deadline, now, accepted });
-          }
+          const content = await preflight(identity, entry, { inspect, git, cwd, deadline, now, accepted });
           if (!content.clean) { Object.assign(row, content, { disposition: deferred(content.reason) ? "deferred" : "blocked" }); continue; }
         } else if (entry.step === "remove-intent" || absentBeforeRemoval) {
           const residue = await inspectResidue(identity, entry, { git, cwd, deadline, now, inspect });
@@ -166,7 +155,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
       }
     }
     report.coverage.complete = report.coverage.visited === entries.length;
-    const completed = state.entries.filter(item => item.state === "done" && !["discard", "redundant"].includes(item.role) && selected(item)
+    const completed = state.entries.filter(item => item.state === "done" && !["discard", "redundant", "local-removal"].includes(item.role) && selected(item)
       && !report.results.some(row => row.id === item.id));
     const completedBudget = Math.max(0, 100 - report.coverage.visited);
     for (const entry of completed.slice(0, completedBudget)) {
@@ -216,7 +205,7 @@ export async function reconcileLocalCleanup({ identity, store, reader, preview =
     if (pruneBranches && !preview) {
       // Rationale: an exhausted candidate pass defers branch pruning to the next sweep instead of failing the whole report.
       try { await enabled(); report.branches = await pruneMergedBranches({ identity, state, reader, git, deadline, now, ancestorOf, cancelled, enabled,
-        acquireResources: store.acquireResources, registeredRef: ref => store.locked(fresh => fresh.entries.some(entry => entry.state !== "done" && entry.ref === ref)) }); }
+        acquireResources: store.acquireResources, registeredRef: ref => store.locked(fresh => fresh.entries.some(entry => (entry.state !== "done" || entry.role === "local-removal") && entry.ref === ref)) }); }
       catch (error) { report.branches = { results: [], coverage: { total: 0, visited: 0, complete: false }, deferred: reason(error) }; }
     }
     if (!preview) await writeLocalCleanupReport(store, report, now());

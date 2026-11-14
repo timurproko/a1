@@ -1,13 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 import { pullRequestsFor, remotePresent } from "./local-cleanup-branches.mjs";
+import { cleanupPreflight } from "./local-cleanup-preflight.mjs";
 import { COMPLETION_DISPOSABLE_PATHS } from "./local-cleanup-complete.mjs";
 import {
   captureWorktree,
   discoverRepository,
   exists,
   gitRunner,
-  inspectWorktree,
   parseWorktrees,
   purgeDisposable,
   readLocalRef,
@@ -46,7 +46,7 @@ export async function verifyRedundantWorktree(identity, reader, entry, git = git
 /** One explicitly confirmed transaction for an unregistered checkout that contains no unique work. */
 export async function retireRedundantWorktree({ identity, store, reader, path, confirmed = false,
   cwd = process.cwd(), now = Date.now, deadline = now() + 60000, git = gitRunner({ deadline, now }),
-  verify = verifyRedundantWorktree, inspect = inspectWorktree, remove = removeWorktree,
+  verify = verifyRedundantWorktree, inspect = cleanupPreflight, remove = removeWorktree,
   removeRef = removeLocalRef, purge = purgeDisposable, repair = repairResidue }) {
   const absolute = resolve(path).replaceAll("\\", "/");
   const report = { version: 1, operation: "retire-redundant", results: [], coverage: { total: 1, visited: 0, complete: false }, at: now() };

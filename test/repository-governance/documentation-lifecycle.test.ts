@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { classifyDocumentationAutoMerge } from "../../scripts/governance/documentation-auto-merge.mjs";
 import { inspectDocumentationLifecycle } from "../../scripts/governance/documentation-lifecycle.mjs";
 
 const base = "a".repeat(40), head = "b".repeat(40);
@@ -62,6 +63,12 @@ describe("implementation-bound documentation hold", () => {
   it.each(["README.md", "docs/guide.md", `${archived}proposal.md`])("keeps unassociated %s on the documentation path", async filename => {
     const f = fixture();
     expect(await inspectDocumentationLifecycle(f.pull, [{ filename, status: "modified" }], f.reader)).toMatchObject({ held: false });
+    expect(f.requests).toHaveLength(0);
+  });
+  it.each(["docs/local-worktree-cleanup.md", "docs/governance/rules.md"])("keeps historical linkage separate from auto-merge authority for %s", async filename => {
+    const f = fixture(), files = [{ filename, status: "modified" }];
+    expect(await inspectDocumentationLifecycle(f.pull, files, f.reader)).toMatchObject({ held: false, reason: "standalone-documentation" });
+    expect(classifyDocumentationAutoMerge(files).eligible).toBe(false);
     expect(f.requests).toHaveLength(0);
   });
   it("holds drafts and incomplete or missing classification inputs", async () => {

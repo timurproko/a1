@@ -14,10 +14,15 @@ import { discardBranchCleanup } from "./local-cleanup-branch-discard.mjs";
 import { unlinkDisposableLink } from "./local-cleanup-link.mjs";
 import { retireRedundantWorktree } from "./local-cleanup-redundant.mjs";
 import { preserveExport } from "./local-cleanup-export.mjs";
+import { removePublishedLocalWorktree } from "./local-cleanup-remove-local.mjs";
+import { inspectLocalPreservation } from "./local-cleanup-preservation.mjs";
 
 const help = `Local worktree cleanup (disabled until explicitly enabled)
 Usage: node scripts/governance/local-worktree-cleanup.mjs COMMAND --repo PRIMARY [options]
-Commands: preview (default), status, handoff, sweep, complete, discard, preserve-export, unlink-disposable-link, retire-redundant, forget, enable, disable, once, watch, register, claim, release, recover
+Commands: preview (default), status, handoff, sweep, complete, remove-local, preservation-preflight, discard, preserve-export, unlink-disposable-link, retire-redundant, forget, enable, disable, once, watch, register, claim, release, recover
+Remove local: --path PATH --confirm-local-removal [--preflight [--runtime-preflight]]
+  Removes one exact owned published checkout, retaining all branch refs and remote resources. No merge/CI/archive gate.
+  Preflight inspects without removal/enrollment. Runtime preflight permits the runtime's still-attached claim only during inspection.
 Forget: --id ID --confirm-nothing-left
   Marks a released entry whose worktree, Git row, and local ref are all already absent as forgotten; reads nothing remote, deletes nothing.
 Handoff: --path PATH --change NAME --pr N
@@ -26,8 +31,10 @@ Handoff: --path PATH --change NAME --pr N
 Sweep: one bounded pass that completes every handed-off candidate whose PR is verified merged, reports open ones as
   pending and rejected ones as awaiting-discard, and prunes merged local topic branches by pull-request evidence.
   Disjoint worktree/ref cleanups may overlap; a command already holding the same resource defers only that candidate.
-Complete: --path PATH --change NAME --pr N [--role implementation|archive|acceptance] [--stop-dev-processes]
-  Explicit stop authorization applies only to freshly verified development processes of this eligible clean candidate.
+Preservation preflight: --path PATH [--runtime-preflight]
+  Inspects one exact checkout without publication/merge gates, removal or cleanup enrollment.
+Complete: --path PATH --change NAME --pr N [--role implementation|archive|acceptance]
+  Legacy --stop-dev-processes reports process-termination-forbidden under shared R14; no process is stopped.
   Runs one exact-candidate post-merge cleanup with repository-owned generated paths: ${COMPLETION_DISPOSABLE_PATHS.join(", ")}.
 Discard: (--path PATH | --branch TOPIC) --change NAME --pr N --confirm-closed-unmerged
   Deletes only one verified closed-unmerged PR's unchanged refs; --path also removes its worktree.
@@ -78,15 +85,18 @@ export async function main(args = process.argv.slice(2)) {
     link: { type: "string" }, "confirm-link-only": { type: "boolean" }, file: { type: "string" }, "confirm-preserve-export": { type: "boolean" },
     "confirm-stopped": { type: "boolean" }, "confirm-closed-unmerged": { type: "boolean" }, "confirm-redundant": { type: "boolean" },
     "confirm-nothing-left": { type: "boolean" }, "stop-dev-processes": { type: "boolean" }, help: { type: "boolean" },
+    "confirm-local-removal": { type: "boolean" }, preflight: { type: "boolean" }, "runtime-preflight": { type: "boolean" },
   } });
   if (values.help) { console.log(help); return; }
   if (positionals.length > 1) fail("command-count");
   const command = positionals[0] ?? "preview";
-  if (!["preview", "status", "handoff", "sweep", "complete", "discard", "preserve-export", "unlink-disposable-link", "retire-redundant", "forget", "enable", "disable", "once", "watch", "register", "claim", "release", "recover"].includes(command)) fail("unknown-command");
+  if (!["preview", "status", "handoff", "sweep", "complete", "remove-local", "preservation-preflight", "discard", "preserve-export", "unlink-disposable-link", "retire-redundant", "forget", "enable", "disable", "once", "watch", "register", "claim", "release", "recover"].includes(command)) fail("unknown-command");
   const identity = await discoverRepository(values.repo ?? process.cwd());
   const store = createStateStore(identity);
+  if (command !== "remove-local" && (values["confirm-local-removal"] !== undefined || values.preflight !== undefined || command !== "preservation-preflight" && values["runtime-preflight"] !== undefined)) fail("local-removal-arguments");
   if (command !== "preserve-export" && (values.file !== undefined || values["confirm-preserve-export"] !== undefined)) fail("export-preservation-arguments");
   if (command !== "complete" && values["stop-dev-processes"] !== undefined) fail("development-stop-arguments");
+  if (values["stop-dev-processes"] === true) fail("process-termination-forbidden");
   if (command !== "retire-redundant" && values["confirm-redundant"] !== undefined) fail("redundant-arguments");
   if (command !== "discard" && values.branch !== undefined) fail("discard-arguments");
   if (command !== "unlink-disposable-link" && (values.link !== undefined || values["confirm-link-only"] !== undefined)) fail("disposable-link-arguments");
@@ -143,7 +153,27 @@ export async function main(args = process.argv.slice(2)) {
     }));
     return;
   }
-  if (["complete", "discard", "preserve-export", "unlink-disposable-link", "retire-redundant", "sweep", "once", "watch"].includes(command) && inside(identity.root, await canonical(fileURLToPath(import.meta.url)))) fail("worker-code-inside-removable-root");
+  if (["complete", "remove-local", "discard", "preserve-export", "unlink-disposable-link", "retire-redundant", "sweep", "once", "watch"].includes(command) && inside(identity.root, await canonical(fileURLToPath(import.meta.url)))) fail("worker-code-inside-removable-root");
+  if (command === "preservation-preflight") {
+    const allowed = new Set(["repo", "path", "runtime-preflight"]);
+    if (!values.path || Object.keys(values).some(key => !allowed.has(key))) fail("preservation-preflight-arguments");
+    const report = await inspectLocalPreservation({ identity, store, path: values.path, runtimePreflight: values["runtime-preflight"] === true,
+      ownerToken: process.env.LOCAL_CLEANUP_OWNER_TOKEN ?? null, cwd: process.cwd() });
+    console.log(JSON.stringify(report, null, 2));
+    if (!report.results.every(row => row.disposition === "eligible")) process.exitCode = 1;
+    return;
+  }
+  if (command === "remove-local") {
+    const allowed = new Set(["repo", "path", "confirm-local-removal", "preflight", "runtime-preflight"]);
+    if (!values.path || values["confirm-local-removal"] !== true || values["runtime-preflight"] && !values.preflight
+      || Object.keys(values).some(key => !allowed.has(key))) fail("local-removal-arguments");
+    const report = await removePublishedLocalWorktree({ identity, store, path: values.path, confirmed: true,
+      preflightOnly: values.preflight === true, runtimePreflight: values["runtime-preflight"] === true,
+      ownerToken: process.env.LOCAL_CLEANUP_OWNER_TOKEN ?? null, cwd: process.cwd() });
+    console.log(JSON.stringify(report, null, 2));
+    if (!report.results.every(row => ["eligible", "removed", "already-absent"].includes(row.disposition))) process.exitCode = 1;
+    return;
+  }
   let nextAllowed = 0;
   async function authorizedReader(deadline) {
     let token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;

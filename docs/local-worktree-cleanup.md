@@ -1,5 +1,7 @@
 # Local worktree cleanup after verified delivery
 
+Read and follow [Shared delivery rules](delivery-rules.md), using this repository's entry in [Delivery adapters](delivery-adapters.json). This runbook supplies command syntax, evidence formats and recovery details; the shared rules own preservation and deletion authority.
+
 Local cleanup completes the delivery order in [the archive runbook](openspec-archive-automation.md). For version 3 that is one authorized manual implementation/acceptance/archive merge, read-only verification, remote topic-ref deletion, then safe local cleanup. Legacy versions still require their applicable acceptance-record and automatic archive merges. GitHub Actions never reaches into a developer machine. Local cleanup never publishes archives or merges PRs; `complete`, `retire-redundant`, preview, and queue/watch do not delete remote refs, while explicitly confirmed closed-unmerged `discard` owns only its exact expected-SHA topic-ref deletion.
 
 The implementation is repository tooling, not part of the installed A1 product. It requires Node, Git, and GitHub read access; the explicit closed-unmerged discard operation additionally requires authenticated permission to delete its exact remote topic ref. No product build, dependency installation, interactive UI, or OS-service provisioning is needed. It supports this repository's `origin` on github.com, via HTTPS or SSH. The repository-local `remote.origin.url` must retain that canonical GitHub spelling; Git may still rewrite the effective transport through `url.*.insteadOf` to select an account-specific SSH host/key. A literal SSH alias remains unsupported because cleanup does not trust external SSH configuration as repository identity.
@@ -23,7 +25,7 @@ Automatic cleanup remains conservative. Explicit file decisions do not weaken wo
 
 ## Hand-off and sweep: the ordinary agent path
 
-The delivering agent's session usually ends before the maintainer merges, so cleanup is split into two commands that never need the same session. When the validated PR is handed to the maintainer, and again after any repair push, the owning agent parks the worktree from the primary checkout:
+Cleanup enrollment is the separately explicit local operation described in [R12](delivery-rules.md#r12---portable-handoff). To enroll an owned candidate from primary, use:
 
 ```bash
 node scripts/governance/local-worktree-cleanup.mjs handoff   --repo D:/Git/a1   --path D:/Git/a1/.worktrees/example-task   --change example-change   --pr 123
@@ -31,7 +33,7 @@ node scripts/governance/local-worktree-cleanup.mjs handoff   --repo D:/Git/a1   
 
 `handoff` registers the exact worktree if it is not registered yet (or reclaims the existing released entry), records its current HEAD and branch, applies the central disposable policy, and releases it. It evaluates nothing, deletes nothing, and does not enable the queue. That release is the candidate-scoped cleanup authorization for this worktree and its topic ref, exercised only once the merge, archive, validation, and remote-ref gates verify later; it never becomes discard authority for a PR that is later closed unmerged. It is idempotent per worktree: repeating it updates the recorded head instead of adding a second registration. Tracked, staged, unstaged, or untracked content outside the disposable roots blocks with `worktree-content` and the affected paths, because such content means unpushed work; unknown ignored content is judged at removal time, as it is for `complete`. A primary, foreign, replaced, or branch-changed path blocks with a named reason. A worktree that a session registered with the low-level `register` command and still owns is released by `handoff` (or `complete`) when `LOCAL_CLEANUP_OWNER_TOKEN` holds that registration's token; without it both block with `owned-worktree`, and a separate `release` is needed.
 
-Every delivery session then starts, before it creates a worktree, with one bounded sweep from the primary checkout, and runs it again when it verifies or is told of a merge:
+For a separately scoped bounded sweep of released registrations from primary ([R15](delivery-rules.md#r15---runtime-and-cleanup-boundaries)), use:
 
 ```bash
 node scripts/governance/local-worktree-cleanup.mjs sweep --repo D:/Git/a1
@@ -47,7 +49,7 @@ The existing `mutation.lock` now protects only brief atomic `state.json` transac
 
 ### Standalone documentation evidence
 
-A PR without an `openspec-implementation` fence does not require corrective implementation association when its complete changed-file list is standalone documentation under the repository's existing documentation lifecycle policy. This includes ordinary documentation, the root `README.md`, canonical specification revisions, and revisions to existing active-change or archived-change documentation. Cleanup reuses the same path allowlist and immutable lifecycle checks as documentation auto-merge rather than maintaining a broader cleanup-only definition.
+A PR without an `openspec-implementation` fence does not require corrective implementation association when its complete changed-file list is standalone documentation under the repository's existing documentation lifecycle policy. This includes independently eligible ordinary documentation, the root `README.md`, canonical specification revisions and archived-change documentation. Active plans and authority-changing documentation remain outside the routine route under [R11](delivery-rules.md#r11---documentation-integration-and-activation). Cleanup reuses the same path allowlist and immutable lifecycle checks as documentation auto-merge rather than maintaining a broader cleanup-only definition.
 
 The PR must be non-draft, same-repository, merged into `develop`, and bound to the registered PR, head, and branch. Cleanup additionally requires successful required CI for that exact head, the merge commit to remain an ancestor of current `develop`, and the remote topic ref to be absent. Introduced active changes, implementation/code or mixed paths, release notes, acceptance records, malformed lifecycle metadata, incomplete changed-file evidence, and invalid rename shapes do not qualify. Those cases remain on their existing implementation-association or fail-closed paths.
 
@@ -77,6 +79,20 @@ Since the `OpenSpec finalization` workflow pushes its commit onto the PR branch 
 
 The sweep also prunes local topic branches that have no live registration, such as the branch left behind when a worktree was deleted by hand. A branch is deleted only when all of these hold: its name follows `type/short-description` and is not `develop` or another protected or reserved name; no worktree has it checked out; the same-repository pull-request lookup by that head ref name returns at least one PR merged into `develop` and no open PR; the tip equals or is an ancestor of the most recent such merged PR's head; and `origin` no longer has the ref. Deletion is compare-and-delete against the tip reread immediately before. Everything else is reported and kept with `branch-no-pull-request`, `branch-open-pull-request`, `branch-closed-pull-request`, `branch-unmerged-commits`, `branch-checked-out`, or `branch-remote-present`. Branch pruning never deletes remote refs, worktrees, or registrations, and a preview never prunes.
 
+## Published local-only removal
+
+Policy is [R13-R15](delivery-rules.md#r13---explicit-published-local-removal). The distinct exact repository operation is:
+
+```bash
+node scripts/governance/local-worktree-cleanup.mjs remove-local --repo D:/Git/a1 --path D:/Git/a1/.worktrees/example-task --confirm-local-removal
+```
+
+`--preflight` inspects without enrolling or removing. `--runtime-preflight` additionally allows inspection of the runtime's still-attached checkout; it is accepted only with `--preflight` and never bypasses claims during execution. In an attached compatible A1 session use `a1 worktree remove-local`, whose committed `localRemoval.preflight` and `localRemoval.execute` declarations sequence inspection, detach, shell exit and exact repository execution. Missing support blocks before detach; no other cleanup operation is substituted.
+
+Reports identify observed local/remote heads, publication containment, preservation blockers and actual removal steps. The operation does not read PR/CI/archive eligibility or mutate remote resources. A `local-removal` cleanup role and `published-local-removal` completion note keep interrupted work outside sweep and protect retained branch refs from automatic pruning. Existing delivery associations stay recorded. Repeating a completed operation reports `already-absent`; a recreated checkout blocks. Interrupted removal resumes only through the journaled identity and fresh publication/preservation checks. Residue recovery uses individually verified unlink/rmdir operations, not recursive user-tree fallback.
+
+The shared rules' KEEP boundary is applied during cleanup inspection, including inside generated roots. Development processes and live or unverifiable claims block; this operation has no process-stop or export option. Its code runs from primary, not from the checkout being removed. Existing merged-completion, explicit discard and historical records retain their distinct operations.
+
 ## Standard completed-delivery command
 
 The exact-candidate form remains for a session that is still alive at merge time or wants to finish one candidate by name. After authorized merge, accepted/archive verification, and remote topic-ref removal, the owning agent runs one command from the primary checkout:
@@ -97,13 +113,9 @@ Each approved root must be an ignored regular file, directory, symbolic link, or
 
 Eligible candidates now receive a combined local preflight before purge. JSON reports retain the primary `reason` and add `blockers` plus `developmentProcesses`, so an export and a running development instance are reported together. Only paths, PIDs, parent/start identities, and script paths are reported; file contents and full command lines are never included. Process-inspection failure is a named blocker, not an empty inventory.
 
-An exact `complete` invocation may additionally use `--stop-dev-processes`. This is explicit candidate-scoped authority, available only after merged/released eligibility and clean-content checks. It rechecks exact checkout code and process-start identity before stopping, protects the caller and its ancestors, bounds settlement, and repeats ordinary cleanup checks. Other worktrees, installed releases, unverifiable processes, and genuine local changes remain protected. Ordinary sweeps and previews never stop processes. Example:
+Process handling follows [R14](delivery-rules.md#r14---preservation-and-deletion-mechanics). The legacy `--stop-dev-processes` option now reports `process-termination-forbidden` without stopping anything. A live development process remains a preservation blocker; resolve it independently rather than treating cleanup as process-stop authority.
 
-```bash
-cd /d/Git/a1 && node scripts/governance/local-worktree-cleanup.mjs complete --repo D:/Git/a1 --path D:/Git/a1/.worktrees/example-task --change example-change --pr 123 --stop-dev-processes
-```
-
-Inside an A1 session attached to the candidate, do not run this command yourself: run `a1 worktree complete --change example-change --pr 123`, which returns the session to primary and then runs this same command as declared in the repository's `.a1/worktree.json` (see [worktree commands](features/worktrees.md#completing-a-merged-task)). `complete`, sweep, and the queue report `blocked` with `attached-session` while a running A1 session still has the checkout attached, and `attached-session-unverifiable` when that checkout's claim record cannot be read; the check reads A1's claim record only, changes nothing, and needs no A1 installation. Explicit `discard` and `retire-redundant` do not yet apply it.
+Inside an A1 session attached to the candidate, do not run this command yourself: run `a1 worktree complete --change example-change --pr 123`, which returns the session to primary and then runs this same command as declared in the repository's `.a1/worktree.json` (see [worktree commands](features/worktrees.md#completing-a-merged-task)). `complete`, sweep, and the queue report `blocked` with `attached-session` while a running A1 session still has the checkout attached, and `attached-session-unverifiable` when that checkout's claim record cannot be read; the check reads A1's claim record only, changes nothing, and needs no A1 installation. Explicit `discard`, `retire-redundant` and disposable-link remediation use the same combined attachment/process preflight.
 
 Agents do not manually remove generated content, call `git worktree remove`, or delete the local branch after delivery. The JSON result is authoritative: report success only for `removed` or verified `already-absent`; otherwise retain the worktree and report the exact blocker. A handed-off entry whose worktree was deleted by hand completes through its journal, and its branch is deleted under the accepted-ancestry rule. Legacy roles can supply separate `--source-pr`, `--candidate-pr`, and `--role` values.
 

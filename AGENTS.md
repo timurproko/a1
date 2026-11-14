@@ -2,17 +2,9 @@
 
 ## Delivery workflow
 
-- Load the [delivery skill](.agents/skills/change-delivery/SKILL.md) before repository delivery work. It routes to the owning [delivery](docs/openspec-archive-automation.md), [worktree](docs/architecture/project-structure.md#development-worktrees), and [cleanup](docs/local-worktree-cleanup.md) procedures.
-- Ask only about a genuinely missing decision. One explicit instruction can approve a presented plan and request implementation; it does not authorize merge or unrelated deletion.
-- Keep delivery progress truthful. Trusted automation owns implementation-PR readiness and finalization, so never mark an implementation PR ready yourself; protected integration still requires a separate current exact-candidate maintainer decision.
+Read and follow [Shared delivery rules](docs/delivery-rules.md). Use only this repository's entry in [Delivery adapters](docs/delivery-adapters.json). Do not paraphrase these rules, invent exceptions, or modify OpenSpec skills/framework; report conflicts before proceeding.
 
-## Implementation progress
-
-Plan `tasks.md` as one task group per PR `## Implementation` outcome, in the same order. Then work one outcome at a time: write its code and tests, tick its `tasks.md` tasks, commit and push, and tick that outcome in the PR body (`[ ]` to `[x]`, nothing else) before starting the next one. A tick means the code and tests are written: CI, broad test runs, and manual validation never delay it, and a later defect is fixed in a new commit. Never save ticks for handoff.
-
-## Worktrees
-
-In an active A1 session, use `a1 worktree enter <branch>` or `a1 worktree attach <absolute-path>`. Work in the returned directory; success is the attachment confirmation. Keep the task attached after implementation completion and review handoff so follow-up fixes retain its checkout and PR. After a verified merge, run `a1 worktree complete`: it returns the session to primary before repository cleanup runs, so never clean the attached checkout directly. Use `a1 worktree detach` only when explicitly requested or switching tasks; it preserves files and branches. Runtime shutdown releases claims automatically. A1 owns coordination, retries, and recovery; `a1 worktree list` is informational. Outside A1, use ordinary Git worktrees.
+Command syntax and operational details: [delivery skill](.agents/skills/change-delivery/SKILL.md), [delivery runbook](docs/openspec-archive-automation.md), [worktree protocol](docs/architecture/project-structure.md#development-worktrees), and [local cleanup](docs/local-worktree-cleanup.md).
 
 ## No AI attribution in git
 

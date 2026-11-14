@@ -93,11 +93,11 @@ Build output mirrors the production namespaces directly under ignored `dist/`, w
 
 ## Development worktrees
 
-Task checkouts live inside the primary repository's `.worktrees/<task-id>/`, not beside the repository. Follow the shared Worktrees guidance in `AGENTS.md`. The product command contract is documented in [Worktree commands](../features/worktrees.md).
+Read and follow [Shared delivery rules](../delivery-rules.md), using this repository's entry in [Delivery adapters](../delivery-adapters.json). This section supplies checkout syntax and operational detail. Task checkouts use the primary repository's `.worktrees/<task-id>/`. The product command syntax is documented in [Worktree commands](../features/worktrees.md).
 
 ### Common Git workflow
 
-Keep primary on `develop` and run the delivery skill's bounded cleanup sweep. In A1, enter or attach once; success is authoritative and informational inventory is not a second approval gate. Outside A1, use ordinary Git without installing A1 or inventing runtime identities.
+Checkout and runtime policy is [R04](../delivery-rules.md#r04---isolated-implementation-and-resume); cleanup scope is [R15](../delivery-rules.md#r15---runtime-and-cleanup-boundaries). The commands below are local Git examples, not prerequisites for remote planning.
 
 For a new delivery, create a unique absent task path and a new topic branch from freshly fetched `origin/develop`, unless the maintainer selected another base. For example, with primary at `D:/Git/a1` and unused task/branch names:
 
@@ -119,9 +119,9 @@ A1 owns creation/attachment, bounded retries, and ordinary recovery behind its w
 
 Claude Code uses its established `EnterWorktree` tool by task name. The tracked `.claude/settings.json` wires `scripts/governance/claude-worktree-create.mjs` to create `.worktrees/<task-id>` detached at fresh `origin/develop`, or return an already registered path. The agent must still establish ownership before reusing that path and create the topic branch in a new detached worktree before editing. Passing an absolute `path` to `EnterWorktree` is reserved for a worktree created by hand, from primary before any shell command in that session. The matching `WorktreeRemove` hook declines removal: leave with `ExitWorktree` `keep` and use only the guarded cleanup tool for removal. Other agents do not need these tools or hooks.
 
-A1 attachment updates footer repository/PR discovery and subsequent built-in tool working directories without changing process-global cwd. Detach/disposal releases the runtime's claim and preserves Git data. After a verified merge, `a1 worktree complete` detaches first and then runs the repository's configured cleanup from the startup checkout; an attachment whose checkout is gone is released automatically. An existing PR is not required. Explicit absolute paths retain their meaning; custom extensions and independent terminals keep their own cwd. Attachment never creates a Git lock, changes cleanup registration, or grants acceptance, finalization, merge, or deletion authority.
+A1 attachment updates footer repository/PR discovery and subsequent built-in tool working directories without changing process-global cwd. Detach/disposal releases the runtime's claim and preserves Git data. After a verified merge, `a1 worktree complete` runs the primary declaration's exact `cleanupPreflight` before detaching, binds the paired `cleanup` digest, and executes it from startup after shell exit; missing compatible support retains the attachment. See the [completion declaration](../features/worktrees.md#completing-a-merged-task). An attachment whose checkout is gone is released automatically. An existing PR is not required. Explicit absolute paths retain their meaning; custom extensions and independent terminals keep their own cwd. Attachment never creates a Git lock, changes cleanup registration, or grants acceptance, finalization, merge, or deletion authority.
 
-An agent that directly chooses a transient file path for a PR/comment body, command payload, captured output, temporary patch/diff, or ad hoc log must place it beneath the verified task worktree's exact `.artifacts/` root, never the primary checkout, another worktree, OS temp, home/desktop, or a sibling path. Such scratch remains ignored, unstaged, uncommitted, disposable, non-authoritative, and secret-free. This repository path rule does not relocate storage internally selected by tools, product runtime code, or hermetic tests.
+Scratch and private-boundary policy is [R16](../delivery-rules.md#r16---scratch-and-private-boundaries). Local implementation examples use explicit owning-checkout `.artifacts/` paths; remote-only planning has no checkout prerequisite.
 
 ## Documentation and comments
 

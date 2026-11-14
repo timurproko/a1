@@ -84,6 +84,8 @@ test("repository identity ignores transport-only URL rewrites and rejects ambigu
     args.join(" ") === "config --local --get-all remote.origin.url" ? value : realGit(cwd, args, options));
   await assert.rejects(discoverWith("git@github-account:owner/repo.git\n"), /unsupported-origin/);
   await assert.rejects(discoverWith("https://example.com/owner/repo.git\n"), /unsupported-origin/);
+  await assert.rejects(discoverWith(" https://github.com/owner/repo.git\n"), /unsupported-origin/);
+  await assert.rejects(discoverWith("https://github.com/owner/repo.git \n"), /unsupported-origin/);
   await assert.rejects(discoverWith("\n"), /unsupported-origin/);
   await assert.rejects(discoverWith("https://github.com/owner/repo.git\nhttps://github.com/other/repo.git\n"), /unsupported-origin/);
 });
@@ -286,6 +288,12 @@ test("repository discovery retries an empty common Git directory and fails close
   if (process.platform === "win32") {
     const identity = await discoverRepository(primary, emptyCommonDir(1));
     assert.equal(identity.common, await canonical(join(primary, ".git")));
+    let originReads = 0;
+    const retriedOrigin = await discoverRepository(primary, async (cwd, args, options) => {
+      if (args.join(" ") === "config --local --get-all remote.origin.url" && ++originReads === 1) return "\n";
+      return real(cwd, args, options);
+    });
+    assert.equal(retriedOrigin.repository, "owner/repo"); assert.equal(originReads, 2);
     await assert.rejects(discoverRepository(primary, emptyCommonDir(3)), failsClosed);
   } else {
     await assert.rejects(discoverRepository(primary, emptyCommonDir(1)), failsClosed);
@@ -1673,13 +1681,14 @@ test("journals written before completion notes still load and report", async t =
   const f = await fixture(t, true);
   const path = join(f.store.directory, "state.json"), state = JSON.parse(await readFile(path, "utf8"));
   for (const entry of state.entries) { delete entry.completion; delete entry.completionReason; }
-  await writeFile(path, JSON.stringify(state));
+  const original = JSON.stringify(state); await writeFile(path, original);
   const read = await f.store.read(); assert.equal(read.entries[0].completion, null); assert.equal(read.entries[0].completionReason, null);
+  assert.equal(await readFile(path, "utf8"), original, "read-only compatibility must not rewrite the historical journal");
   assert.throws(() => validateState({ ...read, entries: [{ ...read.entries[0], completion: "retired-nothing-left" }] }, f.identity), /registration-state/);
   assert.throws(() => validateState({ ...read, entries: [{ ...read.entries[0], completion: "made-up" }] }, f.identity), /registration-schema/);
 });
 
-test("development process stops require explicit eligible execution and repeat ordinary checks", async t => {
+test("legacy process-stop options are explicit blockers; cleanup never terminates processes", async t => {
   const f = await fixture(t, true); await f.store.enable();
   let running = true, stops = 0;
   const preflight = async (identity, entry, options) => {
@@ -1688,17 +1697,16 @@ test("development process stops require explicit eligible execution and repeat o
       blockers: running ? [{ reason: "development-processes-running", pids: [42] }] : [] };
   };
   const stopProcesses = async () => { stops++; running = false; return { stopped: [42], survivors: [] }; };
-  await f.pass({ preview: true, stopDevProcesses: true, preflight, stopProcesses });
+  const preview = await f.pass({ preview: true, stopDevProcesses: true, preflight, stopProcesses });
+  assert.equal(preview.error, "process-termination-forbidden");
   assert.equal(stops, 0); assert.equal(await exists(f.path), true);
   const blocked = await f.pass({ preview: false, preflight, stopProcesses });
   assert.equal(blocked.results[0].reason, "development-processes-running"); assert.equal(stops, 0);
-  const survivor = await f.pass({ preview: false, stopDevProcesses: true, preflight, stopProcesses: async () => ({ stopped: [], survivors: [77] }) });
-  assert.equal(survivor.results[0].reason, "development-process-survivors");
-  assert.deepEqual(survivor.results[0].blockers, [{ reason: "development-process-survivors", pids: [77] }]);
-  assert.equal(await exists(f.path), true);
-  const removed = await f.pass({ preview: false, stopDevProcesses: true, preflight, stopProcesses });
-  assert.equal(removed.results[0].disposition, "removed"); assert.equal(stops, 1);
-  assert.deepEqual(removed.results[0].stoppedDevelopmentProcesses, [42]);
+  const head = await git(f.primary, "rev-parse", "feature/example");
+  const refused = await f.pass({ preview: false, stopDevProcesses: true, preflight, stopProcesses });
+  assert.equal(refused.error, "process-termination-forbidden"); assert.equal(stops, 0);
+  assert.equal(await exists(f.path), true); assert.equal(running, true);
+  assert.equal(await git(f.primary, "rev-parse", "feature/example"), head);
 });
 
 test("dirty and ineligible worktrees veto development-process termination", async t => {
@@ -1710,9 +1718,9 @@ test("dirty and ineligible worktrees veto development-process termination", asyn
     const content = await inspectWorktree(identity, entry, options);
     return { ...content, blockers: [{ reason: "worktree-content" }, { reason: "development-processes-running", pids: [42] }] };
   };
-  const dirty = await f.pass({ preview: false, stopDevProcesses: true, preflight, stopProcesses });
+  const dirty = await f.pass({ preview: false, preflight, stopProcesses });
   assert.equal(dirty.results[0].reason, "worktree-content"); assert.equal(stops, 0);
-  const pending = await f.pass({ preview: false, stopDevProcesses: true, preflight, stopProcesses, verify: async () => ({ disposition: "pending", reason: "source-open" }) });
+  const pending = await f.pass({ preview: false, preflight, stopProcesses, verify: async () => ({ disposition: "pending", reason: "source-open" }) });
   assert.equal(pending.results[0].disposition, "pending"); assert.equal(stops, 0);
 });
 

@@ -4,9 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { inspectUnassociatedPull } from "./openspec-association-policy.mjs";
-import {
-  assertImplementationOnlyProgress, parseImplementationAcceptanceScenarios, parseImplementationProgress,
-} from "./openspec-acceptance-checklist.mjs";
+import { inspectDeliveryBody } from "./check-delivery-body.mjs";
+import { deliveryMutationBlocker, sameDeliverySnapshot, guardedDeliveryMutation } from "./delivery-control.mjs";
 import { prepareSinglePrDelivery, replaceImplementationMetadata } from "./openspec-delivery-finalization.mjs";
 import { readCanonicalSpecs } from "./openspec-delivery-git.mjs";
 import { archiveFailure, archivePaths, assertArchiveDiff, parseImplementation, SHA } from "./openspec-archive-policy.mjs";
@@ -22,6 +21,8 @@ function utcDate(now = Date.now()) {
 /** Decide whether the workflow has anything to do for this pull request before touching Git. */
 export function classifyFinalizationCandidate(pull, repository, { allowDraft = false } = {}) {
   if (!pull || pull.state !== "open") return { skip: "closed" };
+  const blocker = deliveryMutationBlocker(pull);
+  if (blocker) return { skip: blocker };
   if (pull.draft !== false && pull.draft !== true) throw archiveFailure("finalization-candidate-identity");
   if (pull.draft && !allowDraft) return { skip: "draft" };
   let implementation = null;
@@ -69,15 +70,6 @@ async function archiveCapabilities(checkout, archive) {
   return found.sort();
 }
 
-function samePromotionSnapshot(current, expected, repository) {
-  return current?.number === expected.number && current.state === "open" && current.draft === true
-    && current.node_id === expected.node_id && current.body === expected.body
-    && current.base?.ref === expected.base?.ref && current.base?.sha === expected.base?.sha
-    && current.base?.repo?.full_name === repository
-    && current.head?.ref === expected.head?.ref && current.head?.sha === expected.head?.sha
-    && current.head?.repo?.full_name === repository;
-}
-
 const DRAFT_INFRASTRUCTURE_FAILURES = new Set([
   "archive-deadline", "finalization-git", "publication-app-setup", "target-identity", "target-advanced",
 ]);
@@ -97,11 +89,10 @@ function draftBlock(error, declaredComplete = false) {
 async function promoteCompletedDraft({ reader, publisher, pull, implementation, number, toolRoot, gitImpl, remoteUrl, date, deadline }) {
   let declaredComplete = false;
   try {
-    const progress = parseImplementationProgress(pull.body ?? "", { requireComplete: true });
-    if (progress.format !== "checklist") throw archiveFailure("implementation-progress-legacy-draft");
-    declaredComplete = true;
-    assertImplementationOnlyProgress(progress.items);
-    parseImplementationAcceptanceScenarios(pull.body ?? "", 3);
+    const inspection = inspectDeliveryBody(pull.body ?? "");
+    declaredComplete = inspection.complete;
+    if (!inspection.ok) throw archiveFailure(inspection.reason.replace(/^draft-/, ""));
+    if (!inspection.complete) throw archiveFailure("implementation-progress-incomplete");
   } catch (error) {
     const blocked = draftBlock(error, declaredComplete);
     if (blocked) return { ...blocked, head: pull.head.sha };
@@ -153,10 +144,15 @@ async function promoteCompletedDraft({ reader, publisher, pull, implementation, 
     throw error;
   } finally { await rm(root, { recursive: true, force: true }); }
   const current = await reader.get(`${reader.prefix}/pulls/${number}`);
-  if (!samePromotionSnapshot(current, pull, reader.repository)) {
+  const blocker = deliveryMutationBlocker(current);
+  if (blocker) return { disposition: "skipped", reason: blocker, head: pull.head.sha, commits: [] };
+  const currentTarget = (await reader.get(`${reader.prefix}/git/ref/heads/develop`)).object?.sha;
+  if (currentTarget !== target || !sameDeliverySnapshot(current, pull, reader.repository)) {
     return { disposition: "retry", reason: "draft-changed-before-ready", head: pull.head.sha, commits: [] };
   }
-  await publisher.ready(number, pull.node_id);
+  const guarded = await guardedDeliveryMutation({ read: () => reader.get(`${reader.prefix}/pulls/${number}`), expected: current,
+    repository: reader.repository, mutate: fresh => publisher.ready(number, fresh.node_id) });
+  if (!guarded.performed) return { disposition: "retry", reason: guarded.reason, head: pull.head.sha, commits: [] };
   return { disposition: "promoted", head: pull.head.sha, promoted: true, commits: [] };
 }
 
@@ -173,6 +169,10 @@ export async function reconcileFinalization({ reader, publisher, number, toolRoo
   if (pull.number !== number) throw archiveFailure("implementation-pr");
   const classified = classifyFinalizationCandidate(pull, reader.repository, { allowDraft: true });
   if (classified.skip) {
+    if (pull.draft && ["malformed-metadata", "unassociated"].includes(classified.skip)) {
+      const inspection = inspectDeliveryBody(pull.body ?? "");
+      if (inspection.complete && !inspection.ok) return { disposition: "blocked", reason: inspection.reason, head: pull.head?.sha ?? null, commits: [] };
+    }
     if (classified.skip === "unassociated" && !pull.draft) {
       const association = await inspectUnassociatedPull(reader, pull);
       if (association.blocked) throw archiveFailure(association.reason, association.changes.join(","));
@@ -294,6 +294,13 @@ export async function reconcileFinalization({ reader, publisher, number, toolRoo
 
     let pushedHead = head;
     if (commits.length) {
+      const current = await reader.get(`${prefix}/pulls/${number}`);
+      const blocker = deliveryMutationBlocker(current);
+      if (blocker) return { disposition: "skipped", reason: blocker, head, pushedHead: head, commits: [], bodyUpdated: false };
+      if (!sameDeliverySnapshot(current, pull, reader.repository)
+        || (await reader.get(`${prefix}/git/ref/heads/develop`)).object?.sha !== target) {
+        return { disposition: "retry", reason: "candidate-changed-before-push", head, pushedHead: head, commits: [], bodyUpdated: false };
+      }
       const pushed = await git(["push", "--quiet", `--force-with-lease=refs/heads/${branch}:${head}`, "origin", `HEAD:refs/heads/${branch}`], { allowFailure: true });
       if (pushed === null) return { disposition: "retry", reason: "head-changed-before-push", head, pushedHead: head, commits, bodyUpdated: false };
       pushedHead = commits.at(-1).sha;
@@ -301,8 +308,14 @@ export async function reconcileFinalization({ reader, publisher, number, toolRoo
     let bodyUpdated = false;
     if (finalBody !== (pull.body ?? "")) {
       const current = await reader.get(`${prefix}/pulls/${number}`);
+      const blocker = deliveryMutationBlocker(current);
+      if (blocker) return { disposition: "skipped", reason: blocker, head, pushedHead, commits, bodyUpdated };
       if (current.body !== pull.body) return { disposition: "retry", reason: "body-changed-before-update", head, pushedHead, commits, bodyUpdated };
       if (current.head?.sha !== pushedHead) return { disposition: "retry", reason: "head-changed-before-body-update", head, pushedHead, commits, bodyUpdated };
+      if (!sameDeliverySnapshot(current, pull, reader.repository, { head: pushedHead })
+        || (await reader.get(`${prefix}/git/ref/heads/develop`)).object?.sha !== target) {
+        return { disposition: "retry", reason: "candidate-changed-before-body-update", head, pushedHead, commits, bodyUpdated };
+      }
       await publisher.mutate(`${prefix}/pulls/${number}`, "PATCH", { body: finalBody });
       bodyUpdated = true;
     }

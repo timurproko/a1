@@ -1,11 +1,13 @@
 import { appendFile, readFile } from "node:fs/promises";
-import { classifyDocumentationAutoMerge, planDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
+import { inspectDocumentationDiff, documentationControllerActive, planDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
 import { inspectDocumentationLifecycle } from "./documentation-lifecycle.mjs";
 import { classifyReleaseReopening } from "./release-reopening-auto-merge.mjs";
 import { executeMergedBranchCleanup } from "./execute-merged-branch-cleanup.mjs";
 import { readArchiveMarker, archiveAuthorityCurrent } from "./openspec-archive-publication.mjs";
 import { parseImplementation } from "./openspec-archive-policy.mjs";
-import { assertHumanAutoMergeArm } from "./openspec-acceptance-policy.mjs";
+import { archiveReaderFromGet, inspectVersion3DeliverySnapshot } from "./openspec-archive-github.mjs";
+import { captureNativeArmBinding, verifyNativeArmBinding } from "./delivery-native-arm.mjs";
+import { deliveryMutationBlocker, sameDeliverySnapshot, guardedDeliveryMutation } from "./delivery-control.mjs";
 
 class GitHubGraphQLError extends Error {
   constructor(status, body) {
@@ -69,6 +71,7 @@ async function processPullRequest(number, run) {
   const delayMs = boundedPollingNumber("DOCS_AUTO_MERGE_POLL_MS", process.env.DOCS_AUTO_MERGE_POLL_MS, 2000);
   let expectedHead;
   let expectedId;
+  let nativeEventInspected = false;
   let reason = "waiting for mergeability";
   // Concurrency: every retry re-reads identity AND the complete diff, never just merge state.
   for (let attempt = 0; attempt <= attempts; attempt += 1) {
@@ -77,12 +80,26 @@ async function processPullRequest(number, run) {
     expectedHead ??= pull.head.sha;
     expectedId ??= pull.node_id;
     const sameHead = pull.head.sha === expectedHead && pull.node_id === expectedId;
+    if (!nativeEventInspected && event.action === "auto_merge_enabled" && event.pull_request?.number === number && event.pull_request?.auto_merge?.enabled_by?.type === "User") {
+      nativeEventInspected = true;
+      const reader = archiveReaderFromGet(repositoryName, rest);
+      const binding = await captureNativeArmBinding({ reader, pull, event, runId: Number(process.env.GITHUB_RUN_ID), policySha: process.env.GITHUB_SHA,
+        verifySnapshot: (original, implementation) => inspectVersion3DeliverySnapshot(reader, original, implementation, original.head.sha),
+        publish: body => rest(`${reader.prefix}/issues/${number}/comments`, { method: "POST", body: { body } }) });
+      if (binding.recorded && process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `native-arm-binding=${binding.bindingDigest}\n`);
+      await summary(`PR #${number}: native-arm binding ${binding.recorded ? "recorded" : `unresolved (${binding.reason})`}; no implementation arm or merge was created.`);
+    }
     if (pull.state !== "open") {
       if (pull.merged === true && sameHead) {
         await summary(`PR #${number}: already merged at expected head ${expectedHead}.`);
         return await reconcileDocumentationBranch(pull);
       }
       return await summary(`PR #${number}: closed without merge of the expected head; no branch mutation.`);
+    }
+    const blocker = deliveryMutationBlocker(pull, { documentation: true });
+    if (blocker) {
+      await disableIfArmed(pull, blocker);
+      return await summary(`PR #${number}: documentation controller paused (${blocker}); no integration or arming attempted.`);
     }
     const route = await isTrustedEligible(pull);
     if (!route) return;
@@ -127,6 +144,10 @@ async function processPullRequest(number, run) {
       : "waiting for successful current-head validation";
     if (action === "arm" && attempt < attempts) {
       try {
+        const current = await freshMutationSnapshot(pull);
+        if (!current || current.auto_merge) return;
+        const freshAction = planDocumentationAutoMerge({ validation, autoMergeArmed: false, mergeableState: current.mergeable_state, mergeable: current.mergeable });
+        if (freshAction !== "arm") return await summary(`PR #${number}: mergeability changed before arming; deferred.`);
         await graph(`mutation EnableDocumentationAutoMerge($pullRequestId: ID!) {
           enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: SQUASH }) {
             pullRequest { number }
@@ -160,15 +181,17 @@ async function readPullRequest(number) {
 
 async function isTrustedEligible(pull) {
   const number = pull.number;
-  let files;
+  const blocker = deliveryMutationBlocker(pull, { documentation: true });
+  if (blocker) { await disableIfArmed(pull, blocker); await summary(`PR #${number}: documentation controller paused (${blocker}).`); return false; }
+  let files, classification;
   try {
     files = await changedFiles(number);
     if (!Number.isSafeInteger(pull.changed_files) || pull.changed_files !== files.length) throw new Error("incomplete changed-file response");
+    classification = await inspectDocumentationDiff(pull, files, readFileAt);
   } catch (error) {
     await disableIfArmed(pull, `classification failed: ${describe(error)}`);
     throw error;
   }
-  const classification = classifyDocumentationAutoMerge(files);
   const sameRepository = pull.head?.repo?.full_name === repositoryName;
   const trustedEligible = classification.eligible && sameRepository && !pull.draft && pull.base?.ref === "develop";
 
@@ -216,7 +239,7 @@ async function isTrustedEligible(pull) {
 async function preserveHumanImplementationArm(pull) {
   if (!pull.auto_merge || pull.state !== "open" || pull.draft !== false
     || pull.base?.ref !== "develop" || pull.head?.repo?.full_name !== repositoryName
-    || (event.pull_request && ["edited", "synchronize", "converted_to_draft"].includes(event.action))) return false;
+    ) return false;
   let implementation;
   try { implementation = parseImplementation(pull.body ?? ""); }
   catch { return false; }
@@ -228,7 +251,7 @@ async function preserveHumanImplementationArm(pull) {
       rest(`/repos/${owner}/${repository}/collaborators/${actor.login}/permission`),
       timelineEvents(pull.number),
     ]);
-    assertHumanAutoMergeArm(pull, permission.permission, events);
+    await verifyNativeArmBinding(archiveReaderFromGet(repositoryName, rest), pull, { required: true, permission: permission.permission, events });
     return true;
   } catch { return false; }
 }
@@ -254,8 +277,34 @@ async function readRelease(tag) {
   return await rest(`/repos/${owner}/${repository}/releases/tags/${encodeURIComponent(tag)}`);
 }
 
+async function freshMutationSnapshot(pull) {
+  const current = await readPullRequest(pull.number);
+  const blocker = deliveryMutationBlocker(current, { documentation: true });
+  if (blocker) { await disableIfArmed(current, blocker); await summary(`PR #${pull.number}: controller mutation paused (${blocker}).`); return null; }
+  if (!sameDeliverySnapshot(current, pull, repositoryName, { documentation: true })) {
+    await summary(`PR #${pull.number}: candidate changed before controller mutation; deferred.`); return null;
+  }
+  if (!await isTrustedEligible(current)) return null;
+  const target = await rest(`/repos/${owner}/${repository}/git/ref/heads/develop`);
+  if (target.object?.sha !== current.base?.sha) { await summary(`PR #${pull.number}: target changed before controller mutation; deferred.`); return null; }
+  const [liveWorkflow, liveRepository] = await Promise.all([
+    rest(`/repos/${owner}/${repository}/actions/workflows/documentation-auto-merge.yml`), rest(`/repos/${owner}/${repository}`),
+  ]);
+  if (!documentationControllerActive(repositoryName, liveWorkflow, liveRepository)) { await summary(`PR #${pull.number}: documentation controller activation is unavailable or differs from the adapter; deferred without enabling anything.`); return null; }
+  const guarded = await guardedDeliveryMutation({ read: () => readPullRequest(pull.number), expected: current, repository: repositoryName,
+    documentation: true, mutate: last => last });
+  if (!guarded.performed) {
+    if (guarded.current) await disableIfArmed(guarded.current, guarded.reason);
+    await summary(`PR #${pull.number}: controller mutation paused (${guarded.reason}); deferred.`); return null;
+  }
+  return guarded.value;
+}
+
 async function mergeValidatedHead(pull, archiveBase) {
   const number = pull.number;
+  const current = await freshMutationSnapshot(pull);
+  if (!current) return;
+  if (current.mergeable !== true || !["clean", "unstable"].includes(current.mergeable_state)) return await summary(`PR #${number}: mergeability changed before merge; deferred.`);
   if (archiveBase) {
     const target = await rest(`/repos/${owner}/${repository}/git/ref/heads/develop`);
     if (target.object?.sha !== archiveBase) return await summary(`PR #${number}: archive base changed before merge; deferred.`);
@@ -309,6 +358,18 @@ async function changedFiles(number) {
 
 async function disableIfArmed(pull, reason) {
   if (!pull.auto_merge) return;
+  const current = await readPullRequest(pull.number);
+  const actor = current.auto_merge?.enabled_by;
+  if (!current.auto_merge) return;
+  if (actor?.type !== "Bot" || !["github-actions[bot]", "openspec-ci[bot]"].includes(actor.login)) {
+    return await summary(`PR #${pull.number}: unresolved human or unknown auto-merge arm ownership/binding; it was not cancelled, and safe pause or continuation is not promised.`);
+  }
+  if (current.node_id !== pull.node_id || current.state !== "open" || current.head?.sha !== pull.head?.sha
+    || current.head?.ref !== pull.head?.ref || current.head?.repo?.full_name !== pull.head?.repo?.full_name || current.body !== pull.body
+    || current.base?.sha !== pull.base?.sha || current.base?.ref !== pull.base?.ref
+    || deliveryMutationBlocker(current, { documentation: true }) !== deliveryMutationBlocker(pull, { documentation: true })) {
+    return await summary(`PR #${pull.number}: arm snapshot changed before withdrawal; deferred.`);
+  }
   await graph(`mutation DisableIneligibleAutoMerge($pullRequestId: ID!) {
     disablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId }) {
       pullRequest { number }

@@ -3,6 +3,7 @@ import {
   enterSessionRepositoryWorktree,
   listSessionRepositoryWorktrees,
   requestSessionWorktreeCompletion,
+  requestSessionWorktreeLocalRemoval,
   retrySessionCoordination,
   setSessionRepositoryContext,
   type ProcessIdentity,
@@ -18,6 +19,7 @@ export type SessionContextRequest =
   | { readonly action: "enter-worktree"; readonly branch: string; readonly base?: string }
   | { readonly action: "unlink-worktree" }
   | { readonly action: "complete-worktree"; readonly change?: string; readonly pr?: number }
+  | { readonly action: "remove-local-worktree" }
   | { readonly action: "worktrees" };
 
 export type SessionContextOutcome =
@@ -57,6 +59,9 @@ export async function updateSessionRepositoryContext(
         ...(request.change === undefined ? {} : { change: request.change }),
         ...(request.pr === undefined ? {} : { pr: request.pr }),
       }, options) };
+    }
+    if (request.action === "remove-local-worktree") {
+      return { kind: "completing", ...await requestSessionWorktreeLocalRemoval(identity, options) };
     }
     if (request.action === "worktrees") {
       return { kind: "worktrees", entries: await listSessionRepositoryWorktrees(identity, options) };

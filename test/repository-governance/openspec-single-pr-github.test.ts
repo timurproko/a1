@@ -53,6 +53,8 @@ function fixture(merged: boolean, provenance: "manual" | "human-auto-merge" | "b
     merged_by: merged ? reviewer : null };
   const target = merged ? merge : base;
   const get = async (path: string): Promise<any> => {
+    // Compatibility: immutable pre-contract base: exercise the preserved historical native-arm reader, not a new-policy exception.
+    if (path === `/repos/${repository}/contents/docs/delivery-contract.json?ref=${base}`) throw Object.assign(new Error("github-not-found"), { archiveCode: "github-not-found" });
     if (path === `/repos/${repository}/pulls/42`) return pull;
     if (path.startsWith(`/repos/${repository}/pulls/42/files?`)) return changed;
     if (path === `/repos/${repository}/git/ref/heads/develop`) return { object: { sha: target } };

@@ -1,7 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
-import { captureWorktree, discoverRepository, exists, gitRunner, inspectWorktree, parseWorktrees, purgeDisposable,
+import { captureWorktree, discoverRepository, exists, gitRunner, parseWorktrees, purgeDisposable,
   removeLocalRef, removeRemoteRef, removeWorktree, repairResidue } from "./local-cleanup-git.mjs";
+import { cleanupPreflight } from "./local-cleanup-preflight.mjs";
 import { COMPLETION_DISPOSABLE_PATHS } from "./local-cleanup-complete.mjs";
 import { verifyDiscardEvidence } from "./local-cleanup-evidence.mjs";
 import { writeLocalCleanupReport } from "./local-cleanup-reconcile.mjs";
@@ -21,7 +22,7 @@ async function assertAbsent(identity, entry, git) {
 /** One explicitly confirmed, exact-candidate rejected-work transaction. */
 export async function discardLocalCleanup({ identity, store, reader, path, change, sourcePr, confirmed = false,
   cwd = process.cwd(), now = Date.now, deadline = now() + 60000, git = gitRunner({ deadline, now }),
-  verify = verifyDiscardEvidence, inspect = inspectWorktree, removeRemote = removeRemoteRef,
+  verify = verifyDiscardEvidence, inspect = cleanupPreflight, removeRemote = removeRemoteRef,
   remove = removeWorktree, removeRef = removeLocalRef, purge = purgeDisposable, repair = repairResidue }) {
   const absolute = resolve(path).replaceAll("\\", "/");
   const report = { version: 1, operation: "discard", results: [], coverage: { total: 1, visited: 0, complete: false }, at: now() };

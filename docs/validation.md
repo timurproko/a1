@@ -26,7 +26,7 @@ npm run test:full                  # complete deduplicated local composition
 npm run test:release               # release gates; publication authority is unchanged
 ```
 
-Before a push, run only quick targeted checks of what changed; CI after the pull request becomes ready is the validation authority:
+Validation policy is [Shared delivery rules R06](delivery-rules.md#r06---validation-and-readiness-structure). Focused command examples:
 
 ```bash
 npm run typecheck                          # type check
@@ -34,7 +34,7 @@ npx vitest run <changed test files...>     # tests covering the changed code
 npx openspec validate <change> --strict    # the OpenSpec change
 ```
 
-Do not run preflight, `test:fast`, `test:full`, `test:release`, or directory-wide test runs before pushing. They are for reproducing a failure CI reported, or when the maintainer asks. Preflight is the optional tool for reproducing a fast-gate failure:
+Preflight is an optional diagnostic command, not a substitute for current-head CI:
 
 ```bash
 npm run preflight                  # pull-request validation's fast gates on the committed head

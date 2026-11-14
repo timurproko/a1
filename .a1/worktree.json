@@ -2,5 +2,19 @@
   "cleanup": [
     "node", "scripts/governance/local-worktree-cleanup.mjs", "complete",
     "--repo", "{primary}", "--path", "{worktree}", "--change", "{change}", "--pr", "{pr}"
-  ]
+  ],
+  "cleanupPreflight": [
+    "node", "scripts/governance/local-worktree-cleanup.mjs", "preservation-preflight",
+    "--repo", "{primary}", "--path", "{worktree}", "--runtime-preflight"
+  ],
+  "localRemoval": {
+    "preflight": [
+      "node", "scripts/governance/local-worktree-cleanup.mjs", "remove-local",
+      "--repo", "{primary}", "--path", "{worktree}", "--confirm-local-removal", "--preflight", "--runtime-preflight"
+    ],
+    "execute": [
+      "node", "scripts/governance/local-worktree-cleanup.mjs", "remove-local",
+      "--repo", "{primary}", "--path", "{worktree}", "--confirm-local-removal"
+    ]
+  }
 }

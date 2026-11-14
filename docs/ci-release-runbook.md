@@ -169,21 +169,24 @@ squash auto-merge for an eligible pull request while required validation is pend
 branch protection prevents integration until `Development validation required`
 succeeds. If validation finishes before auto-merge can be armed and GitHub already
 reports the pull request clean, the reconciler squash-merges only the validated head
-SHA. Every current and renamed-from path must be under `openspec/**`, under
-`docs/**` other than `docs/releases/**`, or exactly the root `README.md`. Release
+SHA. Ordinary-documentation eligibility follows [R11](delivery-rules.md#r11---documentation-integration-and-activation):
+all current and renamed-from paths and their complete diff are inspected; a docs
+prefix alone is not eligibility. Release
 history requires manual integration except in the verified release reopening PR:
 a `chore/release-X.Y.Z-dev` PR opened by `openspec-ci[bot]` that modifies only the
 three version declarations (base `<released>-dev`, head its patch successor `-dev`,
 nothing else in the manifests) and adds exactly `docs/releases/<released>.md` equal
 to the published stable Release body. It takes the same validated squash route. Eligible pull requests must use a
-non-draft branch in this repository and target `develop`. Implementation-associated PRs and newly introduced active OpenSpec changes are held for manual integration even when their diff is documentation-only. Body edits trigger reconciliation; removing a marker cannot bypass the base/head tree check. Standalone existing-change revisions and archive moves remain eligible.
+non-draft branch in this repository and target `develop`. The ordinary route excludes active/linked implementation plans and authority-changing documentation under R11 even when their diff is Markdown-only. Body edits trigger reconciliation; removing a marker cannot bypass the base/head tree check. Historical readers still recognize standalone revisions and archive moves, separately from current integration authority.
 
-The exact allowlist covers maintained OpenSpec, architecture, feature, manual,
-runbook, and root README documentation. Other root Markdown files, `LICENSE`,
+The ordinary route applies the shared authority-path exclusions and verifies live
+controller activation; governance, agent instructions and cleanup/privileged-policy
+documentation are not routine merely because their paths are under docs. Other root Markdown files, `LICENSE`,
 `.gitignore`, source, tests, scripts, workflows, configuration, generated baselines,
 and mixed changes do not auto-merge. The guard also runs when a pull request changes
-or auto-merge is manually enabled; if any path is outside the allowlist, it disables
-auto-merge while leaving the pull request available for a later manual merge. Every
+or auto-merge is manually enabled; ineligibility withdraws automation-owned arms.
+Human arms follow R08/R10 ownership and exact-binding safeguards; unresolved arms
+are reported without cancellation or a safe-pause/continuation promise. Every
 docs-only change runs lightweight generated-governance consistency, so archiving an
 inventoried OpenSpec occurrence fails that pull request rather than a later code pull
 request. The only narrower route is an exact single added canonical
@@ -195,7 +198,7 @@ validation; malformed, mixed, renamed, stale, or unavailable inputs fail closed.
 A legitimate generated baseline update remains outside the allowlist and follows the
 manually accepted mixed/code path.
 
-A new implementation-bound specification starts as OpenSpec-only artifacts in one normally named draft PR. Explicit approval to implement continues in that same worktree, branch, history, and PR; the plan does not merge first. Approved refinements reconcile planning before code. After implementation, add one to ten plain implementation-specific bullets under `## Acceptance` and mark the PR ready; the trusted `OpenSpec finalization` workflow conservatively synchronizes deltas, stages the dated archive plus conditional acceptance manifest, and commits them to the same branch, and exact-head CI validates that head. Automation-owned auto-merge remains disabled: an authorized maintainer's direct merge, personal exact-head auto-merge arm, or explicit request for the active agent to expected-head squash-merge the currently eligible candidate accepts the listed scenarios and atomically integrates implementation, specs, and archive. No acceptance or archive follow-up PR is created. Closing an unmerged draft integrates nothing; cleanup still needs separate approval. See [delivery and archive handoff](openspec-archive-automation.md) for commands and legacy compatibility.
+Read and follow [Shared delivery rules](delivery-rules.md), using this repository's entry in [Delivery adapters](delivery-adapters.json). See [delivery and archive handoff](openspec-archive-automation.md) for finalization commands and legacy compatibility; the workflow implementation uses the unchanged OpenSpec framework.
 
 ## Numbered development previews
 
