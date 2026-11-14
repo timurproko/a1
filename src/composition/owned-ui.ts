@@ -12,7 +12,7 @@ import type { SessionSelection } from "../foundation/lifecycle/session-selection
 import { applyConfiguredPiTheme, getAvailablePiThemes, setPiAccentColor, setPiPackageBorderProjectionEnabled } from "../integrations/pi/components/upstream/theme/theme.js";
 import { createPiEngineHost, type PiEngineHostOptions } from "../integrations/pi/engine/host.js";
 import { createPiSessionPresenters } from "../integrations/pi/session-presenters/index.js";
-import type { PiProjectTrustPreflightPrompt } from "../integrations/pi/engine/project-trust-preflight.js";
+import type { PiProjectTrustPreflightPrompt, PiProjectTrustUi } from "../integrations/pi/engine/project-trust-preflight.js";
 import type { PiSessionForkPrompt } from "../integrations/pi/engine/session-selection.js";
 import { ClipboardDiagnosticCapture } from "../app/session-shell/clipboard-diagnostics.js";
 import { createOwnedUiClipboardServices } from "../app/session-shell/clipboard-services.js";
@@ -67,6 +67,7 @@ export interface OwnedUiCompositionOptions {
   /** `off` withholds A1-specific surfaces from comparison profiles. */
   readonly productMode?: "bare" | "comparison";
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
+  readonly projectTrustUi?: PiProjectTrustUi;
   /** Explicit local diagnostic destination; ignored by comparison/settings-free compositions. */
   readonly suggestionDiagnosticsPath?: string;
   /** Optional local metadata-only clipboard diagnostics; never enabled in comparison profiles. */
@@ -368,13 +369,14 @@ function engineHostOptions(options: OwnedUiCompositionOptions, productMode: "bar
       apply: { base: applyConfiguredPiTheme, accentColor: setPiAccentColor, packageBorderProjection: setPiPackageBorderProjectionEnabled },
     },
     ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
+    ...(options.projectTrustUi === undefined ? {} : { projectTrustUi: options.projectTrustUi }),
   };
 }
 
 async function createPromptHistoryConfiguration(settings: OwnedSettingsManager | null, backend: ComposedSessionBackend, bare: boolean) {
   const limit = settings?.value("promptHistoryMaxItems") ?? 100;
   const scope = settings?.value("promptHistoryScope") ?? "unique";
-  const enabled = settings !== null && bare && settings.value("promptHistoryEnabled");
+  const enabled = settings !== null && bare && settings.value("promptHistoryEnabled") && backend.identity.currentSessionFile() !== null;
   const sessionId = enabled ? backend.identity.currentHistorySessionId() : null;
   if (settings === null || !enabled || (scope === "unique" && sessionId === null)) return null;
   const dataDir = resolvePromptHistoryDataDir();

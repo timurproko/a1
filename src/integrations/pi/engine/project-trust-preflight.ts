@@ -3,6 +3,8 @@ import { dirname, resolve } from "node:path";
 import {
   ProjectTrustStore,
   SettingsManager,
+  type LoadExtensionsResult,
+  type ProjectTrustContext,
 } from "../startup-public.js";
 
 type PiProjectTrustChoiceId =
@@ -29,9 +31,11 @@ export type PiProjectTrustPreflightPrompt = (
   request: PiProjectTrustPreflightRequest,
 ) => Promise<PiProjectTrustChoiceId | null>;
 
+export type PiProjectTrustUi = Pick<ProjectTrustContext, "hasUI" | "ui">;
+
 export interface PiProjectTrustPreflightResult {
   readonly trusted: boolean;
-  readonly source: "saved" | "default" | "interactive" | "fail-closed";
+  readonly source: "saved" | "default" | "interactive" | "fail-closed" | "invocation" | "extension";
   readonly diagnostic: string | null;
 }
 
@@ -39,6 +43,9 @@ export interface ResolvePiProjectTrustPreflightOptions {
   readonly cwd: string;
   readonly agentDir: string;
   readonly prompt?: PiProjectTrustPreflightPrompt;
+  readonly trustOverride?: boolean;
+  readonly extensionsResult?: LoadExtensionsResult;
+  readonly trustUi?: PiProjectTrustUi;
 }
 
 /**
@@ -49,7 +56,12 @@ export interface ResolvePiProjectTrustPreflightOptions {
 export async function resolvePiProjectTrustPreflight(
   options: ResolvePiProjectTrustPreflightOptions,
 ): Promise<PiProjectTrustPreflightResult> {
+  if (options.trustOverride !== undefined) return { trusted: options.trustOverride, source: "invocation", diagnostic: null };
   const trustStore = new ProjectTrustStore(options.agentDir);
+  if (options.extensionsResult?.extensions.some(extension => extension.handlers.has("project_trust"))) {
+    const decision = await (await import("./extension-trust.js")).resolveExtensionProjectTrust(options, trustStore);
+    if (decision !== undefined) return decision;
+  }
   const saved = trustStore.get(options.cwd);
   if (saved !== null) return { trusted: saved, source: "saved", diagnostic: null };
 

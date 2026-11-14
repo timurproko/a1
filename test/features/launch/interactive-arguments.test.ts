@@ -27,6 +27,17 @@ describe("invocation startup argv", () => {
     expect(await dispatchCli(args, { launch: unused, update: unused, packages: unused, version: unused, sessionContext: unused }, { stdout() {}, stderr() {} }, capabilities)).toBe(2);
     expect(launches).toBe(0);
   });
+  it("does not repeat credentials in malformed internal payload diagnostics", () => {
+    const key = "never-sent-malformed-fixture";
+    try {
+      parseInteractiveLaunchArguments(["--runtime-options", `{"apiKey":"${key}",broken}`]);
+      throw new Error("expected malformed payload refusal");
+    } catch (error) {
+      expect(String(error)).toContain("Invalid runtime options payload");
+      expect(String(error)).not.toContain(key);
+    }
+  });
+
   it("protects the first boundary and retains unsupported leading words", () => {
     expect(parseCliCommand(["--", "--session-color", "pink"], capabilities)).toMatchObject({ kind: "launch", promptArguments: ["--session-color", "pink"] });
     expect(parseCliCommand(["pi", "--session-color", "blue"], capabilities)).toEqual({ kind: "noop" });

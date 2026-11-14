@@ -4,7 +4,7 @@ import { observeCompactionProgress, type CompactionProgressObserver } from "./co
 import { createPiRuntimeIntegration, type PiStartupPhaseMarker } from "./runtime-integration.js";
 import { PiSessionCommandIntegration } from "./session-integration.js";
 import { DefaultPackageManager, VERSION, type AgentSession, type AgentSessionRuntime, type AgentSessionServices } from "../startup-public.js";
-import type { PiProjectTrustPreflightPrompt } from "./project-trust-preflight.js";
+import type { PiProjectTrustPreflightPrompt, PiProjectTrustUi } from "./project-trust-preflight.js";
 import type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
 import type { OwnedUiDiagnostics } from "../../../contracts/owned-ui/index.js";
 import type { PiSessionResumeMetadata, PiWorkflowHost } from "./workflows.js";
@@ -22,6 +22,7 @@ export interface PiEngineRuntimeFactoryInput {
   readonly runtimeOptions?: import("../../../foundation/launch-context/index.js").RuntimeLaunchOptions;
   readonly sessionForkPrompt?: PiSessionForkPrompt;
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
+  readonly projectTrustUi?: PiProjectTrustUi;
   /** The host's signal; runtime creation steps that wait on the network stop with it. */
   readonly signal: AbortSignal;
   readonly markStartupPhase: PiStartupPhaseMarker;
@@ -41,6 +42,7 @@ interface PiEngineRuntimeOptions {
   readonly runtimeOptions?: import("../../../foundation/launch-context/index.js").RuntimeLaunchOptions;
   readonly sessionForkPrompt: PiSessionForkPrompt | undefined;
   readonly projectTrustPrompt: PiProjectTrustPreflightPrompt | undefined;
+  readonly projectTrustUi?: PiProjectTrustUi;
   readonly createRuntime: PiEngineRuntimeFactory | undefined;
   readonly checkPackageUpdates: PiEnginePackageUpdateProbe | undefined;
   /** Aborted by the host on disposal; a probe that resolves afterwards announces nothing. */
@@ -170,6 +172,7 @@ export class PiEngineRuntime {
       ...(this.#options.runtimeOptions === undefined ? {} : { runtimeOptions: this.#options.runtimeOptions }),
       ...(this.#options.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: this.#options.sessionForkPrompt }),
       ...(this.#options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: this.#options.projectTrustPrompt }),
+      ...(this.#options.projectTrustUi === undefined ? {} : { projectTrustUi: this.#options.projectTrustUi }),
     });
     this.#runtime = runtime;
     this.#cwd = runtime.cwd ?? this.#cwd;
@@ -372,6 +375,7 @@ async function createDefaultPiRuntime(input: PiEngineRuntimeFactoryInput): Promi
     ...(input.runtimeOptions === undefined ? {} : { runtimeOptions: input.runtimeOptions }),
     ...(input.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: input.sessionForkPrompt }),
     ...(input.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: input.projectTrustPrompt }),
+    ...(input.projectTrustUi === undefined ? {} : { projectTrustUi: input.projectTrustUi }),
   });
 }
 

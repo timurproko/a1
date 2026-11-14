@@ -1,5 +1,15 @@
 export interface RuntimeLaunchOptions {
   readonly sessionDir?: string;
+  readonly continueSession?: true;
+  readonly resumeSession?: true;
+  readonly forkSession?: string;
+  readonly sessionId?: string;
+  readonly sessionName?: string;
+  readonly noSession?: true;
+  readonly projectTrust?: boolean;
+  readonly modelPatterns?: readonly string[];
+  /** Process-only credential. Never copy into environment, settings or diagnostic evidence. */
+  readonly apiKey?: string;
   /** Ordered public CLI messages; legacy internal prompt argv remains joined. */
   readonly promptSequence?: boolean;
   readonly model?: string;
@@ -16,13 +26,17 @@ export function validateRuntimeLaunchOptions(value: unknown): RuntimeLaunchOptio
   const object = value as Record<string, unknown>;
   if (Buffer.byteLength(JSON.stringify(value), "utf8") > 32_768) throw new Error("Runtime options exceed 32768 bytes");
   for (const [key, field] of Object.entries(object)) {
-    if (key === "model" || key === "provider" || key === "sessionDir") {
-      if (!text(field)) throw new Error(`Invalid runtime ${key}`);
-    } else if (key === "promptSequence") {
-      if (field !== true) throw new Error("Invalid prompt sequence");
+    if (["model", "provider", "sessionDir", "forkSession", "sessionName", "apiKey"].includes(key)) {
+      if (!text(field) || (key === "sessionName" && field.trim().length === 0)) throw new Error(`Invalid runtime ${key}`);
+    } else if (key === "sessionId") {
+      if (typeof field !== "string" || !/^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?$/u.test(field)) throw new Error("Invalid session ID");
+    } else if (["promptSequence", "continueSession", "resumeSession", "noSession"].includes(key)) {
+      if (field !== true) throw new Error(`Invalid runtime ${key}`);
+    } else if (key === "projectTrust") {
+      if (typeof field !== "boolean") throw new Error("Invalid project trust override");
     } else if (key === "thinking") {
       if (!["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(String(field))) throw new Error("Invalid thinking level");
-    } else if (key === "extensionPaths" || key === "excludeTools") {
+    } else if (key === "extensionPaths" || key === "excludeTools" || key === "modelPatterns") {
       if (!Array.isArray(field) || field.length > 128 || !field.every(text)) throw new Error(`Invalid runtime ${key}`);
     } else if (key === "extensionFlagValues") {
       if (!Array.isArray(field) || field.length > 128 || !field.every(pair => Array.isArray(pair) && pair.length === 2
@@ -31,7 +45,10 @@ export function validateRuntimeLaunchOptions(value: unknown): RuntimeLaunchOptio
     } else throw new Error(`Unknown runtime option: ${key}`);
   }
   if (object.provider !== undefined && object.model === undefined) throw new Error("--provider requires --model");
-  return Object.freeze(JSON.parse(JSON.stringify(value))) as RuntimeLaunchOptions;
+  if (object.forkSession !== undefined && (object.continueSession || object.resumeSession || object.noSession)) throw new Error("--fork cannot be combined with --continue, --resume or --no-session");
+  if (object.sessionId !== undefined && (object.continueSession || object.resumeSession)) throw new Error("--session-id cannot be combined with --continue or --resume");
+  if (object.apiKey !== undefined && object.model === undefined && !object.modelPatterns) throw new Error("--api-key requires --model or --models to choose its provider");
+  return Object.freeze({ ...JSON.parse(JSON.stringify(value)), ...(typeof object.sessionName === "string" ? { sessionName: object.sessionName.trim() } : {}) }) as RuntimeLaunchOptions;
 }
 
 function text(value: unknown): value is string {

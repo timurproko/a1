@@ -2,7 +2,9 @@
 
 ## Identity, method and evidence rules
 
-Planning revision for PR #928 / `unify-interactive-launch-options`. A1 source baseline: `2d5c3646784941978b9847b606705e3602c3f888`; initial draft head: `fcd71bcacbd9476f576b1e020ba4f252657f5b45`. No production implementation or conformance tests were run for this revision.
+Common inventory for PR #928 / `unify-interactive-launch-options`. The detailed rows below preserve the initial audit baseline; their “now” columns are historical observations, not the current implementation status. The P1 overlay and [implementation-evidence.md](implementation-evidence.md) describe delivered cases and evidence; grouped rows do not become fully verified from a subset.
+
+Initial planning baseline: A1 source baseline: `2d5c3646784941978b9847b606705e3602c3f888`; initial draft head: `fcd71bcacbd9476f576b1e020ba4f252657f5b45`. No production implementation or conformance tests were run for that initial planning revision.
 
 **P** means the exact npm artifact `@earendil-works/pi-coding-agent@1.5.2`, resolved as `https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.5.2.tgz`, integrity `sha512-mUWI04rqF1Vd/m1q+Ps1XeWsTXEVvRUnsmRa83I3Dzua0Tx5bYS93imeqtIfrXf7PkkaR6ERz+AuQhIJlom5yA==`. Manifest, lockfile, installed package and `config/baselines/pinned-pi-interactive-baseline.json` agree. That baseline binds upstream commit `b4afdddf44e059c67ccf5097e5317d913521b470`. All source references below are paths/sections in P, NOT unversioned website or GitHub-main claims. Family dependencies pi-agent-core, pi-ai, pi-codemode, pi-mcp and pi-tui are locked to 1.5.2; no upgrade is assumed.
 
@@ -12,7 +14,7 @@ Implementation cross-checks: P `dist/cli/args.js` (all parser branches/help), `d
 
 **Statuses:** V = verified existing against the current target with identified executed evidence; U = implemented unverified; M = missing end-to-end A1 contract (even if upstream SDK implements it); C = conflicting semantics needing an explicit disposition; X = externally blocked. No row is V in this planning revision. Existing test paths identify inspected reusable coverage, not a new passing run. A grouped row inventories every named member; implementation evidence must record each member's positive/negative cases, not mark the whole family verified after one sample.
 
-**Outcomes:** O1 CLI/discovery; O2 session/model/trust; O3 tools/resources/maintenance; O4 print/JSON; O5 RPC/programmatic; O6 extension/UI/product lifecycle; O7 packaged/platform/versioned conformance. These map to `tasks.md` and PR outcomes. **Evidence scope:** unit = parser/owner test; SDK = actual pinned SDK/services/extensions; process = actual packaged public entry/pipes; dev = supported development routing; platform = Windows/Git Bash or supported POSIX; external = separately authorized real consumer. No row currently claims external proof.
+**Outcomes:** O1 CLI/discovery; O2 session/model/trust; O3 tools/resources/maintenance; O4 print/JSON; O5 RPC/programmatic; O6 extension/UI/product lifecycle; O7 packaged/platform/versioned conformance. These are the complete plan's original owner groups in delivery-plan.md, not the two P1 task groups; the approved partition below governs current delivery. **Evidence scope:** unit = parser/owner test; SDK = actual pinned SDK/services/extensions; process = actual packaged public entry/pipes; dev = supported development routing; platform = Windows/Git Bash or supported POSIX; external = separately authorized real consumer. No row currently claims external proof.
 
 **Owner/test abbreviations** (all repository-relative):
 
@@ -233,8 +235,21 @@ Specific previously declined rows reopened by the broader goal:
 
 All remaining rows in `config/baselines/pi-feature-adoption-matrix.json` are cross-referenced by the complete event/API/settings/key/command/component families F/G/E19 and retain U, not V, until behavioral evidence exists. `config/baselines/pinned-pi-public-api.json` remains the exact exported-declaration/consumer inventory for F12–F14; it is not replaced by this plan. Private/hidden implementation artifacts do not become public contracts merely because source inspection can find them. Conversely `/debug` is included because P usage.md documents it even though a prior inventory calls it hidden.
 
+## Current P1 implementation overlay
+
+| IDs | Delivered cases and evidence scope | Still not a whole-row verification |
+| --- | --- | --- |
+| A02/A03/A07/A10 | Shared ordered bare/boundary prompts, alias/value/conflict checks, registered flags and command-word routing; unit plus SDK/composition and entry fixtures | File expansion, full malformed-upstream equivalence and machine input remain P3/P4; strict A1 diagnostics stay named |
+| A08/A09/I01/I02 | Actual help/version/catalog entries, real packaged shim, no help/version factory effects, shared normal runtime; process plus SDK | Firstmate catalog remains X1; all extension/API/UI contracts are not inferred |
+| A14/C01–C08/I03 | Continue/create, interactive picker ownership/cancel/headless refusal, existing guarded resume/cwd recovery, exact IDs, custom-ID contention, source-preserving live-history fork, name, trusted storage precedence and real memory manager; unit/SDK, paired composition and development transport | No full historical-format/platform/TTY matrix, machine transports or private-runtime certification; untrusted project storage remains a named A1 safety difference |
+| C06/C12/I04 | Fileless identity, no writer/resume hint, ordinary cwd tools, explicit durable-worktree error, no editor-history/automatic repository naming, memory HTML refusal and explicit JSONL export; SDK plus owned composition | Full export/clipboard/maintenance behavior remains P2/P4; durable-only memory limitations remain explicit rather than forged storage |
+| D01–D04 | Catalog model/effort overrides, invocation scope precedence and provider-bound process key across replacement, no settings/credential/transcript writes; unit/SDK and transport diagnostics | No live auth/cross-provider certification; saved-scope defaults and complete provider field families remain final-conformance obligations |
+| F01/F02/I05 | Global/CLI bootstrap trust handlers before project resources, actual UI capability, explicit remembering, process-only overrides, payload-free failure, authenticated old-release refusal and secret-redacted development metadata; SDK/process/dev | Full extension event/UI and protocol semantics remain P3/P4; handler failures stay fail-closed rather than upstream fallback-after-error |
+
+No grouped row is promoted to V wholesale. Native Windows/Git Bash fixture results, test names, counts and exact scope are recorded in implementation-evidence.md; no POSIX or live Firstmate proof is claimed.
+
 ## Common final acceptance matrix and upgrade rule
 
 For every ID above, final evidence must bind the version/source, exact candidate, each named operation, platform, test/run path, result, and evidence level. A row can become V only for the observable scope actually exercised; parser acceptance, method existence and old baseline dispositions alone never suffice. Each D decision needs its actual approval/disposition; each X prerequisite stays visible. No full drop-in claim while differences or blockers contradict it.
 
-The proposed four deliveries in design.md share these IDs and final acceptance obligations. No split is enacted and no delivery is complete. Partial deliveries must say partial, fail clearly for still-missing contracts and never introduce a user-selected compatibility feature set. Later version upgrades re-inspect changed public docs, command/type/event/setting inventories and affected subprocess/SDK tests through the existing Pi upgrade process/documentation; 1.5.2 results do not certify a newer pin.
+The approved four deliveries in design.md share these IDs and final acceptance obligations. P1's two outcomes are implemented; P2–P4 remain pending and start from integrated develop after a separately authorized integration. Partial deliveries must say partial, fail clearly for still-missing contracts and never introduce a user-selected compatibility feature set. Later version upgrades re-inspect changed public docs, command/type/event/setting inventories and affected subprocess/SDK tests through the existing Pi upgrade process/documentation; 1.5.2 results do not certify a newer pin.

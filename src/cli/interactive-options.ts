@@ -13,11 +13,17 @@ const VALUE_OPTIONS = new Map([
   ["-e", "--extension"], ["--extension", "--extension"],
   ["-xt", "--exclude-tools"], ["--exclude-tools", "--exclude-tools"],
   ["--session", "--session"], ["--session-dir", "--session-dir"], ["--session-color", "--session-color"],
+  ["--session-id", "--session-id"], ["--fork", "--fork"], ["--name", "--name"], ["-n", "--name"],
+  ["--api-key", "--api-key"], ["--models", "--models"],
+]);
+const SWITCH_OPTIONS = new Map([
+  ["--continue", "--continue"], ["-c", "--continue"], ["--resume", "--resume"], ["-r", "--resume"],
+  ["--no-session", "--no-session"], ["--approve", "--approval"], ["-a", "--approval"],
+  ["--no-approve", "--approval"], ["-na", "--approval"],
 ]);
 // Reserved public Pi contracts must never masquerade as extension flags or prompt text during rollout.
 const PENDING_OPTIONS = new Set([
-  "--mode", "--print", "-p", "--export", "--api-key", "--models", "--continue", "-c", "--resume", "-r",
-  "--session-id", "--fork", "--no-session", "--name", "-n", "--approve", "-a", "--no-approve", "-na",
+  "--mode", "--print", "-p", "--export",
   "--tools", "-t", "--no-tools", "-nt", "--no-builtin-tools", "-nbt", "--no-extensions", "-ne", "--no-mcp",
   "--skill", "--no-skills", "-ns", "--prompt-template", "--no-prompt-templates", "-np", "--theme", "--use-theme",
   "--no-themes", "--no-context-files", "-nc", "--system-prompt", "--append-system-prompt", "--tui-mode", "--verbose", "--offline",
@@ -32,6 +38,16 @@ export function interactiveOptionHelp(): readonly string[] {
     "  -e, --extension <path>  Explicit extension or package source (repeatable)",
     "  -xt, --exclude-tools <list>  Comma-separated tool names/patterns",
     "  --session <path|id>     Writer-guarded session selection",
+    "  -c, --continue         Continue the most recent project session",
+    "  -r, --resume           Choose a session interactively",
+    "  --fork <path|id>        Copy into a new session in the current project",
+    "  --session-id <id>      Resume exact local ID or create it",
+    "  -n, --name <name>      Set the session display name",
+    "  --no-session          Real in-memory session; no session file/writer",
+    "  --models <patterns>   Comma-separated invocation model scope",
+    "  --api-key <key>       Process-only key for the selected provider",
+    "  -a, --approve         Trust project resources for this invocation",
+    "  -na, --no-approve     Withhold project resources for this invocation",
     "  --session-dir <dir>     Session storage/lookup override",
     "  --session-color <name>  Invocation-only A1 accent",
     "  --list-models [search]  Effective-profile catalog; no session/model call",
@@ -64,6 +80,13 @@ export function parseInteractiveCommand(arguments_: readonly string[], cwd = pro
         continue;
       }
       if (name !== token && (VALUE_OPTIONS.has(name) || name === "--list-models")) throw new Error(`${name} requires a separate value`);
+      const toggle = SWITCH_OPTIONS.get(token);
+      if (toggle !== undefined) {
+        if (single.has(toggle)) throw new Error(`${toggle} may occur only once`);
+        single.set(toggle, token === "--no-approve" || token === "-na" ? "false" : "true");
+        continue;
+      }
+      if (SWITCH_OPTIONS.has(name)) throw new Error(`${name} does not accept a value`);
       const canonical = VALUE_OPTIONS.get(token);
       if (canonical !== undefined) {
         const value = arguments_[++index];
@@ -82,6 +105,15 @@ export function parseInteractiveCommand(arguments_: readonly string[], cwd = pro
     if (single.has("--session") && single.has("--session-dir")) owned.push("--session-dir", single.get("--session-dir")!);
     const runtimeOptions = validateRuntimeLaunchOptions({
       ...(single.has("--session-dir") && !single.has("--session") ? { sessionDir: resolve(cwd, single.get("--session-dir")!) } : {}),
+      ...(single.has("--continue") ? { continueSession: true } : {}),
+      ...(single.has("--resume") ? { resumeSession: true } : {}),
+      ...(single.has("--no-session") ? { noSession: true } : {}),
+      ...(single.has("--fork") ? { forkSession: sessionTarget(single.get("--fork")!, cwd) } : {}),
+      ...(single.has("--session-id") ? { sessionId: single.get("--session-id") } : {}),
+      ...(single.has("--name") ? { sessionName: single.get("--name") } : {}),
+      ...(single.has("--models") ? { modelPatterns: single.get("--models")!.split(",").map(value => value.trim()) } : {}),
+      ...(single.has("--api-key") ? { apiKey: single.get("--api-key") } : {}),
+      ...(single.has("--approval") ? { projectTrust: single.get("--approval") === "true" } : {}),
       ...(single.has("--model") ? { model: single.get("--model") } : {}),
       ...(single.has("--provider") ? { provider: single.get("--provider") } : {}),
       ...(single.has("--thinking") ? { thinking: single.get("--thinking") } : {}),
@@ -90,8 +122,10 @@ export function parseInteractiveCommand(arguments_: readonly string[], cwd = pro
       ...(flags.length ? { extensionFlagValues: flags } : {}),
       ...(prompts.length > 1 ? { promptSequence: true } : {}),
     });
+    if (single.has("--session") && (runtimeOptions.forkSession || runtimeOptions.sessionId)) throw new Error("--session cannot be combined with --fork or --session-id");
     if (catalog) {
-      if (prompts.length || owned.length || single.has("--session-dir")) throw new Error("--list-models cannot launch a session or accept a prompt");
+      if (runtimeOptions.apiKey) throw new Error("--api-key requires a session invocation");
+      if (prompts.length || owned.length || ["--session-dir", "--continue", "--resume", "--no-session", "--fork", "--session-id", "--name"].some(name => single.has(name))) throw new Error("--list-models cannot launch a session or accept a prompt");
       return { kind: "catalog", ...(search === undefined ? {} : { search }), runtimeOptions };
     }
     const startup = parseInteractiveLaunchArguments([...owned, ...(prompts.length || literal ? ["--", ...prompts] : [])]);
@@ -99,6 +133,29 @@ export function parseInteractiveCommand(arguments_: readonly string[], cwd = pro
   } catch (error) {
     return { kind: "error", message: error instanceof Error ? error.message : String(error) };
   }
+}
+
+/** Diagnostic views must not retain either public or structured invocation credentials. */
+export function redactInteractiveArguments(arguments_: readonly string[]): readonly string[] {
+  const result: string[] = [];
+  for (let index = 0; index < arguments_.length; index++) {
+    const token = arguments_[index]!;
+    if (token === "--") { result.push(...arguments_.slice(index)); break; }
+    if (token.startsWith("--api-key=")) { result.push("--api-key=[redacted]"); continue; }
+    result.push(token);
+    if (token === "--api-key" && arguments_[index + 1] !== undefined) { result.push("[redacted]"); index++; }
+    if (token === "--runtime-options" && arguments_[index + 1] !== undefined) {
+      try {
+        const options = validateRuntimeLaunchOptions(JSON.parse(arguments_[++index]!));
+        result.push(JSON.stringify({ ...options, ...(options.apiKey === undefined ? {} : { apiKey: "[redacted]" }) }));
+      } catch { result.push("[invalid runtime options omitted]"); }
+    }
+  }
+  return result;
+}
+
+function sessionTarget(value: string, cwd: string): string {
+  return value.includes("/") || value.includes("\\") || value.endsWith(".jsonl") ? resolve(cwd, value.startsWith("~/") || value.startsWith("~\\") ? resolve(homedir(), value.slice(2)) : value) : value;
 }
 
 function extensionSource(value: string, cwd: string): string {

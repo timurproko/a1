@@ -27,11 +27,12 @@ export {
   createPiRuntimeServicesAfterTrust,
   disposePiRuntimeIntegration,
   replacePiRuntimeSession,
-  resolveConfiguredModelScope,
 } from "./runtime-integration.js";
 export type { PiRuntimeIntegrationOptions, PiRuntimePreflightDependencies, PiSessionReplacement, PiStartupPhaseMarker } from "./runtime-integration.js";
 export { PiSessionSelectionError, openSelectedPiSession, resolveSessionArgumentPath } from "./session-selection.js";
 export type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
+export { pickPiLaunchSession } from "./session-launch.js";
+export { resolveConfiguredModelScope } from "./launch-options.js";
 export { PiSessionCommandIntegration } from "./session-integration.js";
 export type { PiDocumentedSessionCommands, PiSessionCommand, PiSessionCommandResult } from "./session-integration.js";
 export {
@@ -61,6 +62,7 @@ export type {
 export { resolvePiProjectTrustPreflight } from "./project-trust-preflight.js";
 export type {
   PiProjectTrustPreflightPrompt,
+  PiProjectTrustUi,
   PiProjectTrustPreflightRequest,
   PiProjectTrustPreflightResult,
   ResolvePiProjectTrustPreflightOptions,

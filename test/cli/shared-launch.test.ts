@@ -18,9 +18,17 @@ describe("shared default public launch grammar", () => {
     ["--session", "saved", "--session-dir", "storage", "--session-color", "green", "--", "update"],
     ["first message", "--thinking", "low", "second message"],
     ["--registered=literal value", "--boolean", "--", "a ' quote\n🚢 --literal"],
-    ["--session-dir", "new-storage"], [],
+    ["--session-dir", "new-storage"], ["--continue"], ["-c"], ["--resume"], ["-r"],
+    ["--fork", "saved", "--session-id", "task_17", "-n", "Task title"],
+    ["--no-session", "--session-id", "scratch-1", "--name", "Scratch"],
+    ["--model", "provider/model", "--api-key", "never-sent-fixture", "--models", "provider/*"],
+    ["--approve"], ["-a"], ["--no-approve"], ["-na"], [],
   ])("constructs equivalent normal-product intents for %j", (...args) => {
     expect(parsePiCompatibleCommand(args)).toEqual({ kind: "launch", intent: intent(args) });
+  });
+
+  it("trims a delivered session name without altering prompt whitespace", () => {
+    expect(intent(["--name", "  Task title  ", "  literal prompt  "])).toMatchObject({ runtimeOptions: { sessionName: "Task title" }, promptArguments: ["  literal prompt  "] });
   });
 
   it("normalizes resources without turning package identifiers into filesystem paths", () => {
@@ -34,6 +42,12 @@ describe("shared default public launch grammar", () => {
     ["--exclude-tools", "read", "-xt", "write"], ["--runtime-options", "{}"],
     ["--session-color", "green", "--runtime-options={} "], ["--model=x"], ["-z"],
     ["--provider", "provider"], ["--thinking", "invalid"], ["--session-color", "invalid"],
+    ["--fork", "saved", "--session", "other"], ["--fork", "saved", "--no-session"],
+    ["--fork", "saved", "-c"], ["--fork", "saved", "-r"], ["--session-id", "../bad"],
+    ["--session-id", "id", "--continue"], ["--session-id", "id", "--resume"],
+    ["--session-id", "id", "--session", "other"], ["--continue", "-c"],
+    ["--approve", "--no-approve"], ["--no-session=true"], ["--api-key", "never-sent-fixture"],
+    ["--models", "a,,b"], ["--models"], ["--fork"], ["--name"], ["--name", "   "],
   ])("rejects malformed public input in both adapters %j", (...args) => {
     expect(parseCliCommand(args, capabilities).kind).toBe("error");
     expect(parsePiCompatibleCommand(args).kind).toBe("error");

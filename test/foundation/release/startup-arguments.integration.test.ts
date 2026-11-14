@@ -56,7 +56,9 @@ afterEach(async () => {
 });
 
 const runtimeOptions = { model: "provider/model", thinking: "high", extensionPaths: ["/extension with space.ts"], excludeTools: ["write"] } as const;
+const serviceOptions = { noSession: true, sessionId: "scratch-1", sessionName: "A quoted ' title", modelPatterns: ["provider/*"], model: "provider/model", apiKey: "never-sent-release-fixture", projectTrust: false } as const;
 const payloads = [
+  { name: "guarded services", intent: { runtimeOptions: serviceOptions }, argv: ["--runtime-options", JSON.stringify(serviceOptions)] },
   { name: "runtime options", intent: { runtimeOptions }, argv: ["--runtime-options", JSON.stringify(runtimeOptions)] },
   { name: "ordered CLI messages", intent: { runtimeOptions: { promptSequence: true }, promptArguments: ["first", "second"] }, argv: ["--runtime-options", JSON.stringify({ promptSequence: true }), "--", "first", "second"] },
   { name: "empty literal boundary", intent: { promptArguments: [] }, argv: ["--"] },
@@ -118,6 +120,17 @@ describe("bootstrap selected-release startup payload", () => {
     await rm(resolve(fixture.packageRoot, "dist/cli/interactive-options.js"));
     await expect(runBootstrap({ ...fixture.options, launchIntent: { kind: "interactive", profileId: "a1", runtimeOptions: { promptSequence: true }, promptArguments: ["first", "second"] } })).rejects.toThrow("does not support");
     expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it("refuses guarded-service payloads on the earlier shared parser runtime", async () => {
+    const fixture = await packageFixture();
+    await rm(resolve(fixture.packageRoot, "dist/integrations/pi/engine/session-launch.js"));
+    await expect(runBootstrap({ ...fixture.options, launchIntent: { kind: "interactive", profileId: "a1", runtimeOptions: serviceOptions } })).rejects.toThrow("does not support");
+    expect(spawn).not.toHaveBeenCalled();
+    const records = await (await import("node:fs/promises")).readdir(fixture.dataDir, { recursive: true });
+    for (const file of records.filter(file => file.startsWith("certification-") && file.endsWith(".json"))) {
+      expect(await readFile(resolve(fixture.dataDir, file), "utf8")).not.toContain(serviceOptions.apiKey);
+    }
   });
 
   it.each(["missing", "malformed", "different identity"])("rejects %s full manifest evidence after compact admission before UI spawn", async damage => {
@@ -202,6 +215,8 @@ async function packageFixture(supported = true, extraFiles = 0, version = "2.0.0
   await writeFile(resolve(packageRoot, "bin/ui.js"), "process.exit(0);");
   if (supported) {
     await mkdir(resolve(packageRoot, "dist/cli"), { recursive: true });
+    await mkdir(resolve(packageRoot, "dist/integrations/pi/engine"), { recursive: true });
+    await writeFile(resolve(packageRoot, "dist/integrations/pi/engine/session-launch.js"), "export {};\n");
     await writeFile(resolve(packageRoot, "dist/cli/interactive-options.js"), "export {};\n");
     await writeFile(resolve(packageRoot, "dist/features/launch/interactive-arguments.js"), "export {};\n");
     await writeFile(resolve(packageRoot, "dist/foundation/launch-context/runtime-options.js"), "export {};\n");

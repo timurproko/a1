@@ -7,12 +7,12 @@ export function bindAutomaticSessionNaming(backend: ComposedSessionBackend, sett
   if (!bare || !backend.naming) return { dispose() {} };
   const naming = new SessionNamingController({
     backend, naming: backend.naming,
-    enabled: () => settings?.value("sessionAutoName") ?? true,
+    enabled: () => backend.identity.currentSessionFile() !== null && (settings?.value("sessionAutoName") ?? true),
     format: () => settings?.value("sessionNameFormat") ?? "sentence",
     withContext: async (consume, signal) => {
       const sessionId = backend.identity.currentHistorySessionId();
       const sessionFile = backend.identity.currentSessionFile();
-      if (!sessionId || !sessionFile) throw new Error("session identity unavailable");
+      if (!sessionId || !sessionFile) throw new Error("Automatic repository-context naming requires a persistent session file");
       const { withSessionRepositoryObservation } = await import("../foundation/lifecycle/session-repository-context.js");
       return await withSessionRepositoryObservation({ sessionId, sessionFile }, consume, { signal });
     },

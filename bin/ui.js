@@ -14,7 +14,7 @@ const launchContext = readLaunchContext(process.env, "profile");
 const profile = launchContext.launchProfile;
 if (profile === undefined) throw new Error("A1 launch profile is missing");
 const { parseInteractiveLaunchArguments } = await import("../dist/features/launch/interactive-arguments.js");
-const launchArguments = parseInteractiveLaunchArguments(process.argv.slice(2));
+let launchArguments = parseInteractiveLaunchArguments(process.argv.slice(2));
 if (profile !== "a1" && Object.keys(launchArguments).length > 0) throw new Error("startup arguments require the normal A1 profile");
 /** @type {import('../dist/features/owned-ui/runtime-context.js').OwnedRuntimeContext | undefined} */
 let runtimeContext;
@@ -75,12 +75,25 @@ const assertPiTuiIdentity = () => identity.assertSinglePiTuiModuleAtLaunch(
   completeRun(Promise.resolve().then(async () => {
     return runSelectedInteractiveRuntime(profile, {
       ownedUi: async (profileId, productMode) => {
+        const { createConsoleStartupDialogs, createConsoleSessionPicker } = await import("../dist/features/owned-ui/startup-dialogs.js");
+        const dialogs = createConsoleStartupDialogs();
+        if (launchArguments.runtimeOptions?.resumeSession && !launchArguments.runtimeOptions.noSession && launchArguments.sessionSelection === undefined) {
+          const { pickPiLaunchSession } = await import("../dist/integrations/pi/engine/session-launch.js");
+          const target = await pickPiLaunchSession({
+            cwd: process.cwd(), hasUI: dialogs.hasUI, pick: createConsoleSessionPicker(dialogs),
+            runtimeOptions: launchArguments.runtimeOptions,
+            ...(launchArguments.runtimeOptions.sessionDir === undefined ? {} : { sessionDir: launchArguments.runtimeOptions.sessionDir }),
+          });
+          const { resumeSession, ...runtimeOptions } = launchArguments.runtimeOptions;
+          launchArguments = { ...launchArguments, sessionSelection: { target }, runtimeOptions };
+        }
         const { application, settings } = await composeOwnedUi({
           cwd: process.cwd(),
           profileId,
           productMode,
           projectTrustPrompt: createConsoleProjectTrustPrompt({ productMode, ...(launchArguments.sessionColor === undefined ? {} : { sessionColor: launchArguments.sessionColor }) }),
           sessionForkPrompt: createConsoleSessionForkPrompt(),
+          projectTrustUi: dialogs,
           ...launchArguments,
           ...(runtimeContext === undefined ? {} : { runtimeContext }),
         });
