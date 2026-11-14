@@ -26,10 +26,10 @@ The maintainer integration decision accepts these scenarios:
     "Carets, selection, pointer targeting, and autocomplete follow the shared inset while rules remain full width and copied text excludes gutters.",
     "Larger configured editor padding remains supported without duplicate gutters, and the independent Pi comparison route is unchanged."
   ],
-  "archiveDigest": "d4b8da23e67ce98e7ad434b2b40150d613f65215a807261ce7e226ff6d894b69",
+  "archiveDigest": "32b2f04665048737cbc470cbdb58523787c703da2002710c9e7517d0f2d9de4f",
   "specDigest": "bed2314644cbaf63e3b5771bb0dacc6075afd948329e565e172abd8e244aa3b6",
   "tasksDigest": "b71362e54626d458eb00843a8557570158aa5effc916ea247329827a8be018c8",
-  "evidenceDigest": "471fa703d0f633885b04843997911a289182da3b874ef76f53ba23df660cb649",
+  "evidenceDigest": "441e057a3aa95688c5c3e58dd892ea26b8f17235e4fca7f6e2ca0626824981b1",
   "knownGaps": []
 }
 ```
