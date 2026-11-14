@@ -1377,7 +1377,7 @@ describe("transcript viewport", () => {
     expect(selected.rows[1]).toContain("\u001b[45m");
   });
 
-  it("copies one prompt semantically but preserves its chrome inside a larger transcript range", () => {
+  it("excludes submitted-prompt chrome in prompt-only and mixed transcript ranges", () => {
     const viewport = new TranscriptViewport();
     const input = {
       documentRows: ["❯ ask me                    19:59", "answer one", "answer two", "⠋ Working..."],
@@ -1399,7 +1399,7 @@ describe("transcript viewport", () => {
     viewport.pressSelection(1, 1, 103);
     viewport.extendSelection(40, 2, 104, false);
     viewport.releaseSelection();
-    expect(viewport.selectedText()).toBe("❯ ask me                    19:59\nanswer one");
+    expect(viewport.selectedText()).toBe("ask me\nanswer one");
 
     viewport.clearSelection();
     viewport.pressSelection(1, 4, 105);

@@ -1,4 +1,5 @@
 import { MAX_COPY_SOURCE_UNITS, selectionCopyLineContent, type SelectionCopySnapshot } from "./selection-copy.js";
+import { SUBMITTED_PROMPT_PREFIX_WIDTH } from "./submitted-prompt.js";
 import type {
   TranscriptPromptAnchor,
   TranscriptViewportConfig,
@@ -318,11 +319,6 @@ export class TranscriptViewport {
         || anchor?.kind === "dock" && this.#copyableDockRows.has(anchor.fromBottom);
     });
     if (copiedLines.length === 0) return null;
-    const transcriptLines = copiedLines.filter(line => rowAnchors[line]?.kind === "document");
-    const prompt = transcriptLines.length === 0 ? undefined : this.#promptAnchors.find(candidate => transcriptLines.every(line => {
-      const anchor = rowAnchors[line];
-      return anchor?.kind === "document" && anchor.row >= candidate.firstRow && anchor.row <= candidate.lastRow;
-    }));
     const included = new Set(copiedLines);
     const text = textSelectionText(
       selection,
@@ -330,9 +326,11 @@ export class TranscriptViewport {
       line => {
         const row = selectionRows[line] ?? "";
         const anchor = rowAnchors[line];
+        const prompt = anchor?.kind === "document"
+          ? this.#promptAnchors.find(candidate => anchor.row >= candidate.firstRow && anchor.row <= candidate.lastRow) : undefined;
         if (prompt !== undefined && anchor?.kind === "document") {
-          const first = anchor.row === prompt.firstRow;
-          return selectionCopyLineContent(row, first ? "first" : "continuation");
+          const prefixWidth = stripAnsi(prompt.sourceRow).startsWith(" ❯ ") ? SUBMITTED_PROMPT_PREFIX_WIDTH : 2;
+          return selectionCopyLineContent(row, anchor.row === prompt.firstRow ? "first" : "continuation", prefixWidth);
         }
         // Invariant: the dock editor has no prefix; transcript prompts still carry chrome.
         const content = usefulTextLineContent(row);
