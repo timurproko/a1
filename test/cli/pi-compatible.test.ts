@@ -17,8 +17,10 @@ describe("Pi-compatible normal A1 grammar", () => {
     expect(parseInteractiveLaunchArguments(interactiveStartupArguments(command.intent))).toEqual({ runtimeOptions: command.intent.runtimeOptions, promptArguments: [prompt] });
   });
 
-  it("treats one positional instruction, including a normal A1 command word, as instructions", () => {
-    expect(parsePiCompatibleCommand(["update"])).toMatchObject({ kind: "launch", intent: { profileId: "a1", promptArguments: ["update"] } });
+  it("reserves documented Pi maintenance at invocation start and protects literal command words", () => {
+    expect(parsePiCompatibleCommand(["update"])).toEqual({ kind: "control", arguments: ["update"] });
+    expect(parsePiCompatibleCommand(["--", "update"])).toMatchObject({ kind: "launch", intent: { profileId: "a1", promptArguments: ["update"] } });
+    expect(parsePiCompatibleCommand(["worktree list"])).toMatchObject({ kind: "launch", intent: { promptArguments: ["worktree list"] } });
     expect(parsePiCompatibleCommand(["--", "--model", "literal"])).toMatchObject({ kind: "launch", intent: { promptArguments: ["--model", "literal"] } });
   });
 
@@ -29,7 +31,7 @@ describe("Pi-compatible normal A1 grammar", () => {
 
   it.each([
     ["--model"], ["--provider", "provider"], ["--thinking", "ultra"], ["--model", "a", "--model", "b"],
-    ["--exclude-tools", "read,,write"], ["--mode", "rpc"], ["--approve"], ["--tui-mode", "regular"], ["-z"],
+    ["--exclude-tools", "read,,write"], ["--mode", "rpc"], ["--approve", "--no-approve"], ["--tui-mode", "regular"], ["-z"],
     ["--list-models", "search", "unexpected prompt"], ["x\0y"], ["🚢".repeat(8193)],
   ])("rejects malformed or unsupported arguments: %j", (...args) => {
     expect(parsePiCompatibleCommand(args).kind).toBe("error");
@@ -46,7 +48,7 @@ describe("Pi-compatible normal A1 grammar", () => {
     expect(catalog).toHaveBeenCalledWith({}, "needle");
     const help = stdout.mock.calls[0]![0];
     expect(help).toContain("normal A1 UI and profile");
-    expect(help).not.toContain("--approve");
+    expect(help).toContain("--approve");
     expect(help).not.toContain("--tui-mode");
     expect(stderr).toHaveBeenCalledOnce();
   });

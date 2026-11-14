@@ -2,84 +2,23 @@
 
 const commandStartedAtMs = performance.timeOrigin + performance.now();
 const packageRoot = new URL("..", import.meta.url);
-// Invariant: one terminal module identity per process, decided before any A1 or Pi module loads.
-const [{ installPinnedPiTuiResolver }, { fileURLToPath: toPath }] = await Promise.all([import("./module-resolver.js"), import("node:url")]);
-installPinnedPiTuiResolver(toPath(packageRoot));
+// Invariant: one terminal module identity per process, before any A1 or Pi module loads.
+const [{ installPinnedPiTuiResolver }, { fileURLToPath }] = await Promise.all([import("./module-resolver.js"), import("node:url")]);
+installPinnedPiTuiResolver(fileURLToPath(packageRoot));
 const startup = await import("../dist/foundation/startup/startup-runtime.js");
-const startupProfile = process.argv[2] === "pi" ? "pi" : "a1";
-startup.initializeStartupTrace(process.env, startupProfile, commandStartedAtMs);
+startup.initializeStartupTrace(process.env, process.argv[2] === "pi" ? "pi" : "a1", commandStartedAtMs);
 startup.enableEnvironmentCompileCache(process.env);
 await startup.markStartupPhase(process.env, "command-invoked");
-const { fileURLToPath } = await import("node:url");
 const { readFile } = await import("node:fs/promises");
-const [{ cliCapabilities }, { dispatchCli }] = await Promise.all([
-  import("../dist/cli/capabilities.js"),
-  import("../dist/cli/dispatch.js"),
+const [{ cliCapabilities }, { dispatchCli }, { createCommandHandlers }] = await Promise.all([
+  import("../dist/cli/capabilities.js"), import("../dist/cli/dispatch.js"), import("./command-handlers.js"),
 ]);
-
-// Compatibility: which commands this build exposes follows from the build's own version, so a
-// released a1 cannot be argued into offering the development profiles.
 const capabilities = cliCapabilities(JSON.parse(await readFile(new URL("package.json", packageRoot), "utf8")).version);
-
-process.exitCode = await dispatchCli(process.argv.slice(2), {
-  launch: async intent => {
-    const [{ prepareInteractiveLaunch }, { runBootstrap }, { releaseCopyIsLaunchable }] = await Promise.all([
-      import("../dist/features/launch/prepare-launch.js"),
-      import("../dist/foundation/release/bootstrap.js"),
-      import("./module-identity.js"),
-    ]);
-    const packageRootPath = fileURLToPath(packageRoot);
-    const prepared = await prepareInteractiveLaunch(intent);
-    return await runBootstrap({
-      packageRoot: packageRootPath,
-      launchIntent: intent,
-      environment: prepared.environment,
-      releaseIsLaunchable: releaseCopyIsLaunchable,
-    });
-  },
-  version: async () => {
-    const { runVersionStats } = await import("../dist/cli/version-stats.js");
-    return await runVersionStats({ packageRoot: fileURLToPath(packageRoot) });
-  },
-  update: async (channel, target) => {
-    const { runSelfUpdate } = await import("../dist/foundation/release/update.js");
-    return await runSelfUpdate({ packageRoot: fileURLToPath(packageRoot), channel, ...(target === undefined ? {} : { target }) });
-  },
-  packages: async request => {
-    const [{ runPackageCommand }, identity] = await Promise.all([
-      import("../dist/cli/packages.js"),
-      import("./module-identity.js"),
-    ]);
-    identity.configurePinnedPiPublicPackage(fileURLToPath(packageRoot));
-    const { createPiPackagesPort } = await import("../dist/integrations/pi/engine/package-integration.js");
-    return await runPackageCommand(request, { createPort: createPiPackagesPort });
-  },
-  sessionColor: async arguments_ => {
-    const { runSessionColorCommand } = await import("../dist/cli/session-color.js");
-    return await runSessionColorCommand(arguments_);
-  },
-  sessionContext: async request => {
-    const { runSessionContextCommand } = await import("../dist/cli/session-context.js");
-    return await runSessionContextCommand(request);
-  },
-  uninstall: async request => {
-    const [{ runUninstall }, { createInterface }] = await Promise.all([
-      import("../dist/cli/uninstall.js"),
-      import("node:readline/promises"),
-    ]);
-    const interactive = process.stdin.isTTY === true && process.stdout.isTTY === true;
-    return await runUninstall(request, {
-      packageRoot: fileURLToPath(packageRoot),
-      output: { stdout: message => process.stdout.write(message), stderr: message => process.stderr.write(message) },
-      ...(interactive ? {
-        confirm: async question => {
-          const prompt = createInterface({ input: process.stdin, output: process.stdout });
-          try { return /^y(?:es)?$/iu.test((await prompt.question(question)).trim()); } finally { prompt.close(); }
-        },
-      } : {}),
-    });
-  },
-}, {
-  stdout: message => process.stdout.write(message),
-  stderr: message => process.stderr.write(message),
-}, capabilities);
+try {
+  process.exitCode = await dispatchCli(process.argv.slice(2), createCommandHandlers(packageRoot), {
+    stdout: message => process.stdout.write(message), stderr: message => process.stderr.write(message),
+  }, capabilities);
+} catch (error) {
+  console.error(`A1: ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = 1;
+}

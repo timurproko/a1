@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
@@ -73,6 +73,29 @@ describe("repository-local development launch", () => {
     });
   });
 
+  it.each([[], ["--pi-compatible"]].map(prefix => ({ prefix })))("redacts invocation credentials from public and structured development diagnostics $prefix", async ({ prefix }) => {
+    const profileHome = await mkdtemp(resolve(tmpdir(), "a1-development-credential-"));
+    try {
+      const key = "never-sent-development-fixture";
+      const { stdout } = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", ...prefix, "--no-session", "--model", "provider/model", "--api-key", key, "--no-approve", "--name", "Scratch"], { env: { ...process.env, A1_PROFILE_HOME: profileHome } });
+      const result = JSON.parse(stdout);
+      expect(stdout).not.toContain(key);
+      expect(result.launchArguments).toContain("[redacted]");
+      expect(JSON.parse(result.childArguments[1])).toMatchObject({ noSession: true, model: "provider/model", apiKey: "[redacted]", projectTrust: false, sessionName: "Scratch" });
+    } finally { await rm(profileHome, { recursive: true, force: true }); }
+  });
+
+  it.each([[], ["--pi-compatible"]].map(prefix => ({ prefix })))("refuses headless resume before factories through the actual development entry $prefix", async ({ prefix }) => {
+    const profileHome = await mkdtemp(resolve(tmpdir(), "a1-development-picker-"));
+    const marker = resolve(profileHome, "factory-marker");
+    try {
+      const extensions = resolve(profileHome, ".a1/agent/extensions"); await mkdir(extensions, { recursive: true });
+      await writeFile(resolve(extensions, "marker.ts"), `import { writeFileSync } from "node:fs"; writeFileSync(${JSON.stringify(marker)}, "must not run"); export default function() {}`);
+      await expect(execute(process.execPath, ["scripts/development/start-local.mjs", ...prefix, "--resume"], { timeout: 15_000, env: { ...process.env, A1_PROFILE_HOME: profileHome, PI_OFFLINE: "1", A1_CONFIG_DIR: resolve(profileHome, "config"), A1_DATA_DIR: resolve(profileHome, "data"), A1_RUNTIME_DIR: resolve(profileHome, "runtime") } })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("--resume requires an interactive terminal") });
+      await expect(readFile(marker)).rejects.toMatchObject({ code: "ENOENT" });
+    } finally { await rm(profileHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+  });
+
   it("prepares isolated interactive profiles before development launch", async () => {
     const profileHome = await mkdtemp(resolve(tmpdir(), "a1-development-profile-"));
     const inheritedPiProfile = resolve(profileHome, "inherited-shared-profile");
@@ -133,9 +156,13 @@ describe("repository-local development launch", () => {
     } finally { await rm(home, { recursive: true, force: true }); }
   });
 
-  it("returns silently for an unsupported non-profile development command", async () => {
-    const result = await execute(process.execPath, ["scripts/development/start-local.mjs", "not-an-a1-command"]);
-    expect(result).toMatchObject({ stdout: "", stderr: "" });
+  it("routes bare instructions through normal development UI without executing a live prompt", async () => {
+    const profileHome = await mkdtemp(resolve(tmpdir(), "a1-development-prompt-"));
+    try {
+      const result = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", "not-an-a1-command"], { env: { ...process.env, A1_PROFILE_HOME: profileHome, PI_OFFLINE: "1" } });
+      expect(JSON.parse(result.stdout)).toMatchObject({ directProfile: "a1", selectedEntry: "bin/ui.js", childArguments: ["--", "not-an-a1-command"] });
+      expect(result.stderr).toBe("");
+    } finally { await rm(profileHome, { recursive: true, force: true }); }
   });
 
   it("shares durable preferences across fresh instances and rebuilt local candidates", () => {
