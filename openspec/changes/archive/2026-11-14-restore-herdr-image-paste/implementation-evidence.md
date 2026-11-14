@@ -45,6 +45,18 @@ Coverage includes policy matrices; overridden/missing emulator identity; known-r
 - Architecture checks caught an unused exported destination predicate after decoupling and an exceeded eager-source budget. Moving the unchanged copy predicate to a consumed policy module and lazily loading optional native writers fixed those findings without widening the budget.
 - A combined 13-file parallel run reported 276 passes and 8 failures: process-heavy composition cases hit existing five-second deadlines/Windows cleanup locks, and image cases exceeded existing short readiness waits under concurrent cold-helper load. The exact composition file passed alone, and all 12 clipboard files passed with one worker. Existing timing assertions and deadlines were not increased or removed. The cold-helper wrappers continue bypassing source pools as intended while carrying image-only intent.
 
+## CI repair after the first finalized candidate
+
+The first finalized candidate failed changed-file documentation validation for three uncategorized implementation comments. The comments now use the required `Security:` or `Rationale:` categories; no policy or behavior was changed to bypass the check.
+
+The macOS image-compatibility lane also exposed a stale isolated package fixture: `image-worker.ts` now imports `image-file-preparation.js`, but the fixture copied only the previous worker dependency list. Its positive conversion case therefore returned `image-codec` before loading the codec. This failure was reproduced locally before repair. The fixture now includes the new dependency and exercises both clipboard-byte and file-based conversion in its dependency-isolated process, still without tsx/Pi and still enforcing successful resizing, output bounds, and recoverable missing-WASM behavior.
+
+The repair passed build, typecheck, changed-file documentation validation, and 68 tests across the four exact affected/image-compatibility files on Windows. The original macOS failure is not claimed as verified on macOS locally; fresh exact-head CI owns that evidence. No deadlines, assertions, required checks, readiness state, acceptance text, or implementation ticks were weakened or reset.
+
+```bash
+cd /d/Git/a1/.worktrees/herdr-image-paste && npx vitest run test/app/session-shell/clipboard-paste-policy.test.ts test/app/session-shell/herdr-image-files.test.ts test/app/session-shell/image-worker-package.test.ts test/app/session-shell/image-preparation.test.ts --reporter=dot --silent --maxWorkers=1 --no-file-parallelism
+```
+
 ## Known limitations and disposition
 
 1. **Ambiguous markerless remote raw key:** the source protocol cannot prove viewer locality. Raw Herdr image-only host access is a deliberate compatibility exception, discussed before the user's implementation request. If a remote viewer forwards only a raw key rather than supplied content, an unrelated host image may be read successfully. Retry feedback cannot recognize that success as the wrong image. Supplied remote text/images never use this exception. This implementation does not claim the initial absolute unknown-attachment no-read guarantee.

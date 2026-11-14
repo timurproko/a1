@@ -13,7 +13,7 @@ describe("independent native paste access", () => {
     { HC_TERMINAL_ID: "id", TERM_PROGRAM: "herdr" }, { HC_TERMINAL_ID: "id", TERM_PROGRAM: "" },
     { TERM_PROGRAM: "herdr" }, { HC_TERMINAL_ID: "", TERM_PROGRAM: "herdr" },
   ])("permits raw host images without changing terminal copy for %j", env => {
-    // Policy exception, not locality inference: markerless remote raw keys receive this access too.
+    // Security: this exception is not locality inference; markerless remote raw keys receive this access too.
     expect(nativePasteAccess(env)).toBe("image");
     expect(responseCopyDestination(env)).toBe("terminal");
   });

@@ -137,7 +137,7 @@ describe("Herdr supplied screenshots in the production shell", () => {
 
   it("removes a failed file reservation and reports only the fixed retry message", async () => {
     const root = await mkdtemp(join(tmpdir(), "supplied-image-failed-shell-"));
-    // A helper that reports a known read failure after identifying an image exercises chip cleanup.
+    // Rationale: fail after identifying an image to exercise provisional attachment cleanup.
     const failed = join(root, "failed.mjs");
     await writeFile(failed, `process.on('message', m => { if(m.kind==='begin') process.send({kind:'phase',phase:'acquired-image'}); if(m.kind==='convert') process.send({kind:'error',code:'paste-screenshot'}); }); process.send({kind:'ready'});`);
     const { shell, terminal } = await fixture([], [], true, undefined, undefined,
