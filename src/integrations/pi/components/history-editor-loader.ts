@@ -6,5 +6,10 @@ export type HistoryEditorConstructor = new (tui: TUI, theme: EditorTheme, keybin
 
 export async function loadHistoryEditor(): Promise<HistoryEditorConstructor> {
   const { HistoryEditorCore } = await import("./upstream/history/editor-core.js");
-  return createOwnedEditorClass(HistoryEditorCore);
+  class FramedHistoryEditor extends HistoryEditorCore {
+    renderInputBorder(edge: "top" | "bottom", width: number, hiddenLineCount: number): string {
+      return edge === "top" ? super.renderTopBorder(width, hiddenLineCount) : super.renderBottomBorder(width, hiddenLineCount);
+    }
+  }
+  return createOwnedEditorClass(FramedHistoryEditor);
 }

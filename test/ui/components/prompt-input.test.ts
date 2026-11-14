@@ -26,6 +26,24 @@ describe("shared prompt input presentation", () => {
     expect(input.render(0, () => ({ rows: ["ignored"] }))).toEqual([]);
   });
 
+  it.each([0, 1, 2, 3])("owns full-height gutters without duplicate configured padding %i", padding => {
+    const input = new PromptInput(theme);
+    const inset = Math.max(1, padding);
+    const width = 20;
+    const body = ["first", "second", "", "日本語🙂"];
+    const rows = input.render(width, contentWidth => {
+      expect(contentWidth).toBe(width - inset * 2);
+      return { rows: body };
+    }, true, padding).map(stripAnsi);
+    expect(rows[0]).toBe("─".repeat(width));
+    expect(rows.at(-1)).toBe("─".repeat(width));
+    for (const [index, text] of body.entries()) {
+      expect(rows[index + 1]).toBe(`${" ".repeat(inset)}${text}${" ".repeat(width - inset - displayWidth(text))}`);
+    }
+    const filled = input.render(width, () => ({ rows: ["x".repeat(width)] }), true, padding).map(stripAnsi);
+    expect(filled[1]).toBe(`${" ".repeat(inset)}${"x".repeat(width - inset * 2)}${" ".repeat(inset)}`);
+  });
+
   it("shares the marker-free search frame, caret, and quiet placeholder without dimming chrome", () => {
     const search = renderInputRow(new LineInput(""), 30, { placeholder: "Search settings", promptGlyph: "", theme }).lines;
     expect(search[0]).toBe(promptRule(30, theme));
@@ -50,7 +68,7 @@ describe("shared prompt input presentation", () => {
   it("retains semantic annotations and aligns continuation and menu rows", () => {
     const input = new PromptInput(theme);
     const rendered = input.render(20, innerWidth => {
-      expect(innerWidth).toBe(20);
+      expect(innerWidth).toBe(18);
       return {
         rows: ["first", "second"],
         topRule: `${input.styleRule("─── ")}${theme.fg("muted", "1/3 ")}${input.styleRule("─")}`,
@@ -60,18 +78,18 @@ describe("shared prompt input presentation", () => {
     });
     const rows = rendered.map(stripAnsi);
     expect(rows[0]).toBe("─── 1/3 ────────────");
-    expect(rows[1]?.trimEnd()).toBe("first");
-    expect(rows[2]?.trimEnd()).toBe("second");
+    expect(rows[1]?.trimEnd()).toBe(" first");
+    expect(rows[2]?.trimEnd()).toBe(" second");
     expect(rows[3]).toContain("↓ 2");
     expect(rows[4]?.trimEnd()).toBe("menu");
     expect(cellStyle(rendered[0]!, "1")).toEqual(cellStyle(theme.fg("muted", "1"), "1"));
     expect(cellStyle(rendered[0]!, "─")).toEqual(cellStyle(promptRule(1, theme), "─"));
     expect(rendered[0]?.endsWith(promptRule(11, theme))).toBe(true);
     const shiftedAfter = input.render(20, () => ({ rows: ["body"], after: ["menu"], afterIndent: 1 })).map(stripAnsi);
-    expect(shiftedAfter[1]?.trimEnd()).toBe("body");
+    expect(shiftedAfter[1]?.trimEnd()).toBe(" body");
     expect(shiftedAfter[3]?.trimEnd()).toBe(" menu");
     expect(shiftedAfter.every(row => displayWidth(row) === 20)).toBe(true);
-    expect(input.geometry(10, 2)).toEqual({ prefixWidth: 0, innerWidth: 10, paddingX: 2, contentWidth: 6, layoutWidth: 6 });
+    expect(input.geometry(10, 2)).toEqual({ prefixWidth: 0, innerWidth: 6, paddingX: 2, contentWidth: 6, layoutWidth: 5 });
     expect(input.geometry(2, 3).contentWidth).toBe(3);
   });
 });

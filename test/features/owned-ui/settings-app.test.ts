@@ -701,12 +701,12 @@ describe("the settings screen", () => {
     const { app: target, session, writes } = await app();
     screen(target);
     expect(find(target, "Update").trimStart()).toMatch(/^→/);
-    target.onInput?.(`${ESC}[1;2B`, HOST);
-    target.onInput?.(`${ESC}[1;2B`, HOST);
-    target.onInput?.(`${ESC}[1;2B`, HOST);
+    target.onInput?.(`${ESC}[1;6B`, HOST);
+    target.onInput?.(`${ESC}[1;6B`, HOST);
+    target.onInput?.(`${ESC}[1;6B`, HOST);
     expect(find(target, "Persistent history").trimStart()).toMatch(/^→/);
-    target.onInput?.(`${ESC}[1;2B`, HOST);
-    target.onInput?.(`${ESC}[1;2B`, HOST);
+    target.onInput?.(`${ESC}[1;6B`, HOST);
+    target.onInput?.(`${ESC}[1;6B`, HOST);
     expect(find(target, "Warnings").trimStart()).toMatch(/^→/);
     selectRow(target, "Prompt suggestions");
     target.onInput?.(`${ESC}[C`, HOST);
@@ -719,7 +719,7 @@ describe("the settings screen", () => {
 
     for (const query of ["Agent", "Prompt suggestions"]) {
       startSearch(target, query);
-      expect(screen(target).filter(line => line === " Agent")).toHaveLength(1);
+      expect(screen(target).slice(0, -4).filter(line => line === " Agent")).toHaveLength(1);
       expect(screen(target).filter(line => line.includes("Prompt suggestions") && line.trimStart().startsWith("→"))).toHaveLength(1);
       expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→/);
       if (query === "Agent") target.onInput?.(ESC, HOST);
@@ -785,7 +785,7 @@ describe("the settings screen", () => {
     const target = settingsApp(session);
     target.onInput?.("Agent", HOST);
     const shown = screen(target);
-    expect(shown.filter(line => line === " Agent")).toHaveLength(1);
+    expect(shown.slice(0, -4).filter(line => line === " Agent")).toHaveLength(1);
     expect(shown.filter(line => line.includes("Prompt suggestions"))).toHaveLength(1);
     expect(shown.join("\n")).not.toContain("unavailable");
     expect(shown.some(line => line.includes("Thinking level"))).toBe(false);
@@ -1309,7 +1309,7 @@ describe("the settings screen", () => {
     startSearch(target, "t");
     target.onInput?.(DOWN, HOST);
     const after = screen(target);
-    expect(after.some(line => line.trimEnd() === "t")).toBe(true);
+    expect(after.at(-3)).toBe(" t");
     expect(after.join("\n")).not.toContain("❯");
     expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
   });
@@ -1444,13 +1444,20 @@ describe("the settings screen", () => {
     expect(find(target, "→")).toContain("Scrollbar style");
   });
 
-  it("jumps a section from the search, as the arrows move through it", async () => {
+  it.each([false, true])("jumps sections only with Ctrl+Shift arrows while searching=%s", async searching => {
     const { app: target } = await app();
-    openEmptySearch(target);
-    target.onInput?.(`${ESC}[1;2B`, HOST);
-    const after = screen(target);
-    expect(after.join("\n")).not.toContain("❯");
-    expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
+    if (searching) openEmptySearch(target);
+    const selected = () => screen(target).find(line => line.trimStart().startsWith("→"));
+    const first = selected();
+    for (const modifier of [2, 5, 8]) {
+      target.onInput?.(`${ESC}[1;${modifier}B`, HOST);
+      expect(selected()).toBe(first);
+    }
+    target.onInput?.(`${ESC}[1;6B`, HOST);
+    expect(selected()).not.toBe(first);
+    target.onInput?.(`${ESC}[1;6A`, HOST);
+    expect(selected()).toBe(first);
+    expect(screen(target).join("\n")).not.toContain("❯");
   });
 
   it("shows a whole section when the search names it", async () => {
@@ -1467,8 +1474,8 @@ describe("the settings screen", () => {
     const { app: target } = await app();
     startSearch(target, "zzzz");
     target.onInput?.(DOWN, HOST);
-    target.onInput?.(`${ESC}[1;2B`, HOST);
-    expect(screen(target).some(line => line.trimEnd() === "zzzz")).toBe(true);
+    target.onInput?.(`${ESC}[1;6B`, HOST);
+    expect(screen(target).at(-3)).toBe(" zzzz");
     expect(screen(target).some(line => line.trimStart().startsWith("→"))).toBe(false);
     const visible = screen(target);
     const emptyRow = visible.findIndex(line => line.trim() === "No settings found");
@@ -1677,6 +1684,9 @@ describe("the input row and status line behind the screen", () => {
     const visible = painted.map(line => stripTerminalSequences(line).trimEnd());
     const searchRow = visible.findIndex(line => line.trim() === "t");
     expect(searchRow).toBeGreaterThanOrEqual(0);
+    expect(visible[searchRow]).toBe(" t");
+    expect(stripTerminalSequences(painted[searchRow]!)).toHaveLength(80);
+    expect(stripTerminalSequences(painted[searchRow]!)).toMatch(/^ t +$/);
     expect(visible[searchRow]).not.toContain("❯");
     expect(visible[searchRow - 1]).toMatch(/^─+$/u);
     expect(visible[searchRow + 1]).toMatch(/^─+$/u);
@@ -1737,9 +1747,10 @@ describe("the input row and status line behind the screen", () => {
     const rows = target.render({ width: 80, height: 24 }, HOST).map(stripTerminalSequences);
     const row = rows.findIndex(line => line.includes("alpha beta")) + 1;
 
-    target.onMouse?.({ kind: "press", button: 0, row, column: 1 }, HOST);
-    target.onMouse?.({ kind: "motion", button: 0, row, column: 6 }, HOST);
-    target.onMouse?.({ kind: "release", button: 0, row, column: 6 }, HOST);
+    const column = rows[row - 1]!.indexOf("alpha beta") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row, column }, HOST);
+    target.onMouse?.({ kind: "motion", button: 0, row, column: column + 5 }, HOST);
+    target.onMouse?.({ kind: "release", button: 0, row, column: column + 5 }, HOST);
     target.onInput?.("\u0003", HOST);
     expect(copyText).toHaveBeenLastCalledWith("alpha");
 
@@ -1776,7 +1787,7 @@ describe("the input row and status line behind the screen", () => {
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(title));
     expect(hint.startsWith(" ")).toBe(true);
     expect(hint).toContain("↑↓ navigate");
-    expect(hint).toContain("Shift+↑↓ jump");
+    expect(hint).toContain("Ctrl+Shift+↑↓ jump");
     expect(hint).toContain("Enter change");
     expect(hint).not.toContain("Space");
     expect(hint).toContain("←→ adjust");

@@ -880,10 +880,11 @@ Bare A1 SHALL render each completed compaction summary with ordinary submitted-p
 - **AND** its rows SHALL stay within the viewport width, preserving access to the summary
 
 ### Requirement: Completed compactions participate in ordinary prompt navigation
-While the custom transcript owns prompt-navigation input, Shift+Up and Shift+Down SHALL navigate one shared chronological sequence of submitted prompts and completed compactions. Existing previous/next source targeting, document-opening behavior, and movement past the newest anchor to the live bottom SHALL remain in effect. Navigation SHALL NOT submit, recall into the editor, or rewrite a compaction as a user prompt.
+
+While the custom transcript owns prompt-navigation input, Ctrl+Shift+Up and Ctrl+Shift+Down SHALL navigate one shared chronological sequence of submitted prompts and completed compactions. Existing previous/next source targeting, document-opening behavior, and movement past the newest anchor to the live bottom SHALL remain in effect. Navigation SHALL NOT submit, recall into the editor, or rewrite a compaction as a user prompt. Shift-only and Ctrl-only Up/Down SHALL NOT invoke transcript prompt jumps. Shortcut help SHALL advertise the effective Ctrl+Shift chords, and supported terminal encodings SHALL preserve exact modifier ownership. The independent `a1 pi` comparison route SHALL retain its existing behavior.
 
 #### Scenario: Navigate a mixed transcript in both directions
-- **WHEN** the reader uses Shift+Up and Shift+Down through a transcript containing user prompts, assistant/tool output, and multiple completed compactions
+- **WHEN** the reader uses Ctrl+Shift+Up and Ctrl+Shift+Down through a transcript containing user prompts, assistant/tool output, and multiple completed compactions
 - **THEN** the navigation SHALL visit prompts and compactions in document order without skipping compactions or stopping on assistant/tool output
 - **AND** each compaction target SHALL expose its full source block just like an ordinary prompt target
 - **AND** the editor draft SHALL remain unchanged
@@ -895,6 +896,11 @@ While the custom transcript owns prompt-navigation input, Shift+Up and Shift+Dow
 #### Scenario: Preserve focused input ownership
 - **WHEN** a selector, modal, overlay, or replacement editor owns an input event
 - **THEN** compaction navigation SHALL NOT steal that event
+
+#### Scenario: Do not jump on former shortcut aliases
+- **WHEN** the transcript receives Shift+Up/Down or Ctrl+Up/Down without both Ctrl and Shift
+- **THEN** it SHALL NOT perform a prompt or completed-compaction jump
+- **AND** ordinary editor behavior SHALL remain owned by its effective editing bindings
 
 ### Requirement: Compaction presentation preserves transcript semantics and route isolation
 Prompt-style compactions SHALL preserve the displayable summary, semantic selection/copy, native link activation and existing link colors, stable block identity, bounded delivery/rendering, and ordinary prompt behavior. Sticky copies SHALL remain excluded from copied source text. The change SHALL NOT alter compaction generation, persisted message roles, saved prompt recall, branch-summary presentation, live compaction working-status placement, or the pinned `a1 pi` comparison route.
