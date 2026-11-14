@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { nativePasteAccess } from "../../../src/app/session-shell/clipboard-paste-policy.js";
-import { responseCopyDestination } from "../../../src/app/session-shell/response-copy-transport.js";
+import { responseCopyDestination } from "../../../src/app/session-shell/response-copy-policy.js";
 
 describe("independent native paste access", () => {
   it.each([{}, { HC_TERMINAL_ID: "", TERM_PROGRAM: "" }, { TERM_PROGRAM: "ghostty" }])("retains native full-content access for %j", env => {

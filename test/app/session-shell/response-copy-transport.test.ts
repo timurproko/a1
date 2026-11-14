@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createResponseCopyExecutor, responseCopyDestination } from "../../../src/app/session-shell/response-copy-transport.js";
+import { createResponseCopyExecutor } from "../../../src/app/session-shell/response-copy-transport.js";
+import { responseCopyDestination } from "../../../src/app/session-shell/response-copy-policy.js";
 import { MAX_COPY_BYTES, MAX_COPY_CONTROL_BYTES } from "../../../src/app/session-shell/response-copy-protocol.js";
 import type { SelectionCopySnapshot } from "../../../src/ui/components/selection-copy.js";
 

@@ -12,7 +12,7 @@ vi.mock("../../../src/app/session-shell/paste-executor.js", async importOriginal
   const actual = await importOriginal<typeof import("../../../src/app/session-shell/paste-executor.js")>();
   const { coldPasteHelper } = await import("../../support/cold-clipboard-entries.js");
   return { ...actual, startPasteExecutor: (...args: Parameters<typeof actual.startPasteExecutor>) =>
-    actual.startPasteExecutor(args[0], args[1], args[2], coldPasteHelper(args[3]), args[4], args[5]) };
+    actual.startPasteExecutor(args[0], args[1], args[2], coldPasteHelper(args[3]), undefined, args[5]) };
 });
 vi.mock("node:worker_threads", async importOriginal => {
   const actual = await importOriginal<typeof import("node:worker_threads")>();
