@@ -15,6 +15,7 @@ const key = path => process.platform === "win32" ? resolve(path).toLowerCase() :
 const digest = value => createHash("sha256").update(value).digest("hex");
 const failure = (code, message) => Object.assign(new Error(message), { code, cleanupCode: code });
 const ENVIRONMENT_KEY = "WORKTREE_CLEANUP_RESERVATION";
+const reservationBinding = reservation => digest(JSON.stringify({ expected: reservation.expected, dataDir: reservation.dataDir }));
 function parseReservation(bytes) {
   try {
     const value = JSON.parse(bytes);
@@ -70,8 +71,9 @@ async function delegated(directory, expected, environment) {
   if (reservation.authority !== join(directory, `${digest(key(expected.path))}.gate`)) throw failure("worktree-cleanup-reservation", "cleanup authority belongs to another claim store");
   assertWorktreeCleanupSnapshot(reservation.expected, expected);
   const stat = await lstat(reservation.authority);
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096
-    || parseReservation(await readFile(reservation.authority, "utf8")).nonce !== reservation.nonce) throw failure("worktree-cleanup-reservation", "cleanup authority is unavailable; files were retained");
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096) throw failure("worktree-cleanup-reservation", "cleanup authority is unavailable; files were retained");
+  const stored = parseReservation(await readFile(reservation.authority, "utf8"));
+  if (stored.nonce !== reservation.nonce || stored.binding !== reservationBinding(reservation)) throw failure("worktree-cleanup-reservation", "cleanup approval or claim namespace changed; files were retained");
   return reservation;
 }
 
@@ -80,7 +82,7 @@ export async function withUnclaimedWorktree(expected, options, operation) {
   expected = Object.freeze({ ...expected });
   assertWorktreeCleanupSnapshot(expected, await captureWorktreeCleanupSnapshot(expected.path));
   return withTargetExclusion(expected, options, async () => {
-    await requireUnclaimed(cleanupClaimDirectory(options), expected);
+    await requireUnclaimed(cleanupClaimDirectory({ ...options, dataDir: active.getStore().dataDir }), expected);
     return operation();
   }, true);
 }
@@ -110,6 +112,7 @@ async function withTargetExclusion(expected, options, operation, borrow) {
   if (!metadata.isDirectory() || metadata.isSymbolicLink() || key(directory) !== key(location)) throw failure("worktree-coordination-boundary", "the target gate directory is linked or replaced");
   const environment = options.environment ?? process.env;
   const borrowed = borrow ? await delegated(directory, expected, environment) : null;
+  if (borrowed && options.dataDir !== undefined && key(options.dataDir) !== key(borrowed.dataDir)) throw failure("worktree-cleanup-reservation", "cleanup claim namespace differs from its approval");
   let gate;
   if (!borrowed) {
     const deadline = Date.now() + (options.lockTimeoutMs ?? 2_000);
@@ -124,7 +127,8 @@ async function withTargetExclusion(expected, options, operation, borrow) {
   try {
     options.signal?.throwIfAborted();
     if (borrow) await assertApprovedCleanupTarget(expected, { environment });
-    const reservation = borrowed ?? { authority: gate.path, nonce: gate.nonce, expected, dataDir: dirname(cleanupClaimDirectory(options)) };
+    const reservation = borrowed ?? Object.freeze({ authority: gate.path, nonce: gate.nonce, expected, dataDir: dirname(cleanupClaimDirectory(options)) });
+    if (gate) gate.bind(reservationBinding(reservation));
     return await active.run(reservation, operation);
   } finally { gate?.release(); }
 }
@@ -152,13 +156,22 @@ export async function executeUnclaimedWorktreeCleanup(expected, command, args, o
 /** Repository descendants share the reservation and leave durable intent if their immediate parent dies. */
 export async function executeCleanupCommand(command, args, options = {}) {
   const environment = options.environment ?? process.env;
-  const reservation = active.getStore() ?? (environment[ENVIRONMENT_KEY] ? parseReservation(environment[ENVIRONMENT_KEY]) : null);
-  if (reservation) await delegated(join(reservation.expected.commonDir, "worktree-claim-gates"), reservation.expected, environment);
-  if (options.protectTarget) {
-    if (!reservation) throw failure("worktree-cleanup-reservation", "destructive work requires an unclaimed-target reservation");
-    await assertApprovedCleanupTarget(reservation.expected, { environment });
-  }
-  const closed = reservation ? trackClaimGateChild(reservation) : () => {};
+  const local = active.getStore(), reservation = local ?? (environment[ENVIRONMENT_KEY] ? parseReservation(environment[ENVIRONMENT_KEY]) : null);
+  let closed = () => {};
+  try {
+    // Concurrency: reserve synchronously before any await, so an enclosing callback's error cannot release ahead of a pending spawn.
+    if (local) closed = trackClaimGateChild(reservation);
+    if (reservation) await delegated(join(reservation.expected.commonDir, "worktree-claim-gates"), reservation.expected, environment);
+    if (options.protectTarget) {
+      if (!reservation) throw failure("worktree-cleanup-reservation", "destructive work requires an unclaimed-target reservation");
+      await assertApprovedCleanupTarget(reservation.expected, { environment });
+    }
+    if (reservation && !local) closed = trackClaimGateChild(reservation);
+    return await runReservedChild(command, args, options, environment, reservation, closed);
+  } catch (error) { closed(); throw error; }
+}
+
+function runReservedChild(command, args, options, environment, reservation, closed) {
   return new Promise((resolveResult, reject) => {
     let child;
     try { child = spawn(command, args, { cwd: options.cwd, windowsHide: true, detached: options.protectTarget === true,
@@ -181,7 +194,8 @@ export async function executeCleanupCommand(command, args, options = {}) {
     child.stderr.on("data", bytes => { errors = collect(errors, bytes); });
     child.on("error", error => { cause = error; });
     child.on("close", code => {
-      clearTimeout(timer); options.signal?.removeEventListener("abort", stop); closed();
+      clearTimeout(timer); options.signal?.removeEventListener("abort", stop);
+      try { closed(); } catch (error) { cause ??= error; }
       if (cause || code !== 0) reject(Object.assign(cause ?? new Error("repository cleanup failed"), { stdout: output, stderr: errors }));
       else resolveResult(output);
     });

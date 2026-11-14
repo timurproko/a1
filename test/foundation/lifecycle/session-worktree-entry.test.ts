@@ -130,11 +130,13 @@ describe("self-contained worktree entry", () => {
   });
 
   it("preserves the old attachment when a foreign, primary, locked, or busy checkout is requested", async () => {
-    const f = await fixture(), foreign = await fixture();
+    const f = await fixture(), foreign = join(f.root, "foreign");
+    // Performance: a foreign Git identity needs no unrelated session/runtime registration.
+    await execute("git", ["clone", "--shared", f.primary, foreign]);
     const first = await enterSessionRepositoryWorktree(f.identity, "fix/first", undefined, f.options);
     const second = await enterSessionRepositoryWorktree(f.identity, "fix/second", undefined, f.options);
     await setSessionRepositoryContext(f.identity, first.cwd, f.options);
-    await expect(setSessionRepositoryContext(f.identity, foreign.primary, f.options)).rejects.toMatchObject({ code: "worktree-foreign-repository" });
+    await expect(setSessionRepositoryContext(f.identity, foreign, f.options)).rejects.toMatchObject({ code: "worktree-foreign-repository" });
     await expect(setSessionRepositoryContext(f.identity, f.primary, f.options)).rejects.toMatchObject({ code: "worktree-primary-checkout" });
     await f.git("worktree", "lock", second.cwd);
     await expect(setSessionRepositoryContext(f.identity, second.cwd, f.options)).rejects.toMatchObject({ code: "worktree-git-locked" });

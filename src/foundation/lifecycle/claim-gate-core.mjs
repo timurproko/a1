@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { closeSync, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, fstatSync, ftruncateSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import { join } from "node:path";
 
 const identity = stat => `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`;
@@ -16,8 +16,14 @@ export function tryAcquireClaimGate(path) {
   const nonce = randomUUID(), fingerprint = identity(fstatSync(descriptor));
   try { writeFileSync(descriptor, JSON.stringify({ nonce, pid: process.pid })); }
   catch (error) { closeSync(descriptor); throw error; } // Security: an incomplete gate remains blocking, never guessed abandoned.
-  let released = false;
+  let released = false, bound = false;
   return { path: gate, nonce,
+    bind(binding) {
+      if (released || bound || !/^[a-f0-9]{64}$/u.test(binding)) throw new Error("worktree gate binding is unavailable");
+      bound = true;
+      const bytes = JSON.stringify({ nonce, pid: process.pid, binding });
+      ftruncateSync(descriptor, 0); writeSync(descriptor, bytes, 0, "utf8");
+    },
     release() {
       if (released) return;
       released = true;
@@ -47,5 +53,6 @@ export function trackClaimGateChild(reservation) {
   if (!metadata.isDirectory() || metadata.isSymbolicLink()) throw new Error("invalid cleanup child boundary");
   const path = join(directory, randomUUID());
   writeFileSync(path, JSON.stringify({ nonce: reservation.nonce, pid: process.pid }), { flag: "wx", mode: 0o600 });
-  return () => unlinkSync(path);
+  let closed = false;
+  return () => { if (closed) return; closed = true; unlinkSync(path); };
 }

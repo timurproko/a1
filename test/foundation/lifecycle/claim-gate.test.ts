@@ -35,6 +35,19 @@ it("does not let a legacy lease writer reclaim the new gate even with an old tim
   const next = tryAcquireClaimGate(authority); expect(next).not.toBeNull(); next!.release();
 });
 
+it("seals one approval binding per gate generation", async () => {
+  const root = await mkdtemp(join(tmpdir(), "claim-gate-binding-")); roots.push(root);
+  const authority = join(root, "mutation.authority"), held = tryAcquireClaimGate(authority)!;
+  try {
+    held.bind("a".repeat(64));
+    expect(() => held.bind("b".repeat(64))).toThrow("binding is unavailable");
+    expect(JSON.parse(await readFile(`${authority}.gate`, "utf8")).binding).toBe("a".repeat(64));
+    expect(tryAcquireClaimGate(authority)).toBeNull();
+  } finally { held.release(); }
+  const next = tryAcquireClaimGate(authority)!;
+  next.bind("b".repeat(64)); next.release();
+});
+
 it("retains authority rather than following linked child metadata", async () => {
   const root = await mkdtemp(join(tmpdir(), "claim-gate-link-")); roots.push(root);
   const authority = join(root, "mutation.authority"), external = join(root, "external"), held = tryAcquireClaimGate(authority)!;

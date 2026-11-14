@@ -166,9 +166,14 @@ describe("worktree completion", () => {
     await expect(settleSessionWorktreeCompletion(bare.identity, bare.options)).resolves.toBeNull();
     await expect(readActiveSessionRepositoryContext(bare.identity, bare.options)).resolves.toMatchObject({ branch: "fix/task" });
     expect(await exists(bare.worktree)).toBe(true);
+    // Performance: retain the same owned checkout across invalid primary declarations instead of creating unrelated runtimes.
+    await mkdir(join(bare.primary, ".a1"));
     for (const malformed of ["broken", JSON.stringify({ cleanup: "node cleanup.cjs" }), JSON.stringify({ cleanup: [] }),
       JSON.stringify({ cleanup: ["node", "cleanup.cjs", "{worktree}"], cleanupPreflight: ["node", "preflight.cjs", "{worktree}"] })]) {
-      const invalid = await attachedFixture(malformed);
+      const invalid = bare;
+      await writeFile(join(invalid.primary, ".a1", "worktree.json"), malformed);
+      await execute("git", ["-C", invalid.primary, "add", ".a1"]);
+      await execute("git", ["-C", invalid.primary, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "commit", "-m", "invalid adapter fixture"]);
       await expect(requestSessionWorktreeCompletion(invalid.identity, {}, invalid.options)).rejects.toMatchObject({ code: "worktree-completion-unavailable" });
       await expect(settleSessionWorktreeCompletion(invalid.identity, invalid.options)).resolves.toBeNull();
       await expect(readActiveSessionRepositoryContext(invalid.identity, invalid.options)).resolves.toMatchObject({ branch: "fix/task" });

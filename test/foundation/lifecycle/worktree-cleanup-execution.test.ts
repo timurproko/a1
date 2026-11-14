@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 import { expect, it, vi } from "vitest";
 import { assertWorktreeCleanupSnapshot, captureWorktreeCleanupSnapshot } from "../../../src/foundation/lifecycle/worktree-cleanup-snapshot.mjs";
-import { executeUnclaimedWorktreeCleanup } from "../../../src/foundation/lifecycle/worktree-claim-boundary.mjs";
+import { executeCleanupCommand, executeUnclaimedWorktreeCleanup, withUnclaimedWorktree } from "../../../src/foundation/lifecycle/worktree-claim-boundary.mjs";
 
 // Performance: the suspension probe deliberately crosses the former ten-second lease with real processes.
 vi.setConfig({ testTimeout: 60_000 });
@@ -26,7 +26,7 @@ async function suspend(pid: number, stopped: boolean) {
   await exec("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
     `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class FixtureSuspend { [DllImport("ntdll.dll")] public static extern int ${method}(IntPtr p); }'; if ([FixtureSuspend]::${method}([System.Diagnostics.Process]::GetProcessById(${pid}).Handle) -ne 0) { exit 1 }`]);
 }
-async function fixture(grandchild = false) {
+async function fixture(grandchild = false, tamper = "") {
   const root = await realpath(await mkdtemp(join(tmpdir(), "cleanup-process-boundary-"))), primary = join(root, "primary"), dataDir = join(root, "data");
   const git = async (cwd: string, args: string[]) => exec("git", ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "-C", cwd, ...args]);
   await mkdir(primary); await git(primary, ["init", "-b", "develop"]);
@@ -36,11 +36,11 @@ async function fixture(grandchild = false) {
   const session = { sessionId: "competing-process", sessionFile: join(root, "session.jsonl") };
   await writeFile(session.sessionFile, JSON.stringify({ type: "session", version: 3, id: session.sessionId, cwd: primary }) + "\n");
   const data = { primary, path, dataDir, session, snapshot: await captureWorktreeCleanupSnapshot(path),
-    ready: join(root, "ready"), release: join(root, "release"), done: join(root, "done"), grandchild };
+    ready: join(root, "ready"), release: join(root, "release"), done: join(root, "done"), grandchild, tamper };
   const file = join(root, "input.json"); await writeFile(file, JSON.stringify(data));
   const children: ChildProcess[] = [];
   const start = (mode: string) => {
-    const child = spawn(process.execPath, ["--import", "tsx", worker, mode, file], { cwd: repo, stdio: ["ignore", "pipe", "pipe", "ipc"] });
+    const child = spawn(process.execPath, [worker, mode, file], { cwd: repo, stdio: ["ignore", "pipe", "pipe", "ipc"] });
     children.push(child); return child;
   };
   const competitor = start("attach"); await once(competitor, "message");
@@ -56,7 +56,7 @@ async function fixture(grandchild = false) {
     await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   };
   const key = process.platform === "win32" ? resolve(data.snapshot.path).toLowerCase() : resolve(data.snapshot.path);
-  return { ...data, root, git, start, attempt, dispose, gate: join(data.snapshot.commonDir, "worktree-claim-gates", `${createHash("sha256").update(key).digest("hex")}.gate`) };
+  return { ...data, root, file, git, start, attempt, dispose, gate: join(data.snapshot.commonDir, "worktree-claim-gates", `${createHash("sha256").update(key).digest("hex")}.gate`) };
 }
 
 it("binds packed refs and detached HEAD without extra Git snapshot children", async () => {
@@ -80,6 +80,21 @@ it("rejects incomplete child output and releases only after the child closes", a
   } finally { await f.dispose(); }
 });
 
+it("retains exclusion when a callback fails while its issued child is still validating before spawn", async () => {
+  const f = await fixture(); let pending: Promise<string> | undefined;
+  try {
+    await expect(withUnclaimedWorktree(f.snapshot, { dataDir: f.dataDir }, async () => {
+      pending = executeCleanupCommand(process.execPath, [worker, "cleanup", f.file], { cwd: f.primary, protectTarget: true });
+      throw new Error("callback failed after issuing cleanup");
+    })).rejects.toMatchObject({ code: "worktree-cleanup-child-unverifiable" });
+    await wait(f.ready);
+    expect(await f.attempt()).toMatchObject({ attached: false, code: "worktree-claim-busy" });
+    expect(await exists(f.path)).toBe(true);
+    await writeFile(f.release, "continue"); await pending; await wait(f.done);
+    expect(await exists(f.gate)).toBe(true);
+  } finally { await writeFile(f.release, "fixture teardown").catch(() => {}); await pending?.catch(() => {}); await f.dispose(); }
+});
+
 it("excludes a competing session at the production journal-save/remove boundary", async () => {
   const f = await fixture();
   try {
@@ -96,8 +111,8 @@ it("excludes a competing session at the production journal-save/remove boundary"
   } finally { await f.dispose(); }
 });
 
-for (const mutation of ["recreated", "published-head"] as const) it(`rejects ${mutation} resources at the destructive descendant, after command launch`, async () => {
-  const f = await fixture();
+for (const mutation of ["recreated", "published-head", "rebound-frame"] as const) it(`rejects ${mutation} resources at the destructive descendant, after command launch`, async () => {
+  const f = await fixture(false, mutation === "rebound-frame" ? "snapshot" : "");
   try {
     const holder = f.start("holder"); await wait(f.ready);
     if (mutation === "recreated") {
@@ -118,8 +133,21 @@ for (const mutation of ["recreated", "published-head"] as const) it(`rejects ${m
     const before = await readFile(join(f.path, "README.md"));
     const finished = once(holder, "message"); await writeFile(f.release, "continue");
     const result = (await finished)[0];
-    expect(result.finished).toBe(false); expect(result.stderr).toContain("worktree-cleanup-snapshot-changed");
+    expect(result.finished).toBe(false);
+    expect(result.stderr).toContain(mutation === "rebound-frame" ? "worktree-cleanup-reservation" : "worktree-cleanup-snapshot-changed");
     expect(await readFile(join(f.path, "README.md"))).toEqual(before); expect(await exists(f.done)).toBe(false);
+  } finally { await f.dispose(); }
+});
+
+it("rejects a delegated claim-namespace change while preserving the original target", async () => {
+  const f = await fixture(false, "namespace");
+  try {
+    const holder = f.start("holder"); await wait(f.ready);
+    const finished = once(holder, "message"); await writeFile(f.release, "continue");
+    const result = (await finished)[0];
+    expect(result.finished).toBe(false); expect(result.stderr).toContain("worktree-cleanup-reservation");
+    expect(await readFile(join(f.path, "README.md"), "utf8")).toContain("preserve");
+    expect(await exists(f.done)).toBe(false);
   } finally { await f.dispose(); }
 });
 

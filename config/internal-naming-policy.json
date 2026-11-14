@@ -2,6 +2,14 @@
   "schema": "internal-naming-policy-v1",
   "environment": [
     {
+      "role": "worktreeCleanupReservation",
+      "key": "WORKTREE_CLEANUP_RESERVATION",
+      "exposure": "private",
+      "owner": "src/foundation/lifecycle/worktree-claim-boundary.mjs",
+      "evidence": "docs/features/worktrees.md",
+      "semantics": "Private nonce and exact approval delegated only to participating cleanup descendants; not user configuration or independent cleanup authority"
+    },
+    {
       "role": "configDir",
       "key": "A1_CONFIG_DIR",
       "exposure": "public",
