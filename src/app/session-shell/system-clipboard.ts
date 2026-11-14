@@ -17,11 +17,7 @@ interface SystemClipboardImageReader {
 let nativeClipboardPromise: Promise<NativeClipboard | null> | undefined;
 let pendingClipboardWrite: Promise<void> = Promise.resolve();
 
-/**
- * Reads plain text through platform clipboard commands without importing Pi's
- * private clipboard module. Failures are deliberately non-fatal: a denied or
- * unavailable clipboard simply makes the paste action a no-op.
- */
+/** Reads image content before optional file/text fallbacks; image-only requests never acquire those fallbacks. */
 export async function readSystemClipboardContent(signal?: AbortSignal, strict = false, imagesOnly = false): Promise<OwnedUiShellClipboardContent | null> {
   await pendingClipboardWrite;
   const native = await nativeClipboard();

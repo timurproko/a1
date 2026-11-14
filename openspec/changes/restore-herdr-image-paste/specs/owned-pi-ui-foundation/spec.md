@@ -22,6 +22,18 @@ Canceled, timed-out, undone, removed, or session-replaced image-file preparation
 - **WHEN** supplied paste content is ordinary text, a URL, a missing path, a non-image file, a folder, or a multiple/mixed path list
 - **THEN** A1 SHALL preserve that content's existing preparation and chip behavior without native clipboard acquisition
 
+#### Scenario: Image-file acquisition fails after classification
+
+- **WHEN** one classified image file becomes unreadable before worker acquisition
+- **THEN** A1 SHALL report “Couldn’t paste screenshot—try again.” without retaining a failed reservation or exposing the source path
+- **AND** SHALL NOT acquire another clipboard or overwrite later typing
+
+#### Scenario: Concurrent file pastes share the image limit
+
+- **WHEN** two acquired text payloads can still classify as images and their classification completes out of order
+- **THEN** A1 SHALL retain provisional image capacity until classification resolves each payload's kind
+- **AND** SHALL NOT admit attachments beyond the current prompt image limit
+
 #### Scenario: Image-file preparation fails or is canceled
 
 - **WHEN** a supplied image file exceeds image limits, contains invalid image data, or its preparation is canceled or expires

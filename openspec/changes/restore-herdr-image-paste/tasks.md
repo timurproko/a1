@@ -13,5 +13,5 @@
 
 ## 3. Document independent copy, supplied-content, and raw-image paste contracts
 
-- [ ] 3.1 Update clipboard architecture documentation with native image-only paste, actual supplied-file attachments, retry feedback, and the remaining ambiguous raw-remote-image limitation; retain archived PR #922 history.
-- [ ] 3.2 Reconcile the specification deltas and durable implementation evidence with delivered behavior, limits, non-goals, and unperformed physical acceptance; keep the markerless raw-paste exception explicit rather than claiming locality detection.
+- [x] 3.1 Update clipboard architecture documentation with native image-only paste, actual supplied-file attachments, retry feedback, and the remaining ambiguous raw-remote-image limitation; retain archived PR #922 history.
+- [x] 3.2 Reconcile the specification deltas and durable implementation evidence with delivered behavior, limits, non-goals, and unperformed physical acceptance; keep the markerless raw-paste exception explicit rather than claiming locality detection.
