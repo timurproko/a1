@@ -865,7 +865,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.input(`\u001b[<0;1;${promptRow}M\u001b[<32;59;${answerRow}M\u001b[<0;59;${answerRow}m`);
       terminal.input("\u0003");
       await vi.waitFor(() => expect(copied).toHaveLength(2));
-      expect(copied[1]).toBe("❯ ask me\n\nanswer body");
+      expect(copied[1]).toBe("ask me\n\nanswer body");
 
       terminal.input(`\u001b[<0;${inputColumn};${inputRow}M\u001b[<32;${inputColumn + 5};${inputRow}M\u001b[<0;${inputColumn + 5};${inputRow}m`);
       shell.runtime.renderNow();
@@ -1032,6 +1032,46 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.input("\u0016");
       await vi.waitFor(() => expect(shell.root.editor.getText()).toBe(expected));
       expect(terminal.writes.join("")).not.toContain("a1-copy-");
+    } finally { await shell.dispose(); }
+  });
+
+  it.each([
+    [false, false], [false, true], [true, false], [true, true],
+  ])("round-trips prompts and quoted replies without UI chrome (automatic=%s, reverse=%s)", async (automatic, reverse) => {
+    let clipboardText = "";
+    const { shell, terminal } = await fixture([
+      { role: "user", content: [{ type: "text", text: "test text" }], timestamp: 1 },
+      { role: "assistant", content: [{ type: "text", text: "> FIRST: Keep the selected text.\n>\n> SECOND: Preserve a literal │ border." }], timestamp: 2 },
+      { role: "user", content: [{ type: "text", text: "second prompt" }], timestamp: 3 },
+      { role: "assistant", content: [{ type: "text", text: "LAST: Keep alignment." }], timestamp: 4 },
+    ], [], true, undefined, {
+      readText: async () => clipboardText,
+      writeText: async text => { clipboardText = text; },
+    });
+    try {
+      terminal.resize(80, 30);
+      shell.root.viewport.setCopyOnSelect(automatic);
+      shell.runtime.renderNow();
+      const rows = shell.root.render(80).map(stripTerminalSequences);
+      const first = rows.findIndex(row => row.includes("test text"));
+      const last = rows.findIndex(row => row.includes("LAST: Keep alignment."));
+      expect(first).toBeGreaterThanOrEqual(0);
+      expect(last).toBeGreaterThan(first);
+      const from = [1, first + 1];
+      const to = [rows[last]!.indexOf("LAST: Keep alignment.") + "LAST: Keep alignment.".length, last + 1];
+      const start = reverse ? to : from;
+      const end = reverse ? from : to;
+      terminal.input(`\u001b[<0;${start[0]};${start[1]}M\u001b[<32;${end[0]};${end[1]}M\u001b[<0;${end[0]};${end[1]}m`);
+      if (!automatic) {
+        await nextImmediate();
+        expect(clipboardText).toBe("");
+        terminal.input("\u0003");
+      }
+      const expected = "test text\n\nFIRST: Keep the selected text.\n\nSECOND: Preserve a literal │ border.\n\nsecond prompt\n\nLAST: Keep alignment.";
+      await vi.waitFor(() => expect(clipboardText).toBe(expected));
+      terminal.input("\u001b");
+      terminal.input("\u0016");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe(expected));
     } finally { await shell.dispose(); }
   });
 
