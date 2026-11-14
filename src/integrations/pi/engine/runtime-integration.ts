@@ -1,5 +1,4 @@
-import { closeSync, mkdirSync, openSync, unlinkSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { unlinkSync } from "node:fs";
 import { validateRuntimeLaunchOptions, type RuntimeLaunchOptions } from "../../../foundation/launch-context/index.js";
 import {
   createAgentSessionFromServices,
@@ -14,17 +13,17 @@ import {
 } from "../startup-public.js";
 import {
   resolvePiProjectTrustPreflight,
+  resolvePiSessionDirectory,
+  resolveSessionArgumentPath,
   type PiProjectTrustPreflightPrompt,
   type PiProjectTrustUi,
 } from "./project-trust-preflight.js";
-import { openSelectedPiSession, resolvePiSessionDirectory, resolveSessionArgumentPath, takeSelectedSessionWriter, type PiSessionForkPrompt, type PiSessionSelection } from "./session-selection.js";
+import type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
+import { SessionWriterCoordinator, takeSelectedSessionWriter } from "./session-writers.js";
 import { markStartupPhase, type StartupPhase } from "../../../foundation/startup/startup-runtime.js";
 import { createWindowsNulCleanupExtension } from "./windows-filesystem-hygiene.js";
 import type { PiWorktreeCwdReader } from "./worktree-tools.js";
-import {
-  acquireSessionWriter,
-  type SessionWriterHandle,
-} from "../../../foundation/session-writer-lock/index.js";
+import { acquireSessionWriter } from "../../../foundation/session-writer-lock/index.js";
 
 export interface PiRuntimeIntegrationOptions {
   readonly cwd: string;
@@ -56,59 +55,6 @@ export interface PiRuntimePreflightDependencies {
 export type PiSessionReplacement =
   | { readonly kind: "new" }
   | { readonly kind: "resume"; readonly sessionPath: string };
-
-interface PendingSessionWriter {
-  readonly handle: SessionWriterHandle;
-  readonly alreadyCurrent: boolean;
-}
-
-class SessionWriterCoordinator {
-  #current: SessionWriterHandle | undefined;
-
-  prepare(manager: SessionManager): PendingSessionWriter | undefined {
-    const selected = takeSelectedSessionWriter(manager);
-    if (selected !== undefined) return { handle: selected, alreadyCurrent: false };
-    const path = manager.getSessionFile();
-    if (path === undefined) return undefined;
-    if (this.#current?.path === path) return { handle: this.#current, alreadyCurrent: true };
-    const handle = acquireSessionWriter(path);
-    try {
-      if (!handle.bound) {
-        const header = manager.getHeader();
-        if (header === null) throw new Error("new session is missing its generated header");
-        mkdirSync(dirname(path), { recursive: true });
-        const descriptor = openSync(path, "wx", 0o600);
-        try {
-          handle.bind(path);
-          writeFileSync(descriptor, `${JSON.stringify(header)}\n`);
-        } finally {
-          closeSync(descriptor);
-        }
-        manager.setSessionFile(path);
-      }
-      return { handle, alreadyCurrent: false };
-    } catch (error) {
-      handle.release();
-      throw error;
-    }
-  }
-
-  activate(pending: PendingSessionWriter | undefined): void {
-    if (pending?.alreadyCurrent) return;
-    const previous = this.#current;
-    this.#current = pending?.handle;
-    previous?.release();
-  }
-
-  abandon(pending: PendingSessionWriter | undefined): void {
-    if (pending !== undefined && !pending.alreadyCurrent) pending.handle.release();
-  }
-
-  release(): void {
-    this.#current?.release();
-    this.#current = undefined;
-  }
-}
 
 const runtimeSessionWriters = new WeakMap<AgentSessionRuntime, SessionWriterCoordinator>();
 
@@ -159,7 +105,7 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
   const sessionDir = options.runtimeOptions?.noSession ? undefined : resolvePiSessionDirectory(options);
   const selection = options.sessionSelection ?? (options.sessionPath === undefined ? undefined : { target: resolveSessionArgumentPath(options.sessionPath, options.cwd) });
   const { manager: sessionManager, releaseReservation } = await createPiLaunchManager(options, sessionDir, selection);
-  const sessionWriters = new SessionWriterCoordinator();
+  const sessionWriters = new SessionWriterCoordinator(acquireSessionWriter);
   let initialInvocation = true;
   let invocationKeyProvider: string | undefined;
   const createRuntime: CreateAgentSessionRuntimeFactory = async ({
@@ -264,7 +210,7 @@ async function createPiLaunchManager(options: PiRuntimeIntegrationOptions, sessi
     return await (await import("./session-launch.js")).selectPiLaunchSession(request);
   }
   const manager = selection === undefined ? SessionManager.create(options.cwd, sessionDir)
-    : await openSelectedPiSession({ ...request, selection, guardWriter: true });
+    : await (await import("./session-selection.js")).openSelectedPiSession({ ...request, selection, guardWriter: true });
   return { manager, releaseReservation() {} };
 }
 

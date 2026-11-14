@@ -1,4 +1,6 @@
 import { realpathSync } from "node:fs";
+import { homedir } from "node:os";
+import type { RuntimeLaunchOptions } from "../../../foundation/launch-context/index.js";
 import { dirname, resolve } from "node:path";
 import {
   ProjectTrustStore,
@@ -108,6 +110,27 @@ export async function resolvePiProjectTrustPreflight(
       diagnostic: `Project resources in ${options.cwd} were withheld because trust resolution failed: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
+}
+
+/** Resolve before switching effective cwd, including quoted home-relative paths. */
+export function resolveSessionArgumentPath(path: string, cwd: string): string {
+  const expanded = path === "~" ? homedir() : /^~[/\\]/.test(path) ? resolve(homedir(), path.slice(2)) : path;
+  return resolve(cwd, expanded);
+}
+
+/** Storage lookup consumes only globally or explicitly trusted settings, never project factories. */
+export function resolvePiSessionDirectory(options: {
+  readonly cwd: string;
+  readonly agentDir: string;
+  readonly sessionDir?: string;
+  readonly runtimeOptions?: RuntimeLaunchOptions;
+}): string | undefined {
+  const explicit = options.sessionDir ?? options.runtimeOptions?.sessionDir ?? process.env.PI_CODING_AGENT_SESSION_DIR;
+  if (explicit !== undefined) return resolveSessionArgumentPath(explicit, options.cwd);
+  const global = SettingsManager.create(options.cwd, options.agentDir, { projectTrusted: false });
+  const trusted = options.runtimeOptions?.projectTrust ?? new ProjectTrustStore(options.agentDir).get(options.cwd) ?? (global.getDefaultProjectTrust() === "always");
+  const directory = trusted ? SettingsManager.create(options.cwd, options.agentDir, { projectTrusted: true }).getSessionDir() : global.getSessionDir();
+  return directory === undefined ? undefined : resolveSessionArgumentPath(directory, options.cwd);
 }
 
 /** Pinned Pi's five startup outcomes, with canonical parent scope resolved before project resources load. */

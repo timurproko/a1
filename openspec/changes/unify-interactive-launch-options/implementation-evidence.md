@@ -37,6 +37,8 @@ Behavioral fixtures establish:
 
 Initial focused runs found stale help/trust-order expectations and dialog readline terminal-mode behavior. Expectations now distinguish global bootstrap from project admission; canonical line dialogs restore input ownership without introducing another terminal renderer. Targeted re-runs passed. An initial architecture check also rejected eager growth; conditional ownership fixes passed without increasing budgets.
 
+Reconciliation incorporated current develop, including row containment and paste/selection fixes. Its tighter startup budget exposed a further eager-selection cost: the existing coordinator/selected-writer map were factored together, leaving lookup/picker code conditional and storage authority with trust preflight. The same build/typecheck/architecture checks passed without a budget change. Reconciled parallel boundary checks exposed the lifecycle fixture's one-second readiness assumption; it now awaits the actual startup/delivery flush fence and keeps the capability assertion, rather than raising a timeout or weakening it. The targeted owner and boundary checks were repeated for the reconciled candidate.
+
 ## Pending work and claims
 
 Both P1 outcomes are implemented; this is still a partial delivery. P2 full resources/maintenance, P3 print/JSON/RPC/SDK/input/large-payload transport, and P4 complete extension/UI/platform conformance remain later approved deliveries. The old 32768-byte public argv bound is explicitly reported pending the later body transport; files/images and future core flags fail usefully instead of becoming ignored extension input. No full versioned compatibility or POSIX/live-consumer certification is claimed.
