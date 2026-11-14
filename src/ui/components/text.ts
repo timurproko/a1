@@ -6,11 +6,13 @@ const WORD_SEGMENTER = new Intl.Segmenter(undefined, { granularity: "word" });
 
 /**
  * Recommended-for-general-interchange emoji. Terminals give every one of these
- * two columns wherever its code points sit, so the wide blocks in
- * `codePointWidth` cannot carry the measurement alone: a lone U+26A1 or any
+ * two columns wherever its code points sit, so ordinary wide-character ranges
+ * cannot carry the measurement alone: a lone U+26A1 or an RGI
  * U+FE0F presentation sequence escapes them and would measure one column short.
  */
 const RGI_EMOJI_PATTERN = /^\p{RGI_Emoji}$/v;
+// Protocol: a default-wide emoji base stays wide with VS15 or an incomplete sequence.
+const EMOJI_PRESENTATION_PATTERN = /^\p{Emoji_Presentation}/u;
 
 /** Columns a terminal advances for a tab, matching the host runtime. */
 const TAB_WIDTH = 3;
@@ -30,7 +32,7 @@ function codePointWidth(codePoint: number): number {
   if (codePoint >= 0x1ab0 && codePoint <= 0x1aff) return 0;
   if (codePoint >= 0x1dc0 && codePoint <= 0x1dff) return 0;
   if (codePoint >= 0xe0100 && codePoint <= 0xe01ef) return 0;
-  // Protocol: wide cells include CJK, Hangul, fullwidth forms, and the emoji planes terminals render double-width.
+  // Protocol: East Asian wide/fullwidth ranges remain independent of emoji presentation.
   if (codePoint >= 0x1100 && codePoint <= 0x115f) return 2;
   if (codePoint >= 0x2e80 && codePoint <= 0xa4cf && codePoint !== 0x303f) return 2;
   if (codePoint >= 0xac00 && codePoint <= 0xd7a3) return 2;
@@ -38,8 +40,6 @@ function codePointWidth(codePoint: number): number {
   if (codePoint >= 0xfe30 && codePoint <= 0xfe6f) return 2;
   if (codePoint >= 0xff00 && codePoint <= 0xff60) return 2;
   if (codePoint >= 0xffe0 && codePoint <= 0xffe6) return 2;
-  if (codePoint >= 0x1f300 && codePoint <= 0x1f64f) return 2;
-  if (codePoint >= 0x1f900 && codePoint <= 0x1f9ff) return 2;
   if (codePoint >= 0x20000 && codePoint <= 0x3fffd) return 2;
   // Protocol: a tab advances to the host runtime's stop; other control characters occupy nothing.
   if (codePoint === 0x09) return TAB_WIDTH;
@@ -61,7 +61,10 @@ function couldBeEmoji(grapheme: string): boolean {
 
 /** Width of one grapheme cluster: two for emoji, else the widest code point it contains. */
 export function graphemeWidth(grapheme: string): number {
-  if (couldBeEmoji(grapheme) && RGI_EMOJI_PATTERN.test(grapheme)) return 2;
+  // Invariant: bare text pictographs such as 🖼 are narrow, but default emoji
+  // and RGI presentation sequences are wide regardless of their Unicode block.
+  if (couldBeEmoji(grapheme)
+    && (RGI_EMOJI_PATTERN.test(grapheme) || EMOJI_PRESENTATION_PATTERN.test(grapheme))) return 2;
   let width = 0;
   for (const character of grapheme) {
     width = Math.max(width, codePointWidth(character.codePointAt(0) ?? 0));

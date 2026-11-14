@@ -123,6 +123,12 @@ describe("text selection", () => {
 
   it.each([
     ["界", 2],
+    ["🖼", 1],
+    ["🖼\uFE0E", 1],
+    ["🖼\uFE0F", 2],
+    ["🖨", 1],
+    ["🖨\uFE0E", 1],
+    ["🖨\uFE0F", 2],
     ["e\u0301", 1],
     ["👩‍💻", 2],
   ] as const)("keeps %s atomic at either inclusive endpoint and on return", (grapheme, width) => {
@@ -142,6 +148,32 @@ describe("text selection", () => {
         expect(textSelectionText(ordered, [text])).toBe(expected);
       }
       expect(textSelectionText(orderedTextSelection(releaseTextSelection(selection))!, [text])).toBe(grapheme);
+    }
+  });
+
+  it.each([
+    ["🖼", 1], ["🖼\uFE0E", 1], ["🖼\uFE0F", 2],
+    ["🖨", 1], ["🖨\uFE0E", 1], ["🖨\uFE0F", 2],
+  ] as const)("copies repeated styled %s before, on, and after the pictographs in either direction", (symbol, width) => {
+    const source = `\u001b[31ma${symbol}${symbol}z\u001b[0m`;
+    const last = 2 + width * 2;
+    for (const [first, end, expected] of [
+      [1, 2, `a${symbol}`],
+      [2, 1 + width * 2, `${symbol}${symbol}`],
+      [2 + width, last, `${symbol}z`],
+      [1, last, `a${symbol}${symbol}z`],
+    ] as const) {
+      for (const [anchor, head] of [[first, end], [end, first]]) {
+        const pressed = pressTextSelection({ line: 0, column: anchor!, contentWidth: last, lineText: source, now: 1_000 });
+        const selected = orderedTextSelection(releaseTextSelection(extendTextSelection(
+          pressed.selection, textSelectionPointAt(0, head!, source),
+        )))!;
+        expect(textSelectionText(selected, [source])).toBe(expected);
+        const painted = paintTextSelection(source, selected.start.column, selected.end.column);
+        expect(stripAnsi(painted)).toBe(`a${symbol}${symbol}z`);
+        expect(painted).toContain("\u001b[31m");
+        expect(painted).toContain("\u001b[48;2;38;79;120m");
+      }
     }
   });
 

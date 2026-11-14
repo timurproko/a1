@@ -16,15 +16,22 @@ class ContentTerminal implements TerminalPort {
   readonly pending: Promise<void>[] = [];
   input: ((data: string) => void) | undefined;
   readonly screen: HeadlessXterm.Terminal;
-  readonly columns: number;
-  readonly rows: number;
+  columns: number;
+  rows: number;
+  onResize: (() => void) | undefined;
   constructor(columns: number, rows: number) {
     this.columns = columns;
     this.rows = rows;
     this.screen = new HeadlessXterm.Terminal({ cols: columns, rows, allowProposedApi: true, scrollback: 0 });
   }
-  start(onInput: (data: string) => void): void { this.input = onInput; }
-  stop(): void { this.input = undefined; }
+  start(onInput: (data: string) => void, onResize: () => void): void { this.input = onInput; this.onResize = onResize; }
+  stop(): void { this.input = undefined; this.onResize = undefined; }
+  resize(columns: number, rows: number): void {
+    this.columns = columns;
+    this.rows = rows;
+    this.screen.resize(columns, rows);
+    this.onResize?.();
+  }
   async drainInput(): Promise<void> {}
   write(data: string): void {
     this.writes.push(data);
@@ -90,7 +97,7 @@ async function assertCurrentGrid(f: ReturnType<typeof fixture>): Promise<void> {
   const transcript = descriptor.transcript!;
   let controls = 0;
   for (let row = 0; row < f.terminal.rows; row++) {
-    const actual = f.terminal.screen.buffer.active.getLine(row)!.translateToString(false);
+    const actual = f.terminal.screen.buffer.active.getLine(row)!.translateToString(false, 0, f.terminal.columns);
     expect(actual, `child row ${row}`).toBe(stripAnsi(f.composed()[row] ?? "").padEnd(f.terminal.columns));
     if (/Jump to bottom|new messages? \(Ctrl/u.test(actual)) controls++;
     for (let column = 0; column < f.terminal.columns; column++) {
@@ -117,6 +124,74 @@ function transition(f: ReturnType<typeof fixture>, index: number): void {
 }
 
 describe("real fullscreen child content geometry", () => {
+  it("keeps the final-column rail aligned across repeated text pictographs and repaints", async () => {
+    setPiAccentColor("purple");
+    applyPiTheme("dark", false, "truecolor");
+    const f = fixture(29);
+    f.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+    // Prose deliberately gains VS16 in the presentation adapter. Code spans retain
+    // narrow source bytes and exercise this defect independently of legacy xterm's emoji table.
+    const text = Array.from({ length: 50 }, (_, index) => [
+      `${index}: ASCII output`,
+      `${index}: \`${"🖼".repeat(index % 4 + 1)} file.png and 🖨 output\``,
+      `${index}: \`🖼\uFE0E and 🖨\uFE0E text presentation\``,
+      `${index}: **\`🖼🖼 and 🖨🖨 styled\`**`,
+    ][index % 4]).join("\n\n");
+    try {
+      f.runtime.start();
+      f.root.transcript.apply({
+        id: "pictographs", kind: "assistant", status: "live", revision: 1,
+        title: null, text, payload: {},
+      });
+      await assertCurrentGrid(f);
+      expect(f.composed().some(row => row.includes("🖼"))).toBe(true);
+      const initial = [...f.composed()];
+      await assertCurrentGrid(f);
+      expect(f.composed()).toEqual(initial);
+      f.root.transcript.apply({
+        id: "pictographs", kind: "assistant", status: "live", revision: 2,
+        title: null, text: text.replaceAll("🖼", "A").replaceAll("🖨", "B").replaceAll("\uFE0E", ""), payload: {},
+      });
+      await assertCurrentGrid(f);
+      expect(f.composed().join("")).not.toMatch(/[🖼🖨]/u);
+      f.root.transcript.apply({
+        id: "pictographs", kind: "assistant", status: "live", revision: 3,
+        title: null, text, payload: {},
+      });
+      await assertCurrentGrid(f);
+      f.terminal.input!("\u001b[<64;1;10M");
+      await assertCurrentGrid(f);
+      expect(f.root.viewportPresentationEvidence().followingEnd).toBe(false);
+      f.terminal.input!("\u001b[<65;1;10M");
+      await assertCurrentGrid(f);
+      f.root.editor.setText("one\ntwo\nthree");
+      await assertCurrentGrid(f);
+      for (const columns of [80, 110, 100]) {
+        f.terminal.resize(columns, 29);
+        await assertCurrentGrid(f);
+      }
+      f.root.editor.setText("");
+      await assertCurrentGrid(f);
+      f.root.setViewportConfig({ scrollbarAppearance: "hidden", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+      await assertCurrentGrid(f);
+      expect(f.composed().join("")).not.toMatch(/[┃▐]/u);
+      f.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+      await assertCurrentGrid(f);
+      f.root.transcript.apply({
+        id: "pictographs", kind: "assistant", status: "finalized", revision: 4,
+        title: null, text: `${text}\n\n\`🖼🖼🖼 done\``, payload: {},
+      });
+      f.terminal.input!("\u001b[1;5F");
+      await assertCurrentGrid(f);
+      expect(f.root.viewportPresentationEvidence().followingEnd).toBe(true);
+      expect(f.composed().some(row => row.includes("🖼🖼🖼 done"))).toBe(true);
+    } finally {
+      f.runtime.stop();
+      f.root.dispose();
+      f.terminal.screen.dispose();
+    }
+  });
+
   it("keeps the detached badge and rail aligned while Cyrillic content streams through wheel input", async () => {
     setPiAccentColor("purple");
     applyPiTheme("dark", false, "truecolor");

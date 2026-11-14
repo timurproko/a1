@@ -85,15 +85,46 @@ describe("overlaying a span on a rendered row", () => {
     expect(stripAnsi(overlaySpan("", 0, 3, "XYZ"))).toBe("XYZ");
   });
 
-  it("uses an injected terminal-width authority for renderer-specific emoji widths", () => {
-    const first = "[🖼 first.png]";
-    const second = "[🖼 second.png]";
+  it.each([
+    ["🖼", 1], ["🖼\uFE0E", 1], ["🖼\uFE0F", 2],
+    ["🖨", 1], ["🖨\uFE0E", 1], ["🖨\uFE0F", 2],
+  ] as const)("preserves styled %s boundaries around one-cell overlays", (symbol, width) => {
+    const line = `${RED}a${symbol}${symbol}z${RESET}`;
+    for (const [from, expected] of [
+      [0, `X${symbol}${symbol}z`],
+      [1, width === 1 ? `aX${symbol}z` : `aX ${symbol}z`],
+      [width, width === 1 ? `aX${symbol}z` : `a X${symbol}z`],
+      [1 + width, width === 1 ? `a${symbol}Xz` : `a${symbol}X z`],
+      [1 + width * 2, `a${symbol}${symbol}X`],
+    ] as const) {
+      const result = overlaySpan(line, from, from + 1, "X");
+      expect(stripAnsi(result)).toBe(expected);
+      expect(displayWidth(result)).toBe(2 + width * 2);
+      expect(result).toContain(RED);
+      expect(result.endsWith(RESET)).toBe(true);
+    }
+  });
+
+  it("overlays the cell after repeated narrow pictographs without shifting selection or links", () => {
+    const line = `${RED}🖼🖼abc${RESET}`;
+    expect(stripAnsi(overlaySpan(line, 2, 3, "X"))).toBe("🖼🖼Xbc");
+    expect(backgroundSgrSpan(line, 2, 3, `${ESC}[7m`, `${ESC}[27m`))
+      .toContain(`🖼🖼${ESC}[7ma${ESC}[27m`);
+    const linked = hyperlinkSgrSpan(line, 2, 3, "https://example.com");
+    expect(hyperlinkTargetAtColumn(linked, 1)).toBeUndefined();
+    expect(hyperlinkTargetAtColumn(linked, 2)).toBe("https://example.com");
+    expect(hyperlinkTargetAtColumn(linked, 3)).toBeUndefined();
+  });
+
+  it("uses an injected terminal-width authority for host-specific emoji widths", () => {
+    const first = "[🖼️ first.png]";
+    const second = "[🖼️ second.png]";
     const selected = `${ESC}[7m`;
-    const piWidth = (text: string) => text === "🖼" ? 1 : displayWidth(text);
+    const hostWidth = (text: string) => text === "🖼️" ? 1 : displayWidth(text);
     const firstWidth = displayWidth(first) - 1;
     const secondWidth = displayWidth(second) - 1;
 
-    const result = backgroundSgrSpan(first + second, firstWidth, firstWidth + secondWidth, selected, `${ESC}[27m`, piWidth);
+    const result = backgroundSgrSpan(first + second, firstWidth, firstWidth + secondWidth, selected, `${ESC}[27m`, hostWidth);
 
     expect(stripAnsi(result)).toBe(first + second);
     expect(result).toContain(`${first}${selected}${second}`);
