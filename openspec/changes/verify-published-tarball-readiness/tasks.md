@@ -5,8 +5,8 @@
 
 ## 2. Preserve published-installer failure diagnostics
 
-- [ ] 2.1 Write bounded sanitized failure evidence before fixture cleanup using an isolated npm cache and unchanged success transcript checks.
-- [ ] 2.2 Add focused smoke harness regression tests and record implementation evidence and known-gap disposition.
+- [x] 2.1 Write bounded sanitized failure evidence before fixture cleanup using an isolated npm cache and unchanged success transcript checks.
+- [x] 2.2 Add focused smoke harness regression tests and record implementation evidence and known-gap disposition.
 
 ## 3. Promote only exercised published candidates
 
