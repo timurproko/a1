@@ -14,6 +14,7 @@ interface RemoteVersions { readonly release: string | null; readonly develop: st
 export interface VersionStatsOptions {
   readonly packageRoot: string;
   readonly output?: VersionOutput;
+  readonly offline?: boolean;
   readonly runner?: VersionProcessRunner;
   readonly fetcher?: RegistryFetcher;
 }
@@ -39,12 +40,12 @@ export async function runVersionStats(options: VersionStatsOptions): Promise<num
 
   // Rationale: both installed channels show the same remote heads without starting a session;
   // only development versions carry preview pull-request attribution, when their manifests record it.
-  const remote = await queryDistTags(runner, options.fetcher ?? defaultRegistryFetcher);
+  const remote = options.offline ? unavailable("offline mode") : await queryDistTags(runner, options.fetcher ?? defaultRegistryFetcher);
   const developmentBuild = prerelease(installed) !== null;
   const headPullRequest = remote.develop !== null ? await queryRecordedPullRequest(runner, remote.develop) : null;
   const develop = `Develop: ${remote.develop === null ? "unavailable" : withPullRequest(remote.develop, headPullRequest)}\n`;
   output.stdout(`Current: ${withPullRequest(installed, developmentBuild ? installedPullRequest : null)}\n${develop}Release: ${remote.release ?? "unavailable"}\n`);
-  if (remote.error) output.stderr(`${PRODUCT_TEXT.diagnostic(`could not resolve npm dist-tags: ${remote.error}`)}\n`);
+  if (remote.error && !options.offline) output.stderr(`${PRODUCT_TEXT.diagnostic(`could not resolve npm dist-tags: ${remote.error}`)}\n`);
   return 0;
 }
 

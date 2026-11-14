@@ -1,4 +1,4 @@
-import { interactiveLaunchIntent, parseInteractiveLaunchArguments, type InteractiveLaunchArguments, type InteractiveLaunchIntent, type LaunchProfileId } from "../features/launch/index.js";
+import { interactiveLaunchIntent, type InteractiveLaunchArguments, type InteractiveLaunchIntent, type LaunchProfileId } from "../features/launch/index.js";
 import type { CliCapabilities } from "./capabilities.js";
 import type { PackageCommandRequest } from "./packages.js";
 import type { SessionContextRequest } from "./session-context.js";
@@ -11,11 +11,15 @@ import {
 } from "./package-messages.js";
 import { PRODUCT_TEXT } from "../product-identity.js";
 
+import { interactiveOptionHelp, parseInteractiveCommand } from "./interactive-options.js";
+import type { RuntimeLaunchOptions } from "../foundation/launch-context/index.js";
+
 export type UpdateChannel = "stable" | "next";
 
 export interface CliHandlers {
   readonly launch: (intent: InteractiveLaunchIntent) => Promise<number>;
   readonly version: () => Promise<number>;
+  readonly catalog?: (options: RuntimeLaunchOptions, search?: string) => Promise<number>;
   readonly update: (channel: UpdateChannel, target?: string) => Promise<number>;
   readonly packages: (request: PackageCommandRequest) => Promise<number>;
   readonly sessionContext: (request: SessionContextRequest) => Promise<number>;
@@ -75,6 +79,9 @@ export function cliHelp(capabilities: CliCapabilities): string {
     ...(capabilities.developmentComparison ? [`  ${command} pi`] : []),
     `  ${command} help`,
     `  ${command} version`,
+    "",
+    "Interactive launch:",
+    ...interactiveOptionHelp(),
     "",
     "Update:",
     `  ${command} update`,
@@ -143,6 +150,11 @@ export async function dispatchCli(
   }
   if (command.kind === "launch") return await handlers.launch(interactiveLaunchIntent(command.profileId, command.sessionSelection, command));
   if (command.kind === "version") return await handlers.version();
+  if (command.kind === "catalog") {
+    if (handlers.catalog) return await handlers.catalog(command.runtimeOptions, command.search);
+    output.stderr("Model catalog is unavailable in this host.\n");
+    return 2;
+  }
   if (command.kind === "packages") return await handlers.packages(command.request);
   if (command.kind === "session-context") return await handlers.sessionContext(command.request);
   if (command.kind === "session-color") {
@@ -161,6 +173,7 @@ export type CliCommand =
   | { readonly kind: "package-error"; readonly diagnostic: PackageSyntaxDiagnostic; readonly namespace: PackageCommandNamespace }
   | ({ readonly kind: "launch"; readonly profileId: LaunchProfileId } & InteractiveLaunchArguments)
   | { readonly kind: "version" }
+  | { readonly kind: "catalog"; readonly runtimeOptions: RuntimeLaunchOptions; readonly search?: string }
   | { readonly kind: "update"; readonly channel: UpdateChannel; readonly target?: string }
   | { readonly kind: "packages"; readonly request: PackageCommandRequest }
   | { readonly kind: "session-context"; readonly request: SessionContextRequest }
@@ -172,13 +185,6 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
   if (arguments_.length === 0) return { kind: "launch", profileId: "a1" };
   const [command, ...rest] = arguments_;
 
-  if (command === "--session" || command === "--session-dir" || command === "--session-color" || command === "--") {
-    try {
-      return { kind: "launch", profileId: "a1", ...parseInteractiveLaunchArguments(arguments_) };
-    } catch (error) {
-      return { kind: "error", message: PRODUCT_TEXT.diagnostic(`could not parse session launch: ${error instanceof Error ? error.message : String(error)}`) };
-    }
-  }
   if (command === "help" || command === "--help" || command === "-h") return withoutArguments(rest, { kind: "help" });
   if (command === "version" || command === "--version" || command === "-v") return withoutArguments(rest, { kind: "version" });
   // Compatibility: a source keeps `uninstall` as package removal; without one it removes A1.
@@ -197,11 +203,13 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
   if (command === "worktree") return parseWorktree(rest);
   if (command === "session" && rest[0] === "color") return { kind: "session-color", arguments: rest.slice(1) };
   if (command === "session") return parseSessionContext(rest);
-  if (command?.startsWith("update:")) return { kind: "noop" };
-
-  // Rationale: unsupported and reserved command spaces are deliberately quiet. Help is
-  // explicit, and a typo must never start an interactive or maintenance path.
-  return { kind: "noop" };
+  if (command?.startsWith("update:") || ["agent", "solo", "ui", "tabs"].includes(command ?? "")) {
+    return { kind: "error", message: PRODUCT_TEXT.diagnostic("unsupported reserved command; use -- before a literal instruction.") };
+  }
+  if (["config", "auth", "mcp"].includes(command ?? "")) {
+    return { kind: "error", message: PRODUCT_TEXT.diagnostic(`${command} is not available yet; resource/maintenance delivery is pending.`) };
+  }
+  return parseInteractiveCommand(arguments_);
 }
 
 function parseWorktree(rest: readonly string[]): CliCommand {
@@ -268,7 +276,7 @@ function parseUpdate(rest: readonly string[], runningChannel: UpdateChannel): Cl
   }
 
   // Compatibility: removed notation is unsupported rather than deprecated.
-  if (selector === "self") return { kind: "noop" };
+  if (selector === "self") return updateGrammarError("use bare update for the A1 product; independent Pi updates are not supported.");
 
   if (selector === "--develop") {
     if (values.length === 0) return { kind: "update", channel: "next" };

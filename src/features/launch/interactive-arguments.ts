@@ -20,7 +20,10 @@ export function parseInteractiveLaunchArguments(arguments_: readonly string[]): 
     const name = options[index], value = options[index + 1];
     if (name === "--runtime-options") {
       if (runtimeOptions !== undefined || value === undefined) throw new Error("--runtime-options requires one payload");
-      runtimeOptions = validateRuntimeLaunchOptions(JSON.parse(value));
+      let decoded: unknown;
+      try { decoded = JSON.parse(value); }
+      catch { throw new Error("Invalid runtime options payload"); }
+      runtimeOptions = validateRuntimeLaunchOptions(decoded);
     } else if (name === "--session-color") {
       if (sessionColor !== undefined) throw new Error("--session-color may occur only once");
       if (!UI_ACCENT_COLORS.includes(value as UiAccentColor)) throw new Error("--session-color requires blue, green, orange, pink, purple, cyan, or grey");

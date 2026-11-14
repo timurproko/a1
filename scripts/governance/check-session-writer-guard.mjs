@@ -3,12 +3,8 @@ import { extname, relative, resolve, sep } from "node:path";
 
 const rootIndex = process.argv.indexOf("--root");
 const root = resolve(rootIndex >= 0 ? process.argv[rootIndex + 1] : new URL("../..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
-const allowed = new Set([
-  "src/integrations/pi/engine/runtime-integration.ts",
-  "src/integrations/pi/engine/session-selection.ts",
-  "src/integrations/pi/engine/workflow-contexts.ts",
-]);
 const guardedOwners = new Set([
+  "src/integrations/pi/engine/session-launch.ts",
   "src/integrations/pi/engine/runtime-integration.ts",
   "src/integrations/pi/engine/session-selection.ts",
   "src/integrations/pi/engine/workflow-contexts.ts",
@@ -30,7 +26,7 @@ export function inspectSessionWriterGuard(sources) {
   for (const [path, source] of Object.entries(sources)) {
     if (!calls.test(source)) continue;
     calls.lastIndex = 0;
-    if (!allowed.has(path)) errors.push(`${path}: constructs a Pi session writer outside a guarded owner`);
+    if (!guardedOwners.has(path)) errors.push(`${path}: constructs a Pi session writer outside a guarded owner`);
   }
   for (const path of guardedOwners) {
     const source = sources[path];

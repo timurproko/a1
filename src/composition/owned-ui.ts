@@ -12,7 +12,7 @@ import type { SessionSelection } from "../foundation/lifecycle/session-selection
 import { applyConfiguredPiTheme, getAvailablePiThemes, setPiAccentColor, setPiPackageBorderProjectionEnabled } from "../integrations/pi/components/upstream/theme/theme.js";
 import { createPiEngineHost, type PiEngineHostOptions } from "../integrations/pi/engine/host.js";
 import { createPiSessionPresenters } from "../integrations/pi/session-presenters/index.js";
-import type { PiProjectTrustPreflightPrompt } from "../integrations/pi/engine/project-trust-preflight.js";
+import type { PiProjectTrustPreflightPrompt, PiProjectTrustUi } from "../integrations/pi/engine/project-trust-preflight.js";
 import type { PiSessionForkPrompt } from "../integrations/pi/engine/session-selection.js";
 import { ClipboardDiagnosticCapture } from "../app/session-shell/clipboard-diagnostics.js";
 import { createOwnedUiClipboardServices } from "../app/session-shell/clipboard-services.js";
@@ -67,6 +67,7 @@ export interface OwnedUiCompositionOptions {
   /** `off` withholds A1-specific surfaces from comparison profiles. */
   readonly productMode?: "bare" | "comparison";
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
+  readonly projectTrustUi?: PiProjectTrustUi;
   /** Explicit local diagnostic destination; ignored by comparison/settings-free compositions. */
   readonly suggestionDiagnosticsPath?: string;
   /** Optional local metadata-only clipboard diagnostics; never enabled in comparison profiles. */
@@ -241,7 +242,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       sessionColor?.start();
       releaseUpdates.start();
     },
-    flush: startupPromptFlush(backend, bare ? options.promptArguments : undefined, () => terminalHost.runtime.renderNow()),
+    flush: startupPromptFlush(backend, bare ? options.promptArguments : undefined, () => terminalHost.runtime.renderNow(), options.runtimeOptions?.promptSequence === true),
     waitUntilStopped: () => presenter.waitUntilStopped(),
     dispose: async () => {
       naming.dispose();
@@ -279,16 +280,19 @@ async function compositionSettings(options: OwnedUiCompositionOptions, agentProv
   });
 }
 
-function startupPromptFlush(backend: ComposedSessionBackend, arguments_: readonly string[] | undefined, present: () => void) {
-  let prompt = arguments_?.join(" ");
+function startupPromptFlush(backend: ComposedSessionBackend, arguments_: readonly string[] | undefined, present: () => void, sequence = false) {
+  let prompts = arguments_ === undefined ? [] : sequence ? [...arguments_] : [arguments_.join(" ")];
   return async () => {
     await backend.session.flushEvents();
-    const text = prompt;
-    prompt = undefined;
-    if (text?.trim() && !backend.identity.disposed) {
-      // Invariant: startup extension notices get a frame before prompt submission clears transient presentation.
+    const pending = prompts;
+    prompts = [];
+    for (const text of pending) {
+      if (backend.identity.disposed) break;
+      if (!text.trim()) continue;
+      // Invariant: startup notices get a frame; each accepted prompt settles before the next.
       present();
-      await backend.session.execute({ type: "prompt", correlationId: randomUUID(), sessionId: backend.identity.sessionId, text });
+      const result = await backend.session.execute({ type: "prompt", correlationId: randomUUID(), sessionId: backend.identity.sessionId, text });
+      if (result.outcome !== "completed") break;
     }
   };
 }
@@ -365,13 +369,14 @@ function engineHostOptions(options: OwnedUiCompositionOptions, productMode: "bar
       apply: { base: applyConfiguredPiTheme, accentColor: setPiAccentColor, packageBorderProjection: setPiPackageBorderProjectionEnabled },
     },
     ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
+    ...(options.projectTrustUi === undefined ? {} : { projectTrustUi: options.projectTrustUi }),
   };
 }
 
 async function createPromptHistoryConfiguration(settings: OwnedSettingsManager | null, backend: ComposedSessionBackend, bare: boolean) {
   const limit = settings?.value("promptHistoryMaxItems") ?? 100;
   const scope = settings?.value("promptHistoryScope") ?? "unique";
-  const enabled = settings !== null && bare && settings.value("promptHistoryEnabled");
+  const enabled = settings !== null && bare && settings.value("promptHistoryEnabled") && backend.identity.currentSessionFile() !== null;
   const sessionId = enabled ? backend.identity.currentHistorySessionId() : null;
   if (settings === null || !enabled || (scope === "unique" && sessionId === null)) return null;
   const dataDir = resolvePromptHistoryDataDir();

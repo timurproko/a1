@@ -11,7 +11,7 @@ import { composeOwnedUi } from "../../src/composition/owned-ui.js";
 import { PromptHistoryController } from "../../src/app/session-shell/prompt-history-controller.js";
 
 type ShellOptions = { history?: { store: PromptHistoryService; imageSidecar?: { directory: string }; forScope?: (scope: "unique" | "shared", id: string | null) => { store: PromptHistoryService; imageSidecar: { directory: string } } | null } };
-const observed = vi.hoisted(() => ({ shells: [] as ShellOptions[], enabled: true, scope: "unique" as "unique" | "shared", sessionId: "pi-one", loadEditor: vi.fn() }));
+const observed = vi.hoisted(() => ({ shells: [] as ShellOptions[], enabled: true, scope: "unique" as "unique" | "shared", sessionId: "pi-one", persisted: true, loadEditor: vi.fn() }));
 
 // Rationale: test composition/storage without starting a terminal, provider, or Pi runtime.
 vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async importOriginal => ({
@@ -51,6 +51,7 @@ beforeEach(() => {
   observed.enabled = true;
   observed.scope = "unique";
   observed.sessionId = "pi-one";
+  observed.persisted = true;
   observed.shells.length = 0;
   observed.loadEditor.mockClear();
   vi.stubEnv("A1_PROFILE_HOME", root);
@@ -70,9 +71,16 @@ async function compose(options: { profileId?: string; productMode?: "comparison"
   return composeOwnedUi({
     ...options,
     cwd: root,
-    createEngineHost: async () => ({ create: async () => ({ identity: { cwd: root, agentDir: profileRoot, currentHistorySessionId: () => observed.sessionId || null }, session: { onEvent: () => () => {} }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never,
+    createEngineHost: async () => ({ create: async () => ({ identity: { cwd: root, agentDir: profileRoot, currentHistorySessionId: () => observed.sessionId || null, currentSessionFile: () => observed.persisted ? join(root, "fixture.jsonl") : null }, session: { onEvent: () => () => {} }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never,
   });
 }
+
+it.each(["unique", "shared"] as const)("withholds %s file-backed editor history for a real fileless identity", async scope => {
+  observed.scope = scope; observed.persisted = false;
+  await compose();
+  expect(observed.shells[0]!.history).toBeUndefined();
+  expect(observed.loadEditor).not.toHaveBeenCalled();
+});
 
 async function snapshot(store: PromptHistoryService): Promise<PromptHistorySnapshot> {
   let latest: PromptHistorySnapshot | undefined;

@@ -1,7 +1,7 @@
 import {
   createBashToolDefinition, createEditToolDefinition, createFindToolDefinition,
   createGrepToolDefinition, createLsToolDefinition, createReadToolDefinition, createWriteToolDefinition,
-  defineTool, type ToolDefinition,
+  defineTool, type ToolDefinition, type AgentSessionServices, type SessionManager,
 } from "../startup-public.js";
 
 export type PiWorktreeCwdReader = ((sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<string>) & {
@@ -10,6 +10,20 @@ export type PiWorktreeCwdReader = ((sessionId: string, sessionFile: string, sign
   /** Explicit owner-verified recovery; never resolves or validates the attached Git cwd. */
   readonly detach?: (sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<string>;
 };
+
+/** Each replacement gets its own identity; memory sessions use cwd without inventing a file claim. */
+export function runtimeWorktreeToolArguments(services: AgentSessionServices, manager: SessionManager, reader: PiWorktreeCwdReader, hostSignal?: AbortSignal): Parameters<typeof createSessionWorktreeTools> {
+  const file = manager.getSessionFile(), id = manager.getSessionId();
+  const signalFor = (signal?: AbortSignal) => signal ?? hostSignal ?? new AbortController().signal;
+  return [services.cwd,
+    signal => file === undefined ? Promise.resolve(services.cwd) : reader(id, file, signalFor(signal)),
+    file === undefined || reader.settleShell === undefined ? undefined : signal => reader.settleShell!(id, file, signalFor(signal)),
+    reader.detach === undefined ? undefined : async signal => {
+      if (file === undefined) throw new Error("Worktree attachment requires a persistent session file; --no-session is in memory");
+      return await reader.detach!(id, file, signalFor(signal));
+    },
+  ];
+}
 
 /** Built-in tool definitions borrow the current attachment per call, without process-global chdir. */
 export function createSessionWorktreeTools(

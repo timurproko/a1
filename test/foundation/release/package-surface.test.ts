@@ -91,17 +91,28 @@ describe("exact packed npm command surface", () => {
     expect(bedrock.error).toMatch(/abort/i);
   });
 
+  it("rejects the removed agent form through the exact packed a1 shim", () => {
+    const command = crossSpawn.sync(process.execPath, [resolve(extracted.packageRoot, "bin", "cli.js"), "agent"], {
+      cwd: extracted.root, encoding: "utf8", env: process.env, windowsHide: true,
+    });
+    expect(command.status).toBe(2);
+    expect(command.stdout).toBe("");
+    expect(command.stderr).toContain("unsupported reserved command");
+  });
+
   it("launches the exact packed public entry and a1 shim with repository dependencies", () => {
     const publicEntry = resolve(extracted.packageRoot, "dist", "integrations", "pi", "engine", "public-main-entry.js");
     const oracle = crossSpawn.sync(process.execPath, [publicEntry, "--version"], { cwd: extracted.root, encoding: "utf8", env: process.env, windowsHide: true });
     expect(oracle.status, oracle.stderr).toBe(0);
     expect(oracle.stdout.trim()).toBe(candidate.manifest.dependencies?.["@earendil-works/pi-coding-agent"]);
 
-    const command = crossSpawn.sync(process.execPath, [resolve(extracted.packageRoot, "bin", "cli.js"), "agent"], {
+    const command = crossSpawn.sync(process.execPath, [resolve(extracted.packageRoot, "bin", "cli.js"), "--help"], {
       cwd: extracted.root, encoding: "utf8", env: process.env, windowsHide: true,
     });
-    expect(command.status).toBe(0);
-    expect(command.stdout).toBe("");
+    expect(command.status, command.stderr).toBe(0);
+    expect(command.stdout).toContain("Interactive launch:");
+    expect(command.stdout).toContain("--resume");
+    expect(command.stdout).toContain("--continue");
     expect(command.stderr).toBe("");
   });
 });

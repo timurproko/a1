@@ -8,6 +8,15 @@ const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("version stats", () => {
+  it("keeps offline probes local without invoking npm or registry fallback", async () => {
+    const harness = await createHarness();
+    let calls = 0;
+    const unexpected = async (): Promise<never> => { calls++; throw new Error("offline network/process access"); };
+    expect(await runVersionStats({ ...harness.options, offline: true, runner: unexpected, fetcher: unexpected })).toBe(0);
+    expect(calls).toBe(0);
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0-dev.2\nDevelop: unavailable\nRelease: unavailable\n");
+    expect(harness.stderr).toEqual([]);
+  });
   it("reports current, develop preview, and stable release versions from one query", async () => {
     const harness = await createHarness();
     const calls: Array<{ command: string; arguments_: readonly string[] }> = [];

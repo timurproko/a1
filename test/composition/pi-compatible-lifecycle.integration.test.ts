@@ -1,10 +1,12 @@
-import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { PRODUCT_IDENTITY } from "../../src/product-identity.js";
+import { cliCapabilities, parseCliCommand } from "../../src/cli/index.js";
+import { parsePiCompatibleCommand } from "../../src/cli/pi-compatible.js";
 import { composeOwnedUi } from "../../src/composition/owned-ui.js";
 import { createPiEngineHost } from "../../src/integrations/pi/engine/host.js";
 import { createPiRuntimeIntegration } from "../../src/integrations/pi/engine/runtime-integration.js";
@@ -32,13 +34,13 @@ afterEach(async () => {
 });
 
 type Note = { event: string; reason?: string; session?: string; child?: string; ready?: boolean; text?: unknown; cwd?: string };
-async function fixture(promptArguments?: readonly string[]) {
+async function fixture(promptArguments?: readonly string[], promptSequence = false, overrides: import("../../src/foundation/launch-context/index.js").RuntimeLaunchOptions = {}) {
   const root = await realpath(await mkdtemp(resolve(tmpdir(), "a1-compatible-lifecycle-"))); roots.push(root);
   const agentDir = resolve(root, ".a1/agent"), task = resolve(root, "task"), operational = resolve(root, "operational");
   await Promise.all([agentDir, task, operational].map(path => mkdir(path, { recursive: true })));
   for (const [key, value] of Object.entries({ PI_OFFLINE: "1", PI_CODING_AGENT_DIR: agentDir, [PRODUCT_IDENTITY.environment.profileHome]: root, [PRODUCT_IDENTITY.environment.dataDir]: resolve(root, "data"), [PRODUCT_IDENTITY.environment.configDir]: resolve(root, "config"), [PRODUCT_IDENTITY.environment.runtimeDir]: resolve(root, "runtime") })) vi.stubEnv(key, value);
   vi.stubEnv(PRODUCT_IDENTITY.environment.sessionRuntimeId, undefined);
-  await writeFile(resolve(agentDir, "settings.json"), JSON.stringify({ defaultProvider: "fixture", defaultModel: "first", defaultThinkingLevel: "low", defaultProjectTrust: "never", cacheWarming: "off", [PRODUCT_IDENTITY.commandName]: { sessionAutoName: false, promptHistoryEnabled: false, promptSuggestionsEnabled: false, updateCheck: "off" } }));
+  await writeFile(resolve(agentDir, "settings.json"), JSON.stringify({ defaultProvider: "fixture", defaultModel: "first", defaultThinkingLevel: "low", defaultProjectTrust: "never", cacheWarming: "off", [PRODUCT_IDENTITY.commandName]: { sessionAutoName: overrides.noSession === true, promptHistoryEnabled: overrides.noSession === true, promptSuggestionsEnabled: false, updateCheck: "off" } }));
   await writeFile(resolve(agentDir, "models.json"), JSON.stringify({ providers: { fixture: { api: "openai-completions", apiKey: "hermetic-no-network", baseUrl: "http://127.0.0.1:1/v1", models: ["first", "second"].map(id => ({ id, name: id, reasoning: true, input: ["text"], contextWindow: 128000, maxTokens: 128 })) } } }));
   const audit = resolve(root, "audit.jsonl"), gate = resolve(root, "start.gate"), extension = resolve(root, "supervision.ts");
   await writeFile(extension, compatibleExtensionSource({ audit, gate, operational }));
@@ -46,7 +48,7 @@ async function fixture(promptArguments?: readonly string[]) {
   let runtime!: AgentSessionRuntime, adapter!: PiEngineAdapter;
   const composed = await composeOwnedUi({
     cwd: operational, profileId: "a1", productMode: "bare", terminal,
-    runtimeOptions: { extensionPaths: [extension], model: "fixture/second", thinking: "medium" },
+    runtimeOptions: { extensionPaths: [extension], model: "fixture/second", thinking: "medium", ...(promptSequence ? { promptSequence: true } : {}), ...overrides },
     ...(promptArguments === undefined ? {} : { promptArguments }), checkForNewerRelease: async () => null,
     createEngineHost: options => {
       const host = createPiEngineHost({ ...options, createRuntime: async input => runtime = await createPiRuntimeIntegration({ ...input, worktreeCwdReader: async () => task }) });
@@ -76,7 +78,9 @@ function transport(runtime: AgentSessionRuntime, tool: boolean | "metadata" = fa
 
 async function ready(f: Awaited<ReturnType<typeof fixture>>) {
   await f.release(); f.application.start();
-  await vi.waitFor(() => expect(f.adapter.extensions.visualExtensionSupport().available).toBe(true));
+  // Concurrency: await the real startup/delivery fence, not a one-second scheduling assumption.
+  await f.application.flush();
+  expect(f.adapter.extensions.visualExtensionSupport().available).toBe(true);
 }
 
 async function frame(f: Awaited<ReturnType<typeof fixture>>) {
@@ -86,6 +90,38 @@ async function frame(f: Awaited<ReturnType<typeof fixture>>) {
 }
 
 describe("Pi compatibility through real A1 composition and SDK lifecycle", () => {
+  it.each(["a1", "pi"])("delivers %s public positional messages in order exactly once through the actual owned runtime", async entry => {
+    const args = ["first literal ' 🚢", "--thinking", "medium", "second literal\n--model"];
+    const parsed = entry === "a1" ? parseCliCommand(args, cliCapabilities("1.0.0")) : parsePiCompatibleCommand(args);
+    if (parsed.kind !== "launch") throw new Error(JSON.stringify(parsed));
+    const startup = "intent" in parsed ? parsed.intent : parsed;
+    const f = await fixture(startup.promptArguments, startup.runtimeOptions?.promptSequence);
+    const contexts = transport(f.runtime);
+    await ready(f);
+    await f.application.flush(); await f.application.flush();
+    expect(contexts).toHaveLength(2);
+    expect(contexts[0]).toContain("first literal");
+    expect(contexts[0]).not.toContain("second literal");
+    expect(contexts[1]).toContain("second literal");
+    expect((await f.notes()).filter(note => note.event === "before")).toHaveLength(2);
+  }, 15_000);
+  it.each(["a1", "pi"])("keeps %s public in-memory selectors on the normal owned lifecycle without resume hints or transcript files", async entry => {
+    const args = ["--no-session", "--session-id", "memory-entry", "--name", "Scratch", "--models", "fixture/second", "--thinking", "high"];
+    const parsed = entry === "a1" ? parseCliCommand(args, cliCapabilities("1.0.0")) : parsePiCompatibleCommand(args);
+    if (parsed.kind !== "launch") throw new Error("expected shared launch");
+    const startup = "intent" in parsed ? parsed.intent : parsed;
+    const f = await fixture(undefined, false, startup.runtimeOptions);
+    const naming = vi.spyOn(f.runtime.services.modelRuntime, "completeSimple").mockRejectedValue(new Error("no durable repository naming for memory"));
+    transport(f.runtime); await ready(f);
+    await f.runtime.session.prompt("nondurable fixture prompt"); await f.runtime.session.waitForIdle();
+    expect(f.adapter.identity.currentHistorySessionId()).toBe("memory-entry");
+    expect(f.adapter.identity.currentSessionFile()).toBeNull(); expect(f.adapter.identity.currentSessionResumeMetadata()).toBeNull();
+    expect(f.runtime.session.sessionManager.getSessionName()).toBe("Scratch");
+    expect(f.runtime.session.scopedModels.map(entry => entry.model.id)).toEqual(["second"]);
+    expect(f.runtime.session.thinkingLevel).toBe("high"); expect(naming).not.toHaveBeenCalled();
+    await expect(readdir(resolve(f.agentDir, "sessions"))).rejects.toMatchObject({ code: "ENOENT" });
+  }, 15_000);
+
   it("waits for extension startup before the one-shot initial prompt and displays owned UI surfaces", async () => {
     const f = await fixture(["literal '\" 🚢\n--model stays literal"]);
     const contexts = transport(f.runtime);

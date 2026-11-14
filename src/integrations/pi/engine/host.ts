@@ -4,7 +4,7 @@ import { configureOwnedHttpDispatcher } from "./http-dispatcher.js";
 import { markStartupPhase, type StartupPhase } from "../../../foundation/startup/startup-runtime.js";
 import type { PiEngineHostSessionPorts } from "./host-ports.js";
 import type { PiEnginePackageUpdateProbe, PiEngineRuntimeFactory, PiRepositoryContextReader } from "./session-runtime.js";
-import type { PiProjectTrustPreflightPrompt } from "./project-trust-preflight.js";
+import type { PiProjectTrustPreflightPrompt, PiProjectTrustUi } from "./project-trust-preflight.js";
 import type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
 import type { PiWorkflowHost } from "./workflows.js";
 import type { OwnedUiSessionFactory, OwnedUiSessionRequest, UiAccentColor } from "../../../contracts/owned-ui/index.js";
@@ -34,6 +34,7 @@ export interface PiEngineHostOptions {
   /** Comparison profiles preserve Pi's startup changelog; bare A1 owns release-note startup. Defaults to on. */
   readonly announceStartupChangelog?: boolean;
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
+  readonly projectTrustUi?: PiProjectTrustUi;
   readonly checkPackageUpdates?: PiEnginePackageUpdateProbe;
   readonly workflowHost?: Partial<PiWorkflowHost>;
   readonly createRuntime?: PiEngineRuntimeFactory;
@@ -148,6 +149,7 @@ class ProcessPiEngineHost implements PiEngineHost {
       settingsProductMode: options.productMode,
       ...(options.availableThemes === undefined ? {} : { availableThemes: options.availableThemes }),
       ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
+      ...(options.projectTrustUi === undefined ? {} : { projectTrustUi: options.projectTrustUi }),
       ...(options.checkPackageUpdates === undefined ? {} : { checkPackageUpdates: options.checkPackageUpdates }),
       ...(options.workflowHost === undefined ? {} : { workflowHost: options.workflowHost }),
       ...(options.createRuntime === undefined ? {} : { createRuntime: options.createRuntime }),
