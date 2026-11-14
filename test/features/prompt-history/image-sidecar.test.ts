@@ -96,6 +96,11 @@ describe("collectImageChipIdentifiers", () => {
       .toEqual([]);
   });
 
+  it("collects named attachments alongside legacy screenshots, but not plain image-file references", () => {
+    expect(collectImageChipIdentifiers("[🖼 photo.png #abcdef0123] [📷 screenshot-abc12] [🖼️ photo.png #def456-resized] [🖼 photo.png #abcdef0123] [🖼  photo.png] [🖼 photo.png #abc123-failed]"))
+      .toEqual(["abcdef0123", "abc12", "def456"]);
+  });
+
   it("handles empty input", () => {
     expect(collectImageChipIdentifiers("")).toEqual([]);
   });

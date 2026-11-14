@@ -10,6 +10,7 @@ import { ToolExecutionComponent } from "./upstream/components/tool-execution.js"
 import { SkillInvocationMessageComponent } from "./upstream/components/skill-invocation-message.js";
 import { piToolArguments as toolArguments, updatePiToolResult as updateToolResult } from "./tool-result-adapter.js";
 import { createTranscriptImageResolver } from "./transcript-image-resolver.js";
+import { presentEmojiMarkdown } from "./emoji-markdown.js";
 import { createMermaidMarkdownTransformer, type MermaidRenderingMode } from "./upstream/components/mermaid.js";
 import {
   Container,
@@ -27,6 +28,7 @@ import {
 } from "./submitted-prompt-adapter.js";
 export { isPiPromptStyleCompaction, type PiShellSubmittedPromptComposer } from "./submitted-prompt-adapter.js";
 import {
+  AssistantCopyProvenance,
   getPiMarkdownTheme,
   PINNED_PI_LAYOUT,
   piTheme,
@@ -55,6 +57,7 @@ export function createPiShellTranscriptComponent(
 ): PiShellTranscriptComponentPort {
   ensureTheme();
   let block = initial;
+  const copyProvenance = submittedPrompt === undefined ? undefined : new AssistantCopyProvenance();
   const retainedImages = createTranscriptImageResolver(imageAssets, initial);
   let expanded = false;
   let outputPad = initialOutputPad;
@@ -88,22 +91,22 @@ export function createPiShellTranscriptComponent(
       showImages, imageWidthCells, retainedImages,
       createTuiFacade({ getColumns: presentation?.getColumns ?? (() => 80),
         getRows: presentation?.getRows ?? (() => 24), requestRender }),
-      );
+      copyProvenance);
       mountedTool = next instanceof ToolExecutionComponent ? next : undefined;
       return withTranscriptImages(next, block, retainedImages, showImages, imageWidthCells);
     });
   };
   let component = rebuild();
+  const render = (width: number) => {
+    dirty = false;
+    return mutate(() => renderTranscriptWithCopyMetadata(component, block, width, outputPad, copyProvenance));
+  };
   return {
     get id() { return block.id; },
     get revision() { return block.revision; },
     get presentationRevision() { return presentationRevision; },
-    render: width => {
-      dirty = false;
-      const rows = mutate(() => renderWithOutputPad(component, block.kind, width, outputPad));
-      const warning = block.toolRendering?.unavailable;
-      return warning === undefined ? rows : [...rows, ...new Text(piTheme().fg("warning", warning), outputPad, 0).render(width)];
-    },
+    render: width => render(width).rows,
+    renderWithCopyMetadata: render,
     invalidate: () => mutate(() => component.invalidate()),
     dispose: () => { disposed = true; mount++; mountedTool?.dispose(); retainedImages.dispose(); },
     update(next) {
@@ -117,9 +120,8 @@ export function createPiShellTranscriptComponent(
       if (expanded === next) return;
       expanded = next;
       if (submittedPrompt !== undefined && isPiPromptStyleCompaction(block)) return;
-      if ("setExpanded" in component && typeof component.setExpanded === "function") mutate(() => {
-        if ("setExpanded" in component && typeof component.setExpanded === "function") component.setExpanded(expanded);
-      });
+      const expand = "setExpanded" in component ? component.setExpanded : undefined;
+      if (typeof expand === "function") mutate(() => expand.call(component, expanded));
       else component = rebuild();
     },
     setOutputPad(padding) {
@@ -177,15 +179,16 @@ function withTranscriptImages(
   return container;
 }
 
-function renderWithOutputPad(
-  component: Component,
-  kind: OwnedUiTranscriptBlock["kind"],
-  width: number,
-  outputPad: 0 | 1,
-): readonly string[] {
-  const rows = component.render(width);
-  if (outputPad !== 0 || kind !== "bash") return rows;
-  return rows.map(row => row.startsWith(" ") ? row.slice(1) : row);
+function renderTranscriptWithCopyMetadata(
+  component: Component, block: OwnedUiTranscriptBlock, width: number, outputPad: 0 | 1, provenance?: AssistantCopyProvenance,
+) {
+  const source = component.render(width);
+  const rows = outputPad === 0 && block.kind === "bash" ? source.map(row => row.startsWith(" ") ? row.slice(1) : row) : source;
+  const rendering = provenance && (block.kind === "assistant" || block.kind === "thinking")
+    ? provenance.extract(rows, outputPad) : { rows, copyExclusions: new Map() };
+  const warning = block.toolRendering?.unavailable;
+  return warning === undefined ? rendering
+    : { ...rendering, rows: [...rendering.rows, ...new Text(piTheme().fg("warning", warning), outputPad, 0).render(width)] };
 }
 
 export function renderPiShellTranscriptBlock(
@@ -229,25 +232,27 @@ function transcriptComponent(
   imageWidthCells: number,
   imageAssets?: PiShellImageAssetResolver,
   tui?: ReturnType<typeof createTuiFacade>,
+  copyProvenance?: AssistantCopyProvenance,
 ): Component {
   switch (block.kind) {
     case "user": {
       const visibleBlock = submittedPrompt === undefined || block.userPresentation === undefined ? block
         : { ...block, text: block.userPresentation.visibleText };
       const skill = parseSkillBlock(visibleBlock.text);
-      if (!skill) return submittedPrompt ? createPiSubmittedPromptComponent(visibleBlock, submittedPrompt) : new UserMessageComponent(visibleBlock.text);
-      const invocation = new SkillInvocationMessageComponent(skill, getPiMarkdownTheme(), outputPad);
+      if (!skill) return submittedPrompt ? createPiSubmittedPromptComponent(visibleBlock, submittedPrompt)
+        : new UserMessageComponent(visibleBlock.text, getPiMarkdownTheme(), outputPad, [presentEmojiMarkdown]);
+      const invocation = new SkillInvocationMessageComponent(skill, getPiMarkdownTheme(), outputPad, [presentEmojiMarkdown]);
       invocation.setExpanded(expanded);
       if (!skill.userMessage) return invocation;
       const container = new Container();
       container.addChild(invocation);
       container.addChild(new Spacer(1));
-      container.addChild(new UserMessageComponent(skill.userMessage));
+      container.addChild(new UserMessageComponent(skill.userMessage, getPiMarkdownTheme(), outputPad, [presentEmojiMarkdown]));
       return container;
     }
     case "assistant":
     case "thinking":
-      return assistantComponent(block, outputPad, hideThinkingBlock, mermaidRenderingMode);
+      return assistantComponent(block, outputPad, hideThinkingBlock, mermaidRenderingMode, copyProvenance);
     case "tool-call":
     case "tool-result": {
       const component = toolComponent(block, cwd, extensions, outputPad, showImages, imageWidthCells, imageAssets, tui);
@@ -266,16 +271,15 @@ function transcriptComponent(
         timestamp: numericPayload(block, "timestamp") || 0,
       }, getPiMarkdownTheme(), outputPad, [
         createMermaidMarkdownTransformer({ getMode: () => mermaidRenderingMode, theme: piTheme() }),
+        presentEmojiMarkdown,
       ], block.id);
       component.setExpanded(expanded);
       return component;
     }
     case "retry":
-      return new Text(piTheme().fg("warning", `Retry: ${block.text}`), outputPad, 0);
     case "error":
-      return new Text(piTheme().fg("error", `Error: ${block.text}`), outputPad, 0);
     case "system":
-      return new Text(piTheme().fg("dim", block.text), outputPad, 0);
+      return new Text(transcriptText(block), outputPad, 0);
     case "custom":
       return customMessageComponent(block, expanded, extensions, outputPad);
     case "bash":
@@ -323,10 +327,11 @@ function assistantComponent(
   outputPad: 0 | 1,
   hideThinkingBlock: boolean,
   mermaidRenderingMode: MermaidRenderingMode,
+  copyProvenance?: AssistantCopyProvenance,
 ): AssistantMessageComponent {
   const transformer = createMermaidMarkdownTransformer({ getMode: () => mermaidRenderingMode, theme: piTheme() });
   const component = new AssistantMessageComponent(
-    undefined, hideThinkingBlock, getPiMarkdownTheme(), undefined, outputPad, [transformer],
+    undefined, hideThinkingBlock, copyProvenance?.theme(getPiMarkdownTheme()) ?? getPiMarkdownTheme(), undefined, outputPad, [transformer, presentEmojiMarkdown],
   );
   component.updateContent(validatedAssistantMessage(block), block.status === "live");
   return component;
@@ -456,7 +461,7 @@ function customMessageComponent(
     timestamp: numericPayload(block, "timestamp") || 0,
   };
   const renderer = validatedMessageRenderer(extensions?.getMessageRenderer(message.customType));
-  const component = new CustomMessageComponent(message, renderer, getPiMarkdownTheme(), outputPad);
+  const component = new CustomMessageComponent(message, renderer, getPiMarkdownTheme(), outputPad, [presentEmojiMarkdown]);
   component.setExpanded(expanded);
   return component;
 }
@@ -497,9 +502,10 @@ function completeBashComponent(component: BashExecutionComponent, block: OwnedUi
 }
 
 function transcriptText(block: OwnedUiTranscriptBlock): string {
-  if (block.kind === "retry") return piTheme().fg("warning", `Retry: ${block.text}`);
-  if (block.kind === "error") return piTheme().fg("error", `Error: ${block.text}`);
-  return piTheme().fg("dim", block.text);
+  const text = presentEmojiMarkdown(block.text);
+  if (block.kind === "retry") return piTheme().fg("warning", `Retry: ${text}`);
+  if (block.kind === "error") return piTheme().fg("error", `Error: ${text}`);
+  return piTheme().fg("dim", text);
 }
 
 

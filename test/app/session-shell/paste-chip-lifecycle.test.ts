@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PromptChipStore } from "../../../src/app/session-shell/prompt-chips.js";
 import { startPasteExecutor } from "../../../src/app/session-shell/paste-executor.js";
+import { ImageAttachmentError } from "../../../src/contracts/owned-ui/index.js";
 import type { PreparedPaste } from "../../../src/app/session-shell/paste-protocol.js";
 
 vi.mock("../../../src/app/session-shell/paste-executor.js", () => ({
@@ -26,7 +27,7 @@ describe("provisional paste chip ownership", () => {
       firstPhase = phase!; phase?.("acquired-text");
       return { result: pending.promise, stopped: Promise.resolve(), cancel() {} };
     }).mockImplementationOnce((_content, _signal, phase) => {
-      phase?.("acquired-text"); phase?.("acquired-image");
+      phase?.("acquired-text"); phase?.("acquired-image", undefined, "second.png");
       return { result: Promise.resolve(null), stopped: Promise.resolve(), cancel() {} };
     });
     const errors: unknown[] = [];
@@ -36,7 +37,7 @@ describe("provisional paste chip ownership", () => {
       await vi.advanceTimersByTimeAsync(0);
       const second = store.beginPaste(first.marker, { kind: "text", text: "/work/second.png" }, error => errors.push(error));
       await vi.advanceTimersByTimeAsync(0);
-      await second.result;
+      expect(await second.result).toMatch(/^\[🖼️ second\.png #[a-f0-9]+\]$/u);
       expect(errors).toEqual([expect.objectContaining({ code: "image-count" })]);
       firstPhase("acquired-image");
       pending.resolve({ kind: "image", data: "eA==", mimeType: "image/png", width: 1, height: 1, transformed: false });
@@ -44,6 +45,76 @@ describe("provisional paste chip ownership", () => {
       const ready = await first.result; first.complete?.();
       expect(store.prepareSubmission(ready).images).toHaveLength(1);
     } finally { pending.resolve(null); await store.dispose(); }
+  });
+
+  it("hides the screenshot reservation for file images and recalls the named attachment independently", async () => {
+    vi.useFakeTimers();
+    const pending = Promise.withResolvers<PreparedPaste>();
+    vi.mocked(startPasteExecutor).mockImplementationOnce((_content, _signal, phase) => {
+      phase?.("acquired-image", undefined, "Clipboard (2).png");
+      return { result: pending.promise, stopped: Promise.resolve(), cancel() {} };
+    });
+    const store = new PromptChipStore({ isolated: true }), recall = new PromptChipStore(), missing = new PromptChipStore();
+    try {
+      const paste = store.beginPaste("", { kind: "text", text: "/work/Clipboard (2).png" }, () => {});
+      await vi.advanceTimersByTimeAsync(0);
+      expect(store.hiddenRanges(paste.marker)).toHaveLength(1);
+      pending.resolve({ kind: "image", fileName: "Clipboard (2).png", data: "eA==", mimeType: "image/png", width: 1, height: 1, transformed: true });
+      await vi.advanceTimersByTimeAsync(0);
+      const ready = await paste.result; paste.complete?.();
+      expect(ready).toMatch(/^\[🖼️ Clipboard \(2\)\.png #[a-f0-9]+-resized\]$/u);
+      expect(store.hiddenRanges(ready)).toEqual([]);
+      expect(store.expandCopiedText(ready)).toBe(ready);
+      const history = store.prepareHistoryText(ready), records = store.imageChipAttachments(history);
+      expect(records).toHaveLength(1);
+      expect(recall.rehydrateHistoryText(history, id => records.find(record => record.id === id)?.image ?? null)).toBe(ready);
+      expect(recall.prepareSubmission(`${ready}${ready}`).images).toEqual([{ type: "image", data: "eA==", mimeType: "image/png" }]);
+      expect(missing.rehydrateHistoryText(`before ${history} after`, () => null)).toBe("before  after");
+    } finally { await store.dispose(); await recall.dispose(); await missing.dispose(); }
+  });
+
+  it.each(["image-count", "image-conversion"] as const)("retains filename presentation for %s rejection without a usable payload", async code => {
+    vi.useFakeTimers();
+    vi.mocked(startPasteExecutor).mockImplementationOnce((_content, _signal, phase) => {
+      phase?.("acquired-image", undefined, "photo.png");
+      return { result: Promise.reject(new ImageAttachmentError(code)), stopped: Promise.resolve(), cancel() {} };
+    });
+    const store = new PromptChipStore({ isolated: true, imageLimit: () => 1 });
+    const errors: unknown[] = [];
+    try {
+      const paste = store.beginPaste("", { kind: "text", text: "/work/photo.png" }, error => errors.push(error));
+      await vi.advanceTimersByTimeAsync(0);
+      const rejected = await paste.result; paste.complete?.();
+      expect(rejected).toMatch(code === "image-count" ? /^\[🖼️ photo\.png #[a-f0-9]+\]$/u : /^\[🖼️ photo\.png #[a-f0-9]+-failed\]$/u);
+      expect(store.atomicRanges(rejected)).toHaveLength(1);
+      expect(store.imageChipAttachments(rejected)).toEqual([]);
+      if (code === "image-count") {
+        expect(store.unsentRanges(rejected)).toHaveLength(1);
+        expect(store.prepareSubmission(rejected)).toEqual({ text: "", images: [] });
+        expect(store.prepareHistoryText(rejected)).toBe("");
+      } else expect(() => store.prepareSubmission(rejected)).toThrow("This image cannot be safely resized. Paste a PNG or JPEG screenshot instead.");
+      expect(errors).toEqual([expect.objectContaining({ code })]);
+    } finally { await store.dispose(); }
+  });
+
+  it("cancels a named image without retaining a late provisional attachment", async () => {
+    vi.useFakeTimers();
+    const pending = Promise.withResolvers<PreparedPaste>();
+    vi.mocked(startPasteExecutor).mockImplementationOnce((_content, _signal, phase) => {
+      phase?.("acquired-image", undefined, "photo.png");
+      return { result: pending.promise, stopped: Promise.resolve(), cancel() {} };
+    });
+    const store = new PromptChipStore({ isolated: true });
+    try {
+      const paste = store.beginPaste("", { kind: "text", text: "/work/photo.png" }, () => {});
+      await vi.advanceTimersByTimeAsync(0);
+      store.reconcileDraft("");
+      pending.resolve({ kind: "image", fileName: "photo.png", data: "eA==", mimeType: "image/png", width: 1, height: 1, transformed: false });
+      await vi.advanceTimersByTimeAsync(0);
+      await paste.result;
+      expect(store.prepareSubmission("").images).toEqual([]);
+      expect(store.imageChipAttachments(paste.marker)).toEqual([]);
+    } finally { await store.dispose(); }
   });
 
   it("rolls back partial path adoption after cancellation without retaining unused chips", async () => {
