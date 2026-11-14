@@ -49,7 +49,7 @@ export class PastePreparationClient {
   /** Whether a spare helper is held; diagnostics and tests only. */
   get warmed(): boolean { return this.#pool?.warmed ?? false; }
 
-  start<T>(source: PasteSource, adopt: (value: PreparedPaste, signal: AbortSignal) => Promise<T> | T, onImage: () => void, onText: () => void = () => {}): PreparedPasteJob<T> {
+  start<T>(source: PasteSource, adopt: (value: PreparedPaste, signal: AbortSignal) => Promise<T> | T, onImage: (fileName?: string) => void, onText: () => void = () => {}): PreparedPasteJob<T> {
     const controller = new AbortController();
     const id = ++this.#sequence;
     const admitted = performance.now();
@@ -113,12 +113,12 @@ export class PastePreparationClient {
             if (read === null) { onText(); emit("inserting"); resolve(await adopt(null, controller.signal)); await committed; return; }
             content = read;
           }
-          executor = this.#execute(content, controller.signal, (phase, bytes) => {
+          executor = this.#execute(content, controller.signal, (phase, bytes, fileName) => {
             // Protocol: helper exit precedes adoption; only the request's finally block reports complete cleanup.
             if (phase === "cleanup") return;
             if (phase === "acquired-text" || phase === "acquired-image") clearRead();
             if (controller.signal.aborted) return;
-            if (phase === "acquired-image") onImage();
+            if (phase === "acquired-image") onImage(fileName);
             emit(phase, bytes);
           }, this.#helper, this.#pool, source.kind === "native" && source.imagesOnly === true);
           const value = await executor.result;

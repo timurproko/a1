@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, truncate, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, truncate, writeFile } from "node:fs/promises";
 import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -19,8 +19,16 @@ describe.each(["source", "emitted"])("single supplied image files (%s helper)", 
     await writeFile(path, bytes);
     const job = startPasteExecutor({ kind: "text", text: `"${path}"` }, new AbortController().signal, () => {}, helper);
     try {
-      await expect(job.result).resolves.toEqual({ kind: "image", data: bytes.toString("base64"), mimeType: "image/png", width: 16, height: 8, transformed: false });
+      await expect(job.result).resolves.toEqual({ kind: "image", data: bytes.toString("base64"), mimeType: "image/png", width: 16, height: 8, transformed: false, fileName: "screenshot with spaces.PNG" });
     } finally { job.cancel(); await job.stopped; await rm(root, { recursive: true, force: true }); }
+  }, 10_000);
+
+  it("keeps clipboard image bytes free of file provenance", async () => {
+    const data = screenshotPng(16, 8).toString("base64");
+    const job = startPasteExecutor({ kind: "image", data, mimeType: "image/png" }, new AbortController().signal, () => {}, helper);
+    try {
+      await expect(job.result).resolves.toEqual({ kind: "image", data, mimeType: "image/png", width: 16, height: 8, transformed: false });
+    } finally { job.cancel(); await job.stopped; }
   }, 10_000);
 
   it.each(["invalid", "mime", "oversized", "pixels"])("rejects %s image content without trusting the filename", async fault => {
@@ -103,7 +111,9 @@ describe("Herdr supplied screenshots in the production shell", () => {
       terminal.input(" after");
       await vi.waitFor(() => expect(shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).images).toHaveLength(1));
       const draft = shell.root.editor.getText();
-      expect(draft).toMatch(/^\[📷 screenshot-[a-f0-9]+\] after$/u);
+      expect(draft).toMatch(/^\[🖼 transferred screenshot\.png #[a-f0-9]+\] after$/u);
+      expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain(draft.slice(0, -6));
+      expect(shell.root.promptChips.atomicRanges(draft)).toHaveLength(1);
       const attachment = { type: "image", data: bytes.toString("base64"), mimeType: "image/png" };
       expect(shell.root.promptChips.prepareSubmission(draft).images).toEqual([attachment]);
       const records = shell.root.promptChips.imageChipAttachments(draft);
@@ -115,6 +125,9 @@ describe("Herdr supplied screenshots in the production shell", () => {
       await nextImmediate();
       expect(shell.root.editor.getText()).toBe("");
       expect(shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).images).toEqual([]);
+      terminal.input("\u0019"); terminal.input("\u0019");
+      expect(shell.root.editor.getText()).toBe(draft);
+      expect(shell.root.promptChips.prepareSubmission(draft).images).toEqual([attachment]);
       shell.root.editor.setText(draft);
       await shell.submit(draft);
       expect(engine.session.promptOptions.at(-1)).toMatchObject({ images: [attachment] });
@@ -130,8 +143,27 @@ describe("Herdr supplied screenshots in the production shell", () => {
       terminal.input(`\u001b[200~"${path}"\u001b[201~`);
       terminal.input(" after");
       await vi.waitFor(() => expect(shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).images).toHaveLength(2));
-      expect(shell.root.editor.getText()).toMatch(/^\[📷 screenshot-[a-f0-9]+\] between \[📷 screenshot-[a-f0-9]+\] after$/u);
+      expect(shell.root.editor.getText()).toMatch(/^\[🖼 transferred screenshot\.png #[a-f0-9]+\] between \[🖼 transferred screenshot\.png #[a-f0-9]+\] after$/u);
       await expect(readFile(trace, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    } finally { await shell.dispose(); await rm(root, { recursive: true, force: true }); }
+  }, 10_000);
+
+  it("keeps different same-name image files independently attached", async () => {
+    const { shell, terminal, root, path, bytes } = await setup();
+    const secondDirectory = join(root, "second");
+    const second = join(secondDirectory, "transferred screenshot.png"), otherBytes = screenshotPng(8, 4);
+    await mkdir(secondDirectory); await writeFile(second, otherBytes);
+    try {
+      for (const file of [path, second]) terminal.input(`\u001b[200~"${file}"\u001b[201~`);
+      await vi.waitFor(() => expect(shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).images).toHaveLength(2));
+      const draft = shell.root.editor.getText(), records = shell.root.promptChips.imageChipAttachments(draft);
+      expect(records.map(record => record.tag)).toEqual([
+        expect.stringMatching(/^\[🖼 transferred screenshot\.png #[a-f0-9]+\]$/u),
+        expect.stringMatching(/^\[🖼 transferred screenshot\.png #[a-f0-9]+\]$/u),
+      ]);
+      expect(new Set(records.map(record => record.id)).size).toBe(2);
+      expect(shell.root.promptChips.prepareSubmission(draft).images.map(image => image.data))
+        .toEqual([bytes.toString("base64"), otherBytes.toString("base64")]);
     } finally { await shell.dispose(); await rm(root, { recursive: true, force: true }); }
   }, 10_000);
 
