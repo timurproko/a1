@@ -102,6 +102,31 @@ describe("TranscriptDocument", () => {
     expect(document.layout(10)).not.toBe(document.layout(10));
   });
 
+  it("caches copy exclusions with their exact rows and width and refreshes them on invalidation", () => {
+    const { document, mounted } = harness({ customViewport: true });
+    document.apply(block("a"));
+    const component = mounted.get("a")!;
+    let padding = 1;
+    const renderWithCopyMetadata = vi.fn((width: number) => ({
+      rows: [`${" ".repeat(padding)}a@${width}`],
+      copyExclusions: new Map([[0, [{ from: 0, to: padding }]]]),
+    }));
+    Object.assign(component, { renderWithCopyMetadata });
+    for (const width of [20, 30, 20]) {
+      const layout = document.layout(width);
+      expect(layout.rows[2]).toBe(` a@${width}`);
+      expect(layout.copyExclusions?.get(2)).toEqual([{ from: 0, to: 1 }]);
+    }
+    expect(renderWithCopyMetadata).toHaveBeenCalledTimes(2);
+    padding = 2;
+    document.invalidate("block-presentation");
+    expect(document.layout(20).rows[2]).toBe("  a@20");
+    expect(document.layout(20).copyExclusions?.get(2)).toEqual([{ from: 0, to: 2 }]);
+    document.apply(block("a", { revision: 2, status: "live" }));
+    padding = 0;
+    expect(document.layout(30).copyExclusions?.get(2)).toEqual([{ from: 0, to: 0 }]);
+  });
+
   it("reports where the live tail starts", () => {
     const { document } = harness();
     document.apply(block("a"));

@@ -33,6 +33,8 @@ export interface TextSelectionLineContent {
   readonly from?: number;
   readonly to?: number;
   readonly selectable?: boolean;
+  /** Copy-only exclusions; painting keeps the original coordinates. */
+  readonly excludedColumns?: readonly { readonly from: number; readonly to: number }[];
 }
 
 export interface OrderedTextSelection {
@@ -203,7 +205,23 @@ export function textSelectionText(
     const contentTo = Math.max(contentFrom, (content?.to ?? Number.MAX_SAFE_INTEGER) - 1);
     const from = Math.max(baseFrom, contentFrom);
     const to = Math.max(from, Math.min(baseTo, contentTo));
-    parts.push(emojiSourceSlice(rows[line] ?? "", indexAtDisplayBoundary(plain, from, "start"), indexAtDisplayBoundary(plain, to, "end")).trimEnd());
+    const slice = (start: number, end: number) => emojiSourceSlice(rows[line] ?? "", indexAtDisplayBoundary(plain, start, "start"), indexAtDisplayBoundary(plain, end, "end"));
+    const exclusions = content?.excludedColumns;
+    if (exclusions === undefined || exclusions.length === 0) {
+      parts.push(slice(from, to).trimEnd());
+      continue;
+    }
+    let cursor = from;
+    let text = "";
+    for (const excluded of exclusions) {
+      if (excluded.to <= cursor) continue;
+      const end = Math.min(to, excluded.from);
+      if (end > cursor) text += slice(cursor, end);
+      cursor = Math.max(cursor, excluded.to);
+      if (cursor >= to) break;
+    }
+    if (cursor < to) text += slice(cursor, to);
+    parts.push(text.trimEnd());
   }
   return parts.join("\n");
 }

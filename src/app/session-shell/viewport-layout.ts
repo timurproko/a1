@@ -97,6 +97,7 @@ export class ViewportLayout implements ShellLayout {
         // Performance: do not copy the complete document on unchanged dock-only input.
         // Steering and Working retain their one non-persistent viewport-tail ownership.
         documentRows: [...document.rows, ...steeringRows, ...statusRows],
+        ...(document.copyExclusions === undefined ? {} : { copyExclusions: document.copyExclusions }),
         ...(viewport.transcriptPointerSelecting
           ? { paintDocumentRow: heldNativeHyperlinkStyle }
           : {}),

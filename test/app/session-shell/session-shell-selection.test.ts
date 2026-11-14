@@ -865,7 +865,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.input(`\u001b[<0;1;${promptRow}M\u001b[<32;59;${answerRow}M\u001b[<0;59;${answerRow}m`);
       terminal.input("\u0003");
       await vi.waitFor(() => expect(copied).toHaveLength(2));
-      expect(copied[1]).toBe("❯ ask me\n\n answer body");
+      expect(copied[1]).toBe("❯ ask me\n\nanswer body");
 
       terminal.input(`\u001b[<0;${inputColumn};${inputRow}M\u001b[<32;${inputColumn + 5};${inputRow}M\u001b[<0;${inputColumn + 5};${inputRow}m`);
       shell.runtime.renderNow();
@@ -1001,6 +1001,40 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     }
   });
 
+  it.each([false, true])("round-trips a multiline quote without renderer offsets (automatic=%s)", async automatic => {
+    let clipboardText = "";
+    const { shell, terminal } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: "> Diagnose the supported worker-close refusal.\n>\n> Capture the exact error and trace runtime identity.\n>\n> Do not merge anything." }], timestamp: 1 },
+    ], [], true, undefined, {
+      readText: async () => clipboardText,
+      writeText: async text => { clipboardText = text; },
+    });
+    try {
+      terminal.resize(80, 24);
+      shell.root.viewport.setCopyOnSelect(automatic);
+      shell.runtime.renderNow();
+      const rows = shell.root.render(80).map(stripTerminalSequences);
+      const first = rows.findIndex(row => row.includes("Diagnose"));
+      const last = rows.findIndex(row => row.includes("Do not merge anything."));
+      expect(first).toBeGreaterThanOrEqual(0);
+      expect(last).toBeGreaterThan(first);
+      const from = rows[first]!.indexOf("Diagnose") + 1;
+      const to = rows[last]!.indexOf("Do not merge anything.") + "Do not merge anything.".length;
+      terminal.input(`\u001b[<0;${from};${first + 1}M\u001b[<32;${to};${last + 1}M\u001b[<0;${to};${last + 1}m`);
+      if (!automatic) {
+        await nextImmediate();
+        expect(clipboardText).toBe("");
+        terminal.input("\u0003");
+      }
+      const expected = "Diagnose the supported worker-close refusal.\n\nCapture the exact error and trace runtime identity.\n\nDo not merge anything.";
+      await vi.waitFor(() => expect(clipboardText).toBe(expected));
+      terminal.input("\u001b");
+      terminal.input("\u0016");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe(expected));
+      expect(terminal.writes.join("")).not.toContain("a1-copy-");
+    } finally { await shell.dispose(); }
+  });
+
   it.each([false, true])("paints and copies both multiline block endpoints at 192x54 (reverse=%s)", async reverse => {
     const { terminal, shell } = await fixture([
       { role: "assistant", content: [{ type: "text", text: "```\nabcd\nefgh\n```" }], timestamp: 1 },
@@ -1034,8 +1068,8 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       await nextImmediate();
       const clipboardWrite = terminal.writes.findLast(write => write.startsWith("\u001b]52;c;"));
       expect(clipboardWrite).toBeDefined();
-      // Invariant: preserve the code renderer's source-row indentation, but not viewport right padding.
-      expect(Buffer.from(clipboardWrite!.slice(7, -1), "base64").toString("utf8")).toBe("abcd\n   efgh");
+      // Invariant: neither output padding nor code-renderer indentation belongs to the source.
+      expect(Buffer.from(clipboardWrite!.slice(7, -1), "base64").toString("utf8")).toBe("abcd\nefgh");
       expect(shell.root.hasActiveSelection()).toBe(false);
     } finally {
       await shell.dispose();
