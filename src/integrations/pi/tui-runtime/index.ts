@@ -23,4 +23,5 @@ export type {
 } from "./input-presentation-coordinator.js";
 export { PiTuiRuntimeAdapter, PiTuiRuntimeError } from "./adapter.js";
 export type { PiTuiRuntimeErrorStage } from "./adapter.js";
+export { containedRowCount } from "./row-containment.js";
 export { createPiPresentationRuntime, createPiTerminalBridge } from "./presentation-adapter.js";
