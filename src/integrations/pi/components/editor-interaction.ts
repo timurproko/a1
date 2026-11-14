@@ -19,8 +19,10 @@ export interface EditorInteractionPort {
 
 export type EditorRecallPort = OwnedUiShellEditorRecall;
 
-export interface EditorSurface extends Pick<Editor, Exclude<keyof Editor, "setText" | "render" | "handleInput">> {
+export interface EditorSurface extends Pick<Editor, Exclude<keyof Editor, "setText" | "render" | "handleInput" | "getPaddingX" | "setPaddingX">> {
   setText(text: string): void;
+  getPaddingX(): number;
+  setPaddingX(padding: number): void;
   render(width: number): string[];
   handleInput(data: string): void;
   readonly interaction?: EditorInteractionPort;

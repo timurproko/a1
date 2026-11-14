@@ -88,8 +88,8 @@ export const SETTINGS_SHORTCUTS = new ShortcutRegistry<Action>();
 SETTINGS_SHORTCUTS.declare({ key: "edit", scope: SCOPE, description: "Search settings", section: "Change", hint: { keys: "Type", does: "search" } }, "edit-filter");
 SETTINGS_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Previous setting", section: "Navigate", hint: { keys: "↑↓", does: "navigate" } }, "move-up");
 SETTINGS_SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Next setting", section: "Navigate", hint: { keys: "↑↓", does: "navigate" } }, "move-down");
-SETTINGS_SHORTCUTS.declare({ key: "shift+up", scope: SCOPE, description: "Previous section", section: "Navigate", hint: { keys: "Shift+↑↓", does: "jump" } }, "block-up");
-SETTINGS_SHORTCUTS.declare({ key: "shift+down", scope: SCOPE, description: "Next section", section: "Navigate", hint: { keys: "Shift+↑↓", does: "jump" } }, "block-down");
+SETTINGS_SHORTCUTS.declare({ key: "ctrl+shift+up", scope: SCOPE, description: "Previous section", section: "Navigate", hint: { keys: "Ctrl+Shift+↑↓", does: "jump" } }, "block-up");
+SETTINGS_SHORTCUTS.declare({ key: "ctrl+shift+down", scope: SCOPE, description: "Next section", section: "Navigate", hint: { keys: "Ctrl+Shift+↑↓", does: "jump" } }, "block-down");
 SETTINGS_SHORTCUTS.declare({ key: "pageUp", scope: SCOPE, description: "Up a page", section: "Navigate" }, "page-up");
 SETTINGS_SHORTCUTS.declare({ key: "pageDown", scope: SCOPE, description: "Down a page", section: "Navigate" }, "page-down");
 // Compatibility: the same chords the transcript uses for its content boundaries; plain
@@ -115,8 +115,8 @@ assertNoShortcutConflicts(SETTINGS_SHORTCUTS.assemble());
 const KEYS: Readonly<Record<string, string>> = {
   "\u001b[A": "up",
   "\u001b[B": "down",
-  "\u001b[1;2A": "shift+up",
-  "\u001b[1;2B": "shift+down",
+  "\u001b[1;6A": "ctrl+shift+up",
+  "\u001b[1;6B": "ctrl+shift+down",
   "\u001b[D": "left",
   "\u001b[C": "right",
   "\u001b[5~": "pageUp",
@@ -662,15 +662,15 @@ export class SettingsApp implements UiApp {
       }
       return { consumed: true };
     }
-    if (key === "up" || key === "down" || key === "shift+up" || key === "shift+down") {
+    if (key === "up" || key === "down" || key === "ctrl+shift+up" || key === "ctrl+shift+down") {
       this.#search.scrollBefore = null;
       const rows = this.#rows();
       // Rationale: nothing found means nothing to move through; the key is still swallowed
       // rather than typed into the search.
       if (selectableIndexes(rows).length === 0) return { consumed: true, render: false };
       const selected = indexOfKey(rows, this.#selectedKey);
-      const forward = key === "down" || key === "shift+down";
-      if (key === "shift+up" || key === "shift+down") {
+      const forward = key === "down" || key === "ctrl+shift+down";
+      if (key === "ctrl+shift+up" || key === "ctrl+shift+down") {
         const target = blockJumpTarget(rows, selected, forward ? 1 : -1);
         if (target !== undefined) this.#jump(rows, target);
         return { consumed: true };

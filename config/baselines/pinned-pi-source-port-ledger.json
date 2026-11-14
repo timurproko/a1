@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-11T09:12:41.201Z",
+  "recordedAt": "2026-11-14T08:26:03.667Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "b4afdddf44e059c67ccf5097e5317d913521b470",
@@ -514,7 +514,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, Ctrl+M model cycling with ordinary Enter preserved, Ctrl+P Launcher, command-only model selection, Tab tree-filter cycling, tree-local navigation aliases, cross-platform Alt+Up queued-message restoration, and an implicit Ctrl+C selection-cancel alias omitted from shortcut labels.",
       "upgradeStrategy": "three-way",
-      "localSha256": "2f7b3669a89fc2f2276e592b5915b033a35a86b9ef926f51bb8897c481eeaf98",
+      "localSha256": "49de0e8dd55960b11f7cd72b7d8c1b9751d88c2b9fb5f8dc8c7fe8b4a42c84c5",
       "approvedDeviations": [
         {
           "id": "keybindings-public-config-boundary",
@@ -1403,9 +1403,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/owned-editor.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, configurable empty-input placeholder branch, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete with a one-cell outer gutter. Bare A1 also clears a sole top-level slash-command search on Escape and completes a selected or exact completed tunnel command with `:` and reopens the menu on its tunnel rows, and synchronously retains then refreshes an exact top-level command menu after Tab applies its row.",
+      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame and full-height gutters around an unpadded editor body, configurable empty-input placeholder branch, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete with a one-cell outer gutter. Typed border adapters retain full-width history and scroll annotations independently of body gutters. Bare A1 also clears a sole top-level slash-command search on Escape and completes a selected or exact completed tunnel command with `:` and reopens the menu on its tunnel rows, and synchronously retains then refreshes an exact top-level command menu after Tab applies its row.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "ab1c71cae5fbacc20d5737d4161fcd3f5381b72d2ca05299b993df6d829a575b",
+      "localSha256": "4b14a4e5de16484e9169cb3b438275f211c3c60d2c5885e33b0b0fd2cb86d29c",
       "approvedDeviations": [
         {
           "id": "owned-shared-input-frame",

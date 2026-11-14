@@ -1,6 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { DamageAwareTerminalAdapter, PiTuiRuntimeAdapter, PiTuiRuntimeError, classifyPiTuiInput } from "../../../../src/integrations/pi/tui-runtime/index.js";
+import { DamageAwareTerminalAdapter, PiTuiRuntimeAdapter, PiTuiRuntimeError, PI_TERMINAL_RUNTIME, classifyPiTuiInput } from "../../../../src/integrations/pi/tui-runtime/index.js";
 import type { TerminalComponentPort, TerminalPort } from "../../../../src/contracts/presentation/index.js";
+
+describe("owned-screen Ctrl+Shift arrow decoding", () => {
+  it.each([
+    ["\u001b[1;6A", "\u001b[1;6A"],
+    ["\u001b[1;6B", "\u001b[1;6B"],
+    ["\u001b[1;6:1A", "\u001b[1;6A"],
+    ["\u001b[1;6:2B", "\u001b[1;6B"],
+    ["\u001b[1;6:3A", ""],
+    ["\u001b[1;2A", "\u001b[1;2A"],
+    ["\u001b[1;5B", "\u001b[1;5B"],
+    ["\u001b[1;8A", "\u001b[1;8A"],
+  ])("normalizes %j to %j without losing modifiers", (input, expected) => {
+    expect(PI_TERMINAL_RUNTIME.legacyKeyInput(input)).toBe(expected);
+  });
+});
 
 class TestComponent implements TerminalComponentPort {
   readonly inputs: string[] = [];

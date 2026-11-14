@@ -797,10 +797,9 @@ describe("session viewport interaction controller", () => {
     expect(frame(target)[0]).toBe("row-15");
   });
 
-  it.each([
-    { up: "\u001b[1;2A", down: "\u001b[1;2B" },
-    { up: "\u001b[1;5A", down: "\u001b[1;5B" },
-  ])("routes prompt navigation %j from the last prompt to the bottom", ({ up, down }) => {
+  it("routes Ctrl+Shift prompt navigation from the last prompt to the bottom", () => {
+    const up = "ctrl+shift+up";
+    const down = "ctrl+shift+down";
     const renders: (boolean | undefined)[] = [];
     let draft = "keep this draft";
     const target = new SessionViewportController({
@@ -835,10 +834,24 @@ describe("session viewport interaction controller", () => {
     }
   });
 
+  it.each(["\u001b[1;2A", "\u001b[1;2B", "\u001b[1;5A", "\u001b[1;5B", "\u001b[1;8A", "\u001b[1;8B"])("does not jump prompts for old or additional modifiers %j", data => {
+    const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
+    const input = {
+      documentRows: Array.from({ length: 30 }, (_, index) => `row-${index}`),
+      dockRows: [], width: 20, height: 5,
+      promptAnchors: [{ id: "one", firstRow: 1, lastRow: 1, sourceRow: "❯ one" }],
+    };
+    try {
+      const before = target.compose(input);
+      expect(target.handlePreInput(data)).toEqual({ data, consumed: false });
+      expect(target.compose(input).scrollTop).toBe(before.scrollTop);
+    } finally { target.clearPointerState(); }
+  });
+
   it.each([
     { enabled: true, allowNavigation: false },
     { enabled: false, allowNavigation: true },
-  ])("preserves Shift+Down ownership with %j", ({ enabled, allowNavigation }) => {
+  ])("preserves Ctrl+Shift+Down ownership with %j", ({ enabled, allowNavigation }) => {
     const target = new SessionViewportController({ enabled, editor: editor(), requestRender() {} });
     const input = {
       documentRows: Array.from({ length: 30 }, (_, index) => `row-${index}`),
@@ -849,7 +862,7 @@ describe("session viewport interaction controller", () => {
       target.compose(input);
       if (enabled) target.handlePreInput("ctrl+home");
       const before = target.compose(input);
-      const data = "\u001b[1;2B";
+      const data = "ctrl+shift+down";
       expect(target.handlePreInput(data, allowNavigation)).toEqual({ data, consumed: false });
       const after = target.compose(input);
       expect(after.scrollTop).toBe(before.scrollTop);
