@@ -6,9 +6,11 @@ import { nativeHyperlinkStyle } from "../../ui/components/spans.js";
 import type { TranscriptPromptAnchor } from "../../ui/components/transcript-viewport.js";
 
 type TranscriptBlock = OwnedUiSessionViewModel["transcript"][number];
+type TranscriptRendering = ReturnType<NonNullable<OwnedUiShellTranscriptComponentPort["renderWithCopyMetadata"]>>;
 
 export interface TranscriptDocumentLayout {
   readonly rows: readonly string[];
+  readonly copyExclusions?: TranscriptRendering["copyExclusions"];
   readonly promptAnchors: readonly TranscriptPromptAnchor[];
   readonly liveTailStartRow: number | undefined;
 }
@@ -63,7 +65,7 @@ export class TranscriptDocument {
   readonly #blocks = new Map<string, TranscriptBlock>();
   readonly #anchors = new Map<string, number>();
   #order: string[] = [];
-  readonly #renderedRows = new Map<string, Map<number, { readonly revision: number; readonly presentationRevision: number; readonly rows: readonly string[] }>>();
+  readonly #renderedRows = new Map<string, Map<number, { readonly revision: number; readonly presentationRevision: number; readonly rendering: TranscriptRendering }>>();
   // Performance: document layouts are shared by wheel, rail, jump, and selection frames.
   readonly #layouts = new Map<number, TranscriptDocumentLayout>();
   #renders = 0;
@@ -228,6 +230,7 @@ export class TranscriptDocument {
       ...resourceRows,
     ];
     const promptAnchors: TranscriptPromptAnchor[] = [];
+    const copyExclusions = new Map<number, readonly { readonly from: number; readonly to: number }[]>();
     // Rationale: a block that is still streaming re-renders every row it owns, so the frame
     // reports where its rows begin. Damage-aware painting uses that to tell a live block's
     // own reflow apart from a repaint that reaches settled rows.
@@ -241,7 +244,8 @@ export class TranscriptDocument {
       // Invariant: the custom viewport has already removed its rail gutter from this width.
       // Prompt-like and ordinary blocks therefore share one right content edge.
       const blockWidth = width;
-      const blockRows = this.#blockRows(id, block, blockWidth);
+      const rendering = this.#blockRendering(id, block, blockWidth);
+      const blockRows = rendering.rows;
       if (promptLike) {
         // Compatibility: the first natural prompt gets one breathing row at the document top.
         // Once scrolling advances, the prompt itself reaches row zero and then
@@ -254,6 +258,7 @@ export class TranscriptDocument {
         liveTailStartRow = firstRow;
       }
       rows.push(...blockRows);
+      for (const [row, exclusions] of rendering.copyExclusions) copyExclusions.set(firstRow + row, exclusions);
       if (promptLike && blockRows[0] !== undefined) {
         promptAnchors.push({
           id: block.id,
@@ -265,7 +270,7 @@ export class TranscriptDocument {
       }
     }
     rows.push(...this.#noticeRows(diagnostics, width));
-    const layout = { rows: Object.freeze(rows), promptAnchors: Object.freeze(promptAnchors), liveTailStartRow };
+    const layout = { rows: Object.freeze(rows), copyExclusions, promptAnchors: Object.freeze(promptAnchors), liveTailStartRow };
     if (cacheable) {
       this.#layouts.set(width, layout);
       // Performance: the custom viewport commonly probes full width and reserved-rail width.
@@ -329,38 +334,39 @@ export class TranscriptDocument {
       const block = this.#blocks.get(id);
       if (block === undefined || (!thinkingVisible && block.kind === "thinking")) continue;
       if (rows.length > 0 && (block.kind === "user" || this.#options.customViewport && this.#options.components.transcript.isPromptStyleCompaction(block))) rows.push("");
-      rows.push(...this.#blockRows(id, block, width).map(sanitizeExitTranscriptRow));
+      rows.push(...this.#blockRendering(id, block, width).rows.map(sanitizeExitTranscriptRow));
     }
     while (rows.at(-1) === "") rows.pop();
     return rows.join("\n");
   }
 
   // Performance: finalized blocks cache by revision and width; live blocks always render.
-  #blockRows(id: string, block: TranscriptBlock | undefined, width: number): readonly string[] {
+  #blockRendering(id: string, block: TranscriptBlock | undefined, width: number): TranscriptRendering {
     const component = this.#components.get(id);
-    if (component === undefined) return [];
-    const render = (): readonly string[] => {
+    if (component === undefined) return { rows: [], copyExclusions: new Map() };
+    const render = (): TranscriptRendering => {
       this.#renders += 1;
-      const rows = component.render(width);
-      if (!this.#options.customViewport || block?.kind === "user") return rows;
-      return rows.map(row => nativeHyperlinkStyle(row, this.#linkColor));
+      const rendering = this.#options.customViewport && component.renderWithCopyMetadata !== undefined
+        ? component.renderWithCopyMetadata(width)
+        : { rows: component.render(width), copyExclusions: new Map() };
+      if (!this.#options.customViewport || block?.kind === "user") return rendering;
+      return { ...rendering, rows: rendering.rows.map(row => nativeHyperlinkStyle(row, this.#linkColor)) };
     };
     if (block === undefined || block.status !== "finalized") return render();
 
     let byWidth = this.#renderedRows.get(id);
     const cached = byWidth?.get(width);
     const presentationRevision = component.presentationRevision ?? 0;
-    if (cached?.revision === block.revision && cached.presentationRevision === presentationRevision) return cached.rows;
-    const rows = render();
+    if (cached?.revision === block.revision && cached.presentationRevision === presentationRevision) return cached.rendering;
+    const rendering = render();
     if (byWidth === undefined) {
       byWidth = new Map();
       this.#renderedRows.set(id, byWidth);
     }
-    byWidth.set(width, { revision: block.revision, presentationRevision, rows });
-    // Invariant: bare A1 probes full width before reserving the overflowing rail column;
-    // retain both widths without turning resize history into an unbounded cache.
+    byWidth.set(width, { revision: block.revision, presentationRevision, rendering });
+    // Performance: retain both rail widths, not the entire resize history.
     while (byWidth.size > 2) byWidth.delete(byWidth.keys().next().value!);
-    return rows;
+    return rendering;
   }
 }
 

@@ -167,6 +167,11 @@ export interface OwnedUiShellTranscriptComponentPort extends OwnedUiShellCompone
   readonly id: string;
   readonly revision: number;
   readonly presentationRevision?: number;
+  /** Copy exclusions in original display columns, paired with their rendered rows. */
+  renderWithCopyMetadata?(width: number): {
+    readonly rows: readonly string[];
+    readonly copyExclusions: ReadonlyMap<number, readonly { readonly from: number; readonly to: number }[]>;
+  };
   update(block: OwnedUiTranscriptBlock): void;
   setExpanded(expanded: boolean): void;
   setOutputPad(padding: 0 | 1): void;

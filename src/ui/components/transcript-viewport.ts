@@ -137,7 +137,7 @@ export class TranscriptViewport {
   #selectionRows: readonly string[] = [];
   readonly #rowCaches = new ViewportRowCaches();
   #previousVisibleStates: readonly string[] = [];
-  #documentRows: readonly string[] = [];
+  #document: Pick<TranscriptViewportFrameInput, "documentRows" | "copyExclusions"> = { documentRows: [] };
   #selectableDocumentRowCount = 0;
   #liveTailStartRow: number | undefined;
   #promptAnchors: readonly TranscriptPromptAnchor[] = [];
@@ -277,7 +277,7 @@ export class TranscriptViewport {
   selectedText(): string | null {
     const visible = this.#visibleSelection();
     if (visible === undefined) return null;
-    const offscreen = offscreenSelectionRows(this.#selection, this.#selectionAnchors, this.#scrollTop, this.#firstSelectableRow, this.#viewportHeight, this.#documentRows.length);
+    const offscreen = offscreenSelectionRows(this.#selection, this.#selectionAnchors, this.#scrollTop, this.#firstSelectableRow, this.#viewportHeight, this.#document.documentRows.length);
     // Rationale: edge auto-scroll grows a drag beyond one screen. Paint stays clipped to the
     // frame, while copy reads the selected document rows past either viewport edge and beneath
     // the floating bottom control.
@@ -285,7 +285,7 @@ export class TranscriptViewport {
     const rowAnchors: (SelectionRowAnchor | undefined)[] = [];
     const controlLine = (this.#frame?.hits.bottom?.row ?? 0) - 1;
     const pushDocumentRow = (row: number): void => {
-      const source = this.#documentRows[row] ?? "";
+      const source = this.#document.documentRows[row] ?? "";
       selectionRows.push(truncateToWidth(source, this.#contentWidth));
       rowAnchors.push(documentSelectionAnchor(row, source));
     };
@@ -334,13 +334,14 @@ export class TranscriptViewport {
       line => {
         const row = selectionRows[line] ?? "";
         const anchor = rowAnchors[line];
-        const dock = anchor?.kind === "dock" ? this.#copyableDockRows.get(anchor.fromBottom) : undefined;
         if (prompt !== undefined && anchor?.kind === "document") {
           const first = anchor.row === prompt.firstRow;
           return selectionCopyLineContent(row, first ? "first" : "continuation");
         }
         // Invariant: the dock editor has no prefix; transcript prompts still carry chrome.
-        return dock?.prompt !== undefined ? usefulTextLineContent(row, 1) : usefulTextLineContent(row);
+        const content = usefulTextLineContent(row);
+        const excludedColumns = anchor?.kind === "document" ? this.#document.copyExclusions?.get(anchor.row) : undefined;
+        return excludedColumns === undefined ? content : { ...content, excludedColumns };
       },
       line => included.has(line),
     );
@@ -441,7 +442,7 @@ export class TranscriptViewport {
     this.#selectionClick = undefined;
     this.#rowCaches.clear();
     this.#previousVisibleStates = [];
-    this.#documentRows = [];
+    this.#document = { documentRows: [] };
     this.#selectableDocumentRowCount = 0;
     this.#liveTailStartRow = undefined;
     this.#promptAnchors = [];
@@ -479,7 +480,7 @@ export class TranscriptViewport {
       hovered: this.#railHovered, dragging: this.#railDragging, activeUntil: this.#activeUntil, now: input.now ?? Date.now(),
     });
     const contentWidth = presentation.reservesSpace ? Math.max(1, width - 1) : width;
-    this.#documentRows = documentRows;
+    this.#document = { documentRows, ...(input.copyExclusions === undefined ? {} : { copyExclusions: input.copyExclusions }) };
     this.#selectableDocumentRowCount = clamp(input.selectableDocumentRowCount ?? input.documentRows.length, 0, input.documentRows.length);
     this.#liveTailStartRow = input.liveTailStartRow === undefined || !Number.isSafeInteger(input.liveTailStartRow)
       ? undefined
@@ -567,7 +568,7 @@ export class TranscriptViewport {
     const paintDocumentRow = input.paintDocumentRow ?? IDENTITY_ROW;
     const paintId = this.#rowCaches.functionId(paintDocumentRow);
     const paintRecomputedRows = new Set<number>();
-    const visibleSource = this.#documentRows.slice(this.#scrollTop, this.#scrollTop + this.#viewportHeight);
+    const visibleSource = this.#document.documentRows.slice(this.#scrollTop, this.#scrollTop + this.#viewportHeight);
     while (visibleSource.length < this.#viewportHeight) visibleSource.push("");
     const visible = visibleSource.map((row, index) => {
       const painted = this.#rowCaches.painted(paintId, row, cacheLimit, paintDocumentRow);
@@ -653,14 +654,14 @@ export class TranscriptViewport {
       // Concurrency: selection edge auto-scroll updates scrollTop before the next frame is
       // composed. Resolve ordinary viewport rows from that latest position instead of stale paint.
       const documentRow = this.#scrollTop + line;
-      if (documentRow >= 0 && documentRow < this.#documentRows.length) {
+      if (documentRow >= 0 && documentRow < this.#document.documentRows.length) {
         return documentRow < this.#selectableDocumentRowCount
-          ? this.#interactionDocumentAnchor(documentRow, this.#documentRows[documentRow] ?? "")
+          ? this.#interactionDocumentAnchor(documentRow, this.#document.documentRows[documentRow] ?? "")
           : viewportSelectionAnchor(
               documentRow,
-              this.#documentRows[documentRow] ?? "",
+              this.#document.documentRows[documentRow] ?? "",
               this.#selectableDocumentRowCount,
-              this.#documentRows.length,
+              this.#document.documentRows.length,
             );
       }
     }
@@ -773,7 +774,7 @@ export class TranscriptViewport {
 
   #updateCopyableSelection(): void {
     // Performance: off-screen rows count as copyable by range alone; capture trims whitespace later.
-    const offscreen = offscreenSelectionRows(this.#selection, this.#selectionAnchors, this.#scrollTop, this.#firstSelectableRow, this.#viewportHeight, this.#documentRows.length);
+    const offscreen = offscreenSelectionRows(this.#selection, this.#selectionAnchors, this.#scrollTop, this.#firstSelectableRow, this.#viewportHeight, this.#document.documentRows.length);
     const selectable = [offscreen.above, offscreen.below]
       .some(range => range !== undefined && range.from < this.#selectableDocumentRowCount);
     this.#copyableSelection = selectable && this.#visibleSelection() !== undefined || this.selectedText() !== null;

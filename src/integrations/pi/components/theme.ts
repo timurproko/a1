@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { displayWidth, type DisplayColumnRange } from "../../../ui/components/text.js";
 import {
   DIALOG_CLOSE_SHORTCUT_HINT,
   displayShortcutKeyLabel,
@@ -59,13 +61,41 @@ export function paintPiBorder(text: string): string {
   return piTheme().fg("border", text);
 }
 
-/** Markdown keeps Pi's complete base treatment while resolving list markers through A1's accent. */
+/** Maps Markdown headings and bullets to A1's theme. */
 export function getPiMarkdownTheme(): MarkdownTheme {
   return {
     ...getMarkdownTheme(),
     heading: text => piTheme().fg("mdHeading", text),
     listBullet: text => piTheme().fg("mdListBullet", text),
   };
+}
+
+/** Tracks generated prefixes without exposing tags to the terminal. */
+export class AssistantCopyProvenance {
+  readonly #id = `a1-copy-${randomUUID()}`;
+
+  /** Tags prefixes without changing styling or geometry. */
+  theme(base: MarkdownTheme): MarkdownTheme {
+    const mark = (text: string): string => `\u001b]777;${this.#id};${displayWidth(text)}\u0007${text}`;
+    return { ...base, quoteBorder: text => mark(base.quoteBorder(text)), codeBlockIndent: mark(base.codeBlockIndent ?? "  ") };
+  }
+
+  /** Removes tags and records their original display columns. */
+  extract(sourceRows: readonly string[], outputPad: number) {
+    const copyExclusions = new Map<number, readonly DisplayColumnRange[]>();
+    const marker = new RegExp(`\\x1b\\]777;${this.#id};(\\d+)\\x07`, "g");
+    const rows = sourceRows.map((source, row) => {
+      const ranges: DisplayColumnRange[] = outputPad > 0 ? [{ from: 0, to: outputPad }] : [];
+      const text = source.replace(marker, (_mark: string, width: string, offset: number) => {
+        const from = displayWidth(source.slice(0, offset));
+        ranges.push({ from, to: from + Number(width) });
+        return "";
+      });
+      if (ranges.length > 0) copyExclusions.set(row, ranges);
+      return text;
+    });
+    return { rows, copyExclusions };
+  }
 }
 
 /** Hotkey key spans share the live secondary/filter tone without changing general Markdown code. */

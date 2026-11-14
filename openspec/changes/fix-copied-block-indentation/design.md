@@ -22,6 +22,12 @@ The canonical frame-copy rule preserving internal whitespace remains the default
 
 Run only owner-level tests covering changed presentation/extraction and shell copy/paste, TypeScript checks, and strict OpenSpec validation. Cover the reported multiline quote, ordinary paragraph and fenced code padding, genuine nested code indentation, literal `│` source text, forward/reverse and partial selections, Unicode, blank lines, mixed rows, scrolling/reflow/streaming invalidation, and automatic/explicit payload parity. A real Herdr desktop round trip remains optional manual confirmation, not evidence already obtained.
 
+## Implementation
+
+The assistant Markdown theme tags generated quote borders and code indentation with per-component, zero-width internal markers carrying their display width. The transcript adapter removes those markers before returning any terminal rows and publishes the corresponding copy exclusions together with the rows. The document caches that pair by block revision, presentation revision, and width; frame projection keeps exclusions in original document-row coordinates. Extraction skips only those ranges without shifting pointer boundaries or changing selection paint. Owned output padding is excluded separately. The comparison profile does not install markers, and unclassified renderers publish no exclusions.
+
+Both rendering and copy metadata are produced by one render operation. Existing rendering parity remains byte-identical, including OSC prompt zones. No startup graph or size-ratchet limits were increased; the existing padding helper was folded into the paired rendering operation and redundant expansion narrowing was simplified.
+
 ## Known gaps
 
-Implementation has not begun; this is a planning-only draft awaiting plan approval and implementation authorization. No physical clipboard or screenshot-session reproduction has been performed. Renderer-prefix leakage is reproduced directly against the current viewport; exact screenshot clipboard bytes were not available.
+None within the approved implementation scope. Unknown custom-renderer text retains literal copying, and visible soft-wrap boundaries retain the existing frame-copy policy by design. A physical Herdr clipboard round trip was not performed; focused shell tests exercise both copy routes and paste with an injected clipboard. Exact screenshot clipboard bytes were unavailable.
