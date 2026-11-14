@@ -1,9 +1,5 @@
 import type { OwnedUiSessionBackend, UiAccentColor } from "../../contracts/owned-ui/index.js";
 import type { OwnedSettingsManager } from "../../ui/settings/index.js";
-import { createHerdrReporter } from "./herdr-reporter.js";
-import type { OwnedRuntimeContext } from "./runtime-context.js";
-
-type Control = { publish(): Promise<void>; dispose(): Promise<void> };
 
 /** Settings-driven API lifetime shared by every normal-product launcher. */
 export class RuntimeApiLifecycle {
@@ -36,56 +32,5 @@ export class RuntimeApiLifecycle {
     this.#stopped = true;
     this.#unbind(); this.#unsubscribe();
     await (await this.#control)?.dispose();
-  }
-}
-
-/** Only endpoint-published bindings may reach the single native reporter. */
-export class ReadySessionBinding {
-  readonly #unsubscribe: () => void;
-  readonly #reporter: ReturnType<typeof createHerdrReporter> | undefined;
-  readonly #backend: OwnedUiSessionBackend;
-  readonly #control: Control;
-  #binding: number;
-  #published: number | undefined;
-  #publication = Promise.resolve();
-  #stopped = false;
-  #disposal: Promise<void> | undefined;
-
-  constructor(backend: OwnedUiSessionBackend, control: Control, context: OwnedRuntimeContext, publishedBinding: number) {
-    this.#backend = backend; this.#control = control;
-    this.#binding = backend.identity.sessionBindingGeneration;
-    this.#published = this.#binding === publishedBinding ? publishedBinding : undefined;
-    this.#reporter = context.herdrBinding?.runtimeId === context.runtimeId ? createHerdrReporter({
-      reservation: context.herdrBinding,
-      identity: () => {
-        const current = this.identity();
-        return this.#stopped || backend.identity.disposed || current.binding !== this.#published ? undefined : current;
-      },
-    }) : undefined;
-    this.#unsubscribe = backend.session.onEvent(() => {
-      if (this.#stopped || this.#binding === backend.identity.sessionBindingGeneration) return;
-      this.#binding = backend.identity.sessionBindingGeneration;
-      this.#publish();
-    });
-    if (this.#published === undefined) this.#publish();
-  }
-
-  identity() { return { sessionId: this.#backend.identity.currentHistorySessionId() ?? this.#backend.identity.sessionId, binding: this.#backend.identity.sessionBindingGeneration }; }
-
-  #publish(): void {
-    this.#published = undefined;
-    this.#publication = this.#publication.then(async () => {
-      if (this.#stopped) return;
-      const generation = this.identity().binding;
-      await this.#control.publish();
-      if (!this.#stopped && generation === this.identity().binding) { this.#published = generation; this.#reporter?.request(); }
-    }).catch(() => {});
-  }
-
-  dispose(): Promise<void> { return this.#disposal ??= this.#dispose(); }
-  async #dispose(): Promise<void> {
-    this.#stopped = true; this.#unsubscribe();
-    await this.#publication;
-    try { await this.#reporter?.dispose(); } finally { await this.#control.dispose(); }
   }
 }

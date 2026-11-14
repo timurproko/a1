@@ -102,10 +102,7 @@ export async function composeOwnedUiApplication(options: OwnedUiCompositionOptio
 export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiComposition> {
   const cwd = options.cwd ?? process.cwd();
   const productMode = options.productMode ?? "bare", bare = productMode === "bare";
-  const inheritedRuntimeId = process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId];
-  const runtimeContext = options.runtimeContext ?? createOwnedRuntimeContext(inheritedRuntimeId, options.herdrBinding);
-  const claimRuntimeId = bare && (options.runtimeContext !== undefined || inheritedRuntimeId !== undefined) ? runtimeContext.runtimeId : undefined;
-  const sessionRuntimes = await createSessionRuntimes(claimRuntimeId, options.inspectProcess ?? inspectLiveProcessOnDemand);
+  const { runtimeContext, claimRuntimeId, sessionRuntimes } = await compositionRuntimeContext(options, bare);
   const productPaths = resolveProductPaths();
   // Rationale: the manager reads the engine's settings port lazily, after the session exists.
   let backend: ComposedSessionBackend;
@@ -138,8 +135,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     ...(options.packageVersion === undefined ? {} : { packageVersion: options.packageVersion }),
     ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
   });
-  const sessionColor = bareSettings === null ? null : new RuntimeApiLifecycle(backend, bareSettings, color => host.setAccentColor(color),
-    () => import("./session-colors.js").then(module => module.startSessionColorControl(backend, bareSettings, productPaths.runtimeDir, runtimeContext.runtimeId, undefined, runtimeContext)));
+  const sessionColor = createRuntimeApis(backend, bareSettings, host, productPaths.runtimeDir, runtimeContext);
   // Rationale: peer refresh shares persisted preferences, never session-local Current color.
   const unwatchSharedSettings = bareSettings === null
     ? () => {}
@@ -261,6 +257,19 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     },
   };
   return { application, settings };
+}
+
+function createRuntimeApis(backend: ComposedSessionBackend, settings: OwnedSettingsManager | null, host: ComposedEngineHost, runtimeDir: string, context: OwnedRuntimeContext) {
+  return settings === null ? null : new RuntimeApiLifecycle(backend, settings, color => host.setAccentColor(color),
+    () => import("./session-colors.js").then(module => module.startSessionColorControl(backend, settings, runtimeDir, context.runtimeId, undefined, context)));
+}
+
+async function compositionRuntimeContext(options: OwnedUiCompositionOptions, bare: boolean) {
+  const inheritedRuntimeId = process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId];
+  const runtimeContext = options.runtimeContext ?? createOwnedRuntimeContext(inheritedRuntimeId, options.herdrBinding);
+  const claimRuntimeId = bare && (options.runtimeContext !== undefined || inheritedRuntimeId !== undefined) ? runtimeContext.runtimeId : undefined;
+  const sessionRuntimes = await createSessionRuntimes(claimRuntimeId, options.inspectProcess ?? inspectLiveProcessOnDemand);
+  return { runtimeContext, claimRuntimeId, sessionRuntimes };
 }
 
 async function compositionSettings(options: OwnedUiCompositionOptions, agentProvider: () => ReturnType<ComposedSessionBackend["settingsPort"]>) {

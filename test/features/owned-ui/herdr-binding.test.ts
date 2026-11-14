@@ -22,6 +22,24 @@ beforeEach(async () => {
 afterEach(async () => { systemTemp.root = ""; await rm(root, { recursive: true, force: true }); });
 
 describe("Herdr binding system temp boundary", () => {
+  it("retains successor eligibility while an ordinary predecessor publication is in flight", async () => {
+    const directory = join(physical, "contention");
+    const predecessor = (await reserveHerdrBinding(randomUUID(), environment, directory))!;
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    const publication = withHerdrBinding(predecessor, async () => { entered.resolve(); await release.promise; });
+    await entered.promise;
+    let successor;
+    try {
+      successor = await reserveHerdrBinding(randomUUID(), environment, directory);
+      await new Promise(done => setTimeout(done, 300));
+    }
+    finally { release.resolve(); await publication; }
+    expect(successor, "normal publication contention must not permanently disable reporting").toBeDefined();
+    const promoted = vi.fn();
+    await withHerdrBinding(successor!, promoted);
+    expect(promoted).toHaveBeenCalledOnce();
+  });
+
   it("reserves through the OS-selected alias and keeps canonical generation fencing", async () => {
     const directory = join(alias, "bindings");
     const first = await reserveHerdrBinding(randomUUID(), environment, directory);

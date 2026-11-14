@@ -7,11 +7,11 @@
 
 ## 2. Ordered successor reporting through ordinary publication contention
 
-- [ ] 2.1 Add a deterministic regression from the recorded disposable reproduction: hold a legitimate predecessor publication beyond 250 ms, start a successor, settle normally and require its ready identity to publish; record its failure before the production correction.
-- [ ] 2.2 Separate short ordered reservation intent from long Core-I/O settlement using the existing per-terminal coordination boundary; fixtures cover delayed startup, bounded deferred promotion, coalescing, cancellation and no reacquisition by superseded intents.
-- [ ] 2.3 Preserve the existing I/O guard and exact acknowledged-publication lineage across promotion, including participating older-format runtimes; mixed-runtime fixtures assert that late predecessor completion cannot roll back ownership or lose the provenance needed for safe label replacement.
-- [ ] 2.4 Keep endpoint readiness and current session generation authoritative throughout startup/replacement/shutdown; race fixtures assert no pending or unavailable identity is advertised and no older cleanup touches a successor.
-- [ ] 2.5 Retain fail-closed behavior for persistent locks, unsettled writes, partial/foreign labels, malformed coordination and missing Core; negative fixtures assert no stealing, reset, broad clearing, rapid retry or cross-terminal/profile mutation.
+- [x] 2.1 Add a deterministic regression from the recorded disposable reproduction: hold a legitimate predecessor publication beyond 250 ms, start a successor, settle normally and require its ready identity to publish; record its failure before the production correction.
+- [x] 2.2 Separate short ordered reservation intent from long Core-I/O settlement using the existing per-terminal coordination boundary; fixtures cover delayed startup, bounded deferred promotion, coalescing, cancellation and no reacquisition by superseded intents.
+- [x] 2.3 Preserve the existing I/O guard and exact acknowledged-publication lineage across promotion, including participating older-format runtimes; mixed-runtime fixtures assert that late predecessor completion cannot roll back ownership or lose the provenance needed for safe label replacement.
+- [x] 2.4 Keep endpoint readiness and current session generation authoritative throughout startup/replacement/shutdown; race fixtures assert no pending or unavailable identity is advertised and no older cleanup touches a successor.
+- [x] 2.5 Retain fail-closed behavior for persistent locks, unsettled writes, partial/foreign labels, malformed coordination and missing Core; negative fixtures assert no stealing, reset, broad clearing, rapid retry or cross-terminal/profile mutation.
 
 ## 3. Safe membership-driven color convergence for compatible sessions
 

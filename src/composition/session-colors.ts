@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { UI_ACCENT_COLORS, type OwnedUiSessionBackend, type UiAccentColor } from "../contracts/owned-ui/index.js";
 import { serveSessionControl } from "../foundation/lifecycle/session-control.js";
-import { ReadySessionBinding } from "../features/owned-ui/runtime-api-lifecycle.js";
+import { ReadySessionBinding } from "../features/owned-ui/ready-session-binding.js";
 import { createOwnedRuntimeContext, type OwnedRuntimeContext } from "../features/owned-ui/runtime-context.js";
 import type { HerdrBindingReservation } from "../features/owned-ui/herdr-binding.js";
 import type { OwnedSettingsManager } from "../ui/settings/manager.js";
