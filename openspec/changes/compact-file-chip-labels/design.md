@@ -12,6 +12,8 @@ Separate attachment identity from its visible label. Derive a compact icon-plus-
 
 Hide the icon/label separator and internal suffixes in the live editor using mapped source ranges where applicable. Use the same attachment-label policy before width measurement and wrapping in submitted and queued prompts. Keep canonical legacy syntax recognized so recalled existing chips remain functional.
 
+Terminal-ignored source metadata retains the original tag for whole-chip transcript selection copy; partial filename selection copies only the visible selected characters. Share source restoration with existing display-added emoji handling rather than parsing terminal metadata twice. Project dimmed/rejected source ranges alongside hidden ranges so two same-name images can retain different acceptance states without exposing their identifiers. The editor range-option helper extraction lowers its existing size-ratchet entry; startup source budgets and protected validation remain unchanged.
+
 ## Risks
 
 - Different attachments can share the same visible basename. Their identities and occurrence-specific resolution must remain independent.

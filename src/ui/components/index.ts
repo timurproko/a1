@@ -75,6 +75,7 @@ export type { ShortcutHintEntry } from "./shortcut-hints.js";
 export { GLOBAL_SCOPE, ShortcutRegistry, assembleShortcuts, assertNoShortcutConflicts } from "./shortcuts.js";
 export type { ShortcutConflict, ShortcutDeclaration, ShortcutRegistryResult } from "./shortcuts.js";
 export { backgroundSgrSpan, heldNativeHyperlinkStyle, hyperlinkSgrSpan, hyperlinkTargetAtColumn, nativeHyperlinkStyle, overlaySpan } from "./spans.js";
+export { retainPromptChipSource } from "./presentation-source.js";
 export { readVisibleHyperlinks } from "./visible-hyperlinks.js";
 export type { VisibleHyperlinkRange, VisibleHyperlinkRow } from "./visible-hyperlinks.js";
 export { renderStatusLine, statusText } from "./status-line.js";

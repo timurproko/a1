@@ -37,7 +37,7 @@ import {
 } from "../../../../src/integrations/pi/components/index.js";
 import { renderPiShellSessionInfoReferenceDocument } from "../../../../src/integrations/pi/components/shell-session-info-reference.js";
 import { PINNED_PI_WORKFLOW_COMMAND_NAMES } from "../../../../src/integrations/pi/engine/index.js";
-import { composeSubmittedPromptRows, progressStatusFrame, progressStatusText, submittedPromptLayout } from "../../../../src/ui/components/index.js";
+import { composeSubmittedPromptRows, progressStatusFrame, progressStatusText, submittedPromptLayout, textSelectionText } from "../../../../src/ui/components/index.js";
 import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
 
 function block(kind: OwnedUiTranscriptBlock["kind"], text: string, payload: unknown = {}): OwnedUiTranscriptBlock {
@@ -131,18 +131,19 @@ describe("Pi shell public component adapters", () => {
   });
 
   it.each([
-    "[paste #1 1001 chars]",
-    "[📷 screenshot-0123456789]",
-    "[📁 C:/workspace/folder]",
-    "[📄 C:/workspace/file.txt]",
-    "[🖼  converted-image.png]",
-    "[🖼️ converted-image.png]",
-    "[🖼️ image.png #abc123]",
-    "[🔗 https://example.com/resource]",
-  ])("moves a fitting queued chip intact to its next custom-viewport row: %s", marker => {
+    ["[paste #1 1001 chars]", "[paste #1 1001 chars]"],
+    ["[📷 screenshot-0123456789]", "[📷 screenshot-0123456789]"],
+    ["[📁 C:/workspace/folder]", "[📁folder]"],
+    ["[📄 C:/workspace/file.txt]", "[📄file.txt]"],
+    ["[🖼  converted-image.png]", "[🖼converted-image.png]"],
+    ["[🖼️ converted-image.png]", "[🖼️converted-image.png]"],
+    ["[🖼️ image.png #abc123]", "[🖼️image.png]"],
+    ["[🔗 https://example.com/resource]", "[🔗 https://example.com/resource]"],
+  ])("moves a fitting queued chip intact to its next custom-viewport row: %s", (marker, displayed) => {
     const queued = createPiQueuedInputStatus([`${"x".repeat(70)}${marker}`], "custom-viewport");
     const rows = queued.render(40).map(row => stripTerminalSequences(row).trimEnd());
-    expect(rows.filter(row => row.includes(marker))).toHaveLength(1);
+    expect(rows.filter(row => row.includes(displayed))).toHaveLength(1);
+    if (displayed !== marker) expect(rows.join("\n")).not.toContain(marker);
     expect(rows.every(row => visibleWidth(row) <= 40)).toBe(true);
   });
 
@@ -157,7 +158,7 @@ describe("Pi shell public component adapters", () => {
     );
     let rows = queued.render(40).map(row => stripTerminalSequences(row).trimEnd());
     expect(rows.filter(row => row.includes(first))).toHaveLength(2);
-    expect(rows.filter(row => row.includes(second))).toHaveLength(1);
+    expect(rows.filter(row => row.includes("[📄file.txt]"))).toHaveLength(1);
     // Platform: macOS names Alt "Option", so the same hint exceeds the 38-column content
     // width and wraps at a word boundary like any other Pi text row.
     expect(rows.slice(process.platform === "darwin" ? -2 : -1)).toEqual(process.platform === "darwin"
@@ -168,7 +169,7 @@ describe("Pi shell public component adapters", () => {
     queued.update([`updated${second}tail`, "[ordinary bracketed text]"]);
     rows = queued.render(40).map(row => stripTerminalSequences(row).trimEnd());
     expect(rows.join("\n")).not.toContain("screenshot-0123456789");
-    expect(rows.filter(row => row.includes(second))).toHaveLength(1);
+    expect(rows.filter(row => row.includes("[📄file.txt]"))).toHaveLength(1);
     expect(rows.join("\n")).toContain("[ordinary bracketed text]");
     expect(rows.some(row => row.includes("Ctrl+R to edit all queued messages"))).toBe(true);
   });
@@ -624,23 +625,24 @@ describe("Pi shell public component adapters", () => {
     const composer = { layout: submittedPromptLayout, compose: composeSubmittedPromptRows };
     const prefix = "123456789012345678901234567890";
     const chips = [
-      "[paste #1 1001 chars]",
-      "[📷 screenshot-0123456789]",
-      "[📁 C:/repo]",
-      "[📄 C:/repo/file.txt]",
-      "[🖼  Clipboard.png]",
-      "[🖼️ Clipboard.png]",
-      "[🖼️ image.png #abc123]",
-      "[🔗 https://x.dev]",
-    ];
-    for (const chip of chips) {
+      ["[paste #1 1001 chars]", "[paste #1 1001 chars]"],
+      ["[📷 screenshot-0123456789]", "[📷 screenshot-0123456789]"],
+      ["[📁 C:/repo]", "[📁repo]"],
+      ["[📄 C:/repo/file.txt]", "[📄file.txt]"],
+      ["[🖼  Clipboard.png]", "[🖼Clipboard.png]"],
+      ["[🖼️ Clipboard.png]", "[🖼️Clipboard.png]"],
+      ["[🖼️ image.png #abc123]", "[🖼️image.png]"],
+      ["[🔗 https://x.dev]", "[🔗 https://x.dev]"],
+    ] as const;
+    for (const [chip, displayed] of chips) {
       const source = block("user", `${prefix.repeat(5)}${chip}suffix`);
       const component = createPiShellTranscriptComponent(source, process.cwd(), undefined, composer,
         1, false, "off", false, 40, { resolve: () => null });
       const rawRows = component.render(40);
       const rows = rawRows.map(row => stripTerminalSequences(row).trimEnd());
-      expect(rows.filter(row => row.includes(chip)), chip).toHaveLength(1);
-      expect(rows.find(row => row.includes(chip)), chip).toContain(chip);
+      expect(rows.filter(row => row.includes(displayed)), chip).toHaveLength(1);
+      expect(rows.find(row => row.includes(displayed)), chip).toContain(displayed);
+      if (chip !== displayed) expect(rows.join("\n")).not.toContain(chip);
       expect(rawRows.every(row => visibleWidth(row) <= 40), chip).toBe(true);
       expect(source.text).toBe(`${prefix.repeat(5)}${chip}suffix`);
     }
@@ -652,8 +654,8 @@ describe("Pi shell public component adapters", () => {
     const adjacent = createPiShellTranscriptComponent(block("user", `${folder}${file}`), process.cwd(), undefined, composer,
       1, false, "off", false, 20, { resolve: () => null });
     const adjacentRows = adjacent.render(20).map(row => stripTerminalSequences(row).trimEnd());
-    expect(adjacentRows.filter(row => row.includes(folder))).toHaveLength(1);
-    expect(adjacentRows.filter(row => row.includes(file))).toHaveLength(1);
+    expect(adjacentRows.filter(row => row.includes("[📁one]"))).toHaveLength(1);
+    expect(adjacentRows.filter(row => row.includes("[📄two]"))).toHaveLength(1);
 
     const chip = "[🔗 https://x.dev]";
     const linkedBlock = block("user", `123456789012345 ${chip}`, { timestamp: 1_000 });
@@ -677,6 +679,27 @@ describe("Pi shell public component adapters", () => {
       process.cwd(), undefined, composer, 1, false, "off", false, 40, { resolve: () => null })
       .render(40).map(row => stripTerminalSequences(row));
     expect(ordinaryRows.some(row => row.includes(ordinary))).toBe(false);
+  });
+
+  it("measures compact attachment labels before wrapping and leaves pinned labels intact", () => {
+    const composer = { layout: submittedPromptLayout, compose: composeSubmittedPromptRows };
+    const chip = `[🖼️ image.png #${"abcdef".repeat(30)}]`;
+    const source = block("user", chip);
+    const bare = createPiShellTranscriptComponent(source, process.cwd(), undefined, composer,
+      1, false, "off", false, 24, { resolve: () => null });
+    const queued = createPiQueuedInputStatus([chip], "custom-viewport");
+    for (const rows of [bare.render(24), queued.render(24)]) {
+      const text = rows.map(stripTerminalSequences).join("\n");
+      expect(text).toContain("[🖼️image.png]");
+      expect(text).not.toContain("abcdef");
+      expect(text).not.toContain("…");
+      expect(rows.every(row => visibleWidth(row) <= 24)).toBe(true);
+      const line = rows.findIndex(row => stripTerminalSequences(row).includes("[🖼️image.png]"));
+      expect(textSelectionText({ start: { line, column: 0 }, end: { line, column: 24 } }, rows)).toContain(chip);
+    }
+    expect(source.text).toBe(chip);
+    expect(renderPiShellTranscriptBlock(source, 240, process.cwd()).map(stripTerminalSequences).join("\n")).toContain(chip);
+    expect(createPiQueuedInputStatus([chip], "pinned").render(240).map(stripTerminalSequences).join("\n")).toContain(chip);
   });
 
   it("ellipsizes an oversized submitted chip on one row while keeping its complete source", () => {
