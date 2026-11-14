@@ -7,6 +7,7 @@ import {
 import type { SelectionEditor as Editor } from "./editor-interaction.js";
 import type { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { promptPathWordRanges } from "./path-word-ranges.js";
+import { backgroundSgrSpan } from "../../../ui/components/spans.js";
 import { BracketedPasteFramer, PASTE_START } from "./bracketed-paste.js";
 import type {
   PiShellClipboardContent,
@@ -159,6 +160,7 @@ interface PromptSelectionUxOptions {
   readonly transformPastedContent: (content: PiShellClipboardContent) => string;
   readonly atomicRanges: (line: string) => readonly PiShellEditorTextRange[];
   readonly hiddenRanges?: (line: string) => readonly PiShellEditorTextRange[];
+  readonly dimRanges?: (line: string) => readonly PiShellEditorTextRange[];
   readonly expandCopiedText: (text: string) => string;
   readonly paintSelection: (line: string, from: number, to: number, atomic: boolean) => string;
   /** Row indices restart at zero for each complete decoration pass. */
@@ -343,7 +345,8 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       }
     }
     const hidden = state.lines.map(line => this.options.hiddenRanges?.(line) ?? []);
-    if (!hidden.some(ranges => ranges.length > 0)) return this.#renderVisible(width, next);
+    const dimmed = state.lines.map(line => this.options.dimRanges?.(line) ?? []);
+    if (!hidden.some(ranges => ranges.length > 0)) return this.#renderVisible(width, next, dimmed);
     const original = { ...state, lines: [...state.lines] };
     const selection = this.#selection;
     const project = (position: Position): Position => ({
@@ -354,12 +357,15 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       for (const range of [...(hidden[index] ?? [])].reverse()) line = line.slice(0, range.start) + line.slice(range.end);
       return line;
     });
-    // Rationale: project pending clipboard identities out before layout, not after painting.
+    // Rationale: project hidden chip metadata out before layout, not after painting.
     // Keep the semantic draft/undo/submission markers intact and restore them even if rendering throws.
     try {
       this.#setRenderState(lines, project({ line: original.cursorLine, col: original.cursorCol }));
       if (selection !== undefined) this.#selection = { anchor: project(selection.anchor), head: project(selection.head) };
-      const rows = this.#renderVisible(width, next);
+      const rows = this.#renderVisible(width, next, dimmed.map((ranges, index) => ranges.map(range => ({
+        start: hideColumn(range.start, hidden[index] ?? []),
+        end: hideColumn(range.end, hidden[index] ?? []),
+      }))));
       if (this.#geometry !== undefined) {
         this.#geometry.hiddenRanges = hidden;
         this.#geometry.lines = lines;
@@ -377,7 +383,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     this.#setCursor(cursor);
   }
 
-  #renderVisible(width: number, next: () => string[]): string[] {
+  #renderVisible(width: number, next: () => string[], dimmed: readonly (readonly PiShellEditorTextRange[])[]): string[] {
     const rows = next().map(row => row.replaceAll(ATOMIC_SPACE_SENTINEL, " "));
     const shared = this.options.promptGeometry?.(width, this.editor.getPaddingX());
     const padding = shared?.paddingX ?? Math.min(this.editor.getPaddingX(), Math.max(0, Math.floor((width - 1) / 2)));
@@ -397,22 +403,26 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       }
     }
     const selection = this.#orderedSelection();
-    if (selection !== undefined) {
-      for (let row = 0; row < textRows; row += 1) {
-        const visual = visualLines[scrollOffset + row];
-        if (visual === undefined || visual.logicalLine < selection.start.line || visual.logicalLine > selection.end.line) continue;
-        const segmentStart = visual.startCol;
-        const segmentEnd = visual.startCol + visual.length;
-        const from = visual.logicalLine === selection.start.line ? Math.max(selection.start.col, segmentStart) : segmentStart;
-        const to = visual.logicalLine === selection.end.line ? Math.min(selection.end.col, segmentEnd) : segmentEnd;
-        if (to <= from) continue;
-        const line = editorState(this.editor).lines[visual.logicalLine] ?? "";
-        const fromColumn = prefixWidth + padding + visibleWidth(line.slice(segmentStart, from));
+    for (let row = 0; row < textRows; row++) {
+      const visual = visualLines[scrollOffset + row];
+      if (visual === undefined) continue;
+      const line = editorState(this.editor).lines[visual.logicalLine] ?? "";
+      const ranges = (dimmed[visual.logicalLine] ?? []).map(range => ({ ...range, dim: true }));
+      if (selection !== undefined && visual.logicalLine >= selection.start.line && visual.logicalLine <= selection.end.line) {
+        ranges.push({
+          start: visual.logicalLine === selection.start.line ? selection.start.col : 0,
+          end: visual.logicalLine === selection.end.line ? selection.end.col : line.length,
+          dim: false,
+        });
+      }
+      for (const range of ranges) {
+        const from = Math.max(range.start, visual.startCol), to = Math.min(range.end, visual.startCol + visual.length);
+        const fromColumn = prefixWidth + padding + visibleWidth(line.slice(visual.startCol, from));
         const toColumn = fromColumn + visibleWidth(line.slice(from, to));
-        const rendered = rows[row + 1];
-        if (rendered !== undefined && toColumn > fromColumn) {
-          rows[row + 1] = this.options.paintSelection(rendered, fromColumn, toColumn, false);
-        }
+        if (to <= from || toColumn <= fromColumn) continue;
+        rows[row + 1] = range.dim
+          ? backgroundSgrSpan(rows[row + 1]!, fromColumn, toColumn, "\u001b[2m", "\u001b[22m", visibleWidth)
+          : this.options.paintSelection(rows[row + 1]!, fromColumn, toColumn, false);
       }
     }
     return rows.map((row, index) => this.options.decorateRow(row, width, index));

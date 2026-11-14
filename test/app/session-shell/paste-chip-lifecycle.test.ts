@@ -63,11 +63,16 @@ describe("provisional paste chip ownership", () => {
       await vi.advanceTimersByTimeAsync(0);
       const ready = await paste.result; paste.complete?.();
       expect(ready).toMatch(/^\[🖼️ Clipboard \(2\)\.png #[a-f0-9]+-resized\]$/u);
-      expect(store.hiddenRanges(ready)).toEqual([]);
+      const hidden = store.hiddenRanges(ready);
+      expect(hidden).toEqual([{ start: 4, end: 5 }, { start: ready.lastIndexOf(" #"), end: ready.length - 1 }]);
+      let visible = ready;
+      for (const range of [...hidden].reverse()) visible = visible.slice(0, range.start) + visible.slice(range.end);
+      expect(visible).toBe("[🖼️Clipboard (2).png]");
       expect(store.expandCopiedText(ready)).toBe(ready);
       const history = store.prepareHistoryText(ready), records = store.imageChipAttachments(history);
       expect(records).toHaveLength(1);
       expect(recall.rehydrateHistoryText(history, id => records.find(record => record.id === id)?.image ?? null)).toBe(ready);
+      expect(recall.hiddenRanges(ready)).toEqual(hidden);
       expect(recall.prepareSubmission(`${ready}${ready}`).images).toEqual([{ type: "image", data: "eA==", mimeType: "image/png" }]);
       expect(missing.rehydrateHistoryText(`before ${history} after`, () => null)).toBe("before  after");
     } finally { await store.dispose(); await recall.dispose(); await missing.dispose(); }

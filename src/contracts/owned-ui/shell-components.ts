@@ -244,6 +244,8 @@ export interface OwnedUiShellEditorOptions {
   readonly onPasteRejected?: (error: unknown) => void;
   readonly onPasteInput?: (bytes: number, phase: "framing" | "inserting" | "settled") => void;
   readonly editorHiddenRanges?: (line: string) => readonly OwnedUiShellEditorTextRange[];
+  /** Semantic source ranges dimmed after projection of hidden presentation bytes. */
+  readonly editorDimRanges?: (line: string) => readonly OwnedUiShellEditorTextRange[];
   readonly transformPastedContent?: (content: OwnedUiShellClipboardContent) => string;
   readonly editorAtomicRanges?: (line: string) => readonly OwnedUiShellEditorTextRange[];
   readonly expandCopiedEditorText?: (text: string) => string;
