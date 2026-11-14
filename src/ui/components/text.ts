@@ -4,12 +4,7 @@ const ANSI_PATTERN = /\[[0-9;:?]*[ -/]*[@-~]|[\]_][^]*(?:|\\)|[@-Z\\-_]/g
 const SEGMENTER = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 const WORD_SEGMENTER = new Intl.Segmenter(undefined, { granularity: "word" });
 
-/**
- * Recommended-for-general-interchange emoji. Terminals give every one of these
- * two columns wherever its code points sit, so ordinary wide-character ranges
- * cannot carry the measurement alone: a lone U+26A1 or an RGI
- * U+FE0F presentation sequence escapes them and would measure one column short.
- */
+// Protocol: RGI includes wide emoji outside East Asian ranges and explicit VS16 sequences.
 const RGI_EMOJI_PATTERN = /^\p{RGI_Emoji}$/v;
 // Protocol: a default-wide emoji base stays wide with VS15 or an incomplete sequence.
 const EMOJI_PRESENTATION_PATTERN = /^\p{Emoji_Presentation}/u;
@@ -61,8 +56,7 @@ function couldBeEmoji(grapheme: string): boolean {
 
 /** Width of one grapheme cluster: two for emoji, else the widest code point it contains. */
 export function graphemeWidth(grapheme: string): number {
-  // Invariant: bare text pictographs such as 🖼 are narrow, but default emoji
-  // and RGI presentation sequences are wide regardless of their Unicode block.
+  // Invariant: bare text pictographs stay narrow; default emoji and RGI sequences stay wide.
   if (couldBeEmoji(grapheme)
     && (RGI_EMOJI_PATTERN.test(grapheme) || EMOJI_PRESENTATION_PATTERN.test(grapheme))) return 2;
   let width = 0;

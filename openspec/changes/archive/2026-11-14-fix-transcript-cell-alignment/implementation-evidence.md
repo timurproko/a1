@@ -23,6 +23,8 @@ The first finalized head was rejected because the original planning change lacke
 
 The changed-file documentation check also rejected six uncategorized test comments. Categorized their existing compatibility and invariant explanations without changing assertions. Replayed the failed CI job's exact impact selection locally: code documentation governance passed with no violations. Local finalization inspection reports `would-refinalize` with only the conditional acceptance manifest needing regeneration.
 
+The completed first run also rejected startup source size at 210 bytes above its existing cap. Shortened redundant geometry comments instead of changing the budget or behavior. `npm run check:architecture` and the exact changed-file documentation selection both pass locally; 57 text/component conformance tests pass after the comment-only repair. The preceding metadata/comment repair also passed its 36 affected tests and typecheck.
+
 ## Compatibility boundaries and disposition
 
 Legacy headless xterm does not implement all modern emoji/VS16 widths. Terminal replay therefore uses narrow pictographs, including explicit VS15 and styled rows; modern emoji geometry is asserted against pinned Pi instead. Current develop's prose presentation intentionally adds VS16, so the session replay uses protected code spans to retain the narrow source bytes that reproduce the shared-width defect. Direct viewport replay covers unmodified bare text and ANSI styling independently.
