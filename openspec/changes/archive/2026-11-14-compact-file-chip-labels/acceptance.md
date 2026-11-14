@@ -18,7 +18,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-14-compact-file-chip-labels/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-14-compact-file-chip-labels/acceptance.md",
   "finalizedDate": "2026-11-14",
-  "specBaseSha": "e7de9aba3b3adc5b13b5dc76391bdfea7b9388d3",
+  "specBaseSha": "98631e3845d2a2820a6cb95762cb3eac41d61988",
   "acceptanceScenarios": [
     "Pasted files, folders, and named images show only their icon immediately followed by their basename, without paths or identity suffixes.",
     "Same-name attachments keep independent paths and image payloads through editing, copying, history recall, and submission.",
