@@ -59,7 +59,9 @@ const IN_PROCESS_PASTE_BYTES = 256 * 1024;
  * payloads still fork the real helper.
  */
 export const inProcessPasteExecutor: PasteExecutorStarter = (content, signal, phase = () => {}, helper, pool, nativeImagesOnly) => {
-  if (content?.kind !== "text" || content.text.length > IN_PROCESS_PASTE_BYTES) return startPasteExecutor(content, signal, phase, helper, pool, nativeImagesOnly);
+  if (content?.kind !== "text" || content.text.length > IN_PROCESS_PASTE_BYTES || /\.(?:png|jpe?g|webp|gif|bmp)["']?\s*$/iu.test(content.text)) {
+    return startPasteExecutor(content, signal, phase, helper, pool, nativeImagesOnly);
+  }
   let canceled = false, finished = false;
   let resolve!: (value: PreparedPaste) => void, reject!: (error: ImageAttachmentError) => void, stopped!: () => void;
   const result = new Promise<PreparedPaste>((ok, fail) => { resolve = ok; reject = fail; });

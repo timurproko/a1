@@ -7,9 +7,9 @@
 
 ## 2. Prepare supplied screenshot files as usable image attachments
 
-- [ ] 2.1 Prepare exactly one supplied supported image-file path inside the existing isolated pipeline with bounded file intake and actual image validation; helper cases cover quoted/spaced paths, source limits, invalid data, and read failure.
-- [ ] 2.2 Adopt prepared file images as attachment-backed screenshot chips with existing count limits and serialized conversion; shell cases assert exact image bytes once on submission and zero native clipboard reads.
-- [ ] 2.3 Preserve non-image files, URLs, ordinary text, folders, mixed/multiple path lists, history/undo, reservations, cancellation, and helper cleanup; owning focused cases cover those boundaries and emitted preparation.
+- [x] 2.1 Prepare exactly one supplied supported image-file path inside the existing isolated pipeline with bounded file intake and actual image validation; helper cases cover quoted/spaced paths, source limits, invalid data, and read failure.
+- [x] 2.2 Adopt prepared file images as attachment-backed screenshot chips with existing count limits and serialized conversion; shell cases assert exact image bytes once on submission and zero native clipboard reads.
+- [x] 2.3 Preserve non-image files, URLs, ordinary text, folders, mixed/multiple path lists, history/undo, reservations, cancellation, and helper cleanup; owning focused cases cover those boundaries and emitted preparation.
 
 ## 3. Document independent copy, supplied-content, and raw-image paste contracts
 
