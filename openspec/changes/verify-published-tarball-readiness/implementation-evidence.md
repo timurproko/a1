@@ -18,6 +18,15 @@
 - Focused promotion suite: 9 tests passed, including refusal after failed/cancelled/skipped smoke, installer-first promotion, partial promotion reconciliation, downgrade refusal, and workflow dependencies. Smoke suite: 10 tests passed, including stable/develop predecessor-update failures and real bridge forwarding.
 - Typecheck passes after generating dist through build:core. Strict OpenSpec validation passes.
 
+## Updater failure recovery
+
+- Read-only local inspection found the failed temporary journal already described active-reference-committed. The updater now preserves that committed event in memory before attempting journal persistence and reports a warning rather than rolling back an already committed activation.
+- Journal, capsule sidecar, and standalone recovery launcher replacement retry Windows sharing failures within two seconds without pre-deleting destinations; persistent failures preserve prior committed contents and clean only the operation's own temporary file.
+- Recovery-state notification failures cannot abandon a still-mutating detached guardian. Guardian timeout retains ownership and refuses concurrent rollback. Recovery authority remains when committed journal settlement fails.
+- npm failures that leave a target manifest/entry now retain prior-release launch authority rather than executing a partial target. Failed pre-commit activation restores capsule-backed launchers after npm settles.
+- Focused updater fixtures cover transient and permanent rename failures, detached guardian notification failures, cancellation, partial npm output, committed-event journal failure, journal settlement failure, and real recovery-launcher execution after failed activation.
+- Final bounded selection: 9 test files passed, 175 tests passed and 5 platform-specific cases explicitly skipped on Windows. build:core, typecheck, architecture and identity checks, delivery-body validation, strict OpenSpec validation, and diff whitespace checks pass. No broad product suites or live publication were run.
+
 ## Known gaps
 
 No live nightly recovery or cross-platform installed-product certification is claimed by local fixtures. Native smoke remains authoritative after publication. Registry readiness at one point cannot guarantee perpetual availability from every npm edge. No live npm publishing, channel mutation, or user-state repair is performed by local tests. Package maintainers must enable Allow npm dist-tag on both existing trusted publisher entries before live promotion can succeed; code does not alter those permissions. This remains an explicit deployment prerequisite, not claimed live evidence.

@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -43,6 +43,37 @@ describe("durable update transaction journal", () => {
 
     expect(UPDATE_JOURNAL_SCHEMA).toBe("a1-update-journal-v1");
     await expect(store.read()).rejects.toThrow(/invalid a1 update transaction journal/);
+  });
+
+  it.each(["EPERM", "EACCES", "EBUSY"])("retries transient Windows %s without removing committed journal bytes", async code => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-update-journal-retry-"));
+    roots.push(root);
+    const initial = new UpdateTransactionStore(root);
+    await initial.begin({ channel: "stable", targetVersion: "1.2.0", packageRoot: "/npm/a1", priorActiveReleaseId: "old" });
+    const committed = await readFile(initial.path, "utf8");
+    let attempts = 0;
+    const store = new UpdateTransactionStore(root, { platform: "win32", rename: async (from, to) => {
+      if (++attempts < 3) {
+        expect(await readFile(to, "utf8")).toBe(committed);
+        throw Object.assign(new Error("sharing violation"), { code });
+      }
+      await rename(from, to);
+    } });
+    await expect(store.advance("ownership-released")).resolves.toMatchObject({ phase: "ownership-released" });
+    expect(attempts).toBe(3);
+    expect(await readdir(root)).toEqual(["update-transaction.json"]);
+  });
+
+  it("retains the committed journal and cleans its own temporary after permanent rename failure", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-update-journal-permanent-"));
+    roots.push(root);
+    const initial = new UpdateTransactionStore(root);
+    await initial.begin({ channel: "stable", targetVersion: "1.2.0", packageRoot: "/npm/a1", priorActiveReleaseId: "old" });
+    const committed = await readFile(initial.path, "utf8");
+    const store = new UpdateTransactionStore(root, { platform: "win32", rename: async () => { throw Object.assign(new Error("locked"), { code: "EPERM" }); } });
+    await expect(store.advance("ownership-released")).rejects.toThrow("locked");
+    expect(await readFile(initial.path, "utf8")).toBe(committed);
+    expect(await readdir(root)).toEqual(["update-transaction.json"]);
   });
 
   it("persists additive launcher-recovery state and rejects malformed dispositions", async () => {

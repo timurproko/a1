@@ -16,6 +16,18 @@ Update journal and recovery sidecar or launcher replacement SHALL use bounded re
 - **THEN** the parent SHALL continue awaiting the guardian before settling the update
 - **AND** it SHALL retain the guardian's established launcher and recovery authority rather than strand an incomplete launcher set
 
+#### Scenario: Activation fails after npm succeeds
+
+- **WHEN** npm replacement succeeds but candidate activation fails before committing the active reference
+- **THEN** the updater SHALL restore capsule-backed prior-release launchers before settling rollback
+- **AND** a partially written or failed target SHALL not become the recovery launch authority
+
+#### Scenario: A committed activation cannot persist its journal phase
+
+- **WHEN** the activator reports that the active reference is committed but persisting that journal phase fails
+- **THEN** the updater SHALL report committed success with a bounded bookkeeping warning rather than roll back
+- **AND** recovery authority SHALL remain until journal settlement succeeds
+
 #### Scenario: Recovery launcher replacement is refused
 
 - **WHEN** a recovery launcher's atomic rename fails permanently

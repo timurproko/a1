@@ -407,6 +407,18 @@ Rules that do not bend:
 - **Publication fails before npm:** the rollback job returns the Release to draft and deletes the unconsumed tag, so no manual tag cleanup is needed. Read the failed `Publish stable release` run, fix the cause (for example, wait for validation, undo a body edit made after publishing, rerun candidate validation when its retained package is missing or older than 30 days, or register the trusted publisher the npm preflight names), and choose **Publish release** again. If the rollback job itself failed, rerun it; never delete or move a tag by hand.
 - **Publication fails after npm:** the Release and tag stay. Rerun the failed jobs of that same run: its retained candidate and digests make the final registry check an exact-byte no-op for any package already published. Any recovered reopening PR must contain only both next `-dev` version declarations and the exact approved `docs/releases/<released>.md`; it auto-merges after CI when it verifies, otherwise merge it by hand. Never republish immutable bytes. Never repeat stable publication for a published version.
 
+## Local updater failure recovery
+
+The updater retries atomic journal and recovery-launcher renames for up to two seconds
+on Windows sharing violations without deleting the prior destination first. A failed
+journal notification never abandons npm while it still owns launcher mutation. If npm
+fails or activation fails before committing, settled recovery restores the prior-release
+launcher set. A committed activation stays successful even if its journal write fails;
+that bookkeeping failure warns, retains recovery authority, and never rolls back the
+already active release. A guardian that has not settled retains ownership rather than
+racing a second rollback. Preserve transaction and capsule evidence when diagnosing a
+local failure; do not delete state as a launcher repair.
+
 ## Safe release-command validation
 
 Use the isolated harness rather than a live release to validate changes to this command:

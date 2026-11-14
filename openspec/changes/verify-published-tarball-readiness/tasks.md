@@ -15,5 +15,5 @@
 
 ## 4. Preserve callable launchers across updater failures
 
-- [ ] 4.1 Retry atomic journal and recovery sidecar/launcher replacement on bounded Windows sharing failures without pre-deleting destinations.
-- [ ] 4.2 Keep detached recovery settlement running despite journal callback failures and cover failure, cancellation, and transient/persistent replacement errors.
+- [x] 4.1 Retry atomic journal and recovery sidecar/launcher replacement on bounded Windows sharing failures without pre-deleting destinations.
+- [x] 4.2 Keep detached recovery settlement running despite journal callback failures and cover failure, cancellation, and transient/persistent replacement errors.
