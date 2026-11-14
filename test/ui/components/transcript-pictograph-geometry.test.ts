@@ -2,7 +2,7 @@ import HeadlessXterm from "@xterm/headless";
 import { describe, expect, it } from "vitest";
 import { stripAnsi, TranscriptViewport } from "../../../src/ui/components/index.js";
 
-// Legacy xterm is an independent cell oracle for narrow pictographs only.
+// Compatibility: legacy xterm is an independent cell oracle for narrow pictographs only.
 // Modern emoji/VS16 geometry is checked against pinned Pi in its adapter tests.
 function documentRows(symbol: string, width: number): string[] {
   return Array.from({ length: 4 }, () => [
@@ -17,7 +17,7 @@ function documentRows(symbol: string, width: number): string[] {
   ]).flat();
 }
 
-// Literal one-cell fixture columns, not A1's width/padding helpers, define the oracle.
+// Invariant: literal one-cell fixture columns, not A1's width/padding helpers, define the oracle.
 async function replay(
   screen: HeadlessXterm.Terminal,
   frame: ReturnType<TranscriptViewport["compose"]>,
@@ -67,7 +67,7 @@ describe("pictograph viewport cell geometry", () => {
       expect(cached.selectionDamage.reusedRows.length).toBeGreaterThan(0);
       await replay(screen, cached, true);
 
-      // Replace the same rows in both directions, exercising paint-cache invalidation.
+      // Invariant: replacing the same rows in either direction invalidates cached paint.
       rows = rows.map(row => row.replaceAll(symbol, "A").replaceAll("\uFE0E", ""));
       await replay(screen, compose(), true);
       rows = documentRows(symbol, width);
@@ -93,7 +93,7 @@ describe("pictograph viewport cell geometry", () => {
       const frame = compose();
       await replay(screen, frame, true);
 
-      // This literal-width row ends in Z at the final content cell, next to the gutter.
+      // Invariant: this literal-width row ends in Z at the final content cell, next to the gutter.
       const edgeRow = frame.rows.findIndex(row => stripAnsi(row).includes("xxxZ")) + 1;
       expect(edgeRow).toBeGreaterThan(1);
       const content = `${symbol}${symbol}${"x".repeat(width - 4)}Z`;

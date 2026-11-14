@@ -129,7 +129,7 @@ describe("real fullscreen child content geometry", () => {
     applyPiTheme("dark", false, "truecolor");
     const f = fixture(29);
     f.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
-    // Prose deliberately gains VS16 in the presentation adapter. Code spans retain
+    // Compatibility: prose gains VS16 in the presentation adapter. Code spans retain
     // narrow source bytes and exercise this defect independently of legacy xterm's emoji table.
     const text = Array.from({ length: 50 }, (_, index) => [
       `${index}: ASCII output`,

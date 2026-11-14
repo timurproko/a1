@@ -2,7 +2,7 @@ import { visibleWidth } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
 import { displayWidth, padToWidth, truncateToWidth } from "../../../../src/ui/components/index.js";
 
-// Explicit widths keep the independent producer from hiding a shared fixture error.
+// Invariant: literal widths keep the independent producer from hiding a shared fixture error.
 const WIDTHS = [
   ["🖼", 1], ["🖥", 1], ["🖨", 1], ["🖊", 1], ["🗂", 1], ["🏳", 1],
   ["🖼🖼🖼", 3], ["[🖼 filename.png #id]", 20],

@@ -17,6 +17,12 @@ After merging `origin/develop` at `ac3f4997237d0a17e346c55e5b39d30cade34b0b`:
 
 Effective data policy: Node `v24.21.0`, runtime Unicode `17.0`, pinned `@earendil-works/pi-tui` `1.5.2`, and existing test-only `@xterm/headless` `6.0.0`. No additional width-data dependency was introduced. Literal fixture widths are asserted independently against pinned Pi; an upgrade disagreement fails those assertions rather than updating expectations silently.
 
+## CI repair
+
+The first finalized head was rejected because the original planning change lacked `.openspec.yaml`, which exact-head delivery validation requires in the archive. Added the original change's `spec-driven` metadata with its creation date; trusted automation will refresh the manifest digest. No canonical specs or acceptance scenarios were edited manually.
+
+The changed-file documentation check also rejected six uncategorized test comments. Categorized their existing compatibility and invariant explanations without changing assertions. Replayed the failed CI job's exact impact selection locally: code documentation governance passed with no violations. Local finalization inspection reports `would-refinalize` with only the conditional acceptance manifest needing regeneration.
+
 ## Compatibility boundaries and disposition
 
 Legacy headless xterm does not implement all modern emoji/VS16 widths. Terminal replay therefore uses narrow pictographs, including explicit VS15 and styled rows; modern emoji geometry is asserted against pinned Pi instead. Current develop's prose presentation intentionally adds VS16, so the session replay uses protected code spans to retain the narrow source bytes that reproduce the shared-width defect. Direct viewport replay covers unmodified bare text and ANSI styling independently.
