@@ -1,5 +1,6 @@
 import type { OwnedUiShellClipboardContent } from "../../contracts/owned-ui/index.js";
 import { Worker } from "node:worker_threads";
+import { basename } from "node:path";
 import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import { readSystemClipboardContent } from "./system-clipboard.js";
 import { MAX_SOURCE_IMAGE_BYTES } from "./image-source.js";
@@ -58,7 +59,7 @@ function imagePreparation(source: ImagePreparationRequest): Promise<PreparedPast
     let done = false;
     worker.once("message", message => {
       done = true;
-      if (message?.ok) resolve({ kind: "image", ...message.value });
+      if (message?.ok) resolve({ kind: "image", ...message.value, ...(source.kind === "prepare-file" ? { fileName: basename(source.path) } : {}) });
       else reject(new ImageAttachmentError(message?.code ?? "image-codec"));
       void worker.terminate().catch(() => {});
     });
@@ -73,7 +74,7 @@ function* outputMessages(value: PreparedPaste): Generator<PasteHelperOutput> {
     yield { kind: "output", type: "paths" };
     for (const path of value.paths) yield { kind: "path", path };
   } else {
-    if (value.kind === "image") yield { kind: "output", type: "image", mimeType: value.mimeType, width: value.width, height: value.height, transformed: value.transformed };
+    if (value.kind === "image") yield { kind: "output", type: "image", mimeType: value.mimeType, width: value.width, height: value.height, transformed: value.transformed, ...(value.fileName === undefined ? {} : { fileName: value.fileName }) };
     else yield { kind: "output", type: value.kind, ...(value.label === undefined ? {} : { label: value.label }) };
     const data = value.kind === "text" ? value.text : value.kind === "url" ? value.url : value.data;
     for (const fragment of pasteFragments(data)) yield { kind: "data", data: fragment };
@@ -134,7 +135,7 @@ async function receive(message: PasteHelperInput): Promise<void> {
       if (file?.kind === "file" && imageFileMimeType(file.fullPath) !== undefined) {
         // Concurrency: file intake waits for the same conversion grant as native image bytes.
         image = { kind: "prepare-file", path: file.fullPath };
-        send({ kind: "phase", phase: "acquired-image" });
+        send({ kind: "phase", phase: "acquired-image", fileName: basename(file.fullPath) });
       } else present(prepared);
     }
   } else if (message?.kind === "convert" && image) {

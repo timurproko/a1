@@ -1,5 +1,6 @@
 import { chmodSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync, lstatSync } from "node:fs";
 import { posix, win32 } from "node:path";
+import { canonicalPromptChipMatches, imagePromptChipIdentifier } from "../../contracts/owned-ui/index.js";
 
 export interface PromptImageSidecarAttachment {
   readonly type: "image";
@@ -7,7 +8,6 @@ export interface PromptImageSidecarAttachment {
   readonly mimeType: string;
 }
 
-const IMAGE_TAG_PATTERN = /\[📷 screenshot-([a-f0-9]+)(?:-resized)?\]/gu;
 const IMAGE_FILENAME_PATTERN = /^([a-f0-9]+)\.json$/u;
 const MAX_SIDECAR_BYTES = 12 * 1024 * 1024;
 
@@ -22,11 +22,9 @@ export interface PromptImageSidecarRecord {
  * embedded in the tag by `PromptChipStore`. Ordering is left-to-right; duplicates are dropped. */
 export function collectImageChipIdentifiers(text: string): string[] {
   const seen = new Set<string>();
-  IMAGE_TAG_PATTERN.lastIndex = 0;
-  for (;;) {
-    const match = IMAGE_TAG_PATTERN.exec(text);
-    if (match === null) break;
-    seen.add(match[1]!);
+  for (const match of canonicalPromptChipMatches(text)) {
+    const id = imagePromptChipIdentifier(match.text);
+    if (id !== null) seen.add(id);
   }
   return [...seen];
 }
