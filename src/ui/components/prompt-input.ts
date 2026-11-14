@@ -49,12 +49,14 @@ export class PromptInput {
 
   geometry(width: number, padding = 0, promptGlyph = PROMPT_GLYPH) {
     const prefixWidth = Math.min(this.metrics.measure(promptGlyph), Math.max(0, width));
-    // Compatibility: editor wrapping needs room for a two-cell grapheme plus its cursor cell.
-    // Lay out against a safe virtual width, then clip only at the shared frame boundary.
-    const innerWidth = Math.max(3 + padding * 2, width - prefixWidth);
-    const paddingX = Math.min(padding, Math.max(0, Math.floor((innerWidth - 1) / 2)));
-    const contentWidth = Math.max(1, innerWidth - paddingX * 2);
-    return { prefixWidth, innerWidth, paddingX, contentWidth, layoutWidth: Math.max(1, contentWidth - (paddingX ? 0 : 1)) };
+    // Marker-bearing dialog fields already inherit their frame's inset; marker-free
+    // ruled inputs own both gutters here, including every continuation row.
+    const requestedPadding = Math.max(promptGlyph.length === 0 ? 1 : 0, Number.isFinite(padding) ? Math.floor(padding) : 0);
+    const paddingX = Math.min(requestedPadding, Math.max(0, Math.floor((width - prefixWidth - 1) / 2)));
+    // Compatibility: the unpadded editor needs a two-cell grapheme plus its cursor cell.
+    // Clip this safe virtual content width at the shared frame boundary on tiny terminals.
+    const innerWidth = Math.max(3, width - prefixWidth - paddingX * 2);
+    return { prefixWidth, innerWidth, paddingX, contentWidth: innerWidth, layoutWidth: innerWidth - 1 };
   }
 
   render(
@@ -66,7 +68,7 @@ export class PromptInput {
     promptRole: PromptMarkerRole = "muted",
   ): string[] {
     if (width <= 0) return [];
-    const { prefixWidth, innerWidth } = this.geometry(width, padding, promptGlyph);
+    const { prefixWidth, innerWidth, paddingX } = this.geometry(width, padding, promptGlyph);
     const body = renderBody(innerWidth);
     const requestedAfterIndent = body.afterIndent ?? prefixWidth;
     const afterIndent = Number.isFinite(requestedAfterIndent)
@@ -76,9 +78,11 @@ export class PromptInput {
       const clipped = this.metrics.truncate(row, width);
       return clipped + " ".repeat(Math.max(0, width - this.metrics.measure(clipped)));
     };
+    const gutter = " ".repeat(paddingX);
+    const visibleContentWidth = Math.max(0, width - prefixWidth - paddingX * 2);
     const rows = body.rows.map((row, index) => fit(`${index === 0
       ? promptArrow(promptGlyph, this.theme, promptRole)
-      : " ".repeat(prefixWidth)}${row}`));
+      : " ".repeat(prefixWidth)}${gutter}${this.metrics.truncate(row, visibleContentWidth)}${gutter}`));
     const rule = (fragment?: string): string => fragment === undefined
       ? promptRule(width, this.theme)
       : fit(fragment + promptRule(Math.max(0, width - this.metrics.measure(fragment)), this.theme));

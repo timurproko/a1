@@ -12,7 +12,7 @@ Use Ctrl+Shift+Up for previous section/anchor and Ctrl+Shift+Down for next secti
 
 ### Shared full-height input gutters
 
-Establish a minimum one-cell gutter on each side in the shared owned input geometry and renderer. Every body row, including placeholders, empty continuation rows, wrapped text, and explicit newlines, uses that same rectangle. Rules remain full width. Avoid adding a second inset to editor rows that already implement effective padding; larger explicitly configured editor padding remains supported. Constrain virtual-width rendering at narrow terminal widths so no row overflows.
+Establish a minimum one-cell gutter on each side in the shared owned input geometry and renderer. Render the editor body without internal padding into the reduced shared content width, reserving a separate cursor cell; apply configured padding once in shared presentation. Marker-bearing dialog fields retain their existing frame inset policy, and tiny frames reduce unavailable gutters before safely clipping. Render semantic border annotations against the full frame width rather than the reduced body width. Every body row, including placeholders, empty continuation rows, wrapped text, and explicit newlines, uses that same rectangle. Rules remain full width. Avoid adding a second inset to editor rows that already implement effective padding; larger explicitly configured editor padding remains supported. Constrain virtual-width rendering at narrow terminal widths so no row overflows.
 
 Propagate the effective content rectangle to caret placement, wrapping, selection painting, pointer hit testing, and autocomplete anchoring. Gutters remain presentation-only and must not become draft characters or copied/submitted text. Keep the comparison-profile renderer independent and preserve existing prompt-marker policy.
 
@@ -29,4 +29,4 @@ Use only changed owner-level tests, TypeScript checks, and strict OpenSpec valid
 
 ## Known gaps
 
-None identified during planning. Implementation may require coordinated changes in copied editor adapter code; any such change must remain gated to the owned input path and preserve `a1 pi` behavior.
+None. The copied editor adapter changes are gated by injected shared input presentation, preserving the independent `a1 pi` path. Focused outcomes and manual-review limitations are recorded in `implementation-evidence.md`.

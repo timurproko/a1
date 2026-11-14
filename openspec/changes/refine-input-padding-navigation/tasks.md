@@ -6,6 +6,6 @@
 
 ## 2. Shared full-height input gutters
 
-- [ ] 2.1 Give the shared owned input a minimum one-cell left and right body gutter, including wrapped, multiline, empty, and placeholder rows, without double-padding existing editor content or changing full-width rules.
-- [ ] 2.2 Align Agent prompt and Settings search wrapping, caret, selection, pointer mapping, and completion placement with the shared content rectangle while preserving semantic copy/submission text and comparison-profile behavior.
-- [ ] 2.3 Add focused shared-input and consumer tests for both gutters, multiline continuation rows, narrow widths, wide characters, effective larger editor padding, and input interaction geometry.
+- [x] 2.1 Give the shared owned input a minimum one-cell left and right body gutter, including wrapped, multiline, empty, and placeholder rows, without double-padding existing editor content or changing full-width rules.
+- [x] 2.2 Align Agent prompt and Settings search wrapping, caret, selection, pointer mapping, and completion placement with the shared content rectangle while preserving semantic copy/submission text and comparison-profile behavior.
+- [x] 2.3 Add focused shared-input and consumer tests for both gutters, multiline continuation rows, narrow widths, wide characters, effective larger editor padding, and input interaction geometry.

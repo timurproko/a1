@@ -244,7 +244,7 @@ export interface InputRow {
 /** The input row as the reference draws one, padded to exactly the width. */
 export function renderInputRow(input: LineInput, width: number, options: InputRowOptions = {}): InputRow {
   const presentation = new PromptInput(options.theme);
-  const view = input.view(Math.max(0, width - presentation.geometry(width, 0, options.promptGlyph).prefixWidth));
+  const view = input.view(presentation.geometry(width, 0, options.promptGlyph).contentWidth);
   const placeholder = options.placeholder ?? "";
   const empty = view.text.length === 0 && placeholder.length > 0;
 

@@ -313,7 +313,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.resize(80, 24);
       terminal.input("/"); terminal.input("mo"); await nextImmediate(); await nextImmediate();
       const frame = shell.root.render(80);
-      const row = frame.findIndex(line => stripTerminalSequences(line).startsWith("/mo")) + 1;
+      const row = frame.findIndex(line => stripTerminalSequences(line).startsWith(" /mo")) + 1;
       expect(shell.root.editor.bodyGeometry!().rowOffset).toBeGreaterThan(0);
       // Rationale: with the counter merged into the body's top border, there is no
       // longer a plain top line above the menu; the counter border now sits directly
@@ -337,11 +337,11 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
         selectList: { selectedPrefix: text => text, selectedText: text => text, description: text => text, scrollInfo: text => text, noMatch: text => text },
       }));
       expect(shell.root.usesDefaultInputSurface()).toBe(false);
-      expect(shell.root.render(80).some(line => stripTerminalSequences(line).startsWith("/mo"))).toBe(false);
+      expect(shell.root.render(80).some(line => stripTerminalSequences(line).startsWith(" /mo"))).toBe(false);
       ui.setEditorComponent(undefined);
       shell.root.editor.setText(""); terminal.input("/"); await nextImmediate(); await nextImmediate();
       const restored = shell.root.render(80);
-      expect(restored.findIndex(line => stripTerminalSequences(line).startsWith("/")) + 1).toBe(row);
+      expect(restored.findIndex(line => stripTerminalSequences(line).startsWith(" /")) + 1).toBe(row);
       expect(shell.root.editor.bodyGeometry!().rowOffset).toBeGreaterThan(0);
     } finally { await shell.dispose(); }
   });
@@ -478,7 +478,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       shell.runtime.renderNow();
       const pointer = (word: string) => {
         const rows = shell.root.render(60).map(stripTerminalSequences);
-        const inputRow = rows.findIndex(row => row.startsWith(shell.root.editor.getText())) + 1;
+        const inputRow = rows.findIndex(row => row.startsWith(` ${shell.root.editor.getText()}`)) + 1;
         const column = rows[inputRow - 1]!.indexOf(word) + 2;
         return () => terminal.input(`\u001b[<0;${column};${inputRow}M\u001b[<0;${column};${inputRow}m`);
       };
@@ -852,7 +852,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       const promptRow = rows.findIndex(row => row.startsWith(" ❯ ask me")) + 1;
       const answerRow = rows.findIndex(row => row.includes("answer body")) + 1;
       const dock = shell.root.viewportFrameDescriptor()!.dock!;
-      const inputRow = rows.findIndex((row, index) => index + 1 >= dock.rowStart && row.startsWith("draft input")) + 1;
+      const inputRow = rows.findIndex((row, index) => index + 1 >= dock.rowStart && row.startsWith(" draft input")) + 1;
       const inputColumn = rows[inputRow - 1]!.indexOf("draft") + 1;
       expect(promptRow).toBeGreaterThan(0);
       expect(answerRow).toBeGreaterThan(promptRow);

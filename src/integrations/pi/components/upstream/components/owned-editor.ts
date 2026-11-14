@@ -3,8 +3,9 @@
  * packages/coding-agent/src/modes/interactive/components/custom-editor.ts.
  * Modifications: A1-owned class name and synchronized A1 keybinding contract replace the nominal
  * private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input
- * frame, configurable empty-input placeholder branch, transient contextual-suggestion branch, and
- * explicit body geometry for selection and above-prompt autocomplete with a one-cell outer gutter.
+ * frame and full-height gutters around an unpadded editor body, configurable empty-input placeholder
+ * branch, transient contextual-suggestion branch, and explicit body geometry for selection and
+ * above-prompt autocomplete with a one-cell outer gutter.
  * Bare A1 also clears a sole top-level slash-command search on Escape and completes a selected or
  * exact completed tunnel command with `:` and reopens the menu on its tunnel rows, and synchronously
  * retains then refreshes an exact top-level command menu after Tab applies its row.
@@ -81,12 +82,17 @@ return class extends Base {
   readonly #clearCommandSearchOnEscape: boolean;
   readonly #commandTunnels: () => readonly string[];
   #renderedBodyRowCount = 0;
+  #frameWidth = 0;
+  #presentationPaddingX: number;
+  readonly #requestRender: () => void;
 
   private readonly keybindings: KeybindingsManager;
   constructor(tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager, options: OwnedEditorOptions = {}) {
-    super(tui, theme, options);
+    super(tui, theme, options.inputPresentation === undefined ? options : { ...options, paddingX: 0 });
     this.keybindings = keybindings;
     this.#inputPresentation = options.inputPresentation;
+    this.#presentationPaddingX = normalizedPadding(options.paddingX ?? 0);
+    this.#requestRender = () => tui.requestRender();
     this.#styleSuggestion = options.styleSuggestion ?? (text => text);
     this.#styleSuggestionCaret = options.styleSuggestionCaret ?? (text => `\u001b[7m${text}\u001b[27m`);
     this.#placeholder = options.placeholder ?? null;
@@ -94,6 +100,18 @@ return class extends Base {
     this.#getVisualLineCount = options.getVisualLineCount;
     this.#clearCommandSearchOnEscape = options.clearCommandSearchOnEscape === true;
     this.#commandTunnels = options.commandTunnels ?? (() => []);
+  }
+
+  override getPaddingX(): number {
+    return this.#inputPresentation === undefined ? super.getPaddingX() : this.#presentationPaddingX;
+  }
+
+  override setPaddingX(padding: number): void {
+    if (this.#inputPresentation === undefined) { super.setPaddingX(padding); return; }
+    const next = normalizedPadding(padding);
+    if (next === this.#presentationPaddingX) return;
+    this.#presentationPaddingX = next;
+    this.#requestRender();
   }
 
   getRenderedBodyRowCount(): number { return this.#renderedBodyRowCount; }
@@ -120,6 +138,7 @@ return class extends Base {
   }
 
   override render(width: number): string[] {
+    this.#frameWidth = width;
     if (this.#inputPresentation === undefined) {
       const rows = super.render(width);
       this.#renderedBodyRowCount = this.#getVisualLineCount === undefined ? rows.length : this.#measureBodyRows(width);
@@ -233,12 +252,10 @@ return class extends Base {
 
   #renderSuggestion(width: number, suggestion: string): string[] {
     const presentation = this.#inputPresentation!;
-    const { paddingX, contentWidth, layoutWidth } = presentation.geometry(width, this.getPaddingX());
+    const { contentWidth, layoutWidth } = presentation.geometry(width, this.getPaddingX());
     const chunks = wrapTextWithAnsi(suggestion, layoutWidth).map(text => ({ text }));
     const maxVisible = Math.max(5, Math.floor(this.#terminalRows() * 0.3));
     const visible = chunks.slice(0, maxVisible);
-    const leftPadding = " ".repeat(paddingX);
-    const rightPadding = leftPadding;
     const rows = visible.map((chunk, index) => {
       let content: string;
       if (index === 0) {
@@ -251,30 +268,40 @@ return class extends Base {
       }
       const plainWidth = visibleWidth(chunk.text);
       const padding = " ".repeat(Math.max(0, contentWidth - plainWidth));
-      return `${leftPadding}${content}${padding}${rightPadding}`;
+      return `${content}${padding}`;
     });
-    return presentation.render(width, () => ({ rows }));
+    return presentation.render(width, () => ({ rows }), true, this.getPaddingX());
   }
 
   #renderPrefixedEditor(width: number): string[] {
     return this.#inputPresentation!.render(width, innerWidth => {
       const rows = super.render(innerWidth);
-      this.#renderedBodyRowCount = this.#measureBodyRows(innerWidth);
+      this.#renderedBodyRowCount = this.#measureBodyRows(innerWidth, 0);
       const bottomBorder = this.#renderedBodyRowCount - 1;
       return {
         rows: rows.slice(1, bottomBorder),
         topRule: rows[0],
         bottomRule: rows[bottomBorder],
         after: rows.slice(bottomBorder + 1),
-        // Align autocomplete's outer marker with the one-cell working-status gutter;
-        // prompt text keeps the complete two-cell `❯ ` prefix.
+        // Autocomplete's outer marker shares the one-cell input/status gutter.
         afterIndent: 1,
       };
     }, true, this.getPaddingX());
   }
 
-  #measureBodyRows(width: number): number {
-    const padding = Math.min(this.getPaddingX(), Math.max(0, Math.floor((width - 1) / 2)));
+  // Compatibility: both editor bases expose these protected border hooks, but the
+  // structural editor port intentionally omits protected members. Body gutters must
+  // not shrink history/scroll annotations or move their centered full-frame cues.
+  protected renderTopBorder(width: number, hiddenLineCount: number): string {
+    return Reflect.get(Base.prototype, "renderTopBorder").call(this, this.#inputPresentation === undefined ? width : this.#frameWidth, hiddenLineCount);
+  }
+
+  protected renderBottomBorder(width: number, hiddenLineCount: number): string {
+    return Reflect.get(Base.prototype, "renderBottomBorder").call(this, this.#inputPresentation === undefined ? width : this.#frameWidth, hiddenLineCount);
+  }
+
+  #measureBodyRows(width: number, requestedPadding = this.getPaddingX()): number {
+    const padding = Math.min(requestedPadding, Math.max(0, Math.floor((width - 1) / 2)));
     const contentWidth = Math.max(1, width - padding * 2);
     const layoutWidth = Math.max(1, contentWidth - (padding ? 0 : 1));
     // Invariant: split by editor layout, never by styled border or completion text.
@@ -283,6 +310,10 @@ return class extends Base {
     return Math.min(Math.max(1, lineCount), Math.max(5, Math.floor(this.#terminalRows() * 0.3))) + 2;
   }
 };
+}
+
+function normalizedPadding(padding: number): number {
+  return Number.isFinite(padding) ? Math.max(0, Math.floor(padding)) : 0;
 }
 
 export class OwnedEditor extends createOwnedEditorClass(Editor) {}

@@ -199,7 +199,9 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
             expect(actual.menu.every(row => visibleWidth(row) <= width)).toBe(true);
             expect(actual.menu.some(row => stripTerminalSequences(row).includes("→ choice"))).toBe(true);
             if (counter) {
-              if (width >= 11) expect(actual.body[0]).toContain(piTheme().fg("dim", `${selected % items.length + 1}/12 `));
+              const label = `${selected % items.length + 1}/12 `;
+              // The upstream list reserves two cells inside the shared two-gutter content area.
+              if (width - 4 >= `  (${label.trimEnd()})`.length) expect(actual.body[0]).toContain(piTheme().fg("dim", label));
               else expect(stripTerminalSequences(actual.body[0]!)).toBe("─".repeat(width));
             } else expect(stripTerminalSequences(actual.body[0]!)).toBe("─".repeat(width));
           }
@@ -259,9 +261,9 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
       editor.addAutocompleteProvider(() => provider);
       editor.setText("abc "); editor.handleInput?.("@");
       await expect.poll(() => parts(editor, 80).menu.length).toBeGreaterThan(0);
-      editor.handlePointer({ kind: "press", button: 0, column: 1, row: 2 });
-      editor.handlePointer({ kind: "motion", button: 0, column: 4, row: 2 });
-      editor.handlePointer({ kind: "release", button: 0, column: 4, row: 2 });
+      editor.handlePointer({ kind: "press", button: 0, column: 2, row: 2 });
+      editor.handlePointer({ kind: "motion", button: 0, column: 5, row: 2 });
+      editor.handlePointer({ kind: "release", button: 0, column: 5, row: 2 });
       const selected = parts(editor, 80);
       expect(selected.body[1]).toContain("\u001b[44m");
       expect(selected.menu.join("\n")).not.toContain("\u001b[44m");

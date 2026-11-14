@@ -5,7 +5,7 @@ import { CURSOR_MARKER, getKeybindings, stripTerminalSequences, visibleWidth } f
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiSessionViewModel, OwnedUiThinkingLevel } from "../../../../src/contracts/owned-ui/index.js";
 import { hyperlinkTargetAtColumn, LineInput, PromptInput, renderInputRow } from "../../../../src/ui/components/index.js";
-import { applyPiTheme, createPiKeybindingsHost, createPiShellEditor, createPiShellFooter, createPiShellHeader, createPiShellHotkeys, piTheme, PINNED_PI_BUILTIN_SLASH_COMMANDS, setPiAccentColor } from "../../../../src/integrations/pi/components/index.js";
+import { applyPiTheme, createPiKeybindingsHost, createPiShellEditor, createPiShellFooter, createPiShellHeader, createPiShellHotkeys, loadHistoryEditor, piTheme, PINNED_PI_BUILTIN_SLASH_COMMANDS, setPiAccentColor } from "../../../../src/integrations/pi/components/index.js";
 import { createPiShellThinkingSelector } from "../../../../src/integrations/pi/components/thinking-selector-dialog.js";
 import { KeybindingsManager, useWindowsKeybindings } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
@@ -47,6 +47,7 @@ async function editor(
   profile: "a1" | "pi" = "a1",
   bindings: Record<string, string | string[]> = {},
   inputCapabilities?: { readonly singleLine?: boolean; readonly paste?: boolean; readonly autocomplete?: boolean; readonly placeholder?: string },
+  persistentHistory = false,
 ) {
   const cycle = vi.fn();
   const select = vi.fn();
@@ -55,7 +56,8 @@ async function editor(
   const copy = vi.fn();
   const dequeue = vi.fn();
   const input = createPiShellEditor({
-    agentDir: await agentDir(bindings), keybindingProfile: profile,
+    agentDir: await agentDir(bindings), keybindingProfile: profile, persistentHistory,
+    ...(persistentHistory ? { historyEditor: await loadHistoryEditor() } : {}),
     getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit: submit,
     onThinkingCycle: cycle, onModelSelect: select, onModelCycle: modelCycle, onCopyText: copy, onDequeue: dequeue,
     promptPresentation: promptInputPresentation(),
@@ -98,6 +100,46 @@ describe("owned shared input and status presentation", () => {
       }
       expect(input.getText()).toBe("draft 日本語\nsecond line");
     } finally { compose.mockRestore(); }
+  });
+
+  it.each([
+    { padding: 0, history: false }, { padding: 1, history: false }, { padding: 3, history: false },
+    { padding: 0, history: true }, { padding: 1, history: true }, { padding: 3, history: true },
+  ])("keeps both gutters on every Agent input row %j", async ({ padding, history }) => {
+    const { input, copy, submit } = await editor("a1", {}, undefined, history);
+    input.setPaddingX(padding);
+    const inset = Math.max(1, padding);
+    for (const width of [12, 24]) {
+      for (const text of ["", "abcdefghijabcdefghij", "one\ntwo\n\n日本語🙂"]) {
+        input.setText(text);
+        const rows = input.render(width);
+        expect(rows.every(row => visibleWidth(row) === width)).toBe(true);
+        expect(stripTerminalSequences(rows[0]!)).toBe("─".repeat(width));
+        expect(stripTerminalSequences(rows.at(-1)!)).toBe("─".repeat(width));
+        for (const row of rows.slice(1, -1)) {
+          const plain = stripTerminalSequences(row);
+          expect(plain.startsWith(" ".repeat(inset))).toBe(true);
+          expect(plain.endsWith(" ".repeat(inset))).toBe(true);
+          if (row.includes(CURSOR_MARKER)) {
+            const column = visibleWidth(row.slice(0, row.indexOf(CURSOR_MARKER)));
+            expect(column).toBeGreaterThanOrEqual(inset);
+            expect(column).toBeLessThan(width - inset);
+          }
+        }
+        expect(input.getText()).toBe(text);
+      }
+    }
+    const text = "abcdef\nghijkl";
+    input.setText(text);
+    input.render(24);
+    input.handlePointer?.({ kind: "press", button: 0, column: inset + 2, row: 2 });
+    input.handlePointer?.({ kind: "motion", button: 0, column: inset + 4, row: 3 });
+    input.handlePointer?.({ kind: "release", button: 0, column: inset + 4, row: 3 });
+    expect(input.selectedText?.()).toBe("bcdef\nghi");
+    input.handleInput?.("\u0003");
+    expect(copy).toHaveBeenLastCalledWith("bcdef\nghi", false);
+    input.handleInput?.("\r");
+    expect(submit).toHaveBeenLastCalledWith(text);
   });
 
   it("configures the shared input as single-line, placeholder-bearing, paste-disabled, and autocomplete-free", async () => {
@@ -190,9 +232,9 @@ describe("owned shared input and status presentation", () => {
     const { input, copy } = await editor();
     input.setText("hello world");
     input.render(40);
-    input.handlePointer?.({ kind: "press", button: 0, column: 1, row: 2 });
-    input.handlePointer?.({ kind: "motion", button: 0, column: 6, row: 2 });
-    input.handlePointer?.({ kind: "release", button: 0, column: 6, row: 2 });
+    input.handlePointer?.({ kind: "press", button: 0, column: 2, row: 2 });
+    input.handlePointer?.({ kind: "motion", button: 0, column: 7, row: 2 });
+    input.handlePointer?.({ kind: "release", button: 0, column: 7, row: 2 });
     expect(input.hasSelection()).toBe(true);
     input.handleInput?.("\u0003");
     expect(copy).toHaveBeenCalledWith("hello", false);

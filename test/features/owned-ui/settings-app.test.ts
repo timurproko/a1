@@ -719,7 +719,7 @@ describe("the settings screen", () => {
 
     for (const query of ["Agent", "Prompt suggestions"]) {
       startSearch(target, query);
-      expect(screen(target).filter(line => line === " Agent")).toHaveLength(1);
+      expect(screen(target).slice(0, -4).filter(line => line === " Agent")).toHaveLength(1);
       expect(screen(target).filter(line => line.includes("Prompt suggestions") && line.trimStart().startsWith("→"))).toHaveLength(1);
       expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→/);
       if (query === "Agent") target.onInput?.(ESC, HOST);
@@ -785,7 +785,7 @@ describe("the settings screen", () => {
     const target = settingsApp(session);
     target.onInput?.("Agent", HOST);
     const shown = screen(target);
-    expect(shown.filter(line => line === " Agent")).toHaveLength(1);
+    expect(shown.slice(0, -4).filter(line => line === " Agent")).toHaveLength(1);
     expect(shown.filter(line => line.includes("Prompt suggestions"))).toHaveLength(1);
     expect(shown.join("\n")).not.toContain("unavailable");
     expect(shown.some(line => line.includes("Thinking level"))).toBe(false);
@@ -1309,7 +1309,7 @@ describe("the settings screen", () => {
     startSearch(target, "t");
     target.onInput?.(DOWN, HOST);
     const after = screen(target);
-    expect(after.some(line => line.trimEnd() === "t")).toBe(true);
+    expect(after.at(-3)).toBe(" t");
     expect(after.join("\n")).not.toContain("❯");
     expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
   });
@@ -1475,7 +1475,7 @@ describe("the settings screen", () => {
     startSearch(target, "zzzz");
     target.onInput?.(DOWN, HOST);
     target.onInput?.(`${ESC}[1;6B`, HOST);
-    expect(screen(target).some(line => line.trimEnd() === "zzzz")).toBe(true);
+    expect(screen(target).at(-3)).toBe(" zzzz");
     expect(screen(target).some(line => line.trimStart().startsWith("→"))).toBe(false);
     const visible = screen(target);
     const emptyRow = visible.findIndex(line => line.trim() === "No settings found");
@@ -1684,6 +1684,9 @@ describe("the input row and status line behind the screen", () => {
     const visible = painted.map(line => stripTerminalSequences(line).trimEnd());
     const searchRow = visible.findIndex(line => line.trim() === "t");
     expect(searchRow).toBeGreaterThanOrEqual(0);
+    expect(visible[searchRow]).toBe(" t");
+    expect(stripTerminalSequences(painted[searchRow]!)).toHaveLength(80);
+    expect(stripTerminalSequences(painted[searchRow]!)).toMatch(/^ t +$/);
     expect(visible[searchRow]).not.toContain("❯");
     expect(visible[searchRow - 1]).toMatch(/^─+$/u);
     expect(visible[searchRow + 1]).toMatch(/^─+$/u);
@@ -1744,9 +1747,10 @@ describe("the input row and status line behind the screen", () => {
     const rows = target.render({ width: 80, height: 24 }, HOST).map(stripTerminalSequences);
     const row = rows.findIndex(line => line.includes("alpha beta")) + 1;
 
-    target.onMouse?.({ kind: "press", button: 0, row, column: 1 }, HOST);
-    target.onMouse?.({ kind: "motion", button: 0, row, column: 6 }, HOST);
-    target.onMouse?.({ kind: "release", button: 0, row, column: 6 }, HOST);
+    const column = rows[row - 1]!.indexOf("alpha beta") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row, column }, HOST);
+    target.onMouse?.({ kind: "motion", button: 0, row, column: column + 5 }, HOST);
+    target.onMouse?.({ kind: "release", button: 0, row, column: column + 5 }, HOST);
     target.onInput?.("\u0003", HOST);
     expect(copyText).toHaveBeenLastCalledWith("alpha");
 
