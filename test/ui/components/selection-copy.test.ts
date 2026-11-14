@@ -77,6 +77,40 @@ describe("selected visible-frame snapshots", () => {
     expect(viewport.captureSelectedText()).toBeNull();
   });
 
+  it.each([false, true])("excludes only trusted prefixes in original display coordinates (reverse=%s)", reverse => {
+    const viewport = new TranscriptViewport();
+    const rows = [" │ alpha 界", " │   beta │", " │ gamma"];
+    const copyExclusions = new Map(rows.map((_row, index) => [index, [{ from: 0, to: 1 }, { from: 1, to: 3 }]]));
+    viewport.compose({ documentRows: rows, copyExclusions, dockRows: [], promptAnchors: [], width: 30, height: 3 });
+    viewport.pressSelection(reverse ? 8 : 5, reverse ? 3 : 1, 0);
+    viewport.extendSelection(reverse ? 5 : 8, reverse ? 1 : 3, 1, false);
+    viewport.releaseSelection();
+    expect(viewport.captureSelectedText()?.rows).toEqual([{ text: "lpha 界\n  beta │\ngamma" }]);
+  });
+
+  it("retains off-screen prefix provenance and replaces it on a new composition", () => {
+    const viewport = new TranscriptViewport();
+    const rows = [" │ first", " │ second", " │ third", " │ fourth"];
+    const copyExclusions = new Map(rows.map((_row, index) => [index, [{ from: 0, to: 3 }]]));
+    const input = { documentRows: rows, copyExclusions, dockRows: [], promptAnchors: [], width: 30, height: 2 };
+    viewport.compose(input);
+    viewport.scrollTo(0);
+    viewport.compose(input);
+    viewport.pressSelection(4, 1, 0);
+    viewport.extendSelection(9, 2, 1, false);
+    viewport.scrollTo(2);
+    viewport.compose(input);
+    viewport.extendSelection(9, 2, 2, false);
+    viewport.releaseSelection();
+    expect(viewport.captureSelectedText()?.rows).toEqual([{ text: "first\nsecond\nthird\nfourth" }]);
+    viewport.clearSelection();
+    viewport.compose({ ...input, copyExclusions: new Map() });
+    viewport.pressSelection(4, 1, 3);
+    viewport.extendSelection(9, 2, 4, false);
+    viewport.releaseSelection();
+    expect(viewport.captureSelectedText()?.rows).toEqual([{ text: "third\n │ fourth" }]);
+  });
+
   it("bounds snapshot work by visible rows rather than retaining a long transcript", () => {
     const viewport = new TranscriptViewport();
     const rows = Array.from({ length: MAX_COPY_ROWS + 1 }, () => "row");
