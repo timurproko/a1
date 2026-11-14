@@ -1,135 +1,158 @@
 ## MODIFIED Requirements
 
+### Requirement: Launch profiles use separate user roots
+
+The normal A1 product SHALL default to `<home>/.a1/agent`, including global `settings.json` with Pi-owned root settings and the A1-owned namespace. Ordinary and pi-named entries, interactive/machine transports and applicable programmatic sessions SHALL use the same default. An explicitly supplied supported public configuration-root override MAY select a different root as user-selected storage after validation; contradictory root overrides SHALL fail, and selection SHALL NOT copy or merge credentials/settings from another profile. The Pi comparison SHALL retain its separate ordinary Pi profile behavior and SHALL NOT consume the A1-owned section. Effective-home resolution SHALL remain independent of package/materialized-release paths and testable hermetically.
+
+#### Scenario: Bare A1 resolves its profile
+
+- **WHEN** normal A1 starts with effective home H and no explicit root override
+- **THEN** the engine and A1 settings SHALL use H/.a1/agent/settings.json and read only their owned portions
+
+#### Scenario: Pi comparison resolves its profile
+
+- **WHEN** the actual comparison profile starts
+- **THEN** its configuration-root handling SHALL preserve ordinary Pi settings without consuming A1 product settings
+
+#### Scenario: Launch another installed version
+
+- **WHEN** another A1 version launches under the same home and explicit root selection
+- **THEN** it SHALL use the same selected normal-product settings root, not one under its package or materialized release
+
+#### Scenario: Explicit root selection
+
+- **WHEN** a supported public root override is supplied to either normal-product entry
+- **THEN** the selected root SHALL apply consistently to applicable settings/auth/resources/session services
+- **AND** no other profile SHALL be implicitly discovered, copied or used for credential fallback
+
 ### Requirement: Maintenance commands remain unambiguous
 
-`--help`, `-h`, `--version`, `-v`, `update`, and the declared operations under `a1 pi` SHALL retain their maintenance meanings and SHALL NOT be interpreted as profile names or forwarded into an interactive runtime. `a1 update --develop` MAY carry one numbered or full-version preview selector. A prerelease build SHALL expose bare `a1 pi` as its comparison launch; a release build SHALL treat that launch form as unsupported. Existing install/remove/uninstall/list, worktree and session control namespaces SHALL retain their handlers and semantics. Malformed control commands SHALL NOT become model instructions.
+Ordinary A1 SHALL retain existing update, package, uninstall, worktree, session control, help/version and comparison namespace meanings. `a1 update` SHALL update A1, `a1 worktree list` SHALL remain a control operation, and `a1 session color` SHALL remain the public product API. Malformed controls SHALL never become model prompts. Pi-documented maintenance namespaces and aliases on the pi-named entry SHALL follow an explicitly approved routing migration; self-update SHALL target the verified A1 product updater rather than independently replace its embedded Pi. Bare pi-named uninstall without a source SHALL retain the pinned missing-source error rather than remove A1.
 
-Normal A1 SHALL accept the shared supported interactive options: model/provider/thinking, repeated explicit extensions, tool exclusions, session selection/storage, invocation color and registered extension long flags. These options SHALL use the shared normal-product interactive implementation rather than Pi maintenance passthrough. `--session-dir` MAY select storage independently for a new session or accompany `--session <path|id>` in either order. Normal interactive launch SHALL accept at most one `--session-color <name>`, accepting exactly `blue`, `green`, `orange`, `pink`, `purple`, `cyan`, and `grey`. Missing values, duplicate singleton options, invalid values and unsupported launch flags SHALL fail with focused nonzero diagnostics. This addition SHALL NOT expose CLI picker/continue aliases, a `resume` subcommand, a `solo` word, or session/color arguments on the Pi comparison launch.
+Ordinary A1 SHALL require `--` for literal prompt text, retaining one joined literal prompt with preserved token bytes/order and no post-boundary option, command or file expansion. Declared pre-boundary file/image operands MAY supply attachments without enabling implicit bare prompt fallback. The pi-named adapter SHALL retain the pinned positional-message/file grammar, including ordered messages and its documented boundary handling. Neither adapter SHALL resume control dispatch after entering execution-option parsing. Reserved words after the applicable boundary SHALL never execute maintenance.
 
-For a declared normal launch, the first `--` SHALL end option parsing and MAY carry literal prompt arguments with or without launch options. A1 SHALL retain post-boundary token text/order within the existing NUL-free 32768-byte single-space joining contract and pass nonempty prompt content once to the existing owned prompt path after successful session startup and first presentation. Literal content SHALL NOT be shell-evaluated, interpreted as control commands or used as arbitrary Pi argument passthrough. Grammar/session startup failure or trust exit SHALL NOT submit it. Ordinary interactive parsing SHALL reject bare words before the boundary, except the declared optional model-catalog search operand, with guidance rather than guessing between maintenance and prompting. Once an invocation enters launch-option parsing, a subsequent control-looking word SHALL NOT switch it into a maintenance handler.
+One authoritative public implementation SHALL normalize all documented pinned launch/discovery/session/model/tool/resource/trust/display/transport flags and registered extension flags. Internal `--runtime-options` SHALL be rejected at public entries. Required-value, duplicate, unsupported-input and registration checks SHALL fail clearly and nonzero rather than accept-and-ignore. The ordinary unknown-word migration from quiet legacy no-op to focused failure SHALL not introduce implicit prompts or deletion. Comparison unsupported forms SHALL never fall through to normal-product execution.
 
-Unsupported bare command words and reserved operations outside the shared launch-option grammar SHALL retain successful quiet exit before runtime, shell or operation startup. Leading unknown launch flags SHALL instead fail visibly and nonzero. Malformed recognized maintenance commands SHALL retain focused command guidance without automatically printing complete help. No arguments SHALL continue to launch normal A1.
+Invocation color SHALL remain a singleton accepting exactly blue, green, orange, pink, purple, cyan or grey. Literal instructions SHALL reach the appropriate existing prompt path once in the declared order only after successful startup; interactive work waits for extension startup and first presentation. Inputs SHALL not be shell-evaluated or silently truncated. No arguments SHALL select the normal product and the appropriate documented transport for its streams.
 
 #### Scenario: Query help
 
-- **WHEN** the user runs `a1 --help` or `a1 -h`
-- **THEN** A1 SHALL print ordinary A1 help including supported shared launch flags and the literal boundary without launching any profile or loading extension factories
+- **WHEN** a standalone supported help request is supplied
+- **THEN** A1 SHALL print truthful core help and its command/boundary distinctions without factories, sessions, publication or model contact
 
 #### Scenario: Query version
 
-- **WHEN** the user runs `a1 --version` or `a1 -v`
-- **THEN** A1 SHALL execute its dependency-light truthful A1 version query without launching any profile or loading extension factories
+- **WHEN** a standalone supported version request is supplied
+- **THEN** A1 SHALL report truthful A1 and embedded-engine identity without interactive startup or extension factories
 
 #### Scenario: Manage packages
 
-- **WHEN** the user runs `a1 pi install`, `a1 pi remove`, `a1 pi uninstall`, `a1 pi list`, or an accepted package update form
-- **THEN** A1 SHALL run the package operation against the A1 profile without launching any interactive profile
+- **WHEN** a declared direct or compatibility package operation is supplied
+- **THEN** its existing or approved extended package handler SHALL run rather than interactive prompting
 
 #### Scenario: Launch form is given an argument
 
-- **WHEN** an ordinary invocation has entered shared interactive-option parsing and receives bare prompt words before `--`
-- **THEN** A1 SHALL return a focused nonzero boundary diagnostic without launching a profile or selecting a maintenance handler
+- **WHEN** ordinary execution-option parsing receives undeclared bare prompt words before the boundary
+- **THEN** it SHALL fail with boundary guidance without selecting maintenance or submitting a prompt
 
 #### Scenario: Unknown subcommand
 
-- **WHEN** the user provides a bare word outside the declared grammar
-- **THEN** A1 SHALL return successfully and silently without invoking a shell or child process
+- **WHEN** an unsupported bare A1 command word is supplied
+- **THEN** it SHALL fail with focused guidance and no interactive, shell or maintenance operation
 
 #### Scenario: Comparison launch is absent from a release
 
-- **WHEN** the user runs bare `a1 pi` from a stable release build
-- **THEN** A1 SHALL return successfully and silently without launching a profile
+- **WHEN** bare a1 pi is unsupported by the build's comparison capability
+- **THEN** it SHALL report unavailability rather than select normal-product execution
 
 #### Scenario: Removed update command is provided
 
-- **WHEN** the user provides a command beginning `update:`
-- **THEN** A1 SHALL return successfully and silently without update or runtime work
+- **WHEN** an unsupported legacy update-colon word is supplied
+- **THEN** A1 SHALL report unsupported syntax without executing update or model work
 
 #### Scenario: Resume from either release channel
 
-- **WHEN** the user runs a valid normal A1 `--session` launch from a stable or prerelease build
-- **THEN** A1 SHALL launch the selected session under the normal A1 profile and shared owned runtime
+- **WHEN** either release channel receives a supported normal-product session request
+- **THEN** the shared guarded session services SHALL honor it under the selected A1 profile
 
 #### Scenario: Session arguments are supplied to the comparison
 
-- **WHEN** the user runs `a1 pi --session <id>`
-- **THEN** that unsupported comparison operation SHALL remain a silent no-op rather than fall through to a normal A1 session launch
+- **WHEN** session syntax is unsupported in the distinct comparison namespace
+- **THEN** it SHALL not become a normal A1 session launch or instruction
 
 #### Scenario: Launch with an invocation color
 
-- **WHEN** the user runs `a1 --session-color green` or combines that color with valid normal interactive options in supported order
-- **THEN** A1 SHALL launch only the normal profile with the validated invocation-only color
-- **AND** the owned color option SHALL NOT reach Pi as an unknown option
+- **WHEN** a valid normal interactive invocation includes a session color with other supported options in any supported order
+- **THEN** the shared owned runtime SHALL apply it without persistence or unknown Pi-option passthrough
 
 #### Scenario: Reject malformed color before rendering
 
-- **WHEN** a recognized normal launch contains `--session-color` with no value, an unsupported value or a repeated occurrence before the boundary
-- **THEN** A1 SHALL exit nonzero with focused guidance before interactive startup, project-trust presentation or editor rendering
+- **WHEN** normal startup receives a missing, invalid or duplicate invocation color
+- **THEN** it SHALL fail nonzero before rendering or trust UI
 
 #### Scenario: Preserve a color-looking literal prompt
 
-- **WHEN** the user runs `a1 --session-color green -- --session-color pink`
-- **THEN** A1 SHALL start with green and treat the post-boundary text as literal prompt content, not another override
-- **AND** that content SHALL be submitted once only after successful session startup and first presentation without shell evaluation
+- **WHEN** ordinary A1 receives a green color override followed by a literal boundary and color-looking prompt text
+- **THEN** it SHALL use green and submit the post-boundary content once as literal input after successful startup and first presentation
 
 #### Scenario: Boundary launch without override
 
-- **WHEN** the user starts a normal launch with an explicit `--` and literal prompt but no invocation color
-- **THEN** ordinary saved-Default initialization SHALL remain in effect
-- **AND** color-looking post-boundary tokens SHALL NOT become launch options
+- **WHEN** a normal interactive launch has literal prompt text and no color override
+- **THEN** saved-Default initialization SHALL apply and prompt tokens SHALL not become overrides
 
 #### Scenario: Leave unrelated commands alone
 
-- **WHEN** a startup-color option is supplied as an unsupported comparison or noninteractive operation
-- **THEN** it SHALL NOT enable a normal interactive launch or color override
-- **AND** installer/update progress SHALL remain unchanged
+- **WHEN** a display or color flag is invalid for a control/comparison operation
+- **THEN** it SHALL not activate a normal interactive runtime or change installer/update presentation
 
-#### Scenario: Explicit ordinary prompt contains a reserved command word
+#### Scenario: Ordinary prompt contains a command word
 
-- **WHEN** the user runs `a1 -- update`
-- **THEN** normal A1 SHALL receive the literal instruction `update` once
-- **AND** no application or package update SHALL execute
+- **WHEN** the user supplies a1 with a literal boundary followed by update
+- **THEN** the instruction SHALL reach normal A1 once without an application update
 
-#### Scenario: Options do not select maintenance midway
+#### Scenario: Pin-documented pi maintenance is distinguished from a prompt
 
-- **WHEN** the user runs `a1 --model MODEL update` without a literal boundary
-- **THEN** A1 SHALL return nonzero with guidance to place prompt text after `--`
-- **AND** neither maintenance nor prompt submission SHALL execute
+- **WHEN** the pi-named entry receives a documented leading maintenance namespace under its approved migration
+- **THEN** it SHALL use that maintenance handler, while the same word after the literal boundary SHALL remain an instruction
+- **AND** update SHALL never independently replace embedded Pi or bypass A1 update authority
 
-#### Scenario: Unknown launch flag is not an unknown command word
+### Requirement: A1 exposes one single-agent launch and one prerelease comparison launch
 
-- **WHEN** the user supplies an unsupported leading launch flag
-- **THEN** A1 SHALL return nonzero with a meaningful unsupported-option or unregistered-extension-option diagnostic
-- **AND** unrelated unsupported bare words SHALL retain their existing quiet behavior
+The a1 binary SHALL remain the ordinary installed product command and SHALL provide the pinned public contracts by default without a compatibility switch. Normal interactive execution SHALL launch A1's owned single-agent surface; print/JSON/RPC SHALL use the appropriate shared noninteractive transports. A prerelease build SHALL retain a distinct a1 pi comparison entry; it SHALL NOT be repurposed as default compatibility. A1 MAY ship a real optional pi naming shim with its approved grammar adapter, but SHALL NOT globally replace another pi installation or expose removed agent/solo/ui/tabs modes.
 
-#### Scenario: Existing control namespaces remain commands
+#### Scenario: Launch normal A1
 
-- **WHEN** the user invokes ordinary update, package, worktree or session control syntax
-- **THEN** the corresponding existing handler or malformed-command diagnostic SHALL remain authoritative
-- **AND** no malformed control form SHALL fall back to an interactive model request
+- **WHEN** the user runs bare A1 with terminal input and output
+- **THEN** it SHALL launch the normal A1 owned UI with its full applicable product features
+
+#### Scenario: Launch the Pi comparison
+
+- **WHEN** a prerelease comparison is selected
+- **THEN** its intentional profile/product-surface differences SHALL remain separate from default normal-product compatibility
+
+#### Scenario: A removed launch word is given
+
+- **WHEN** an unsupported removed launch word is supplied
+- **THEN** it SHALL fail clearly without opening a profile or treating the typo as a model request
+
+#### Scenario: Compatibility launch preserves the product
+
+- **WHEN** an external program resolves the optional pi naming executable
+- **THEN** it SHALL run the same normal A1 services and applicable product features, not a second runtime or reduced feature set
 
 ## ADDED Requirements
 
-### Requirement: Ordinary launch discovery uses the existing normal-profile catalog
+### Requirement: Appropriate execution transports survive authenticated launch boundaries
 
-Ordinary A1 SHALL expose `--list-models [search]` using the same catalog implementation, effective normal A1 profile, supported option/conflict rules and extension registration behavior as the dedicated Pi-compatible entry. Discovery SHALL NOT start an interactive session, publish interactive identity or contact a model. It MAY load extension factories only under the existing catalog contract. Firstmate-scoped discovery SHALL retain the explicit pre-factory safety refusal; sharing SHALL NOT remove selectors or silently select a different profile to evade it.
+All supported production/development entries SHALL preserve declared transport, validated options, original cwd and prompt/file/image/stdin data through existing immutable-release/bootstrap/guardian/reselection contracts. Public syntax SHALL not bypass internal transport validation. Machine stdin/stdout SHALL retain protocol ownership before startup resources run, and incidental logs, progress, terminal escapes and resume hints SHALL not corrupt protocol stdout. Invocation credentials SHALL remain nonpersistent and absent from release certification, traces and diagnostics. Bounded metadata SHALL not cause silent input truncation or option loss.
 
-Each entry SHALL retain truthful help/version identity and ordinary A1 SHALL retain maintenance documentation. Shared interactive flag metadata SHOULD be reused where practical. Help/version SHALL NOT load extension factories, start sessions, publish interactive identity or contact a model, including in Firstmate-scoped environments. Unsupported Pi modes SHALL NOT be advertised as implemented.
+#### Scenario: Machine execution through a selected release
 
-#### Scenario: Ordinary model discovery
+- **WHEN** a supported print/JSON/RPC request traverses packaged bootstrap and guardian
+- **THEN** the authenticated selected runtime SHALL receive the complete request with clean streams and original input semantics
+- **AND** an incompatible selected runtime SHALL fail rather than downgrade transport or discard inputs
 
-- **WHEN** the user runs ordinary A1 model listing with an optional search in an allowed isolated environment
-- **THEN** it SHALL query the same effective-profile available-model catalog as the equivalent compatible invocation
-- **AND** no interactive startup or model request SHALL occur
+#### Scenario: Development execution
 
-#### Scenario: Firstmate catalog safety survives consolidation
-
-- **WHEN** ordinary or compatible model listing inherits Firstmate operational home/root/state selectors or native-host claims covered by the existing refusal
-- **THEN** discovery SHALL fail clearly before loading extension factories or touching live loaded markers
-- **AND** it SHALL NOT return a successful catalog or silently substitute another profile
-
-#### Scenario: Both help entries remain side-effect free
-
-- **WHEN** either entry receives its supported standalone help or version request
-- **THEN** it SHALL report its own truthful A1 identity and supported interface without extension factories, session startup, interactive publication or model contact
-- **AND** the dedicated compatible version SHALL NOT impersonate an upstream Pi version
+- **WHEN** the same supported request runs through supported development routing
+- **THEN** it SHALL use the checkout's shared services with equivalent public behavior and isolated development state

@@ -1,33 +1,37 @@
 ## Why
 
-Ordinary A1 and the opt-in Pi-compatible executable already launch the same normal A1 product, but their interactive option interfaces differ. Ordinary dispatch can silently ignore a leading `--model` or `-e`, leaving users with confusing launcher-specific instructions even though runtime features are shared. Consolidate the implemented interactive contract without confusing A1 maintenance commands with Pi-style instructions.
+A1 should be Pi-compatible by default while remaining the full A1 product. The earlier interactive-options-only proposal is superseded: accepting a small launch subset does not deliver the documented CLI, machine protocols, session, resource, extension or programmatic contracts of pinned Pi 1.5.2.
 
 ## What Changes
 
-- Share authoritative interactive option parsing, normalization and validation between two small grammar adapters: ordinary A1 retains control commands and requires `--` for prompts; the Pi-compatible entry retains positional instructions and its existing literal boundary.
-- Support model/provider/thinking, repeated explicit extensions, tool exclusions, session selection/storage, invocation color and registered extension long flags through ordinary `a1`, with equivalent normal-profile launch intents.
-- Expose the existing model catalog through ordinary `a1 --list-models [search]`, retaining its effective A1 profile, factory behavior and Firstmate-scoped safety refusal.
-- Advertise the supported subset through shared interactive help metadata while preserving each entry's identity, help/version side-effect restrictions and ordinary maintenance documentation. Malformed or unknown launch flags fail visibly and nonzero; unrelated legacy reserved word spaces retain their existing behavior.
-- Carry supported options through existing development and authenticated immutable-release/bootstrap/guardian transport without shell concatenation, option loss or public access to internal `--runtime-options` payloads.
-- Reuse the existing normal-product lifecycle and focused offline integration fixtures for startup ordering, prompt delivery, public APIs, task-copy isolation and replacement behavior.
+- Make ordinary `a1` expose the versioned public Pi contracts without a compatibility switch, alternate profile or reduced A1 feature set. Keep the optional real `pi` executable only as a thin naming/grammar entry, never a global installation takeover.
+- Share public option normalization and applicable launch/session/model/settings/tool/resource services across interactive, print, JSON and RPC transports. Interactive use retains A1's owned UI; machine transports never emit a TUI into protocol stdout. Do not run upstream `main` as an independent agent to obtain compatibility.
+- Cover all documented CLI inputs and flags, session persistence/selection/branching/export, models/authentication, tools and built-in extensions, packages/configuration/auth/MCP commands, extension lifecycle/UI, SDK sessions, environment and process shutdown.
+- Preserve A1 control-command meanings and the agreed ordinary `--` prompt boundary. Inventory additional collisions, upstream defaults and safety differences explicitly rather than guessing or silently ignoring input.
+- Reuse PR #927's runtime identity, API readiness/reporting fences and disposal. Product APIs and task isolation follow real host/session capabilities, not executable spelling.
+- Establish packaged subprocess and actual SDK conformance against the pinned contract, with isolated state, deterministic model/provider fixtures and versioned upgrade expectations in existing owners. Existing baseline classifications are not sufficient evidence of entrypoint parity.
 
-This is a planning-only delivery. Implementation requires explicit plan approval and an implementation request in this same PR; integration and deployment are not authorized.
+The complete engineering inventory is [contract-inventory.md](contract-inventory.md). [design.md](design.md) proposes exact conflict resolutions and a finite four-delivery split. That split has NOT been enacted: this remains the same planning-only PR #928, branch and OpenSpec change, with the complete goal recorded here. Implementation and any split require approval of this reconciled plan. No old blanket RPC/print/JSON/session/maintenance/display/trust exclusions remain.
 
 ## Capabilities
 
 ### New Capabilities
 
-None. This consolidates existing CLI and launch owners rather than introducing a compatibility subsystem.
+None as a separate product subsystem. Appropriate transports and missing public operations extend existing owners, not a compatibility registry or second agent.
 
 ### Modified Capabilities
 
-- `launch-profiles`: broaden normal interactive routing and discovery while retaining command, literal-prompt, comparison and legacy reserved-word boundaries.
-- `pi-compatible-launch`: require a shared interactive-options implementation and equivalent normal-product intents without erasing the two instruction grammars.
+- `pi-compatible-launch`: default versioned compatibility, shared services, all documented transports, extension/SDK conformance and a durable differences/evidence inventory.
+- `launch-profiles`: full public option routing, agreed command/prompt distinction, appropriate transport selection and authenticated launch payload preservation.
+- `cli-session-resume`: remaining session selectors and persistence choices through the same writer-guarded services.
+- `extension-packages`: explicit trusted project scope and configuration, without weakening profile or pinned-update ownership.
+- `cli-self-update`: explicit optional naming-entry update routing while preserving verified A1 channel/installation authority and embedded-runtime pinning.
+- `pi-api-boundary`: transport/programmatic service reuse and compatibility inspection expectations within existing public API and upgrade ownership.
 
 ## Impact
 
-Expected owners: `src/cli`, `src/features/launch`, the existing neutral `src/foundation/launch-context` transport contract, shipped `bin` entries, development launch routing and their focused tests. Engine-specific model discovery and option application remain in `src/integrations/pi/engine`; composition and owned-UI lifecycle are reused, not redesigned. User documentation will cover ordinary launch options, the literal boundary and the continuing opt-in `pi` executable.
+Expected owners: `src/cli`, `src/features/launch`, neutral `src/foundation/launch-context` and release transport, `src/integrations/pi/engine`, existing contracts/composition, owned UI/session presenters/components, shipped and development entries, focused tests and user/upgrade documentation. Public programmatic access needs a deliberately exported facade over existing A1 services; A1 currently publishes no SDK entry. Pi knowledge stays inside integration owners; features do not import vendor types. No dependency upgrade or governance-system rewrite is planned.
 
-Baseline: freshly fetched `origin/develop` at `2d5c3646`, containing merged PR #927, whose reviewed head was `cd079581e906b37073d46b080a69a50bb96fe51e`. Its finalized artifacts are immutable and outside this change. No stacked PR or cherry-pick dependency is needed.
+Baseline remains `2d5c3646784941978b9847b606705e3602c3f888`, containing merged #927. Package and lockfile pin Pi family 1.5.2. This revision preserves the initial planning commit `fcd71bca`; no implementation had started on refresh. #927's archive and unrelated worktrees remain untouched.
 
-No pinned Pi upgrade, global `pi` registration, alternate runtime/profile, daemon, API proxy, Firstmate/Herdr change, credential migration, live-state repair, governance change or broad framework rewrite is included. Compatibility remains the tested supported interactive subset for pinned Pi 1.5.2, not full Pi CLI/RPC or external-tool certification.
+Safety conflicts and public-API/external prerequisites remain visible, not silently counted as full parity. No merge, deployment, live fleet repair, credential copying, global Pi replacement, Firstmate/Herdr mutation, sidecar, daemon or second runtime is authorized.
