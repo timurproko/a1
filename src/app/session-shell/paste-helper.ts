@@ -102,19 +102,21 @@ async function receive(message: PasteHelperInput): Promise<void> {
   }
   if (abort.signal.aborted || finished) return;
   if (message?.kind === "begin" && !header) {
-    if (!["native", "text", "image"].includes(message.source) || (message.mimeType?.length ?? 0) > 256) throw new Error("protocol");
+    if (!["native", "native-image", "text", "image"].includes(message.source) || (message.mimeType?.length ?? 0) > 256) throw new Error("protocol");
     header = message; send({ kind: "ready" });
-  } else if (message?.kind === "data" && header && header.source !== "native") {
+  } else if (message?.kind === "data" && header && header.source !== "native" && header.source !== "native-image") {
     if (typeof message.data !== "string" || message.data.length > PASTE_CHUNK_UNITS) throw new Error("protocol");
     bytes += Buffer.byteLength(message.data);
     if (bytes > (header.source === "text" ? PASTE_TEXT_BYTES : Math.ceil(MAX_SOURCE_IMAGE_BYTES / 3) * 4 + 4)) throw new ImageAttachmentError(header.source === "text" ? "paste-size" : "image-source-size");
     fragments.push(message.data); send({ kind: "ready" });
   } else if (message?.kind === "finish" && header) {
-    const content: OwnedUiShellClipboardContent | null = header.source === "native" ? await readSystemClipboardContent(abort.signal, true)
+    const content: OwnedUiShellClipboardContent | null = header.source === "native" || header.source === "native-image"
+      ? await readSystemClipboardContent(abort.signal, true, header.source === "native-image")
       : header.source === "image" ? { kind: "image", mimeType: header.mimeType ?? "", data: fragments.join("") }
       : { kind: "text", text: fragments.join("") };
     fragments = [];
     if (abort.signal.aborted) return;
+    if (header.source === "native-image" && content?.kind !== "image") throw new ImageAttachmentError("paste-screenshot");
     if (content?.kind === "image") {
       image = content; send({ kind: "phase", phase: "acquired-image", bytes: Buffer.byteLength(content.data) });
     } else {

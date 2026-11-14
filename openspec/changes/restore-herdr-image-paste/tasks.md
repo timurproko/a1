@@ -1,9 +1,9 @@
 ## 1. Separate raw image acquisition from terminal-owned text-copy routing
 
-- [ ] 1.1 Add an independent paste-access policy that preserves known-remote restrictions, selects image-only raw Herdr acquisition, and leaves response-copy destination unchanged; table cases cover native, Herdr/emulator variants, and remote markers.
-- [ ] 1.2 Carry image-only acquisition through the native helper protocol without native text/file-drop fallback; source and emitted helper cases observe only hermetic image operations.
-- [ ] 1.3 Preserve explicit clipboard ports, captured predecessor ordering, supplied text, and cancellation; production-source shell cases cover a raw image chip, exact text once, and copied text followed by paste.
-- [ ] 1.4 Report unavailable or empty screenshot acquisition as “Couldn’t paste screenshot—try again.” without draft loss or host-text fallback; shell cases cover recoverable failure and later typing.
+- [x] 1.1 Add an independent paste-access policy that preserves known-remote restrictions, selects image-only raw Herdr acquisition, and leaves response-copy destination unchanged; table cases cover native, Herdr/emulator variants, and remote markers.
+- [x] 1.2 Carry image-only acquisition through the native helper protocol without native text/file-drop fallback; source and emitted helper cases observe only hermetic image operations.
+- [x] 1.3 Preserve explicit clipboard ports, captured predecessor ordering, supplied text, and cancellation; production-source shell cases cover a raw image chip, exact text once, and copied text followed by paste.
+- [x] 1.4 Report unavailable or empty screenshot acquisition as “Couldn’t paste screenshot—try again.” without draft loss or host-text fallback; shell cases cover recoverable failure and later typing.
 
 ## 2. Prepare supplied screenshot files as usable image attachments
 

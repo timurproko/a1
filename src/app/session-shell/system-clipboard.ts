@@ -22,12 +22,12 @@ let pendingClipboardWrite: Promise<void> = Promise.resolve();
  * private clipboard module. Failures are deliberately non-fatal: a denied or
  * unavailable clipboard simply makes the paste action a no-op.
  */
-export async function readSystemClipboardContent(signal?: AbortSignal, strict = false): Promise<OwnedUiShellClipboardContent | null> {
+export async function readSystemClipboardContent(signal?: AbortSignal, strict = false, imagesOnly = false): Promise<OwnedUiShellClipboardContent | null> {
   await pendingClipboardWrite;
   const native = await nativeClipboard();
   if (native !== null) {
     try {
-      if (process.platform === "win32" && native.availableFormats().some(isFileDropFormat)) {
+      if (!imagesOnly && process.platform === "win32" && native.availableFormats().some(isFileDropFormat)) {
         const files = await readSystemClipboardText(signal, strict);
         if (files !== null) return { kind: "text", text: files };
       }
@@ -35,9 +35,11 @@ export async function readSystemClipboardContent(signal?: AbortSignal, strict = 
       if (image !== null) return { kind: "image", ...image };
     } catch (error) {
       if (error instanceof ImageAttachmentError) throw error;
-      // Compatibility: fall through to text and platform readers.
+      if (imagesOnly) throw new ImageAttachmentError("paste-screenshot");
+      // Compatibility: full-content acquisition can still try text and platform readers.
     }
   }
+  if (imagesOnly) return null;
   const text = await readSystemClipboardText(signal, strict);
   return text === null ? null : { kind: "text", text };
 }

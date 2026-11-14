@@ -12,7 +12,7 @@ vi.mock("../../../src/app/session-shell/paste-executor.js", async importOriginal
   const actual = await importOriginal<typeof import("../../../src/app/session-shell/paste-executor.js")>();
   const { coldPasteHelper } = await import("../../support/cold-clipboard-entries.js");
   return { ...actual, startPasteExecutor: (...args: Parameters<typeof actual.startPasteExecutor>) =>
-    actual.startPasteExecutor(args[0], args[1], args[2], coldPasteHelper(args[3])) };
+    actual.startPasteExecutor(args[0], args[1], args[2], coldPasteHelper(args[3]), args[4], args[5]) };
 });
 vi.mock("node:worker_threads", async importOriginal => {
   const actual = await importOriginal<typeof import("node:worker_threads")>();
@@ -58,8 +58,8 @@ const IN_PROCESS_PASTE_BYTES = 256 * 1024;
  * shell suites measure admission and insertion rather than child startup. Images, native reads, and large
  * payloads still fork the real helper.
  */
-export const inProcessPasteExecutor: PasteExecutorStarter = (content, signal, phase = () => {}, helper, pool) => {
-  if (content?.kind !== "text" || content.text.length > IN_PROCESS_PASTE_BYTES) return startPasteExecutor(content, signal, phase, helper, pool);
+export const inProcessPasteExecutor: PasteExecutorStarter = (content, signal, phase = () => {}, helper, pool, nativeImagesOnly) => {
+  if (content?.kind !== "text" || content.text.length > IN_PROCESS_PASTE_BYTES) return startPasteExecutor(content, signal, phase, helper, pool, nativeImagesOnly);
   let canceled = false, finished = false;
   let resolve!: (value: PreparedPaste) => void, reject!: (error: ImageAttachmentError) => void, stopped!: () => void;
   const result = new Promise<PreparedPaste>((ok, fail) => { resolve = ok; reject = fail; });

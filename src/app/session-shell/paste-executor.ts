@@ -48,7 +48,7 @@ export function createPasteHelperPool(helper?: URL, idleMs?: number): HelperPool
 }
 
 /** Streams bounded fragments through a killable child; native/codec/filesystem work never runs on the UI thread. */
-export function startPasteExecutor(content: OwnedUiShellClipboardContent | undefined, signal: AbortSignal, phase: PastePhase = () => {}, helper?: URL, pool?: HelperPool): PasteExecutorJob {
+export function startPasteExecutor(content: OwnedUiShellClipboardContent | undefined, signal: AbortSignal, phase: PastePhase = () => {}, helper?: URL, pool?: HelperPool, nativeImagesOnly = false): PasteExecutorJob {
   const tooLarge = content?.kind === "text" && content.text.length > PASTE_TEXT_BYTES;
   if (signal.aborted || live.size >= PASTE_REQUESTS || tooLarge) {
     const result = Promise.reject(new ImageAttachmentError(signal.aborted ? "image-canceled" : tooLarge ? "paste-size" : "paste-busy"));
@@ -60,7 +60,7 @@ export function startPasteExecutor(content: OwnedUiShellClipboardContent | undef
   const child = spare?.child ?? forkPasteHelper(helper);
   const forceStop = () => stopPasteHelper(child);
   live.add(child);
-  let input: Generator<PasteHelperInput> | undefined = sourceMessages(content);
+  let input: Generator<PasteHelperInput> | undefined = sourceMessages(content, nativeImagesOnly);
   let canceled = false, done = false;
   let header: Extract<PasteHelperOutput, { kind: "output" }> | undefined;
   let payload = "", bytes = 0;
@@ -171,8 +171,8 @@ export function startPasteExecutor(content: OwnedUiShellClipboardContent | undef
   return { result, stopped: exit, cancel };
 }
 
-function* sourceMessages(content: OwnedUiShellClipboardContent | undefined): Generator<PasteHelperInput> {
-  yield { kind: "begin", source: content?.kind ?? "native", ...(content?.kind === "image" ? { mimeType: content.mimeType } : {}) };
+function* sourceMessages(content: OwnedUiShellClipboardContent | undefined, nativeImagesOnly: boolean): Generator<PasteHelperInput> {
+  yield { kind: "begin", source: content?.kind ?? (nativeImagesOnly ? "native-image" : "native"), ...(content?.kind === "image" ? { mimeType: content.mimeType } : {}) };
   if (content !== undefined) {
     const data = content.kind === "text" ? content.text : content.data;
     let bytes = 0;

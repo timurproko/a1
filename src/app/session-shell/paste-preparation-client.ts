@@ -122,7 +122,7 @@ export class PastePreparationClient {
             if (phase === "acquired-image") onImage();
             if (phase === "acquired-text") onText();
             emit(phase, bytes);
-          }, this.#helper, this.#pool);
+          }, this.#helper, this.#pool, source.kind === "native" && source.imagesOnly === true);
           const value = await executor.result;
           if (controller.signal.aborted) return;
           emit("inserting");
