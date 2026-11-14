@@ -263,6 +263,8 @@ export const KEYBINDINGS = {
 /** Pi actions with bare-A1 aliases; the comparison profile keeps KEYBINDINGS unchanged. */
 const OWNED_INPUT_KEYBINDINGS = {
 	...KEYBINDINGS,
+	"tui.altScreen.previousPrompt": { ...KEYBINDINGS["tui.altScreen.previousPrompt"], defaultKeys: "ctrl+shift+up" },
+	"tui.altScreen.nextPrompt": { ...KEYBINDINGS["tui.altScreen.nextPrompt"], defaultKeys: "ctrl+shift+down" },
 	"app.thinking.cycle": { ...KEYBINDINGS["app.thinking.cycle"], defaultKeys: "ctrl+l" },
 	"app.model.select": { ...KEYBINDINGS["app.model.select"], defaultKeys: [] },
 	"app.model.cycleForward": { ...KEYBINDINGS["app.model.cycleForward"], defaultKeys: "ctrl+m" },

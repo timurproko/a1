@@ -1,8 +1,8 @@
 ## 1. Ctrl+Shift section and prompt navigation
 
-- [ ] 1.1 Change Settings section shortcuts, terminal decoding, routing, and hints to Ctrl+Shift+Up/Down.
-- [ ] 1.2 Change Agent prompt/compaction navigation routing and effective shortcut help to Ctrl+Shift+Up/Down, removing obsolete Shift-only and Ctrl-only jump aliases while preserving input ownership and boundary behavior.
-- [ ] 1.3 Add focused regression tests for the new chords, old-chord non-jumps, hints, mixed prompt/compaction targets, and overlay ownership.
+- [x] 1.1 Change Settings section shortcuts, terminal decoding, routing, and hints to Ctrl+Shift+Up/Down.
+- [x] 1.2 Change Agent prompt/compaction navigation routing and effective shortcut help to Ctrl+Shift+Up/Down, removing obsolete Shift-only and Ctrl-only jump aliases while preserving input ownership and boundary behavior.
+- [x] 1.3 Add focused regression tests for the new chords, old-chord non-jumps, hints, mixed prompt/compaction targets, and overlay ownership.
 
 ## 2. Shared full-height input gutters
 

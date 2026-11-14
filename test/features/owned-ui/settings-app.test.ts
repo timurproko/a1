@@ -701,12 +701,12 @@ describe("the settings screen", () => {
     const { app: target, session, writes } = await app();
     screen(target);
     expect(find(target, "Update").trimStart()).toMatch(/^→/);
-    target.onInput?.(`${ESC}[1;2B`, HOST);
-    target.onInput?.(`${ESC}[1;2B`, HOST);
-    target.onInput?.(`${ESC}[1;2B`, HOST);
+    target.onInput?.(`${ESC}[1;6B`, HOST);
+    target.onInput?.(`${ESC}[1;6B`, HOST);
+    target.onInput?.(`${ESC}[1;6B`, HOST);
     expect(find(target, "Persistent history").trimStart()).toMatch(/^→/);
-    target.onInput?.(`${ESC}[1;2B`, HOST);
-    target.onInput?.(`${ESC}[1;2B`, HOST);
+    target.onInput?.(`${ESC}[1;6B`, HOST);
+    target.onInput?.(`${ESC}[1;6B`, HOST);
     expect(find(target, "Warnings").trimStart()).toMatch(/^→/);
     selectRow(target, "Prompt suggestions");
     target.onInput?.(`${ESC}[C`, HOST);
@@ -1444,13 +1444,20 @@ describe("the settings screen", () => {
     expect(find(target, "→")).toContain("Scrollbar style");
   });
 
-  it("jumps a section from the search, as the arrows move through it", async () => {
+  it.each([false, true])("jumps sections only with Ctrl+Shift arrows while searching=%s", async searching => {
     const { app: target } = await app();
-    openEmptySearch(target);
-    target.onInput?.(`${ESC}[1;2B`, HOST);
-    const after = screen(target);
-    expect(after.join("\n")).not.toContain("❯");
-    expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
+    if (searching) openEmptySearch(target);
+    const selected = () => screen(target).find(line => line.trimStart().startsWith("→"));
+    const first = selected();
+    for (const modifier of [2, 5, 8]) {
+      target.onInput?.(`${ESC}[1;${modifier}B`, HOST);
+      expect(selected()).toBe(first);
+    }
+    target.onInput?.(`${ESC}[1;6B`, HOST);
+    expect(selected()).not.toBe(first);
+    target.onInput?.(`${ESC}[1;6A`, HOST);
+    expect(selected()).toBe(first);
+    expect(screen(target).join("\n")).not.toContain("❯");
   });
 
   it("shows a whole section when the search names it", async () => {
@@ -1467,7 +1474,7 @@ describe("the settings screen", () => {
     const { app: target } = await app();
     startSearch(target, "zzzz");
     target.onInput?.(DOWN, HOST);
-    target.onInput?.(`${ESC}[1;2B`, HOST);
+    target.onInput?.(`${ESC}[1;6B`, HOST);
     expect(screen(target).some(line => line.trimEnd() === "zzzz")).toBe(true);
     expect(screen(target).some(line => line.trimStart().startsWith("→"))).toBe(false);
     const visible = screen(target);
@@ -1776,7 +1783,7 @@ describe("the input row and status line behind the screen", () => {
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(title));
     expect(hint.startsWith(" ")).toBe(true);
     expect(hint).toContain("↑↓ navigate");
-    expect(hint).toContain("Shift+↑↓ jump");
+    expect(hint).toContain("Ctrl+Shift+↑↓ jump");
     expect(hint).toContain("Enter change");
     expect(hint).not.toContain("Space");
     expect(hint).toContain("←→ adjust");

@@ -81,7 +81,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       expect(shell.root.hasActiveSelection()).toBe(false);
       route.mockRestore();
 
-      terminal.input("\u001b[1;2A");
+      terminal.input("\u001b[1;6A");
       terminal.input("\u001b[<64;5;3M");
       shell.runtime.renderNow();
       const frame = shell.root.render(60).map(row => stripTerminalSequences(row));
@@ -1290,7 +1290,10 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     await shell.dispose();
   });
 
-  it("uses Ctrl+Home/End for transcript boundaries and Shift+Up/Down between prompts", async () => {
+  it.each([
+    { up: "\u001b[1;6A", down: "\u001b[1;6B" },
+    { up: "\u001b[1;6:1A", down: "\u001b[1;6:1B" },
+  ])("uses Ctrl+Home/End for transcript boundaries and Ctrl+Shift arrows %j between prompts", async ({ up, down }) => {
     const messages = ["one", "two", "three"].flatMap((prompt, index) => [
       { role: "user", content: [{ type: "text", text: prompt }], timestamp: Date.now() + index * 2 },
       { role: "assistant", content: [{ type: "text", text: Array.from({ length: 15 }, (_, row) => `reply-${prompt}-${row + 1}`).join("\n") }], timestamp: Date.now() + index * 2 + 1 },
@@ -1306,33 +1309,39 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     expect(top().trim()).toBe("");
     expect(rows()[1]).toContain("❯ one");
 
-    terminal.input("\u001b[1;2B");
+    for (const data of ["\u001b[1;2A", "\u001b[1;2B", "\u001b[1;5A", "\u001b[1;5B", "\u001b[1;8A"]) {
+      terminal.input(data);
+      await nextImmediate();
+      expect(top().trim()).toBe("");
+      expect(shell.root.editor.getText()).toBe("keep this draft");
+    }
+    terminal.input(down);
     await nextImmediate();
     expect(top()).toContain("❯ two");
-    terminal.input("\u001b[1;2B");
+    terminal.input(down);
     await nextImmediate();
     expect(top()).toContain("❯ three");
     expect(rows()).not.toEqual(bottomRows);
-    terminal.input("\u001b[1;2B");
+    terminal.input(down);
     await nextImmediate();
     expect(rows()).toEqual(bottomRows);
     expect(shell.root.editor.getText()).toBe("keep this draft");
-    terminal.input("\u001b[1;2B");
+    terminal.input(down);
     await nextImmediate();
     expect(rows()).toEqual(bottomRows);
 
-    terminal.input("\u001b[1;2A");
+    terminal.input(up);
     await nextImmediate();
     expect(top()).toContain("❯ three");
     expect(rows()).not.toEqual(bottomRows);
-    terminal.input("\u001b[1;2A");
+    terminal.input(up);
     await nextImmediate();
     expect(top()).toContain("❯ two");
-    terminal.input("\u001b[1;2A");
+    terminal.input(up);
     await nextImmediate();
     expect(top().trim()).toBe("");
     expect(rows()[1]).toContain("❯ one");
-    terminal.input("\u001b[1;2A");
+    terminal.input(up);
     await nextImmediate();
     expect(top().trim()).toBe("");
     expect(rows()[1]).toContain("❯ one");

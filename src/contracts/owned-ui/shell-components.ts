@@ -67,7 +67,7 @@ export interface OwnedUiShellEditorPort extends OwnedUiShellComponentPort {
   matchesAction?(data: string, action: "owned.apps.open"): boolean;
   reloadKeybindings(): void;
   /** Uses the vendor's terminal decoder rather than assuming one terminal escape spelling. */
-  matchesTerminalKey(data: string, key: "home" | "end" | "pageUp" | "pageDown" | "ctrl+home" | "ctrl+end" | "alt+home" | "ctrl+v"): boolean;
+  matchesTerminalKey(data: string, key: "home" | "end" | "pageUp" | "pageDown" | "ctrl+home" | "ctrl+end" | "ctrl+shift+up" | "ctrl+shift+down" | "alt+home" | "ctrl+v"): boolean;
   getText(): string;
   setText(text: string): void;
   insertText(text: string): void;
