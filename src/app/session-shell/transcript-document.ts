@@ -15,10 +15,7 @@ export interface TranscriptDocumentLayout {
   readonly liveTailStartRow: number | undefined;
 }
 
-/**
- * Why the document's caches must drop. Layout-only reasons keep each block's rendered rows; the
- * others also drop every block's rows because what a block draws has changed without its revision.
- */
+/** Layout-only invalidation retains block renders; presentation changes drop them even without a revision. */
 export type TranscriptInvalidation =
   | "editor-padding"
   | "diagnostics"
@@ -55,10 +52,7 @@ interface TranscriptDocumentOptions {
   readonly chrome: TranscriptDocumentChrome;
 }
 
-/**
- * The only owner of the transcript's blocks, their order (including anchored workflow output), the
- * per-block rendered rows, and the per-width document layouts. Every cache drop names its reason.
- */
+/** Owns ordered transcript/workflow blocks, paired row/copy caches, and width layouts with explicit invalidation. */
 export class TranscriptDocument {
   readonly #options: TranscriptDocumentOptions;
   readonly #components = new Map<string, OwnedUiShellTranscriptComponentPort>();
@@ -97,11 +91,7 @@ export class TranscriptDocument {
     return this.#anchors.get(id);
   }
 
-  /**
-   * Applies one block: its component is created or updated in place and the order grows
-   * only when the block is new. A streamed chunk costs one component update rather than a
-   * walk of the whole transcript.
-   */
+  /** Creates or updates one block without walking history; only new blocks extend the order. */
   apply(block: TranscriptBlock): void {
     const current = this.#blocks.get(block.id);
     // Invariant: a full-view/final presentation may preempt queued partials. Never revive an older revision.
@@ -114,8 +104,7 @@ export class TranscriptDocument {
     } else if (component.revision !== block.revision) {
       component.update(block);
     }
-    // Performance: one chunk touches one block, and the updated component tracks its own dirtiness.
-    // Invalidating the whole shell here would re-wrap the entire transcript per chunk.
+    // Performance: invalidate only this block, avoiding history-wide rewrapping per chunk.
     this.blockChanged(block.id);
   }
 
@@ -209,8 +198,7 @@ export class TranscriptDocument {
 
   layout(width: number): TranscriptDocumentLayout {
     const { chrome, customViewport } = this.#options;
-    // Performance: extension headers may animate independently of transcript revisions, so
-    // only the stable built-in document participates in this frame cache.
+    // Performance: independently animated extension headers cannot share the stable layout cache.
     const cacheable = !chrome.hasExtensionHeader();
     const cached = cacheable ? this.#layouts.get(width) : undefined;
     if (cached !== undefined) return cached;
@@ -231,9 +219,7 @@ export class TranscriptDocument {
     ];
     const promptAnchors: TranscriptPromptAnchor[] = [];
     const copyExclusions = new Map<number, readonly { readonly from: number; readonly to: number }[]>();
-    // Rationale: a block that is still streaming re-renders every row it owns, so the frame
-    // reports where its rows begin. Damage-aware painting uses that to tell a live block's
-    // own reflow apart from a repaint that reaches settled rows.
+    // Rationale: the live-tail boundary distinguishes streaming reflow from damage to settled rows.
     let liveTailStartRow: number | undefined;
     for (let index = 0; index < this.#order.length; index += 1) {
       const id = this.#order[index]!;
@@ -241,15 +227,11 @@ export class TranscriptDocument {
       if (!thinkingVisible && block?.kind === "thinking") continue;
       const promptLike = block !== undefined
         && (block.kind === "user" || customViewport && this.#options.components.transcript.isPromptStyleCompaction(block));
-      // Invariant: the custom viewport has already removed its rail gutter from this width.
-      // Prompt-like and ordinary blocks therefore share one right content edge.
-      const blockWidth = width;
-      const rendering = this.#blockRendering(id, block, blockWidth);
+      // Invariant: width already excludes the rail for every block.
+      const rendering = this.#blockRendering(id, block, width);
       const blockRows = rendering.rows;
       if (promptLike) {
-        // Compatibility: the first natural prompt gets one breathing row at the document top.
-        // Once scrolling advances, the prompt itself reaches row zero and then
-        // becomes sticky there, so the spacer is never pinned with it.
+        // Compatibility: the first prompt's opening spacer scrolls away; only the prompt becomes sticky.
         if (customViewport && index === 0) rows.push("");
         else if (index > 0) rows.push("");
       }

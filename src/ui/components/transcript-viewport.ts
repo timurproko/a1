@@ -221,13 +221,11 @@ export class TranscriptViewport {
     const selection = this.#selection;
     const frameHeight = this.#frame?.rows.length ?? 0;
     if (selection?.selecting !== true || frameHeight <= 0 || this.#selectionRows.length === 0) return false;
-    // Performance: pointer motion updates only the endpoint; the shell's fixed-cadence timer
-    // owns edge scrolling. Selection itself remains in visible-frame coordinates.
+    // Performance: motion updates frame endpoints; the shell timer owns edge scrolling.
     if (autoScroll && frameRow > frameHeight) this.scrollBy(1, now);
     else if (autoScroll && frameRow <= 1 && this.#scrollTop > 0) this.scrollBy(-1, now);
     const pointerLine = clamp(frameRow - 1, 0, this.#selectionRows.length - 1);
-    // Invariant: a pinned prompt alias is chrome; an upward drag reaching it keeps the pointer
-    // column on the first visible content row.
+    // Invariant: upward drags skip sticky chrome without changing their content column.
     const line = pointerLine < this.#firstSelectableRow && pointerLine < selection.anchor.line
       ? this.#firstSelectableRow
       : pointerLine;
@@ -278,9 +276,7 @@ export class TranscriptViewport {
     const visible = this.#visibleSelection();
     if (visible === undefined) return null;
     const offscreen = offscreenSelectionRows(this.#selection, this.#selectionAnchors, this.#scrollTop, this.#firstSelectableRow, this.#viewportHeight, this.#document.documentRows.length);
-    // Rationale: edge auto-scroll grows a drag beyond one screen. Paint stays clipped to the
-    // frame, while copy reads the selected document rows past either viewport edge and beneath
-    // the floating bottom control.
+    // Rationale: copy includes off-screen rows and text under the bottom control; paint stays clipped.
     const selectionRows: string[] = [];
     const rowAnchors: (SelectionRowAnchor | undefined)[] = [];
     const controlLine = (this.#frame?.hits.bottom?.row ?? 0) - 1;
@@ -407,9 +403,7 @@ export class TranscriptViewport {
       earliest = Math.min(earliest, anchor.firstRow);
       if (anchor.firstRow < this.#scrollTop && anchor.firstRow > target) target = anchor.firstRow;
     }
-    // Invariant: the first prompt owns the document's opening breathing row. At that final
-    // navigation stop, reveal the spacer too rather than pinning the prompt to
-    // terminal row one as later prompt jumps do.
+    // Invariant: the first prompt's jump reveals its opening spacer; later jumps pin the prompt.
     const destination = target === earliest ? 0 : target;
     return target >= 0 && this.scrollTo(destination, now);
   }
@@ -418,8 +412,7 @@ export class TranscriptViewport {
   scrollToNextPrompt(now = Date.now()): boolean {
     if (this.#promptAnchors.length === 0) return false;
     const earliest = Math.min(...this.#promptAnchors.map(anchor => anchor.firstRow));
-    // Invariant: scroll position zero is the first-prompt stop because it includes that
-    // prompt's opening spacer. Do not spend an extra keypress moving one row.
+    // Invariant: zero already includes the first prompt's spacer; skip a redundant one-row jump.
     const after = this.#scrollTop === 0 ? earliest : this.#scrollTop;
     let target = Number.POSITIVE_INFINITY;
     for (const anchor of this.#promptAnchors) {
@@ -487,8 +480,7 @@ export class TranscriptViewport {
       : clamp(input.liveTailStartRow, 0, this.#selectableDocumentRowCount);
     this.#promptAnchors = input.promptAnchors;
     this.#contentWidth = contentWidth;
-    // Invariant: dock rows remain selectable at full width; scrollable source rows
-    // use contentWidth and leave the gutter outside semantic selection.
+    // Invariant: dock selection is full-width; transcript selection excludes its rail gutter.
     this.#selectionWidth = width;
     this.#viewportHeight = viewportHeight;
     const cacheLimit = Math.max(32, viewportHeight * 6);
@@ -501,8 +493,7 @@ export class TranscriptViewport {
       ...dock.map((_row, index): SelectionRowAnchor => ({ kind: "dock", fromBottom: dock.length - index - 1 })),
     ].slice(0, height);
     this.#projectSelection(documentRows, dock, height);
-    // Concurrency: a painter may synchronously route input in tests or host integrations.
-    // Label this frame with the exact selection snapshot it began composing.
+    // Concurrency: paint may route input; stamp the selection revision captured before paint.
     const composingSelectionRevision = this.#selectionRevision;
     const orderedSelection = this.#visibleSelection();
     const frameRows = [...visible, ...dock].slice(0, height);
@@ -556,9 +547,7 @@ export class TranscriptViewport {
     return frame;
   }
 
-  // Rationale: the visible document rows go through the paint transform, with the governing prompt
-  // pinned as a sticky header once its first row has scrolled away. `governing` is that header's
-  // anchor, or null while the prompt's first row is still on screen.
+  // Rationale: transform visible rows and pin their governing prompt after its first row scrolls away.
   #paintVisibleRows(input: TranscriptViewportFrameInput, theme: TranscriptViewportTheme, cacheLimit: number): {
     readonly visible: string[];
     readonly visibleSource: string[];
@@ -580,9 +569,7 @@ export class TranscriptViewport {
     if (!stickyActive) return { visible, visibleSource, paintRecomputedRows, governing: null };
     if (visible.length === 0) return { visible, visibleSource, paintRecomputedRows, governing };
     const quiet = this.#scrollTop > governing.lastRow;
-    // Compatibility: only non-hovered prominent rows may retain source metadata roles.
-    // Quiet and hover keep the established full-row styling; anchors without a
-    // variant retain their existing presentation in every state.
+    // Compatibility: source roles require a prominent, unhovered variant; otherwise keep full-row styling.
     const sourceRow = !quiet && !this.#stickyHovered
       ? governing.prominentSourceRow ?? governing.sourceRow
       : governing.sourceRow;
@@ -651,8 +638,7 @@ export class TranscriptViewport {
           ? this.#interactionDocumentAnchor(existing.row, existing.source)
           : existing;
       }
-      // Concurrency: selection edge auto-scroll updates scrollTop before the next frame is
-      // composed. Resolve ordinary viewport rows from that latest position instead of stale paint.
+      // Concurrency: edge scrolling precedes paint; resolve anchors from the latest scrollTop.
       const documentRow = this.#scrollTop + line;
       if (documentRow >= 0 && documentRow < this.#document.documentRows.length) {
         return documentRow < this.#selectableDocumentRowCount
@@ -708,8 +694,7 @@ export class TranscriptViewport {
           && candidate.row === current.row && candidate.identity === current.identity);
         return { line: visible >= 0 ? visible : current.row - this.#scrollTop, anchor: current };
       }
-      // Invariant: reflow may move a retained source row, but remapping is allowed only when
-      // that exact source has one visible identity. Ambiguous or off-screen replacement clears it.
+      // Invariant: remap only a unique visible source identity; clear ambiguous or off-screen replacements.
       const visibleMatches = this.#selectionRowAnchors
         .map((candidate, line) => ({ candidate, line }))
         .filter((entry): entry is { candidate: DocumentSelectionRowAnchor; line: number } =>
@@ -721,9 +706,7 @@ export class TranscriptViewport {
           anchor: documentSelectionAnchor(match.candidate.row, match.candidate.source, anchor.liveFromBottom),
         };
       }
-      // Concurrency: a streaming chunk may replace or reflow the pointer's current live-tail
-      // row before the next motion report. During the held gesture only, retain its distance
-      // from the persistent tail; release restores identity-only projection.
+      // Concurrency: held live-tail endpoints follow their tail distance through reflow; release restores identity-only mapping.
       if (selection.selecting && moving && anchor.liveFromBottom !== undefined && this.#liveTailStartRow !== undefined) {
         const documentRow = this.#selectableDocumentRowCount - anchor.liveFromBottom - 1;
         if (documentRow >= this.#liveTailStartRow && documentRow < this.#selectableDocumentRowCount) {
@@ -737,8 +720,7 @@ export class TranscriptViewport {
           }
         }
       }
-      // Concurrency: streaming may restyle a held endpoint's row; it keeps its document index.
-      // Following the tail would drag the press row toward the newest output.
+      // Concurrency: restyled held endpoints keep their document index, not the newest tail position.
       if (selection.selecting && anchor.row >= 0 && anchor.row < documentRows.length) {
         return {
           line: anchor.row - this.#scrollTop,
@@ -765,8 +747,7 @@ export class TranscriptViewport {
   #visibleSelection() {
     const anchors = this.#selectionAnchors;
     const crossesDock = anchors?.anchor.kind === "dock" || anchors?.head.kind === "dock";
-    // Invariant: mixed viewport/dock ranges project across the same complete frame regardless
-    // of origin. Document-only ranges remain clipped to the scrollable viewport when off-screen.
+    // Invariant: mixed ranges use the complete frame; document-only ranges stay viewport-clipped.
     const rows = crossesDock ? this.#selectionRows.length : this.#viewportHeight;
     const ordered = orderedTextSelection(dockOrderedSelection(this.#selection, anchors, this.#viewportHeight));
     return visibleTextSelection(ordered, rows, this.#firstSelectableRow);
@@ -781,10 +762,7 @@ export class TranscriptViewport {
   }
 }
 
-/**
- * Invariant: dock rows follow the whole transcript, so a document endpoint scrolled below the
- * viewport orders before every dock row instead of at its numeric frame line among them.
- */
+/** Off-screen document endpoints still order before all dock rows, regardless of frame coordinates. */
 function dockOrderedSelection(
   selection: TextSelection | undefined,
   anchors: SelectionAnchors | undefined,

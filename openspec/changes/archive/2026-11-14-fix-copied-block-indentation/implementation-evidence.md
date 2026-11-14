@@ -19,6 +19,8 @@ The finalized-head run exposed two stale render-lifetime spies: the document now
 
 The render-lifetime, document-cache, and assistant-provenance files passed together: 28 tests. Combined source/bin typechecking also passed after adapting the optional-method spy typing.
 
+A later current-target run passed finalized-delivery validation but exceeded the normalized startup-source budget after incorporating newer develop changes. That guard counts comments as source bytes. Repeated explanations in the touched document/viewport owners were condensed without dropping their intent, and a redundant width alias was removed; rendering and extraction logic and all size limits remain unchanged. Architecture, writer-guard, identity, and pinned-source checks pass on the reconciled candidate.
+
 ## Scope and limitations
 
 No known implementation gaps. This change preserves visual row boundaries rather than reconstructing logical soft wraps, and unknown custom rendering remains literal. Physical Herdr clipboard confirmation remains a maintainer option; the shell round-trip evidence uses an injected clipboard, not a claim of desktop acceptance. Integration is not authorized by implementation approval.
