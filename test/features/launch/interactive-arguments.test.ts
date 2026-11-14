@@ -18,8 +18,8 @@ describe("invocation startup argv", () => {
   });
   it.each([
     ["--session-color"], ["--session-color", "bad"], ["--session-color", "--"],
-    ["--session-color", "blue", "--session-color", "green"], ["--session-dir", "dir", "--session-color", "blue"],
-    ["--session-color", "blue", "--unknown", "value"],
+    ["--session-color", "blue", "--session-color", "green"],
+    ["--session-color", "blue", "--runtime-options", "{}"], ["--session-color", "blue", "-z"],
   ].map(args => ({ args })))("rejects $args before any handler can launch", async ({ args }) => {
     expect(parseCliCommand(args, capabilities).kind).toBe("error");
     let launches = 0;
@@ -29,9 +29,10 @@ describe("invocation startup argv", () => {
   });
   it("protects the first boundary and retains unsupported leading words", () => {
     expect(parseCliCommand(["--", "--session-color", "pink"], capabilities)).toMatchObject({ kind: "launch", promptArguments: ["--session-color", "pink"] });
-    for (const args of [["pi", "--session-color", "blue"], ["prompt", "--session-color", "blue"], ["--unknown"], ["solo", "--"]]) {
-      expect(parseCliCommand(args, capabilities)).toEqual({ kind: "noop" });
-    }
+    expect(parseCliCommand(["pi", "--session-color", "blue"], capabilities)).toEqual({ kind: "noop" });
+    expect(parseCliCommand(["prompt", "--session-color", "blue"], capabilities)).toMatchObject({ kind: "launch", sessionColor: "blue", promptArguments: ["prompt"] });
+    expect(parseCliCommand(["--unknown"], capabilities)).toMatchObject({ kind: "launch", runtimeOptions: { extensionFlagValues: [["unknown", true]] } });
+    expect(parseCliCommand(["solo", "--"], capabilities)).toMatchObject({ kind: "error" });
     expect(() => interactiveLaunchIntent("pi", undefined, { sessionColor: "green" })).toThrow();
     expect(() => parseInteractiveLaunchArguments(["--", "bad\0prompt"])).toThrow();
   });

@@ -241,7 +241,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       sessionColor?.start();
       releaseUpdates.start();
     },
-    flush: startupPromptFlush(backend, bare ? options.promptArguments : undefined, () => terminalHost.runtime.renderNow()),
+    flush: startupPromptFlush(backend, bare ? options.promptArguments : undefined, () => terminalHost.runtime.renderNow(), options.runtimeOptions?.promptSequence === true),
     waitUntilStopped: () => presenter.waitUntilStopped(),
     dispose: async () => {
       naming.dispose();
@@ -279,16 +279,19 @@ async function compositionSettings(options: OwnedUiCompositionOptions, agentProv
   });
 }
 
-function startupPromptFlush(backend: ComposedSessionBackend, arguments_: readonly string[] | undefined, present: () => void) {
-  let prompt = arguments_?.join(" ");
+function startupPromptFlush(backend: ComposedSessionBackend, arguments_: readonly string[] | undefined, present: () => void, sequence = false) {
+  let prompts = arguments_ === undefined ? [] : sequence ? [...arguments_] : [arguments_.join(" ")];
   return async () => {
     await backend.session.flushEvents();
-    const text = prompt;
-    prompt = undefined;
-    if (text?.trim() && !backend.identity.disposed) {
-      // Invariant: startup extension notices get a frame before prompt submission clears transient presentation.
+    const pending = prompts;
+    prompts = [];
+    for (const text of pending) {
+      if (backend.identity.disposed) break;
+      if (!text.trim()) continue;
+      // Invariant: startup notices get a frame; each accepted prompt settles before the next.
       present();
-      await backend.session.execute({ type: "prompt", correlationId: randomUUID(), sessionId: backend.identity.sessionId, text });
+      const result = await backend.session.execute({ type: "prompt", correlationId: randomUUID(), sessionId: backend.identity.sessionId, text });
+      if (result.outcome !== "completed") break;
     }
   };
 }

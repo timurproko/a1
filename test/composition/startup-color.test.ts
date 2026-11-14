@@ -34,7 +34,7 @@ describe("first-frame and committed replacement color composition", () => {
     const composed = await composeOwnedUi({ cwd: root, profileId: "a1", sessionColor: "green", promptArguments: ["--session-color", "pink", "$(literal)"], checkForNewerRelease: async () => null,
       createEngineHost: async options => {
         painted.color = options.theme!.accentColor!;
-        return { create: async () => ({ identity, session: { onEvent(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; }, async flushEvents() {}, async execute(command: unknown) { expect(painted.frames).toEqual(["green"]); painted.commands.push(command); } }, settings: { configuredTheme: () => "dark" } }), setAccentColor(color: string) { painted.color = color; }, async dispose() {} } as never;
+        return { create: async () => ({ identity, session: { onEvent(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; }, async flushEvents() {}, async execute(command: unknown) { expect(painted.frames).toEqual(["green"]); painted.commands.push(command); return { outcome: "completed", diagnostic: null }; } }, settings: { configuredTheme: () => "dark" } }), setAccentColor(color: string) { painted.color = color; }, async dispose() {} } as never;
       },
     });
     try {

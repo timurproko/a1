@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { PRODUCT_IDENTITY } from "../../src/product-identity.js";
+import { cliCapabilities, parseCliCommand } from "../../src/cli/index.js";
+import { parsePiCompatibleCommand } from "../../src/cli/pi-compatible.js";
 import { composeOwnedUi } from "../../src/composition/owned-ui.js";
 import { createPiEngineHost } from "../../src/integrations/pi/engine/host.js";
 import { createPiRuntimeIntegration } from "../../src/integrations/pi/engine/runtime-integration.js";
@@ -32,7 +34,7 @@ afterEach(async () => {
 });
 
 type Note = { event: string; reason?: string; session?: string; child?: string; ready?: boolean; text?: unknown; cwd?: string };
-async function fixture(promptArguments?: readonly string[]) {
+async function fixture(promptArguments?: readonly string[], promptSequence = false) {
   const root = await realpath(await mkdtemp(resolve(tmpdir(), "a1-compatible-lifecycle-"))); roots.push(root);
   const agentDir = resolve(root, ".a1/agent"), task = resolve(root, "task"), operational = resolve(root, "operational");
   await Promise.all([agentDir, task, operational].map(path => mkdir(path, { recursive: true })));
@@ -46,7 +48,7 @@ async function fixture(promptArguments?: readonly string[]) {
   let runtime!: AgentSessionRuntime, adapter!: PiEngineAdapter;
   const composed = await composeOwnedUi({
     cwd: operational, profileId: "a1", productMode: "bare", terminal,
-    runtimeOptions: { extensionPaths: [extension], model: "fixture/second", thinking: "medium" },
+    runtimeOptions: { extensionPaths: [extension], model: "fixture/second", thinking: "medium", ...(promptSequence ? { promptSequence: true } : {}) },
     ...(promptArguments === undefined ? {} : { promptArguments }), checkForNewerRelease: async () => null,
     createEngineHost: options => {
       const host = createPiEngineHost({ ...options, createRuntime: async input => runtime = await createPiRuntimeIntegration({ ...input, worktreeCwdReader: async () => task }) });
@@ -86,6 +88,21 @@ async function frame(f: Awaited<ReturnType<typeof fixture>>) {
 }
 
 describe("Pi compatibility through real A1 composition and SDK lifecycle", () => {
+  it.each(["a1", "pi"])("delivers %s public positional messages in order exactly once through the actual owned runtime", async entry => {
+    const args = ["first literal ' 🚢", "--thinking", "medium", "second literal\n--model"];
+    const parsed = entry === "a1" ? parseCliCommand(args, cliCapabilities("1.0.0")) : parsePiCompatibleCommand(args);
+    if (parsed.kind !== "launch") throw new Error(JSON.stringify(parsed));
+    const startup = "intent" in parsed ? parsed.intent : parsed;
+    const f = await fixture(startup.promptArguments, startup.runtimeOptions?.promptSequence);
+    const contexts = transport(f.runtime);
+    await ready(f);
+    await f.application.flush(); await f.application.flush();
+    expect(contexts).toHaveLength(2);
+    expect(contexts[0]).toContain("first literal");
+    expect(contexts[0]).not.toContain("second literal");
+    expect(contexts[1]).toContain("second literal");
+    expect((await f.notes()).filter(note => note.event === "before")).toHaveLength(2);
+  }, 15_000);
   it("waits for extension startup before the one-shot initial prompt and displays owned UI surfaces", async () => {
     const f = await fixture(["literal '\" 🚢\n--model stays literal"]);
     const contexts = transport(f.runtime);

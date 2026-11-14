@@ -58,6 +58,7 @@ afterEach(async () => {
 const runtimeOptions = { model: "provider/model", thinking: "high", extensionPaths: ["/extension with space.ts"], excludeTools: ["write"] } as const;
 const payloads = [
   { name: "runtime options", intent: { runtimeOptions }, argv: ["--runtime-options", JSON.stringify(runtimeOptions)] },
+  { name: "ordered CLI messages", intent: { runtimeOptions: { promptSequence: true }, promptArguments: ["first", "second"] }, argv: ["--runtime-options", JSON.stringify({ promptSequence: true }), "--", "first", "second"] },
   { name: "empty literal boundary", intent: { promptArguments: [] }, argv: ["--"] },
   { name: "color", intent: { sessionColor: "green" }, argv: ["--session-color", "green"] },
   { name: "literal prompt", intent: { promptArguments: ["--session-color", "pink", "$(literal)"] }, argv: ["--", "--session-color", "pink", "$(literal)"] },
@@ -110,6 +111,13 @@ describe("bootstrap selected-release startup payload", () => {
     await expect(runBootstrap({ ...fixture.options, launchIntent: { kind: "interactive", profileId: "a1", runtimeOptions } })).rejects.toThrow("does not support");
     expect(spawn).not.toHaveBeenCalled();
     expect(await runBootstrap({ ...fixture.options, launchIntent: { kind: "interactive", profileId: "a1", promptArguments: ["still supported"] } })).toBe(0);
+  });
+
+  it("refuses ordered-message payloads on an older runtime even when it supports legacy options", async () => {
+    const fixture = await packageFixture();
+    await rm(resolve(fixture.packageRoot, "dist/cli/interactive-options.js"));
+    await expect(runBootstrap({ ...fixture.options, launchIntent: { kind: "interactive", profileId: "a1", runtimeOptions: { promptSequence: true }, promptArguments: ["first", "second"] } })).rejects.toThrow("does not support");
+    expect(spawn).not.toHaveBeenCalled();
   });
 
   it.each(["missing", "malformed", "different identity"])("rejects %s full manifest evidence after compact admission before UI spawn", async damage => {
@@ -193,6 +201,8 @@ async function packageFixture(supported = true, extraFiles = 0, version = "2.0.0
   }));
   await writeFile(resolve(packageRoot, "bin/ui.js"), "process.exit(0);");
   if (supported) {
+    await mkdir(resolve(packageRoot, "dist/cli"), { recursive: true });
+    await writeFile(resolve(packageRoot, "dist/cli/interactive-options.js"), "export {};\n");
     await writeFile(resolve(packageRoot, "dist/features/launch/interactive-arguments.js"), "export {};\n");
     await writeFile(resolve(packageRoot, "dist/foundation/launch-context/runtime-options.js"), "export {};\n");
   }

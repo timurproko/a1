@@ -1,5 +1,7 @@
 export interface RuntimeLaunchOptions {
   readonly sessionDir?: string;
+  /** Ordered public CLI messages; legacy internal prompt argv remains joined. */
+  readonly promptSequence?: boolean;
   readonly model?: string;
   readonly provider?: string;
   readonly thinking?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -16,6 +18,8 @@ export function validateRuntimeLaunchOptions(value: unknown): RuntimeLaunchOptio
   for (const [key, field] of Object.entries(object)) {
     if (key === "model" || key === "provider" || key === "sessionDir") {
       if (!text(field)) throw new Error(`Invalid runtime ${key}`);
+    } else if (key === "promptSequence") {
+      if (field !== true) throw new Error("Invalid prompt sequence");
     } else if (key === "thinking") {
       if (!["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(String(field))) throw new Error("Invalid thinking level");
     } else if (key === "extensionPaths" || key === "excludeTools") {

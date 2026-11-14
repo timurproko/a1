@@ -17,8 +17,10 @@ describe("Pi-compatible normal A1 grammar", () => {
     expect(parseInteractiveLaunchArguments(interactiveStartupArguments(command.intent))).toEqual({ runtimeOptions: command.intent.runtimeOptions, promptArguments: [prompt] });
   });
 
-  it("treats one positional instruction, including a normal A1 command word, as instructions", () => {
-    expect(parsePiCompatibleCommand(["update"])).toMatchObject({ kind: "launch", intent: { profileId: "a1", promptArguments: ["update"] } });
+  it("reserves documented Pi maintenance at invocation start and protects literal command words", () => {
+    expect(parsePiCompatibleCommand(["update"])).toEqual({ kind: "control", arguments: ["update"] });
+    expect(parsePiCompatibleCommand(["--", "update"])).toMatchObject({ kind: "launch", intent: { profileId: "a1", promptArguments: ["update"] } });
+    expect(parsePiCompatibleCommand(["worktree list"])).toMatchObject({ kind: "launch", intent: { promptArguments: ["worktree list"] } });
     expect(parsePiCompatibleCommand(["--", "--model", "literal"])).toMatchObject({ kind: "launch", intent: { promptArguments: ["--model", "literal"] } });
   });
 

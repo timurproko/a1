@@ -133,9 +133,13 @@ describe("repository-local development launch", () => {
     } finally { await rm(home, { recursive: true, force: true }); }
   });
 
-  it("returns silently for an unsupported non-profile development command", async () => {
-    const result = await execute(process.execPath, ["scripts/development/start-local.mjs", "not-an-a1-command"]);
-    expect(result).toMatchObject({ stdout: "", stderr: "" });
+  it("routes bare instructions through normal development UI without executing a live prompt", async () => {
+    const profileHome = await mkdtemp(resolve(tmpdir(), "a1-development-prompt-"));
+    try {
+      const result = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", "not-an-a1-command"], { env: { ...process.env, A1_PROFILE_HOME: profileHome, PI_OFFLINE: "1" } });
+      expect(JSON.parse(result.stdout)).toMatchObject({ directProfile: "a1", selectedEntry: "bin/ui.js", childArguments: ["--", "not-an-a1-command"] });
+      expect(result.stderr).toBe("");
+    } finally { await rm(profileHome, { recursive: true, force: true }); }
   });
 
   it("shares durable preferences across fresh instances and rebuilt local candidates", () => {
