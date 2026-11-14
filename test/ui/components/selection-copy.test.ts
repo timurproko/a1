@@ -111,6 +111,55 @@ describe("selected visible-frame snapshots", () => {
     expect(viewport.captureSelectedText()?.rows).toEqual([{ text: "third\n │ fourth" }]);
   });
 
+  it.each([false, true])("omits every prompt prefix in partial mixed selections (reverse=%s)", reverse => {
+    for (const prefix of ["❯ ", " ❯ "]) {
+      const viewport = new TranscriptViewport();
+      const rows = [`${prefix}first > ❯ 界`, `${" ".repeat(prefix.length)}  é 👩‍💻`, "", " │ quote │ content", `${prefix}second > ❯`, " │ last"];
+      const copyExclusions = new Map([3, 5].map(row => [row, [{ from: 0, to: 3 }]]));
+      viewport.compose({
+        documentRows: rows, copyExclusions, dockRows: [], width: 40, height: 6,
+        promptAnchors: [
+          { id: "first", firstRow: 0, lastRow: 1, sourceRow: rows[0]! },
+          { id: "second", firstRow: 4, lastRow: 4, sourceRow: rows[4]! },
+        ],
+      });
+      viewport.pressSelection(reverse ? 7 : prefix.length + 2, reverse ? 6 : 1, 0);
+      viewport.extendSelection(reverse ? prefix.length + 2 : 7, reverse ? 1 : 6, 1, false);
+      viewport.releaseSelection();
+      expect(viewport.captureSelectedText()?.rows).toEqual([{ text: "irst > ❯ 界\n  é 👩‍💻\n\nquote │ content\nsecond > ❯\nlast" }]);
+    }
+  });
+
+  it("uses current prompt anchors for mixed selections extending off-screen", () => {
+    const viewport = new TranscriptViewport();
+    const rows = [" ❯ first", "   second", " │ third", " │ fourth", " ❯ fifth", " │ sixth", " │ seventh", " │ eighth"];
+    const copyExclusions = new Map([2, 3, 5, 6, 7].map(row => [row, [{ from: 0, to: 3 }]]));
+    const input = {
+      documentRows: rows, copyExclusions, dockRows: [], width: 30, height: 4,
+      promptAnchors: [
+        { id: "first", firstRow: 0, lastRow: 1, sourceRow: rows[0]! },
+        { id: "fifth", firstRow: 4, lastRow: 4, sourceRow: rows[4]! },
+      ],
+    };
+    viewport.compose(input);
+    viewport.scrollTo(0);
+    viewport.compose(input);
+    viewport.pressSelection(1, 1, 0);
+    viewport.extendSelection(9, 4, 1, false);
+    viewport.scrollTo(4);
+    viewport.compose(input);
+    viewport.extendSelection(9, 4, 2, false);
+    viewport.releaseSelection();
+    expect(viewport.captureSelectedText()?.rows).toEqual([{ text: "first\nsecond\nthird\nfourth\nfifth\nsixth\nseventh\neighth" }]);
+    viewport.clearSelection();
+    viewport.scrollTo(0);
+    viewport.compose({ ...input, promptAnchors: [] });
+    viewport.pressSelection(1, 1, 3);
+    viewport.extendSelection(9, 4, 4, false);
+    viewport.releaseSelection();
+    expect(viewport.captureSelectedText()?.rows).toEqual([{ text: "❯ first\n   second\nthird\nfourth" }]);
+  });
+
   it("bounds snapshot work by visible rows rather than retaining a long transcript", () => {
     const viewport = new TranscriptViewport();
     const rows = Array.from({ length: MAX_COPY_ROWS + 1 }, () => "row");

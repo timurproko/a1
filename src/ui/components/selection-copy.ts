@@ -24,14 +24,14 @@ export interface SelectionCopySnapshot {
   readonly rejected?: "size";
 }
 
-export function selectionCopyLineContent(text: string, prompt: SelectionCopyPrompt): TextSelectionLineContent {
+export function selectionCopyLineContent(text: string, prompt: SelectionCopyPrompt, promptPrefixWidth = 2): TextSelectionLineContent {
   const plain = stripAnsi(text);
   if (prompt !== undefined) {
     if (prompt === "first") {
       const timestamp = /\s+\d{2}:\d{2}\s*$/.exec(plain);
-      if (timestamp !== null) return usefulTextLineContent(plain.slice(0, timestamp.index), 3);
+      if (timestamp !== null) return usefulTextLineContent(plain.slice(0, timestamp.index), promptPrefixWidth + 1);
     }
-    return usefulTextLineContent(plain, 3);
+    return usefulTextLineContent(plain, promptPrefixWidth + 1);
   }
   const from = plain.trim().length === 0 || (plain.startsWith(" ") && !plain.startsWith("  ")) ? 2 : 1;
   if (plain.trim().length === 0) return { from, to: from + 1 };
