@@ -42,7 +42,8 @@ describe("bounded path-chip presentation", () => {
   it.each([
     [file("notes.txt"), "[📄 notes.txt]"],
     [{ kind: "folder", fullPath: "/generated/folder" }, "[📁 folder]"],
-    [file("photo.PNG"), "[🖼  photo.PNG]"],
+    [file("photo.PNG"), "[🖼️ photo.PNG]"],
+    [file("ℹ.png"), "[🖼️ ℹ.png]"],
     [{ kind: "folder", fullPath: "/" }, "[📁 /]"],
     [file("界👩‍💻.txt"), "[📄 界👩‍💻.txt]"],
   ] as const)("shares the existing base tag (case %#)", (item, tag) => {
