@@ -4,6 +4,7 @@ import { canonicalizeClipboardImage } from "./clipboard-image.js";
 import {
   assertImageEncodedSize,
   assertPromptImages,
+  attachmentPromptChipHiddenRanges,
   canonicalPromptChipMatches,
   DEFAULT_PROMPT_IMAGE_LIMIT,
   ImageAttachmentError,
@@ -329,9 +330,9 @@ export class PromptChipStore {
     throw new Error("Path chip labels could not distinguish normalized paths");
   }
 
-  /** Hide provisional clipboard identities until the read identifies an actual image. */
+  /** Hide provisional clipboard identities and attachment-only presentation metadata. */
   hiddenRanges(line: string): readonly OwnedUiShellEditorTextRange[] {
-    const ranges: OwnedUiShellEditorTextRange[] = [];
+    const ranges: OwnedUiShellEditorTextRange[] = [...attachmentPromptChipHiddenRanges(line)];
     for (const entry of this.#pending.values()) {
       // Rationale: file-image reservations stay hidden rather than flashing a clipboard screenshot label.
       if (entry.kind === "image" && entry.fileName === undefined) continue;

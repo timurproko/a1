@@ -1,4 +1,4 @@
-const PROMPT_CHIP_PATTERN = /\[(?:paste #\d+ (?:\+\d+ lines|\d+ chars)|📷 [^\]]+|📁 [^\]]+|📄 [^\]]+|🖼\uFE0F? {1,2}[^\]]+|🔗 [^\]]+)\]/gu;
+const PROMPT_CHIP_PATTERN = /\[(?:paste #\d+ (?:\+\d+ lines|\d+ chars)|📷 [^\]]+|(?:📁|📄|🖼\uFE0F?) {0,2}[^\]]+|🔗 [^\]]+)\]/gu;
 const IMAGE_CHIP_IDENTIFIER_PATTERN = /^(?:\[📷 screenshot-([a-f0-9]+)(?:-resized)?\]|\[🖼\uFE0F? {1,2}[^\]\r\n]+ #([a-f0-9]+)(?:-resized)?\])$/u;
 const ZERO_WIDTH_MARKERS = ["\u2060", "\u200b", "\u200c", "\u200d", "\ufeff"] as const;
 
@@ -14,10 +14,43 @@ export function imageFilePromptChipTag(fileName: string, id: string, transformed
   return `[🖼️ ${label} #${id}${transformed ? "-resized" : ""}]`;
 }
 
-export interface PromptChipTextMatch {
-  readonly text: string;
+interface PromptChipTextRange {
   readonly start: number;
   readonly end: number;
+}
+
+export interface PromptChipTextMatch extends PromptChipTextRange {
+  readonly text: string;
+}
+
+/** Display-only attachment ranges; backing identity is unchanged. */
+export function attachmentPromptChipHiddenRanges(text: string): readonly PromptChipTextRange[] {
+  const ranges: PromptChipTextRange[] = [];
+  for (const match of canonicalPromptChipMatches(text)) {
+    const parts = /^(\[(?:📁|📄|🖼\uFE0F?))( {1,2})([^\]]+)\]$/u.exec(match.text);
+    if (parts === null) continue;
+    const labelStart = parts[1]!.length + parts[2]!.length;
+    const label = parts[3]!;
+    const metadata = / #(?:[A-Za-z]:[\\/]|\/)[^\r\n]+$/u.exec(label)
+      ?? (parts[1]!.includes("🖼") ? / #[a-f0-9]+(?:-resized)?(?:-failed)?$/u.exec(label) : null);
+    const labelEnd = metadata?.index ?? label.length;
+    const pathLabel = label.slice(0, labelEnd);
+    const separator = /^(?:[A-Za-z]:\\|\\\\)/u.test(pathLabel)
+      ? Math.max(pathLabel.lastIndexOf("/"), pathLabel.lastIndexOf("\\")) : pathLabel.lastIndexOf("/");
+    // Invariant: retain root-only labels.
+    const basenameStart = separator < pathLabel.length - 1 ? separator + 1 : 0;
+    ranges.push({ start: match.start + parts[1]!.length, end: match.start + labelStart + basenameStart });
+    if (metadata !== null) ranges.push({ start: match.start + labelStart + labelEnd, end: match.end - 1 });
+  }
+  return ranges;
+}
+
+/** Presents icon-plus-basename labels without rewriting chip source. */
+export function compactAttachmentPromptChips(text: string): string {
+  for (const range of [...attachmentPromptChipHiddenRanges(text)].reverse()) {
+    text = text.slice(0, range.start) + text.slice(range.end);
+  }
+  return text;
 }
 
 export interface PromptChipWrapProtection {

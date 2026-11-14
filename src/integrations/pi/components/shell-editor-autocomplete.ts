@@ -60,6 +60,14 @@ function bindModelActions(editor: ShellEditorInstance, options: OwnedUiShellEdit
   if (options.onThinkingCycle !== undefined) editor.onAction("app.thinking.cycle", options.onThinkingCycle);
 }
 
+function editorChipRanges(options: OwnedUiShellEditorOptions) {
+  return {
+    atomicRanges: options.editorAtomicRanges ?? (() => []),
+    hiddenRanges: options.editorHiddenRanges ?? (() => []),
+    dimRanges: options.editorDimRanges ?? (() => []),
+  };
+}
+
 const PINNED_THINKING_SLASH_COMMAND = { name: "thinking", description: "Set thinking level", argumentHint: "<level>" } as const;
 const OWNED_THINKING_SLASH_COMMAND = { name: "thinking", description: "Set thinking level" } as const;
 const OWNED_LOGIN_SLASH_COMMAND = { name: "login", description: "Configure provider authentication" } as const;
@@ -167,8 +175,7 @@ export function createPiShellEditor(options: OwnedUiShellEditorOptions): PiShell
           ...(options.onPasteRejected === undefined ? {} : { onPasteRejected: options.onPasteRejected }),
           ...(options.onPasteInput === undefined ? {} : { onPasteInput: options.onPasteInput }),
           transformPastedContent: options.transformPastedContent ?? (content => content.kind === "text" ? content.text : ""),
-          atomicRanges: options.editorAtomicRanges ?? (() => []),
-          hiddenRanges: options.editorHiddenRanges ?? (() => []),
+          ...editorChipRanges(options),
           expandCopiedText: options.expandCopiedEditorText ?? (text => text),
           paintSelection: options.paintEditorSelection ?? (line => line),
           decorateRow: options.decorateEditorRow ?? (row => row),

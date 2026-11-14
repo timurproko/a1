@@ -79,6 +79,7 @@ export function createShellEditor(ports: ShellEditorPorts): OwnedUiShellEditorPo
     } satisfies Partial<OwnedUiShellEditorOptions> : {}),
     editorAtomicRanges: line => promptChips.atomicRanges(line),
     editorHiddenRanges: line => promptChips.hiddenRanges(line),
+    editorDimRanges: line => promptChips.unsentRanges(line),
     decorateEditorRow: editorRowDecorator(promptChips, ports.editorPointerSelecting, visibleWidth),
 
     expandCopiedEditorText: text => promptChips.expandCopiedText(text),
@@ -106,8 +107,8 @@ export function createShellEditor(ports: ShellEditorPorts): OwnedUiShellEditorPo
 }
 
 /**
- * Dims unsent chips and turns the draft's URLs into terminal hyperlinks, each target once per
- * decoration pass; while a pointer drag selects, links paint as plain underlines instead.
+ * Turns the draft's URLs into terminal hyperlinks, each target once per decoration pass;
+ * while a pointer drag selects, links paint as plain underlines instead.
  */
 function editorRowDecorator(
   promptChips: PromptChipStore,
@@ -118,23 +119,15 @@ function editorRowDecorator(
   return (row, width, rowIndex) => {
     if (rowIndex === 0) editorHyperlinks.reset();
     const plain = stripAnsi(row);
-    const dimmed = promptChips.unsentRanges(plain).reduce((result, range) => backgroundSgrSpan(
-      result,
-      visibleWidth(plain.slice(0, range.start)),
-      visibleWidth(plain.slice(0, range.end)),
-      "\u001b[2m",
-      "\u001b[22m",
-      visibleWidth,
-    ), row);
     const ranges = promptChips.hyperlinkRanges(plain);
-    if (ranges.length === 0 || !editorHyperlinks.takeCleanup()) return dimmed;
-    const linkResetAndTail = `\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - visibleWidth(dimmed)))}`;
+    if (ranges.length === 0 || !editorHyperlinks.takeCleanup()) return row;
+    const linkResetAndTail = `\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - visibleWidth(row)))}`;
     // Platform: VS15 is zero-column and default-ignorable. It breaks Windows Terminal's
     // plain-text URL detector only in the held-button paint; semantic text stays exact.
     const selecting = editorPointerSelecting();
     const paintRow = selecting
-      ? dimmed.replaceAll("https://", "https:︎//").replaceAll("http://", "http:︎//")
-      : dimmed;
+      ? row.replaceAll("https://", "https:︎//").replaceAll("http://", "http:︎//")
+      : row;
     const decorated = selecting
       ? ranges.reduce((result, range) => backgroundSgrSpan(
           result,
@@ -150,7 +143,7 @@ function editorRowDecorator(
           visibleWidth(plain.slice(0, range.end)),
           range.target,
           visibleWidth,
-        ), dimmed);
+        ), row);
     // Platform: Windows Terminal can retain stale native dotted-link cells when a mutable
     // prompt replaces a longer URL. Explicit non-link spaces overwrite that tail.
     return `${decorated}${linkResetAndTail}`;

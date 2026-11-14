@@ -112,7 +112,9 @@ describe("Herdr supplied screenshots in the production shell", () => {
       await vi.waitFor(() => expect(shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).images).toHaveLength(1));
       const draft = shell.root.editor.getText();
       expect(draft).toMatch(/^\[🖼️ transferred screenshot\.png #[a-f0-9]+\] after$/u);
-      expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain(draft.slice(0, -6));
+      const visible = stripTerminalSequences(shell.root.render(100).join("\n"));
+      expect(visible).toContain("[🖼️transferred screenshot.png] after");
+      expect(visible).not.toContain(draft.slice(0, -6));
       expect(shell.root.promptChips.atomicRanges(draft)).toHaveLength(1);
       const attachment = { type: "image", data: bytes.toString("base64"), mimeType: "image/png" };
       expect(shell.root.promptChips.prepareSubmission(draft).images).toEqual([attachment]);
@@ -162,6 +164,9 @@ describe("Herdr supplied screenshots in the production shell", () => {
         expect.stringMatching(/^\[🖼️ transferred screenshot\.png #[a-f0-9]+\]$/u),
       ]);
       expect(new Set(records.map(record => record.id)).size).toBe(2);
+      const visible = stripTerminalSequences(shell.root.render(120).join("\n"));
+      expect(visible.match(/\[🖼️transferred screenshot\.png\]/gu)).toHaveLength(2);
+      for (const record of records) expect(visible).not.toContain(record.id);
       expect(shell.root.promptChips.prepareSubmission(draft).images.map(image => image.data))
         .toEqual([bytes.toString("base64"), otherBytes.toString("base64")]);
     } finally { await shell.dispose(); await rm(root, { recursive: true, force: true }); }
