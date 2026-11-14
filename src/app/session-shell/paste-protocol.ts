@@ -12,7 +12,7 @@ export const PASTE_REQUESTS = 8;
 export type PreparedPaste = PreparedPasteText | ({ readonly kind: "image" } & PreparedImage) | null;
 /** The predecessor is captured at admission; a later copy cannot change what this paste waits for. */
 export type PasteSource =
-  | { readonly kind: "native"; readonly before?: (signal: AbortSignal) => Promise<boolean> }
+  | { readonly kind: "native"; readonly imagesOnly?: true; readonly before?: (signal: AbortSignal) => Promise<boolean> }
   | { readonly kind: "provided"; readonly read: (signal: AbortSignal) => Promise<OwnedUiShellClipboardContent | null>; readonly before?: (signal: AbortSignal) => Promise<boolean> }
   | { readonly kind: "text"; readonly text: string };
 export interface PasteEvent {
@@ -27,7 +27,7 @@ export interface PasteEvent {
   readonly outcome?: "ready" | "failed" | "canceled" | "timed-out";
 }
 export type PasteHelperInput =
-  | { readonly kind: "begin"; readonly source: "native" | "text" | "image"; readonly mimeType?: string }
+  | { readonly kind: "begin"; readonly source: "native" | "native-image" | "text" | "image"; readonly mimeType?: string }
   | { readonly kind: "data"; readonly data: string }
   | { readonly kind: "finish" }
   | { readonly kind: "convert" }

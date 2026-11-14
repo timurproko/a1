@@ -158,7 +158,7 @@ export class PromptChipStore {
       // Compatibility: typed image validation can fail before transfer identifies the payload to this store.
       if (entry.kind === "unknown" && entry.error.code.startsWith("image-") && entry.error.code !== "image-canceled") entry.kind = "image";
       if (entry.error.code !== "image-canceled" && entry.references === 0) onError(entry.error);
-      return entry.kind === "image" ? rejectedImageMarker(marker, entry.error) : "";
+      return entry.kind === "image" && entry.error.code !== "paste-screenshot" ? rejectedImageMarker(marker, entry.error) : "";
     }).then(replacement => {
       entry.replacement = replacement;
       if (entry.error?.code === "image-count") this.#countRejectedImages.add(replacement);

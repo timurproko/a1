@@ -1,7 +1,7 @@
 import { appendFileSync } from "node:fs";
 
 const { mode, text, trace } = JSON.parse(new URL(import.meta.url).searchParams.get("fixture"));
-if (!["native", "native-empty", "empty", "denied", "fallback", "blocked-command", "slow-path"].includes(mode) || typeof text !== "string") throw new Error("invalid clipboard fixture configuration");
+if (!["native", "native-empty", "empty", "denied", "fallback", "blocked-command", "slow-path", "image", "image-empty", "image-denied"].includes(mode) || typeof text !== "string") throw new Error("invalid clipboard fixture configuration");
 let violated = false;
 let observations = 0;
 function observe(operation) {
@@ -9,8 +9,19 @@ function observe(operation) {
   if (trace) appendFileSync(trace, `${operation}\n`);
 }
 
-export function hasImage() { return false; }
-export function availableFormats() { return ["text"]; }
+export function hasImage() {
+  if (mode.startsWith("image")) observe("image-probe");
+  return mode === "image" || mode === "image-denied";
+}
+export function availableFormats() {
+  if (mode.startsWith("image")) observe("native-formats");
+  return ["text"];
+}
+export async function getImageBinary() {
+  observe("native-image");
+  if (mode !== "image") throw new Error("fixture image unavailable");
+  return [...Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aJ1sAAAAASUVORK5CYII=", "base64")];
+}
 export async function getText() {
   observe("native-text");
   if (violated || ["denied", "fallback", "blocked-command"].includes(mode)) throw new Error("fixture unavailable");

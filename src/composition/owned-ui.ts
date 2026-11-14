@@ -16,7 +16,6 @@ import type { PiProjectTrustPreflightPrompt } from "../integrations/pi/engine/pr
 import type { PiSessionForkPrompt } from "../integrations/pi/engine/session-selection.js";
 import { ClipboardDiagnosticCapture } from "../app/session-shell/clipboard-diagnostics.js";
 import { createOwnedUiClipboardServices } from "../app/session-shell/clipboard-services.js";
-import { writeSystemClipboardText } from "../app/session-shell/system-clipboard.js";
 import { createPiKeybindingsHost } from "../integrations/pi/components/shell-shared-facade.js";
 import {
   OwnedUiSessionPresenter,
@@ -413,7 +412,7 @@ function settingsRouteOptions(
     cwd,
     copyText: text => {
       if (Buffer.byteLength(text) > MAX_CLIPBOARD_TEXT_BYTES) return false;
-      void writeSystemClipboardText(text).catch(() => {});
+      void import("../app/session-shell/system-clipboard.js").then(({ writeSystemClipboardText }) => writeSystemClipboardText(text)).catch(() => {});
       return true;
     },
   };
