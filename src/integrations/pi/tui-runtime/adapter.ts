@@ -16,9 +16,9 @@ import {
   type TUI,
   type TuiAltScreenOptions,
   type WheelScrollLines,
-  visibleWidth,
 } from "@earendil-works/pi-tui";
 import { MouseReportInput, stripSgrMouseReports } from "./mouse-report-input.js";
+import { containRows } from "./row-containment.js";
 import { GeometryObservedAltScreen, OverlayGeometryTracker } from "./overlay-geometry.js";
 import { boundedCleanup, EMERGENCY_TERMINAL_RESET } from "../../../foundation/terminal-cleanup/terminal-reset.js";
 import {
@@ -104,14 +104,8 @@ class ComponentBridge implements Component, Focusable {
   render(width: number): string[] {
     this.traceComposition?.("composition-start");
     try {
-      const lines = [...this.port.render(width)];
-      // Protocol: Kitty APC carries pixels, not columns. Still validate every ordinary cell
-      // around the payload instead of exempting the entire image-bearing row from width checks.
-      const overflow = lines.findIndex(line => visibleWidth(line.replace(/\u001b_G[^\u001b]*\u001b\\/g, "")) > width);
-      if (overflow >= 0) {
-        throw new RangeError(`Pi TUI component row ${overflow} exceeds available width ${width}`);
-      }
-      return lines;
+      // Invariant: an over-width row is clipped, never fatal; see row-containment.
+      return containRows(this.port.render(width), width);
     } finally {
       this.traceComposition?.("composition-end");
     }

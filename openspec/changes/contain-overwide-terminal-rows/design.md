@@ -25,7 +25,7 @@ Observed on 2026-11-14: four fatal diagnostics with the identical stack `adapter
 
 **Use the renderer's truncation.** Clip with Pi TUI's `truncateToWidth(row, width, "")` so the result is bounded by the same rules that judge it, with no ellipsis because the adapter cannot know the row's semantics. A row carrying a Kitty image payload keeps the payload and clips only its ordinary cells. If the clipped row somehow still measures over width, fall back to its plain-text clip so the invariant "returned rows fit" holds unconditionally.
 
-**Count rather than report.** Expose a contained-row counter on the runtime beside `fullRedraws`. Layout tests assert it stays zero for A1-authored chrome, which preserves the intent of the original guard without a fatal exit. No notice is shown: the user can do nothing about it and the row is still readable.
+**Count rather than report.** Export a process-wide contained-row counter from the runtime module rather than a member on the adapter class, whose recorded size may only shrink under the architecture ratchet. Layout tests assert it does not grow for A1-authored chrome, which preserves the intent of the original guard without a fatal exit. No notice is shown: the user can do nothing about it and the row is still readable.
 
 ## Risks / Trade-offs
 
