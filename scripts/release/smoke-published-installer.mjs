@@ -70,6 +70,7 @@ export async function smokePublishedInstaller({ environment = process.env, spawn
     await writeFile(resolve(bridgeBin, "npm.cmd"), `@echo off\r\n"${process.execPath}" "${bridge}" %*\r\n`);
     installedEnvironment.A1_SMOKE_NPM_CLI = resolveInstallerNpmCli(environment);
     installedEnvironment.A1_SMOKE_VERSION = version;
+    installedEnvironment.A1_SMOKE_PACKAGE_NAME = applicationSource.name;
     installedEnvironment.npm_execpath = bridge;
     installedEnvironment.PATH = [bridgeBin, installedEnvironment.PATH].join(delimiter);
     const args = channel === "next" ? ["--develop", version] : [];
