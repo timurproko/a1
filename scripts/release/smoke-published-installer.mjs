@@ -44,7 +44,7 @@ export async function smokePublishedInstaller({ environment = process.env, spawn
     const npm = process.platform === "win32" ? "npm.cmd" : "npm";
     const installerLauncher = resolve(bootstrapBin, process.platform === "win32" ? "a1-install.cmd" : "a1-install");
     const applicationLauncher = resolve(applicationBin, process.platform === "win32" ? "a1.cmd" : "a1");
-    // Diagnostics belong only to this fixture, never the runner's shared npm cache.
+    // Security: diagnostics belong only to this fixture, never the runner's shared npm cache.
     const acquisitionEnvironment = { ...environment, npm_config_cache: resolve(root, "npm-cache") };
     stage = "acquire-installer";
     execute(npm, [
@@ -91,7 +91,7 @@ export async function smokePublishedInstaller({ environment = process.env, spawn
 
     execute(applicationLauncher, ["--help"], { cwd: root, encoding: "utf8", env: installedEnvironment, windowsHide: true, timeout: 30_000 });
 
-    // A second prefix proves predecessor-owned replacement, not merely a fresh install.
+    // Rationale: a second prefix proves predecessor-owned replacement, not merely a fresh install.
     stage = "resolve-predecessor";
     const predecessor = execute(npm, ["view", `${applicationSource.name}@${channel}`, "version", "--json"], {
       cwd: root, encoding: "utf8", env: acquisitionEnvironment, windowsHide: true, timeout: 30_000,

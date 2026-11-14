@@ -23,7 +23,7 @@ export async function promotePublishedPair({ packages, version, channel, smokeRe
   await proveTrustedPublishing({ packages: packages.map(package_ => package_.name), env: environment, fetch: fetch_,
     consumeToken: async (name, token) => { tokens.set(name, token); },
   });
-  // Installer first: the user-facing application channel moves only after its bootstrap tag.
+  // Invariant: the user-facing application channel moves only after its bootstrap tag.
   for (const package_ of [...packages].reverse()) {
     if (tags.get(package_.name) === version) continue;
     const response = await fetch_(`${REGISTRY}/-/package/${encodeURIComponent(package_.name)}/dist-tags/${channel}`, {

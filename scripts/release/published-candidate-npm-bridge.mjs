@@ -1,4 +1,4 @@
-// The public tags deliberately still name the predecessor. Pin only A1's version discovery;
+// Rationale: the public tags deliberately still name the predecessor. Pin only A1's version discovery;
 // every installation and tarball download is forwarded unchanged to the real registry/npm CLI.
 import { spawn } from "node:child_process";
 
