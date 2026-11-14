@@ -1,20 +1,27 @@
 ## Context and root cause
 
-`src/app/session-shell/path-chip-presentation.ts` selects `"🖼 "` for image files and then adds another space before the label. U+1F5BC has Unicode Emoji_Presentation=false; U+1F5BC U+FE0F is an RGI emoji sequence. The other generated paste icons (📁, 📄, 📷, 🔗, 🟧) already have Emoji_Presentation=true. This explains why the image-file glyph can appear smaller even when the file and screenshot glyphs look normal.
+The reported 🖼, ➡, and ℹ are Unicode Emoji characters with Emoji_Presentation=false. Each becomes an RGI emoji sequence when followed by U+FE0F. A probe of the installed Pi terminal-width authority measures each bare form as one column and each emoji-presentation form as two. In contrast, 📁, 📄, 📷, 🔗, and 🟧 already default to emoji and occupy two columns.
 
-A local Node Unicode-property probe confirms these differences. The physical terminal ultimately controls font artwork and sizing; automated checks can establish the emitted Unicode sequence and geometry, not promise identical artwork across fonts.
+The image-file producer in `src/app/session-shell/path-chip-presentation.ts` uses `"🖼 "` plus another separator. Extra spacing does not change the glyph presentation. Content adapters pass message text to Pi Markdown; inspection found no selector-stripping transformation. This is missing presentation intent, not evidence that all emoji fonts or cell widths are broken.
+
+The source audit also found text-default symbols in changelog content and intentional diagram/navigation glyphs. Blanket replacement of every symbol or every Unicode Emoji code point is unsafe: digits participate in emoji sequences, diagrams rely on narrow symbols, and explicit U+FE0E means text presentation.
 
 ## Decisions
 
-1. Fix the generated icon at its producer: emit `"🖼\uFE0F"` and retain the shared single separator. Do not normalize arbitrary pasted text, filenames, or screenshot markers.
-2. Extend canonical chip recognition to accept the optional U+FE0F on the framed-picture icon while retaining existing one/two-space bare forms. Legacy chip text stays byte-for-byte intact through protection and restoration.
-3. Exercise generated labels and both canonical forms through the existing wrapping, editor, and selection contracts. Reuse the owned terminal-width authorities; change geometry code only if focused tests expose a defect.
-4. Keep the other paste icons unchanged and establish that the generated icon set is emoji-presenting. No global Unicode rewrite or font configuration is necessary.
+1. Use one generic policy. For an eligible standalone text-default emoji grapheme, request U+FE0F only if the resulting sequence is a valid RGI emoji. Do not maintain a list of the reported characters. A Unicode-property probe found 207 eligible single-character bases in the current runtime.
+2. Preserve U+FE0E, existing U+FE0F, keycaps, flags, skin tones, combining marks, and joined sequences. Never blindly append selectors to arbitrary code points.
+3. Apply the policy to display prose before Markdown width measurement and wrapping, not to already wrapped terminal rows. Cover user and assistant prose, thinking, and prose summaries that use the content-area Markdown presentation. Share the helper with generated chip-icon presentation. Do not globally transform raw tool output, code, or navigation/diagram glyphs.
+4. Preserve inline/fenced/indented code, diagram content, link destinations, and path/URL bytes. Operate at a token-aware presentation boundary; preserve Markdown formatting and link labels independently of link targets.
+5. Keep source messages, persistence, model-facing input, original filenames, and clipboard copy text unchanged. Any inserted selector must be distinguishable from an original selector in source-aware copy handling; stripping every selector globally is not an acceptable shortcut.
+6. Generate image-file chips with an emoji-presenting icon and one separator. Extend canonical recognition for optional U+FE0F while retaining legacy bare one/two-space forms. Historical labels are not migrated.
+7. Reuse actual renderer geometry and exercise streaming and narrow-width reflow. If a token-level hook or source-copy mapping requires a broader adapter change, reconcile the plan before those edits rather than placing a post-layout rewrite in the terminal output.
 
 ## Validation approach
 
-Run strict OpenSpec validation, typecheck, and only the affected shell, contract, and component test files. Check exact generated sequences, canonical match boundaries, neighboring chip wrapping/selection, and unchanged path copy/history/submission expansion. A physical terminal check should compare pasted image paths with file and screenshot chips after a build; it is not claimed complete by unit tests.
+Focused checks cover reported symbols and an exhaustive generated eligible-base set; already emoji-default characters; explicit text presentation; joined/modified emoji; keycaps and non-emoji symbols; code and destination preservation; original-source copying; source persistence; user/assistant streaming; wrapping and selection; and new/legacy atomic chips. Run typecheck, affected test files only, and strict OpenSpec validation.
+
+The physical terminal still owns font artwork and size. Automated results establish valid presentation intent and correct geometry, not pixel-identical appearance across fonts. A built checkout can be manually checked with the reported three symbols and known-good file/screenshot emoji.
 
 ## Risks and compatibility
 
-The existing extra space may compensate for a one-cell text glyph; replacing it with the emoji selector requests a two-cell emoji without adding a second separator. Tests must use the renderer's actual width authority. Existing literal/history labels remain recognized and unmodified. PR #930 also changes the chip contract for filename-bearing attachments; reconcile its integrated form before implementation handoff rather than duplicating its image identifier policy.
+U+FE0F changes one-column text glyphs into two-column emoji, so adding it after layout is incorrect. Source/render divergence must not corrupt selection, links, copying, or streaming caches. Some emoji-capable symbols are intentionally textual; explicit text presentation and protected code/diagram contexts remain authoritative. PR #930 changes chip recognition for filename-bearing attachments; reconcile that integrated form without duplicating or weakening its identifier policy.

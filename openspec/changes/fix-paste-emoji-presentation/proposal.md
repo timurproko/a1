@@ -1,12 +1,13 @@
 ## Why
 
-Image-file paste chips use bare U+1F5BC (framed picture), a text-default Unicode character, so terminals can render a small text-style glyph. The extra space in the current icon does not request emoji presentation. File, folder, screenshot, URL, and Houdini chip icons already default to emoji presentation.
+Text-default emoji characters render smaller than emoji-default characters in the terminal. The reported examples are framed picture U+1F5BC, right arrow U+27A1, and information U+2139. Fixing only the image-file icon would leave the same defect in other content-area prose.
 
 ## What Changes
 
-- Generate image-file chips with U+1F5BC followed by U+FE0F and one ordinary label separator, replacing the bare icon and compensating extra space.
-- Recognize both new emoji-presentation labels and existing bare-icon labels without rewriting historical text or user content.
-- Preserve atomic editing, wrapping, selection geometry, hyperlinks, copy, history, and submission behavior with focused regression cases.
+- Introduce one Unicode-aware emoji-presentation policy, based on valid emoji-presentation sequences rather than a per-icon replacement list.
+- Apply it to displayed content-area prose before width measurement and wrapping, preserving original message text and copy semantics.
+- Use the same policy for generated image-file chip icons and recognize both new and legacy chip labels.
+- Preserve explicitly requested text presentation, code, link destinations, paths, existing emoji sequences, and non-emoji symbols.
 
 ## Capabilities
 
@@ -14,8 +15,8 @@ Image-file paste chips use bare U+1F5BC (framed picture), a text-default Unicode
 
 ### Modified Capabilities
 
-- `owned-pi-ui-foundation`: generated prompt-chip icons request emoji presentation, including compatibility with legacy image-file labels.
+- `owned-pi-ui-foundation`: consistent emoji presentation in displayed prose and generated chips, without changing source meaning or breaking geometry.
 
 ## Impact
 
-The path-chip producer, canonical chip recognition contract, and focused shell/component tests. No terminal font settings, generic user-text normalization, dependency updates, clipboard payload changes, or new image-attachment behavior. The filename-preservation work in PR #930 remains separate; implementation must reconcile any matching shared-contract changes without changing its attachment semantics.
+Owned presentation helpers, Pi Markdown adaptation, source-aware content copying where needed, path-chip generation, canonical chip recognition, and focused tests. No terminal font configuration, dependency upgrades, persisted-message migration, or changes to attachment semantics. Filename-preservation PR #930 remains separate and shared-contract changes must be reconciled.
