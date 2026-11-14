@@ -1,0 +1,4 @@
+#!/bin/sh
+# Opt-in only: prepend this directory in the dedicated Firstmate launch environment.
+basedir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 1
+exec node "$basedir/../pi-compatible.js" "$@"

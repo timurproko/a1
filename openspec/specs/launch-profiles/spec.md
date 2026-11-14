@@ -139,7 +139,7 @@ A1 SHALL permit multiple simultaneous instances of bare `a1`, prerelease `a1 pi`
 - **THEN** both SHALL proceed concurrently without a product-wide foreground lock
 
 ### Requirement: A1 exposes one single-agent launch and one prerelease comparison launch
-The `a1` binary SHALL be the sole installed public command. Bare invocation SHALL launch the A1 single-agent product surface directly. A prerelease build SHALL additionally expose `a1 pi` as a development comparison against the pinned Pi interface. A release build SHALL not expose the comparison launch. A1 SHALL NOT install another executable or expose `agent`, `solo`, `ui`, or `tabs` subcommands.
+The `a1` binary SHALL remain the ordinary installed public command. Bare invocation SHALL launch the A1 single-agent product surface directly. A prerelease build SHALL additionally expose `a1 pi` as a development comparison against the pinned Pi interface. A release build SHALL not expose the comparison launch. A1 MAY additionally ship a separately named Pi-compatible normal-product entry and an opt-in pi shim directory, but SHALL NOT globally register pi or expose `agent`, `solo`, `ui`, or `tabs` subcommands.
 
 #### Scenario: Launch normal A1
 - **WHEN** the user runs `a1` without a subcommand
@@ -152,6 +152,10 @@ The `a1` binary SHALL be the sole installed public command. Bare invocation SHAL
 #### Scenario: A removed launch word is given
 - **WHEN** the user runs `a1 solo` or `a1 tabs`
 - **THEN** A1 SHALL return quietly without launching a profile
+
+#### Scenario: Compatibility launch preserves the product
+- **WHEN** Firstmate resolves the opt-in A1-compatible pi executable
+- **THEN** it SHALL launch normal A1 rather than the Pi comparison and retain normal A1 settings, history and features
 
 ### Requirement: Both launch forms are directly attached processes with one pipeline
 Bare `a1` and prerelease `a1 pi` SHALL retain the shared A1-owned rendering and input pipeline declared by the canonical launch profile, differing only in configuration root and product-surface availability. Neither SHALL add process containment, supervision, or a resident capability around that pipeline.

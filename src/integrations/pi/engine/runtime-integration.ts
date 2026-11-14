@@ -1,5 +1,7 @@
 import { closeSync, mkdirSync, openSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import type { RuntimeLaunchOptions } from "../../../foundation/launch-context/index.js";
+import { assertPiInvocationResources, resolvePiInvocationModel } from "./launch-options.js";
 import {
   createAgentSessionFromServices,
   createAgentSessionRuntime,
@@ -20,7 +22,7 @@ import {
 import { openSelectedPiSession, resolveSessionArgumentPath, takeSelectedSessionWriter, type PiSessionForkPrompt, type PiSessionSelection } from "./session-selection.js";
 import { markStartupPhase, type StartupPhase } from "../../../foundation/startup/startup-runtime.js";
 import { createWindowsNulCleanupExtension } from "./windows-filesystem-hygiene.js";
-import { createSessionWorktreeTools, type PiWorktreeCwdReader } from "./worktree-tools.js";
+import type { PiWorktreeCwdReader } from "./worktree-tools.js";
 import {
   acquireSessionWriter,
   type SessionWriterHandle,
@@ -28,6 +30,7 @@ import {
 
 export interface PiRuntimeIntegrationOptions {
   readonly cwd: string;
+  readonly runtimeOptions?: RuntimeLaunchOptions;
   /** Only the bare claim-owning product supplies this; comparison tools keep their ordinary cwd. */
   readonly worktreeCwdReader?: PiWorktreeCwdReader;
   readonly agentDir: string;
@@ -154,7 +157,7 @@ export async function resolveConfiguredModelScope(
 }
 
 export async function createPiRuntimeServicesAfterTrust(
-  options: Pick<PiRuntimeIntegrationOptions, "agentDir" | "projectTrustPrompt" | "preflightDependencies" | "markStartupPhase"> & { readonly cwd: string },
+  options: Pick<PiRuntimeIntegrationOptions, "agentDir" | "projectTrustPrompt" | "preflightDependencies" | "markStartupPhase" | "runtimeOptions"> & { readonly cwd: string },
 ): Promise<{
   readonly services: AgentSessionServices;
   readonly trust: Awaited<ReturnType<typeof resolvePiProjectTrustPreflight>>;
@@ -176,9 +179,11 @@ export async function createPiRuntimeServicesAfterTrust(
     cwd: options.cwd,
     agentDir: options.agentDir,
     settingsManager,
-    ...(cleanupExtension === null ? {} : {
-      resourceLoaderOptions: { extensionFactories: [cleanupExtension] },
-    }),
+    ...(options.runtimeOptions?.extensionFlagValues === undefined ? {} : { extensionFlagValues: new Map(options.runtimeOptions.extensionFlagValues) }),
+    resourceLoaderOptions: {
+      ...(options.runtimeOptions?.extensionPaths === undefined ? {} : { additionalExtensionPaths: [...options.runtimeOptions.extensionPaths] }),
+      ...(cleanupExtension === null ? {} : { extensionFactories: [cleanupExtension] }),
+    },
   });
   await markPhase("pi-services");
   await markPhase("resource-discovery");
@@ -186,7 +191,7 @@ export async function createPiRuntimeServicesAfterTrust(
 }
 
 export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOptions): Promise<AgentSessionRuntime> {
-  const directory = options.sessionDir ?? process.env.PI_CODING_AGENT_SESSION_DIR;
+  const directory = options.sessionDir ?? options.runtimeOptions?.sessionDir ?? process.env.PI_CODING_AGENT_SESSION_DIR;
   const sessionDir = directory === undefined ? undefined : resolveSessionArgumentPath(directory, options.cwd);
   const selection = options.sessionSelection ?? (options.sessionPath === undefined ? undefined : { target: resolveSessionArgumentPath(options.sessionPath, options.cwd) });
   const sessionManager = selection === undefined
@@ -198,6 +203,7 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
       guardWriter: true,
     });
   const sessionWriters = new SessionWriterCoordinator();
+  let initialInvocation = true;
   const createRuntime: CreateAgentSessionRuntimeFactory = async ({
     cwd,
     sessionManager: targetSessionManager,
@@ -208,20 +214,27 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
       const { services, trust } = await createPiRuntimeServicesAfterTrust({
         cwd,
         agentDir: options.agentDir,
+        ...(options.runtimeOptions === undefined ? {} : { runtimeOptions: options.runtimeOptions }),
         ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
         ...(options.preflightDependencies === undefined ? {} : { preflightDependencies: options.preflightDependencies }),
         ...(options.markStartupPhase === undefined ? {} : { markStartupPhase: options.markStartupPhase }),
       });
+      if (options.runtimeOptions !== undefined) assertPiInvocationResources(services, options.runtimeOptions);
+      const invocation = initialInvocation && options.runtimeOptions !== undefined ? resolvePiInvocationModel(services, options.runtimeOptions) : undefined;
       const modelScope = await resolveConfiguredModelScope(services, options.signal);
       const hasExistingSession = targetSessionManager.buildSessionContext().messages.length > 0;
       const created = await createAgentSessionFromServices({
         services,
         sessionManager: targetSessionManager,
         ...(options.worktreeCwdReader === undefined ? {} : {
-          customTools: createSessionWorktreeTools(cwd, signal => options.worktreeCwdReader!(
+          // Performance: comparison and non-claiming runtimes do not load attachment/recovery definitions.
+          customTools: (await import("./worktree-tools.js")).createSessionWorktreeTools(cwd, signal => options.worktreeCwdReader!(
             targetSessionManager.getSessionId(), targetSessionManager.getSessionFile()!,
             signal ?? options.signal ?? new AbortController().signal,
           ), options.worktreeCwdReader.settleShell === undefined ? undefined : signal => options.worktreeCwdReader!.settleShell!(
+            targetSessionManager.getSessionId(), targetSessionManager.getSessionFile()!,
+            signal ?? options.signal ?? new AbortController().signal,
+          ), options.worktreeCwdReader.detach === undefined ? undefined : signal => options.worktreeCwdReader!.detach!(
             targetSessionManager.getSessionId(), targetSessionManager.getSessionFile()!,
             signal ?? options.signal ?? new AbortController().signal,
           )).filter(tool => !services.resourceLoader.getExtensions().extensions.some(extension => extension.tools.has(tool.name))),
@@ -230,10 +243,14 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
         ...(modelScope.model && !hasExistingSession ? { model: modelScope.model } : {}),
         ...(modelScope.thinkingLevel && !hasExistingSession ? { thinkingLevel: modelScope.thinkingLevel } : {}),
         ...(modelScope.scopedModels.length > 0 ? { scopedModels: [...modelScope.scopedModels] } : {}),
+        ...(invocation?.model === undefined ? {} : { model: invocation.model }),
+        ...(invocation?.thinkingLevel === undefined ? {} : { thinkingLevel: invocation.thinkingLevel }),
+        ...(options.runtimeOptions?.excludeTools === undefined ? {} : { excludeTools: [...options.runtimeOptions.excludeTools] }),
       });
       try { await (options.markStartupPhase ?? defaultStartupPhaseMarker)("session-created"); }
       catch (error) { created.session.dispose(); throw error; }
       sessionWriters.activate(pendingWriter);
+      initialInvocation = false;
       return {
         ...created,
         services,

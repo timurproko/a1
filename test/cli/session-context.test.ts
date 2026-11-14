@@ -32,6 +32,7 @@ describe("session context command", () => {
     ["session-runtime-stopped", "resume in a running A1 session"],
     ["worktree-active-in-another-session", "another live agent owns"],
     ["worktree-owner-unverifiable", "retain the claim"],
+    ["worktree-startup-not-repository", "changing a shell directory does not change the session startup directory"],
   ])("explains %s without leaking internal diagnostics", async (code, expected) => {
     launch.error = Object.assign(new Error("private-session-file secret-token pid=123"), { code });
     const stdout = vi.fn(), stderr = vi.fn();

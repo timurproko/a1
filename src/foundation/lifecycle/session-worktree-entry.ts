@@ -1,6 +1,7 @@
 import { lstat, mkdir, realpath } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
+import { rethrowStartupGitFailure, worktreeGitEnvironment } from "./worktree-git-environment.js";
 import {
   assertSessionRepositoryRuntime, readSessionStartupRoot, setSessionRepositoryContext,
   type SessionRepositoryContext, type SessionRepositoryContextOptions, type SessionRepositoryIdentity,
@@ -22,9 +23,9 @@ export async function enterSessionRepositoryWorktree(
   const { execFile } = await import("node:child_process");
   const execute = promisify(execFile);
   const git = async (...args: string[]) => (await execute("git", ["-c", "core.hooksPath=/dev/null", ...args], {
-    cwd: startup, encoding: "utf8", windowsHide: true, timeout: 15_000, maxBuffer: 256 * 1024, signal: options.signal,
+    cwd: startup, env: worktreeGitEnvironment(), encoding: "utf8", windowsHide: true, timeout: 15_000, maxBuffer: 256 * 1024, signal: options.signal,
   })).stdout.trim();
-  const inventory = await git("worktree", "list", "--porcelain", "-z");
+  const inventory = await git("worktree", "list", "--porcelain", "-z").catch(rethrowStartupGitFailure);
   const rows = inventory.split("\0\0").filter(Boolean).map(record => {
     const fields = record.split("\0");
     return {
@@ -74,7 +75,7 @@ export async function enterSessionRepositoryWorktree(
     selectedBase = `refs/remotes/origin/${name}`;
   } else {
     selectedBase ||= (await execute("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], {
-      cwd: root, encoding: "utf8", windowsHide: true, timeout: 5_000, signal: options.signal,
+      cwd: root, env: worktreeGitEnvironment(), encoding: "utf8", windowsHide: true, timeout: 5_000, signal: options.signal,
     })).stdout.trim();
     if (!selectedBase || selectedBase.startsWith("-")) throw failure("worktree-base-invalid", "select a base branch with --base");
     await git("check-ref-format", `refs/heads/${selectedBase}`);

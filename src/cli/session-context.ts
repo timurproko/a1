@@ -80,6 +80,7 @@ function recoveryDetail(code: string | null): string | undefined {
     "session-runtime-stopped": "this shell belongs to a stopped runtime; resume in a running A1 session before linking",
     "worktree-active-in-another-session": "another live agent owns this worktree; use a different worktree or wait for its owner to release it",
     "worktree-owner-unverifiable": "worktree ownership cannot be verified; retain the claim and use another worktree rather than forcing recovery",
+    "worktree-startup-not-repository": "this session started outside a Git repository; start a new session in the repository before entering or attaching a worktree; changing a shell directory does not change the session startup directory",
     "worktree-primary-checkout": "attach a task worktree, not the primary checkout; use worktree enter to create one",
     "worktree-git-locked": "Git has locked this worktree; retain it and ask its owner to release the lock",
     "worktree-foreign-repository": "the selected worktree belongs to a different repository; the previous attachment was preserved",

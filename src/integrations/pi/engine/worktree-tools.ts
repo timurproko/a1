@@ -7,6 +7,8 @@ import {
 export type PiWorktreeCwdReader = ((sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<string>) & {
   /** Settles work a finished shell command left for the runtime; the text is appended to that command's result. */
   readonly settleShell?: (sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<string | null>;
+  /** Explicit owner-verified recovery; never resolves or validates the attached Git cwd. */
+  readonly detach?: (sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<string>;
 };
 
 /** Built-in tool definitions borrow the current attachment per call, without process-global chdir. */
@@ -14,6 +16,7 @@ export function createSessionWorktreeTools(
   startupCwd: string,
   resolveCwd: (signal?: AbortSignal) => Promise<string>,
   settleShell?: (signal?: AbortSignal) => Promise<string | null>,
+  detach?: (signal?: AbortSignal) => Promise<string>,
 ): ToolDefinition[] {
   function wrap<T extends ToolDefinition["parameters"], D, S>(factory: (cwd: string) => ToolDefinition<T, D, S>) {
     const definition = factory(startupCwd);
@@ -48,5 +51,20 @@ export function createSessionWorktreeTools(
   return [
     wrap(createReadToolDefinition), wrap(createBashToolDefinition), wrap(createEditToolDefinition), wrap(createWriteToolDefinition),
     wrap(createGrepToolDefinition), wrap(createFindToolDefinition), wrap(createLsToolDefinition),
+    ...(detach === undefined ? [] : [defineTool({
+      name: "worktree_detach",
+      label: "Detach worktree",
+      description: "Explicitly detach this session's worktree without deleting files or branches. Works even when attachment validation blocks ordinary tools. Accepts no target session, path or shell command.",
+      promptSnippet: "Detach this session's worktree, including recovery when ordinary tools cannot validate its cwd",
+      promptGuidelines: ["Use worktree_detach only when explicitly requested or switching tasks; it preserves files and branches. For cleanup after a verified merge, use a1 worktree complete instead. Never force attachment using Git environment overrides."],
+      parameters: { type: "object", properties: {}, additionalProperties: false },
+      executionMode: "sequential",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      async execute(_id, _params, signal) {
+        signal?.throwIfAborted();
+        const cwd = await detach(signal);
+        return { content: [{ type: "text", text: `Session worktree context cleared. Subsequent tools use ${cwd}. No files or branches were deleted.` }], details: { cwd } };
+      },
+    })]),
   ];
 }

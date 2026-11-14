@@ -1,4 +1,7 @@
+import { validateRuntimeLaunchOptions, type RuntimeLaunchOptions } from "./runtime-options.js";
+
 export interface InteractiveStartupArguments {
+  readonly runtimeOptions?: RuntimeLaunchOptions;
   readonly sessionColor?: string;
   readonly promptArguments?: readonly string[];
 }
@@ -11,5 +14,6 @@ export function interactiveStartupArguments(options: InteractiveStartupArguments
   if (prompt && (prompt.some(value => typeof value !== "string" || value.includes("\0")) || Buffer.byteLength(prompt.join(" "), "utf8") > 32_768)) {
     throw new Error("Invalid literal prompt payload");
   }
-  return [...(color === undefined ? [] : ["--session-color", color]), ...(prompt === undefined ? [] : ["--", ...prompt])];
+  const runtime = options.runtimeOptions === undefined ? [] : ["--runtime-options", JSON.stringify(validateRuntimeLaunchOptions(options.runtimeOptions))];
+  return [...runtime, ...(color === undefined ? [] : ["--session-color", color]), ...(prompt === undefined ? [] : ["--", ...prompt])];
 }
