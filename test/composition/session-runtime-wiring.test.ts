@@ -4,6 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createOwnedRuntimeContext } from "../../src/features/owned-ui/index.js";
+import { parsePiCompatibleCommand } from "../../src/cli/pi-compatible.js";
+import { parseCliCommand } from "../../src/cli/dispatch.js";
 import { PRODUCT_IDENTITY } from "../../src/product-identity.js";
 import { composeOwnedUi, type OwnedUiCompositionOptions } from "../../src/composition/owned-ui.js";
 import { PID_LIVENESS_IDENTITY } from "../../src/foundation/lifecycle/process-liveness.js";
@@ -24,6 +27,7 @@ type RepositoryContextReader = (sessionId: string, sessionFile: string, signal: 
 type WorktreeCwdReader = import("../../src/integrations/pi/engine/worktree-tools.js").PiWorktreeCwdReader;
 
 const observed = vi.hoisted(() => ({
+  controlRuntime: undefined as string | undefined, mutateEnvironment: false,
   hosts: [] as PiEngineHostOptions[], readers: [] as Array<RepositoryContextReader | undefined>, tools: [] as Array<WorktreeCwdReader | undefined>, autoName: true,
   nameFormat: "sentence" as "kebab" | "sentence" | "title" | undefined, spinnerStyle: "current" as ProgressSpinnerStyle,
   spinnerSources: [] as Array<ProgressSpinnerSource | undefined>, colorStarts: 0, settingsListeners: new Set<() => void>(),
@@ -36,6 +40,9 @@ vi.mock("../../src/integrations/pi/engine/host.js", () => ({ createPiEngineHost:
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: (_settings: unknown, _references: unknown, options: OwnedRouteHostOptions) => {
   observed.routeOptions = options; return null;
+} }));
+vi.mock("../../src/composition/session-colors.js", () => ({ startSessionColorControl: async (_backend: unknown, _settings: unknown, _directory: string, runtimeId: string) => {
+  observed.controlRuntime = runtimeId; return { dispose: async () => {} };
 } }));
 vi.mock("../../src/app/session-shell/system-clipboard.js", () => ({ writeSystemClipboardText: observed.clipboardWrite }));
 vi.mock("../../src/integrations/pi/session-presenters/presenters.js", async importOriginal => {
@@ -61,7 +68,7 @@ vi.mock("../../src/ui/settings/manager.js", () => ({
 vi.mock("../../src/app/session-shell/session-shell.js", () => ({
   sessionTerminalHostOptions: () => ({}),
   OwnedUiTerminalHost: class { attach() {} async dispose() {} },
-  OwnedUiSessionPresenter: class {},
+  OwnedUiSessionPresenter: class { start() {} },
 }));
 
 const execFileAsync = promisify(execFile);
@@ -86,6 +93,8 @@ beforeEach(async () => {
   vi.stubEnv(PRODUCT_IDENTITY.environment.suggestionDiagnostics, undefined);
 });
 afterEach(async () => {
+  observed.controlRuntime = undefined;
+  observed.mutateEnvironment = false;
   observed.readers = [];
   observed.tools = [];
   observed.hosts = [];
@@ -102,7 +111,7 @@ afterEach(async () => {
 });
 
 /** Compose exactly as `bin/ui.js` does, adding only the engine-host and release-check test seams. */
-async function compose(options: Pick<OwnedUiCompositionOptions, "productMode" | "inspectProcess"> = {}, extra: object = {}) {
+async function compose(options: Pick<OwnedUiCompositionOptions, "productMode" | "inspectProcess" | "runtimeContext"> = {}, extra: object = {}) {
   return await composeOwnedUi({
     cwd: primary,
     profileId: "a1",
@@ -113,6 +122,7 @@ async function compose(options: Pick<OwnedUiCompositionOptions, "productMode" | 
     checkForNewerRelease: async () => null,
     createEngineHost: async hostOptions => { observed.hosts.push(hostOptions); return ({
       create: async (input: { repositoryContextReader?: RepositoryContextReader; worktreeCwdReader?: WorktreeCwdReader }) => {
+        if (observed.mutateEnvironment) process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] = "later-extension-value";
         observed.readers.push(input.repositoryContextReader);
         observed.tools.push(input.worktreeCwdReader);
         return { identity: { cwd: primary, agentDir: join(root, "agent") }, session: { onEvent: () => () => {} }, settings: { configuredTheme: () => "dark" }, ...extra };
@@ -136,6 +146,25 @@ async function runtimeRecords(): Promise<Array<Record<string, unknown>>> {
 }
 
 describe("session runtime composition wiring", () => {
+  it.each(["normal", "compatible"])("keeps %s API identities aligned across asynchronous engine startup", async launcher => {
+    const command = launcher === "normal" ? parseCliCommand([], { developmentComparison: true }) : parsePiCompatibleCommand([]);
+    expect(command.kind).toBe("launch");
+    if (command.kind !== "launch") throw new Error("fixture launch was rejected");
+    const profileId = "intent" in command ? command.intent.profileId : command.profileId;
+    expect(profileId).toBe("a1");
+    const runtimeContext = createOwnedRuntimeContext(runtimeId);
+    observed.mutateEnvironment = true;
+    const composed = await compose({ runtimeContext });
+    try {
+      composed.application.start();
+      await vi.waitFor(() => expect(observed.controlRuntime).toBe(runtimeId));
+      const file = await sessionFile(sessionId);
+      await observed.readers.at(-1)!(sessionId, file, new AbortController().signal);
+      expect(await runtimeRecords()).toEqual([expect.objectContaining({ runtimeId })]);
+      expect(observed.tools.at(-1)?.detach).toBeTypeOf("function");
+    } finally { await composed.application.dispose(); }
+  });
+
   it("keeps settings copy bounded and defers the optional native writer until requested", async () => {
     const composed = await compose();
     try {

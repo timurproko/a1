@@ -13,14 +13,15 @@ export const HERDR_IDENTITY_LABELS = Object.freeze({
 const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
 export interface HerdrPublishedBinding { readonly runtimeId: string; readonly sessionId: string; readonly at: string }
 interface BindingState { version: 1; generation: number; runtimeId: string; published?: HerdrPublishedBinding }
-export interface HerdrBindingReservation { readonly terminalId: string; readonly runtimeId: string; readonly generation: number; readonly file: string }
+interface BindingIntent { version: 1; generation: number; runtimeId: string; baseGeneration: number; baseRuntimeId?: string }
+export interface HerdrBindingReservation { readonly terminalId: string; readonly runtimeId: string; readonly generation: number; readonly file: string; readonly intent?: true }
 
 /** Complete local IDs only; mutable names and remote selectors are never publication targets. */
 export function validHerdrIdentity(terminalId: string, runtimeId: string, sessionId?: string): boolean {
   return /^t[0-9a-z]{1,16}$/u.test(terminalId) && UUID.test(runtimeId) && (sessionId === undefined || UUID.test(sessionId));
 }
 
-/** Reserve before asynchronous startup can delay an older runtime. Never publishes Core labels. */
+/** Order startup without waiting for Core I/O; a ticket alone never grants publication authority. */
 export async function reserveHerdrBinding(runtimeId: string, environment: NodeJS.ProcessEnv = process.env, directory = join(homedir(), ".a1", "herdr-bindings")): Promise<HerdrBindingReservation | undefined> {
   const terminalId = environment.HC_TERMINAL_ID;
   if (!terminalId || !validHerdrIdentity(terminalId, runtimeId)) return undefined;
@@ -28,34 +29,53 @@ export async function reserveHerdrBinding(runtimeId: string, environment: NodeJS
     const canonicalDirectory = await safeDirectory(directory);
     // Security: even alternate local Core contexts share this conservative per-user fence.
     const file = join(canonicalDirectory, `${createHash("sha256").update(terminalId).digest("hex")}.json`);
+    const intentFile = `${file}.intent`;
     let unlock: (() => Promise<void>) | undefined;
     const deadline = performance.now() + 250;
     do {
-      unlock = await lock(file);
+      unlock = await lock(intentFile);
       if (!unlock) await new Promise(done => setTimeout(done, 20));
     } while (!unlock && performance.now() < deadline);
     if (!unlock) return undefined;
     try {
-      const prior = await readState(file);
-      const generation = (prior?.generation ?? 0) + 1;
+      const prior = await readState(file), intent = await readIntent(intentFile);
+      const generation = Math.max(prior?.generation ?? 0, intent?.generation ?? 0) + 1;
       if (!Number.isSafeInteger(generation)) return undefined;
-      await writeState(file, { version: 1, generation, runtimeId, ...(prior?.published ? { published: prior.published } : {}) });
-      return Object.freeze({ terminalId, runtimeId, generation, file });
+      await writeState(intentFile, { version: 1, generation, runtimeId, baseGeneration: prior?.generation ?? 0,
+        ...(prior === undefined ? {} : { baseRuntimeId: prior.runtimeId }) });
+      return Object.freeze({ terminalId, runtimeId, generation, file, intent: true });
     } finally { await unlock(); }
   } catch { return undefined; }
 }
 
 /** Hold the exact terminal fence through public Core reads/writes and their verified settlement. */
-export async function withHerdrBinding(reservation: HerdrBindingReservation, action: (state: BindingState) => Promise<void>): Promise<void> {
+export async function withHerdrBinding(reservation: HerdrBindingReservation, action: (state: BindingState, current: () => Promise<boolean>) => Promise<void>, promote = true): Promise<void> {
   let unlock: (() => Promise<void>) | undefined;
   let settled = true;
   try {
     await safeDirectory(dirname(reservation.file));
     unlock = await lock(reservation.file);
     if (!unlock) return;
-    const state = await readState(reservation.file);
-    if (!state || state.runtimeId !== reservation.runtimeId || state.generation !== reservation.generation) return;
-    await action(state);
+    let state = await readState(reservation.file);
+    const current = async () => !reservation.intent || sameOwner(await readIntent(`${reservation.file}.intent`), reservation);
+    if (reservation.intent) {
+      // Invariant: the short metadata transaction never spans Core I/O or bypasses the legacy settlement guard.
+      const releaseIntent = await lock(`${reservation.file}.intent`);
+      if (!releaseIntent) return;
+      try {
+        const intent = await readIntent(`${reservation.file}.intent`);
+        if (!sameOwner(intent, reservation)) return;
+        if (!sameOwner(state, reservation)) {
+          if (!promote || !intent || (state?.generation ?? 0) !== intent.baseGeneration || state?.runtimeId !== intent.baseRuntimeId) return;
+          state = { version: 1, generation: reservation.generation, runtimeId: reservation.runtimeId,
+            ...(state?.published === undefined ? {} : { published: state.published }) };
+          await writeState(reservation.file, state);
+        }
+      } finally { await releaseIntent(); }
+    }
+    if (!state || !sameOwner(state, reservation) || !await current()) return;
+    await action(state, current);
+    // Invariant: only the settlement guard writes committed ownership/publication; newer intents live separately.
     await writeState(reservation.file, state);
   } catch (error) {
     // Security: never steal/release a fence while an unverified child could still write Core.
@@ -97,7 +117,21 @@ async function readState(file: string): Promise<BindingState | undefined> {
     return value;
   } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error; }
 }
-async function writeState(file: string, state: BindingState): Promise<void> {
+function sameOwner(state: { runtimeId: string; generation: number } | undefined, reservation: HerdrBindingReservation): boolean {
+  return state?.runtimeId === reservation.runtimeId && state.generation === reservation.generation;
+}
+async function readIntent(file: string): Promise<BindingIntent | undefined> {
+  try {
+    const stat = await lstat(file);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096) throw new Error("Unsafe binding intent");
+    const value = JSON.parse(await readFile(file, "utf8")) as BindingIntent;
+    if (value.version !== 1 || !Number.isSafeInteger(value.generation) || value.generation < 1 || !UUID.test(value.runtimeId)
+      || !Number.isSafeInteger(value.baseGeneration) || value.baseGeneration < 0 || value.baseGeneration >= value.generation
+      || (value.baseGeneration === 0 ? value.baseRuntimeId !== undefined : typeof value.baseRuntimeId !== "string" || !UUID.test(value.baseRuntimeId))) throw new Error("Invalid binding intent");
+    return value;
+  } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error; }
+}
+async function writeState(file: string, state: BindingState | BindingIntent): Promise<void> {
   const temporary = `${file}.${randomUUID()}.tmp`;
   await writeFile(temporary, JSON.stringify(state), { mode: 0o600, flag: "wx" });
   await rename(temporary, file);
