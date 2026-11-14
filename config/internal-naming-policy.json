@@ -348,6 +348,36 @@
   ],
   "externalMembers": [
     {
+      "name": "a1",
+      "path": "scripts/governance/delivery-contract.mjs",
+      "reason": "Frozen portable-delivery-v1 repository key in docs/delivery-adapters.json"
+    },
+    {
+      "name": "a1",
+      "path": "scripts/governance/delivery-control.mjs",
+      "reason": "Frozen portable-delivery-v1 repository key in docs/delivery-adapters.json"
+    },
+    {
+      "name": "a1",
+      "path": "scripts/governance/delivery-case-verifier.mjs",
+      "reason": "Frozen portable-delivery-v1 expectByRepository key in docs/delivery-cases.json"
+    },
+    {
+      "name": "a1",
+      "path": "test/repository-governance/portable-delivery-cases.node.mjs",
+      "reason": "Frozen portable-delivery-v1 repository key in docs/delivery-adapters.json"
+    },
+    {
+      "name": "a1InstallationRequired",
+      "path": "test/repository-governance/delivery-progress.node.mjs",
+      "reason": "Frozen portable-delivery-v1 C13 serialized observation field in docs/delivery-cases.json"
+    },
+    {
+      "name": "a1InstallationRequired",
+      "path": "test/repository-governance/portable-delivery-cases.node.mjs",
+      "reason": "Frozen portable-delivery-v1 C13 serialized observation field in docs/delivery-cases.json"
+    },
+    {
       "name": "a1ParityBaselineCommit",
       "path": "test/repository-governance/pi-parity-evidence.test.ts",
       "reason": "Existing parity evidence field"

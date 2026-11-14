@@ -68,3 +68,14 @@ The executable fixed-dispatch verifier subsequently passed all 50 unchanged case
 The reviewed configuration declares delivery labels, but the read-only live label inspection found `delivery-hold` and `no-auto-merge` absent. This implementation does not create them, change protection/settings or enable workflows. Compatible A1 runtime support must be released before downstream adapter adoption; source and isolated fixtures do not prove an installed release or live activation.
 
 OpenSpec skills, generated commands, dependency pins and framework assets remain outside the implementation. `openspec/config.yaml` changes only repository-owned project context routing; the schema and operation definitions remain unchanged.
+
+## Finalized-head CI repair
+
+Fetched and fast-forwarded the clean task to trusted finalization commit `6b2fabb21e042a56ec7c607f17efc4523ae429e3`, retaining its archive, synchronized specs, manifest and completed tasks. PR run `43584066719` then exposed seven missing serialized-name declarations and one stale composition fixture; the required aggregate failed and two other lanes were cancelled. This was not successful finalized-head CI.
+
+- Registered six exact file/member boundaries for the immutable shared adapters' repository key and C13 observation field. These are prescribed external serialized fields, not new branded internal names. The inspector, frozen contract bytes and expected cases are unchanged. Added positive boundary and negative unrelated-file/local-identifier/other-member coverage.
+- The composition fixture now declares a compatible preservation-preflight/cleanup pair before attachment, then makes only the primary adapter unavailable after the request. It retains the existing shell-report, primary-cwd, task-content and once-only assertions, and the diagnostic again identifies `.a1/worktree.json`. A new composed case verifies that missing preflight support rejects completion without detaching or redirecting subsequent writes.
+- The five focused naming/selection, composition recovery and runtime-completion files passed all 80 tests after repairing a new test fixture's same-line deduplication assumption. Both occurrences now occupy separate lines; the expected counts and negative assertions were retained. All 50 unchanged common cases and 11 hazards passed again (51 tests including completeness, no skips).
+- Full naming audit inspected 1,349 tracked inputs with zero violations. Typecheck, architecture, full code-documentation governance, frozen-contract/scope inspection and whitespace checks passed. No timeout, inspector rule, assertion or required CI gate was weakened.
+
+These repairs are a new checkpoint after completed implementation, not a reason to erase task ticks or recreate active artifacts. Trusted automation owns re-finalization and new exact-head CI. Release-specific automation, Acceptance scenarios, hosting and integration authority remain unchanged; no merge is authorized.

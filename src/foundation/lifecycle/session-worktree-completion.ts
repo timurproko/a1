@@ -180,7 +180,7 @@ export async function settleSessionWorktreeCompletion(
     // Security: the command is the primary checkout's committed declaration, never a file of the task checkout being left.
     const adapter = await readOperationAdapter(join(startup, CLEANUP_DECLARATION), record.operation ?? "complete");
     if (adapter === null || adapter === "invalid" || adapter.digest !== record.adapterDigest) {
-      return result("cleanup-unavailable", "the exact adapter is unavailable, changed, or lacks a preservation-preflight binding; no other operation was substituted");
+      return result("cleanup-unavailable", `the exact adapter in ${CLEANUP_DECLARATION} is unavailable, changed, or lacks a preservation-preflight binding; no other operation was substituted`);
     }
     const declared = adapter.execute;
     const values: Readonly<Record<string, string | undefined>> = {
