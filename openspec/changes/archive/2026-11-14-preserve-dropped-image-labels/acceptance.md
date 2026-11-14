@@ -24,10 +24,10 @@ The maintainer integration decision accepts these scenarios:
     "Same-name file images remain distinct, with atomic editing, undo and redo, limits, cancellation, and durable history preserved.",
     "Ordinary text, URLs, non-image files, folders, and multiple or mixed path lists retain their existing behavior."
   ],
-  "archiveDigest": "23f74d0b181485cdaabc7a486cb1ccdef477c79ea6a4cc67ac891334f5391bdf",
+  "archiveDigest": "91fe1299863666a095df10f92afff02e22e71a78cd130c32eb245e46b1489f4b",
   "specDigest": "8477a98376a58dcc6a91d5cfe8edb7760d424767aeaf7bd58cd5908ad4c65b1d",
   "tasksDigest": "4a6c6ce76a53ed423ff0136f42b1734a6d6fdb35e3e702c3789d560b2b96e224",
-  "evidenceDigest": "b279a20b3ed2f00f767056dd607742208ea600f382e15ebc39a4e4e0e87ffb39",
+  "evidenceDigest": "071eca81e653d8c79dc01ddaeb4a612ac755b7f4684a088329fca28834b18108",
   "knownGaps": []
 }
 ```
