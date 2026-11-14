@@ -134,7 +134,7 @@ export async function discoverRepository(primaryPath, git = gitRunner()) {
   // Security: repository identity comes from this repository's literal configuration, not
   // `remote get-url`, because Git applies user-controlled `url.*.insteadOf` transport rewrites
   // to the latter. Network operations still use the named remote and retain those rewrites.
-  const configured = (await git(primary, ["config", "--local", "--get-all", "remote.origin.url"]))
+  const configured = (await requiredGitValue(git, primary, ["config", "--local", "--get-all", "remote.origin.url"], { raw: true, emptyCode: "unsupported-origin" }))
     .replace(/\r\n/gu, "\n").replace(/\n$/u, "").split("\n");
   if (configured.length !== 1 || configured[0] === undefined || configured[0] !== configured[0].trim() || configured[0] === "") fail("unsupported-origin");
   const match = /^(?:https:\/\/github\.com\/|git@github\.com:)([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(?:\.git)?$/.exec(configured[0]);
@@ -145,11 +145,11 @@ export async function discoverRepository(primaryPath, git = gitRunner()) {
 }
 
 /** Capture exact identity without granting cleanup authority or refreshing a released head. */
-async function requiredGitValue(git, cwd, args) {
+async function requiredGitValue(git, cwd, args, { raw = false, emptyCode = "git-operation-failed" } = {}) {
   for (let attempt = 1; ; attempt++) {
-    const value = (await git(cwd, args)).trim();
-    if (value !== "") return value;
-    if (process.platform !== "win32" || attempt >= 3) fail("git-operation-failed");
+    const output = await git(cwd, args), value = output.trim();
+    if (value !== "") return raw ? output : value;
+    if (process.platform !== "win32" || attempt >= 3) fail(emptyCode);
     await new Promise(resolve => setTimeout(resolve, 25 * attempt));
   }
 }
@@ -197,7 +197,7 @@ export async function statusBlockers(git, path, disposable, { ignored = true } =
 export async function inspectWorktree(identity, entry, {
   git = gitRunner(), cwd = process.cwd(), deadline = Infinity, now = Date.now,
   ordinaryEntryLimit = ORDINARY_CONTENT_ENTRY_LIMIT, generatedEntryLimit = GENERATED_CONTENT_ENTRY_LIMIT,
-  accepted = async () => false, remediationLink = null, remediationExport = null, preserveKeep = false,
+  accepted = async () => false, remediationLink = null, remediationExport = null, preserveKeep = true,
 } = {}) {
   const actual = await captureWorktree(identity, entry.path, git);
   if (["path", "filesystem", "ref"].some(key => actual[key] !== entry[key])) fail("worktree-identity-changed");

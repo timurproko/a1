@@ -50,7 +50,7 @@ export async function removePublishedLocalWorktree({ identity, store, path, conf
       };
       const requireContent = async () => {
         const result = await preflight(identity, candidate, { inspect, git, cwd, deadline, now, preserveKeep: true,
-          // Read-only runtime preflight follows the product's own claim validation; execution never bypasses claims.
+          // Security: read-only runtime preflight follows the product's own claim validation; execution never bypasses claims.
           ...(runtimePreflight ? { inspectAttachment: async () => null } : {}) });
         if (!result.clean) { Object.assign(row, result); fail(result.reason ?? "worktree-content"); }
         return result;
@@ -60,7 +60,7 @@ export async function removePublishedLocalWorktree({ identity, store, path, conf
       if (preflightOnly) { row.disposition = "eligible"; return; }
       if (prior?.role !== "local-removal") {
         if (prior) {
-          // The delivery association remains recorded; the distinct role/note prevents sweep from deleting retained refs.
+          // Compatibility: the delivery association remains recorded; the distinct role/note prevents sweep from deleting retained refs.
           Object.assign(prior, candidate, { role: "local-removal", state: "released", step: "none", completion: null, completionReason: null });
           prior.disposable = [...REPOSITORY_DISPOSABLE_PATHS];
         } else {
@@ -76,7 +76,7 @@ export async function removePublishedLocalWorktree({ identity, store, path, conf
         if (!same(candidate, await captureWorktree(identity, absolute, git))) fail("worktree-identity-changed");
         await requirePublication(); const content = await requireContent(); active();
         await purge(selected, { deadline, now, containedLinks: content.containedLinks });
-        // Purge never grants removal authority over content or claims appearing in the meantime.
+        // Security: purge never grants removal authority over content or claims appearing in the meantime.
         await requirePublication(); await requireContent(); active();
         selected.state = "deleting"; selected.step = "remove-intent"; await save(state);
         await remove(identity, selected, git); row.steps.push("worktree-removed");

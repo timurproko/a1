@@ -33,24 +33,27 @@ Attachment and portable handoff policy is [R12](../delivery-rules.md#r12---porta
 
 Never run repository cleanup against the checkout a session is attached to. The shell A1 starts for an attached session has that checkout as its working directory, and on Windows that pins the directory until the shell exits even after `cd`, so cleanup issued from it removes part of the checkout and then fails on the directory itself.
 
-`a1 worktree complete` sequences the two steps. In the issuing shell it only checks and detaches: the attachment must be valid and owned by this session, the checkout must not be locked in Git, and `git status` must show no tracked, staged, or untracked content. A blocker leaves the session attached and changes nothing. Otherwise the session returns to its startup checkout. Once that shell has exited, the A1 process runs the configured cleanup from the startup checkout and appends the outcome to the same command's result:
+`a1 worktree complete` sequences the two steps under [R15](../delivery-rules.md#r15---runtime-and-cleanup-boundaries). Before detaching it runs the primary checkout's exact `cleanupPreflight` command and binds the matching `cleanup` command's digest. Both arrays must target `{worktree}`. The attachment must remain valid and owned by this session, Git must be unlocked, and `git status` must show no tracked, staged, or untracked content. A blocker leaves the session attached and changes nothing. Otherwise the session returns to its startup checkout. Once that shell has exited, the A1 process runs the configured cleanup from the startup checkout and appends the outcome to the same command's result:
 
 | Outcome | Meaning |
 | --- | --- |
 | `cleanup-finished` | The cleanup command ran. Its report follows and is authoritative; A1 does not claim a removal itself. |
 | `cleanup-failed` | The command exited with an error. The checkout may remain; retry with the repository's cleanup from primary. |
-| `cleanup-unavailable` | The repository declares no command, or it needs `--change`/`--pr` that was not given. The checkout is retained. |
+| `cleanup-unavailable` | The adapter changed or the pending record lacks the required preflight binding. The checkout is retained. |
 | `cleanup-skipped` | Another live session attached the checkout, its claim is unverifiable, or the request was not settled within five minutes. |
 
-In every case the session is already on the startup checkout and its tools keep working. Do not attach a partially removed checkout again.
+These settlement outcomes occur after the session returns to startup. Missing adapter support/selectors or a failing preflight instead rejects the request while keeping the attachment. Do not attach a partially removed checkout again.
 
 The cleanup command is declared once in the repository, in a committed `.a1/worktree.json`, so no machine needs any setup:
 
 ```json
-{ "cleanup": ["node", "scripts/governance/local-worktree-cleanup.mjs", "complete", "--repo", "{primary}", "--path", "{worktree}", "--change", "{change}", "--pr", "{pr}"] }
+{
+  "cleanupPreflight": ["node", "scripts/governance/local-worktree-cleanup.mjs", "preservation-preflight", "--repo", "{primary}", "--path", "{worktree}", "--runtime-preflight"],
+  "cleanup": ["node", "scripts/governance/local-worktree-cleanup.mjs", "complete", "--repo", "{primary}", "--path", "{worktree}", "--change", "{change}", "--pr", "{pr}"]
+}
 ```
 
-A1 reads the file from the primary checkout the session started in, never from the task checkout being left, so a task branch cannot change what runs until it is merged. The list is run without a shell from the primary checkout, with `{primary}`, `{worktree}`, `{branch}`, `{change}`, and `{pr}` substituted in each element; the first element must be a real executable such as `node`, not a `.cmd` shim. A repository without the file needs nothing: completion detaches, keeps the checkout, and reports `cleanup-unavailable`, and the repository's ordinary cleanup still applies. The command keeps every eligibility and deletion safeguard; A1 adds no deletion of its own. Delivery evidence is the command's to judge, so completing an unmerged task ends detached with the files intact and the command's blocker.
+A1 reads the file from the primary checkout the session started in, never from the task checkout being left, so a task branch cannot change what runs until it is merged. The list is run without a shell from the primary checkout, with `{primary}`, `{worktree}`, `{branch}`, `{change}`, and `{pr}` substituted in each element; the first element must be a real executable such as `node`, not a `.cmd` shim. A repository without the paired declaration reports an explicit unavailable blocker before detaching; its safe standalone cleanup remains available. The command keeps every eligibility and deletion safeguard; A1 adds no deletion of its own. Delivery evidence is the command's to judge, so completing an unmerged task ends detached with the files intact and the command's blocker.
 
 ## Removing a published local checkout
 

@@ -1,5 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import { access, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -14,7 +14,7 @@ vi.mock("../../../src/foundation/lifecycle/native-claim-gate.js", () => {
   } };
 });
 import {
-  readActiveSessionRepositoryContext, readSessionStartupRoot, registerSessionRepositoryRuntime, setSessionRepositoryContext,
+  readActiveSessionRepositoryContext, readSessionStartupRoot, registerSessionRepositoryRuntime, setSessionRepositoryContext, sessionWorktreeCompletionPath,
 } from "../../../src/foundation/lifecycle/session-repository-context.js";
 import {
   describeWorktreeCompletion, requestSessionWorktreeCompletion, requestSessionWorktreeLocalRemoval, settleSessionWorktreeCompletion,
@@ -48,7 +48,8 @@ async function attachedFixture(template?: string) {
   if (template !== undefined) {
     await mkdir(join(primary, ".a1"));
     await writeFile(join(primary, ".a1", "worktree.json"), template.startsWith("{") || template === "broken"
-      ? template : JSON.stringify({ cleanup: template.split(" ").map(part => part === "{script}" ? script : part) }));
+      ? template : JSON.stringify({ cleanup: template.split(" ").map(part => part === "{script}" ? script : part),
+        cleanupPreflight: ["node", "-e", "console.log(JSON.stringify({operation:'preservation-preflight',preflight:true,results:[{path:process.argv[1],disposition:'eligible'}]}))", "{worktree}"] }));
     await execute("git", ["-C", primary, "add", ".a1"]);
     await execute("git", ["-C", primary, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "commit", "-m", "declare cleanup"]);
     await execute("git", ["-C", worktree, "merge", "--ff-only", "develop"]);
@@ -83,8 +84,9 @@ describe("worktree completion", () => {
     await writeFile(join(fixture.worktree, ".a1", "worktree.json"), JSON.stringify({ cleanup: ["node", "-e", "process.exit(0)"] }));
     await execute("git", ["-C", fixture.worktree, "add", ".a1"]);
     await execute("git", ["-C", fixture.worktree, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "commit", "-m", "task-only declaration"]);
-    await requestSessionWorktreeCompletion(fixture.identity, {}, fixture.options);
-    await expect(settleSessionWorktreeCompletion(fixture.identity, fixture.options)).resolves.toMatchObject({ kind: "cleanup-unavailable" });
+    await expect(requestSessionWorktreeCompletion(fixture.identity, {}, fixture.options)).rejects.toMatchObject({ code: "worktree-completion-unavailable" });
+    await expect(settleSessionWorktreeCompletion(fixture.identity, fixture.options)).resolves.toBeNull();
+    await expect(readActiveSessionRepositoryContext(fixture.identity, fixture.options)).resolves.toMatchObject({ branch: "fix/task" });
     expect(await exists(fixture.worktree)).toBe(true);
   });
 
@@ -122,27 +124,52 @@ describe("worktree completion", () => {
     expect(await exists(fixture.worktree)).toBe(true);
   });
 
-  it("detaches and reports cleanup unavailable without a configured command or a required selector", async () => {
+  it("retains attachment without a compatible preflight/command or required selector", async () => {
     const bare = await attachedFixture();
-    await requestSessionWorktreeCompletion(bare.identity, {}, bare.options);
-    await expect(settleSessionWorktreeCompletion(bare.identity, bare.options)).resolves.toMatchObject({
-      kind: "cleanup-unavailable", detail: expect.stringContaining(".a1/worktree.json"),
-    });
+    await expect(requestSessionWorktreeCompletion(bare.identity, {}, bare.options)).rejects.toMatchObject({ code: "worktree-completion-unavailable" });
+    await expect(settleSessionWorktreeCompletion(bare.identity, bare.options)).resolves.toBeNull();
+    await expect(readActiveSessionRepositoryContext(bare.identity, bare.options)).resolves.toMatchObject({ branch: "fix/task" });
     expect(await exists(bare.worktree)).toBe(true);
     for (const malformed of ["broken", JSON.stringify({ cleanup: "node cleanup.cjs" }), JSON.stringify({ cleanup: [] })]) {
       const invalid = await attachedFixture(malformed);
-      await requestSessionWorktreeCompletion(invalid.identity, {}, invalid.options);
-      await expect(settleSessionWorktreeCompletion(invalid.identity, invalid.options)).resolves.toMatchObject({
-        kind: "cleanup-unavailable", detail: expect.stringContaining("must hold"),
-      });
+      await expect(requestSessionWorktreeCompletion(invalid.identity, {}, invalid.options)).rejects.toMatchObject({ code: "worktree-completion-unavailable" });
+      await expect(settleSessionWorktreeCompletion(invalid.identity, invalid.options)).resolves.toBeNull();
+      await expect(readActiveSessionRepositoryContext(invalid.identity, invalid.options)).resolves.toMatchObject({ branch: "fix/task" });
       expect(await exists(invalid.worktree)).toBe(true);
     }
     const selective = await attachedFixture(`${REMOVE} {pr}`);
-    await requestSessionWorktreeCompletion(selective.identity, { change: "example-change" }, selective.options);
-    await expect(settleSessionWorktreeCompletion(selective.identity, selective.options)).resolves.toMatchObject({
-      kind: "cleanup-unavailable", detail: expect.stringContaining("{pr}"),
+    await expect(requestSessionWorktreeCompletion(selective.identity, { change: "example-change" }, selective.options)).rejects.toMatchObject({
+      code: "worktree-completion-unavailable", message: expect.stringContaining("{pr}"),
     });
+    await expect(readActiveSessionRepositoryContext(selective.identity, selective.options)).resolves.toMatchObject({ branch: "fix/task" });
+    await expect(settleSessionWorktreeCompletion(selective.identity, selective.options)).resolves.toBeNull();
     expect(await exists(selective.worktree)).toBe(true);
+  });
+
+  it("runs merged preservation preflight while attached and retains the attachment on its blocker", async () => {
+    const fixture = await attachedFixture(REMOVE);
+    const run = vi.fn(async () => {
+      expect(await readActiveSessionRepositoryContext(fixture.identity, fixture.options)).toMatchObject({ branch: "fix/task" });
+      return JSON.stringify({ operation: "preservation-preflight", preflight: true, results: [{ path: fixture.worktree, disposition: "blocked", reason: "unknown-ignored-content" }] });
+    });
+    await expect(requestSessionWorktreeCompletion(fixture.identity, {}, { ...fixture.options, run })).rejects.toMatchObject({
+      code: "worktree-completion-preflight", message: expect.stringContaining("unknown-ignored-content"),
+    });
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(await readActiveSessionRepositoryContext(fixture.identity, fixture.options)).toMatchObject({ branch: "fix/task" });
+    expect(await settleSessionWorktreeCompletion(fixture.identity, fixture.options)).toBeNull();
+    expect(await exists(fixture.worktree)).toBe(true);
+  });
+
+  it("reads legacy pending records without executing cleanup lacking a preflight binding", async () => {
+    const fixture = await attachedFixture(REMOVE);
+    await requestSessionWorktreeCompletion(fixture.identity, {}, fixture.options);
+    const path = sessionWorktreeCompletionPath(fixture.identity, fixture.options);
+    const record = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+    delete record.adapterDigest; await writeFile(path, JSON.stringify(record));
+    const run = vi.fn();
+    expect(await settleSessionWorktreeCompletion(fixture.identity, { ...fixture.options, run })).toMatchObject({ kind: "cleanup-unavailable" });
+    expect(run).not.toHaveBeenCalled(); expect(await exists(fixture.worktree)).toBe(true);
   });
 
   it("reports a failed cleanup with the command's output and never as removal", async () => {
@@ -229,10 +256,10 @@ describe("worktree completion", () => {
   // Platform: a process started in a directory pins it; other platforms allow the removal and prove nothing here.
   it.skipIf(process.platform !== "win32")("retains a checkout pinned by a process started inside it and leaves the session detached", async () => {
     const fixture = await attachedFixture(REMOVE);
+    await requestSessionWorktreeCompletion(fixture.identity, {}, fixture.options);
     const holder = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], { cwd: fixture.worktree, stdio: "ignore", windowsHide: true });
     try {
       await new Promise(resolve => setTimeout(resolve, 1_000));
-      await requestSessionWorktreeCompletion(fixture.identity, {}, fixture.options);
       const result = await settleSessionWorktreeCompletion(fixture.identity, fixture.options);
       expect(result?.kind).toBe("cleanup-failed");
       expect(await exists(fixture.worktree)).toBe(true);

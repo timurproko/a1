@@ -61,37 +61,45 @@ export async function requestSessionWorktreeLocalRemoval(
   identity: SessionRepositoryIdentity,
   options: WorktreeCompletionSettleOptions,
 ): Promise<WorktreeCompletionRequest> {
+  return requestPreflightedOperation(identity, "remove-local", {}, options);
+}
+
+async function requestPreflightedOperation(identity: SessionRepositoryIdentity, kind: "complete" | "remove-local",
+  selectors: WorktreeCompletionSelectors, options: WorktreeCompletionSettleOptions): Promise<WorktreeCompletionRequest> {
   const attached = await readActiveSessionRepositoryContext(identity, options);
   if (attached === null) throw failure("worktree-not-attached", "no task worktree is attached");
-  if (attached.branch === null) throw failure("worktree-local-removal-unavailable", "published local removal requires a named task branch");
+  if (attached.branch === null) throw failure(`worktree-${kind}-unavailable`, "exact cleanup requires a named task branch");
   const startup = await realpath(await readSessionStartupRoot(identity));
-  const adapter = await readLocalRemovalAdapter(join(startup, CLEANUP_DECLARATION));
-  if (adapter === null || adapter === "invalid") throw failure("worktree-local-removal-unavailable", "this repository declares no compatible exact local-removal adapter; the attachment and files were retained");
-  const values: Readonly<Record<string, string>> = { primary: startup, worktree: attached.cwd, branch: attached.branch };
+  const unavailable = kind === "remove-local" ? "worktree-local-removal-unavailable" : "worktree-completion-unavailable";
+  const preflightFailure = kind === "remove-local" ? "worktree-local-removal-preflight" : "worktree-completion-preflight";
+  const adapter = await readOperationAdapter(join(startup, CLEANUP_DECLARATION), kind);
+  if (adapter === null || adapter === "invalid") throw failure(unavailable, "this repository declares no compatible exact preflight/cleanup adapter; the attachment and files were retained");
+  const values: Readonly<Record<string, string | undefined>> = { primary: startup, worktree: attached.cwd, branch: attached.branch,
+    change: selectors.change, pr: selectors.pr === undefined ? undefined : String(selectors.pr) };
   const expand = (parts: readonly string[]) => parts.map(part => part.replace(/\{([a-z]+)\}/gu, (_match, name: string) => {
     const value = values[name];
-    if (value === undefined) throw failure("worktree-local-removal-unavailable", "the exact local-removal adapter uses an unavailable selector");
+    if (value === undefined) throw failure(unavailable, `the exact ${kind} adapter needs {${name}}; the attachment was retained`);
     return value;
   }));
   const expanded = expand(adapter.preflight);
   expand(adapter.execute);
   const command = expanded[0];
-  if (command === undefined) throw failure("worktree-local-removal-unavailable", "the exact preflight command is missing");
+  if (command === undefined) throw failure(unavailable, "the exact preflight command is missing");
   let output: string, succeeded = true;
   try { output = await (options.run ?? execute)(command, expanded.slice(1), startup, options.signal); }
   catch (error) { succeeded = false; output = isRecord(error) && typeof error.stdout === "string" ? error.stdout : ""; }
   let report: unknown;
   try { report = JSON.parse(output); }
-  catch { throw failure("worktree-local-removal-preflight", "the repository local-removal preflight failed; the attachment and files were retained"); }
-  const rows = isRecord(report) && report.operation === "remove-local" && report.preflight === true ? report.results : null;
+  catch { throw failure(preflightFailure, "the repository preservation preflight failed; the attachment and files were retained"); }
+  const rows = isRecord(report) && report.operation === (kind === "remove-local" ? "remove-local" : "preservation-preflight") && report.preflight === true ? report.results : null;
   if (!succeeded || !Array.isArray(rows) || rows.length !== 1 || !isRecord(rows[0]) || rows[0].disposition !== "eligible"
     || typeof rows[0].path !== "string" || !samePath(rows[0].path, attached.cwd)) {
     const reason = Array.isArray(rows) && isRecord(rows[0]) && typeof rows[0].reason === "string" && /^[a-z0-9-]{1,80}$/u.test(rows[0].reason) ? ` (${rows[0].reason})` : "";
-    throw failure("worktree-local-removal-preflight", `the exact checkout did not pass repository publication/preservation preflight${reason}; the attachment and files were retained`);
+    throw failure(preflightFailure, `the exact checkout did not pass repository preservation preflight${reason}; the attachment and files were retained`);
   }
-  const fresh = await readLocalRemovalAdapter(join(startup, CLEANUP_DECLARATION));
-  if (fresh === null || fresh === "invalid" || fresh.digest !== adapter.digest) throw failure("worktree-context-changed", "the local-removal adapter changed during preflight");
-  return await requestWorktreeOperation(identity, {}, options, { cwd: attached.cwd, branch: attached.branch, digest: adapter.digest });
+  const fresh = await readOperationAdapter(join(startup, CLEANUP_DECLARATION), kind);
+  if (fresh === null || fresh === "invalid" || fresh.digest !== adapter.digest) throw failure("worktree-context-changed", "the exact adapter changed during preflight");
+  return await requestWorktreeOperation(identity, selectors, options, { cwd: attached.cwd, branch: attached.branch, digest: adapter.digest, kind });
 }
 
 /**
@@ -101,14 +109,16 @@ export async function requestSessionWorktreeLocalRemoval(
 export async function requestSessionWorktreeCompletion(
   identity: SessionRepositoryIdentity,
   selectors: WorktreeCompletionSelectors,
-  options: SessionRepositoryContextOptions,
+  options: WorktreeCompletionSettleOptions,
 ): Promise<WorktreeCompletionRequest> {
-  return await requestWorktreeOperation(identity, selectors, options);
+  if (selectors.change !== undefined && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(selectors.change)) throw failure("worktree-completion-selector", "the change selector must be kebab-case");
+  if (selectors.pr !== undefined && (!Number.isSafeInteger(selectors.pr) || selectors.pr < 1)) throw failure("worktree-completion-selector", "the pull-request selector must be positive");
+  return await requestPreflightedOperation(identity, "complete", selectors, options);
 }
 
 async function requestWorktreeOperation(
   identity: SessionRepositoryIdentity, selectors: WorktreeCompletionSelectors, options: SessionRepositoryContextOptions,
-  localRemoval?: { cwd: string; branch: string; digest: string },
+  settlement: { cwd: string; branch: string; digest: string; kind: "complete" | "remove-local" },
 ): Promise<WorktreeCompletionRequest> {
   if (selectors.change !== undefined && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(selectors.change)) {
     throw failure("worktree-completion-selector", "the change selector must be a kebab-case change id");
@@ -118,7 +128,7 @@ async function requestWorktreeOperation(
   }
   const attached = await readActiveSessionRepositoryContext(identity, options);
   if (attached === null) throw failure("worktree-not-attached", "no task worktree is attached");
-  if (localRemoval && (!samePath(localRemoval.cwd, attached.cwd) || localRemoval.branch !== attached.branch)) throw failure("worktree-context-changed", "the attachment changed during local-removal preflight");
+  if (!samePath(settlement.cwd, attached.cwd) || settlement.branch !== attached.branch) throw failure("worktree-context-changed", "the attachment changed during preservation preflight");
   const status = await execute("git", ["-c", "core.hooksPath=/dev/null", "status", "--porcelain", "--untracked-files=all"], attached.cwd, options.signal);
   const changed = status.split(/\r?\n/u).filter(Boolean);
   if (changed.length > 0) {
@@ -130,7 +140,8 @@ async function requestWorktreeOperation(
     if (!samePath(left.worktreeRoot, attached.cwd)) throw failure("worktree-context-changed", "the attachment changed during completion");
     const record: CompletionRecord = {
       schema: SCHEMA, sessionId: identity.sessionId, startupRoot: left.startupRoot, commonDir: left.commonDir,
-      ...(localRemoval ? { operation: "remove-local" as const, adapterDigest: localRemoval.digest } : {}),
+      adapterDigest: settlement.digest,
+      ...(settlement.kind === "remove-local" ? { operation: "remove-local" as const } : {}),
       worktreeRoot: left.worktreeRoot, worktreeGitDir: left.worktreeGitDir, branch: left.branch,
       ...(selectors.change === undefined ? {} : { change: selectors.change }),
       ...(selectors.pr === undefined ? {} : { pr: selectors.pr }),
@@ -144,7 +155,7 @@ async function requestWorktreeOperation(
     } finally { await rm(temporary, { force: true }).catch(() => undefined); }
   });
   return { startupRoot: detached.startupRoot, cwd: detached.worktreeRoot, branch: detached.branch,
-    ...(localRemoval ? { operation: "remove-local" as const } : {}) };
+    ...(settlement.kind === "remove-local" ? { operation: "remove-local" as const } : {}) };
 }
 
 /**
@@ -170,13 +181,11 @@ export async function settleSessionWorktreeCompletion(
     if (claim === "live") return result("cleanup-skipped", "a live session attached the checkout again");
     if (claim === "unverifiable") return result("cleanup-skipped", "the checkout's editing claim cannot be verified");
     // Security: the command is the primary checkout's committed declaration, never a file of the task checkout being left.
-    const localAdapter = record.operation === "remove-local" ? await readLocalRemovalAdapter(join(startup, CLEANUP_DECLARATION)) : null;
-    if (record.operation === "remove-local" && (localAdapter === null || localAdapter === "invalid" || localAdapter.digest !== record.adapterDigest)) {
-      return result("cleanup-unavailable", "the exact local-removal adapter is unavailable or changed since preflight; no other operation was substituted");
+    const adapter = await readOperationAdapter(join(startup, CLEANUP_DECLARATION), record.operation ?? "complete");
+    if (adapter === null || adapter === "invalid" || adapter.digest !== record.adapterDigest) {
+      return result("cleanup-unavailable", "the exact adapter is unavailable, changed, or lacks a preservation-preflight binding; no other operation was substituted");
     }
-    const declared = localAdapter && localAdapter !== "invalid" ? localAdapter.execute : await readCleanupDeclaration(join(startup, CLEANUP_DECLARATION));
-    if (declared === null) return result("cleanup-unavailable", `this repository declares no cleanup command in ${CLEANUP_DECLARATION}; the checkout was retained`);
-    if (declared === "invalid") return result("cleanup-unavailable", `${CLEANUP_DECLARATION} must hold {"cleanup": ["program", "argument", ...]}; the checkout was retained`);
+    const declared = adapter.execute;
     const values: Readonly<Record<string, string | undefined>> = {
       primary: startup, worktree: record.worktreeRoot, branch: record.branch,
       change: record.change, pr: record.pr === undefined ? undefined : String(record.pr),
@@ -217,35 +226,20 @@ export function describeWorktreeCompletion(result: WorktreeCompletionResult): st
   ].join("\n");
 }
 
-/** Null when the repository declares nothing; "invalid" when the declaration cannot be used as an argument list. */
-async function readCleanupDeclaration(path: string): Promise<readonly string[] | "invalid" | null> {
-  const metadata = await lstat(path).catch(error => { if (isRecord(error) && (error.code === "ENOENT" || error.code === "ENOTDIR")) return null; throw error; });
-  if (metadata === null) return null;
-  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size === 0 || metadata.size > MAX_RECORD_BYTES) return "invalid";
-  try {
-    const value: unknown = JSON.parse(await readFile(path, "utf8"));
-    const cleanup = isRecord(value) ? value.cleanup : undefined;
-    return Array.isArray(cleanup) && cleanup.length > 0 && cleanup.length <= 64
-      && cleanup.every(part => typeof part === "string" && part.length > 0 && part.length <= 2_048 && !part.includes("\0"))
-      // Compatibility: the element check above establishes the string array.
-      ? cleanup as readonly string[] : "invalid";
-  } catch {
-    return "invalid";
-  }
-}
+interface OperationAdapter { readonly preflight: readonly string[]; readonly execute: readonly string[]; readonly digest: string }
 
-interface LocalRemovalAdapter { readonly preflight: readonly string[]; readonly execute: readonly string[]; readonly digest: string }
-
-async function readLocalRemovalAdapter(path: string): Promise<LocalRemovalAdapter | "invalid" | null> {
+async function readOperationAdapter(path: string, kind: "complete" | "remove-local"): Promise<OperationAdapter | "invalid" | null> {
   try {
     const metadata = await lstat(path);
     if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size === 0 || metadata.size > MAX_RECORD_BYTES) return "invalid";
     const value: unknown = JSON.parse(await readFile(path, "utf8"));
-    const adapter = isRecord(value) ? value.localRemoval : undefined;
+    const adapter = isRecord(value) ? kind === "remove-local" ? value.localRemoval
+      : value.cleanup === undefined && value.cleanupPreflight === undefined ? undefined : { preflight: value.cleanupPreflight, execute: value.cleanup } : undefined;
     if (adapter === undefined) return null;
     const valid = (parts: unknown): parts is readonly string[] => Array.isArray(parts) && parts.length > 0 && parts.length <= 64
       && parts.every(part => typeof part === "string" && part.length > 0 && part.length <= 2_048 && !part.includes("\0"));
-    if (!isRecord(adapter) || !valid(adapter.preflight) || !valid(adapter.execute)) return "invalid";
+    if (!isRecord(adapter) || !valid(adapter.preflight) || !valid(adapter.execute)
+      || !adapter.preflight.some(part => part.includes("{worktree}")) || !adapter.execute.some(part => part.includes("{worktree}"))) return "invalid";
     const command = { preflight: adapter.preflight, execute: adapter.execute };
     return { ...command, digest: createHash("sha256").update(JSON.stringify(command)).digest("hex") };
   } catch (error) { return isRecord(error) && error.code === "ENOENT" ? null : "invalid"; }
