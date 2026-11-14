@@ -19,6 +19,10 @@
 
 Coverage includes quoted/spaced/uppercase-extension file paths, unchanged clipboard-image output, source/emitted file metadata, exact submitted bytes, zero native reads for supplied images, invalid/MIME/source/pixel rejection, vanished files, cancellation, two rapid pastes, different same-name files, later typing, undo/redo, atomic ranges, named count/failure chips, resized labels, sanitized filenames, duplicate attachment delivery, legacy screenshot identities, and durable sidecar retention/reaping.
 
+## CI metadata repair
+
+Finalized-delivery validation rejected the first finalized head because the planning change omitted `.openspec.yaml`. Strict change validation and automatic archival accepted the schema defaults, but the delivery snapshot contract requires the explicit metadata artifact. Added the missing schema and creation date in the existing archive; trusted automation will regenerate the conditional manifest for the changed archive bytes. No product code, tests, acceptance scenarios, or governance requirements were changed.
+
 ## Limitations and disposition
 
 Physical desktop dragging was not performed; production-shell terminal-input fixtures cover the actual supplied-path pipeline without claiming GUI certification. The built checkout can be launched for optional maintainer testing. Multiple/mixed path lists keep the approved existing behavior rather than becoming a new multi-file importer. No unresolved implementation defects are known within scope. No merge or installed-runtime replacement was performed; trusted automation owns readiness and finalization.
