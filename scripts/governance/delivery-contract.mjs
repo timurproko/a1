@@ -3,12 +3,14 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { deliveryPlanningDirectory } from "./delivery-workspace.mjs";
 
-// Provenance: approved snapshot b2e47d1c; changing a payload and its local manifest is not approval.
+// Provenance: snapshot b2e47d1c plus the maintainer-approved paired R11 clarification.
+// Only ordinary documentation auto-merge is restricted; existing release automation is unchanged.
+// Changing a payload and its local manifest without approval remains forbidden.
 export const APPROVED_DELIVERY_HASHES = Object.freeze({
-  "delivery-rules.md": "2e3caedb76ba2da7d1172c2dde0faed9d333a7d6bfa79634734df17ecd3b4d59",
+  "delivery-rules.md": "f2518a1e49317eef3c64c79733162b80613afee0cbdaf6e6945117e1a6be9876",
   "delivery-adapters.json": "8a8b0c4e395003457ce0f2f7d0eae78a9cde227d4db6f4fc550f764e609fd741",
   "delivery-cases.json": "e35a6024a97fe355f7eb9d6efbc8502fd67f2191949b08f6338f07d283d61f4c",
-  "delivery-contract.json": "9e1d879d0456d3d10e4f0c54530e08d642f0662cea6de58832f4ae9888c1564a",
+  "delivery-contract.json": "940f241fbdb925c79b2c9717ead2b41e64f05e93b5ff4d9edd96fb3b11f1faa1",
 });
 export const DELIVERY_ROUTE = "Read and follow [Shared delivery rules](docs/delivery-rules.md). Use only this repository's entry in [Delivery adapters](docs/delivery-adapters.json). Do not paraphrase these rules, invent exceptions, or modify OpenSpec skills/framework; report conflicts before proceeding.";
 

@@ -1,5 +1,7 @@
 # Implementation observations
 
+Current R11 disposition: the maintainer-approved paired clarification in `r11-clarification.md` resolves the later wording blocker described below. Prior observations remain historical; this clarification changes no release behavior, case expectations or adapter values and does not claim new full-suite or CI results.
+
 ## Written and published checkpoints
 
 - R20 reconciliation was recorded against `b2e47d1cba0129b2cb6ae5b832d8cd96f060994d` before implementation. That checkpoint contained planning only; no implementation or prior completed tasks were discarded.
@@ -28,7 +30,7 @@ The audit's delivery-body suite-loader failure is not reproducible with the pinn
 
 ## Independent completion after the release scope decision
 
-The maintainer directed that release-specific automation remain unchanged and outside this PR. The proposed manual-only conversion was rejected; no local R11 refinement or exception was authorized. Task 5.4 and the independent ordinary-documentation portion of 5.2 are written. Only coordinated R11 clarification keeps 5.2 and the fifth PR outcome incomplete.
+The maintainer directed that release-specific automation remain unchanged and outside this PR. The proposed manual-only conversion was rejected; no local R11 refinement or exception was authorized. Task 5.4 and the independent ordinary-documentation portion of 5.2 are written. At that checkpoint, coordinated R11 clarification kept 5.2 and the fifth PR outcome incomplete; the subsequent approved resolution is recorded in `r11-clarification.md`.
 
 - Reconciled the topic with `origin/develop` through a history-preserving topic merge, retaining upstream identity/detach recovery and completed task work. This was not a PR merge or protected-branch push.
 - Added byte-preservation checks for version-1/2 receipt bodies/trees and historical cleanup journals, and explicit current/legacy command dispatch equivalence under both release capabilities.

@@ -1,5 +1,7 @@
 # Contract reconciliation
 
+Current R11 resolution: the maintainer explicitly approved the paired scope clarification recorded in `r11-clarification.md`. R11 governs ordinary documentation auto-merge; existing release-specific automation remains unchanged under its existing eligibility and authorization rules. Both repositories' planning/deployed rulebooks and verification hashes are updated together. The historical R11 blocker below no longer requires approval; verify the clarified snapshot before recording completion. All other scope, validation and integration gates remain in force.
+
 ## Inspected checkpoint
 
 - Repository: `timurproko/a1`; PR: `923`; branch: `chore/simplify-change-delivery`.
