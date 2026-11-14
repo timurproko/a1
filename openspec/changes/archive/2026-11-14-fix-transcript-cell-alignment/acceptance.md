@@ -17,7 +17,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-14-fix-transcript-cell-alignment/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-14-fix-transcript-cell-alignment/acceptance.md",
   "finalizedDate": "2026-11-14",
-  "specBaseSha": "ac3f4997237d0a17e346c55e5b39d30cade34b0b",
+  "specBaseSha": "ad443f2db9546d40472bcee2e99a727e0a4818c4",
   "acceptanceScenarios": [
     "Bare and VS15 frame and printer pictographs occupy one cell, while VS16 presentations and default-wide emoji retain two-cell geometry.",
     "Padding, truncation, overlays, and forward or reverse selection preserve complete styled graphemes and the original copied text.",
