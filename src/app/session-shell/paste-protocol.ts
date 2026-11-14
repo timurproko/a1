@@ -9,7 +9,7 @@ export const PASTE_STOP_MS = 250;
 export const PASTE_TEXT_BYTES = MAX_CLIPBOARD_TEXT_BYTES;
 export const PASTE_CHUNK_UNITS = 16_384;
 export const PASTE_REQUESTS = 8;
-export type PreparedPaste = PreparedPasteText | ({ readonly kind: "image" } & PreparedImage) | null;
+export type PreparedPaste = PreparedPasteText | ({ readonly kind: "image"; readonly fileName?: string } & PreparedImage) | null;
 /** The predecessor is captured at admission; a later copy cannot change what this paste waits for. */
 export type PasteSource =
   | { readonly kind: "native"; readonly imagesOnly?: true; readonly before?: (signal: AbortSignal) => Promise<boolean> }
@@ -35,8 +35,8 @@ export type PasteHelperInput =
   | { readonly kind: "cancel" };
 export type PasteHelperOutput =
   | { readonly kind: "ready" }
-  | { readonly kind: "phase"; readonly phase: "acquired-text" | "acquired-image" | "classifying" | "path-fallback" | "prepared"; readonly bytes?: number }
-  | { readonly kind: "output"; readonly type: "text" | "url" | "paths" | "image" | "empty"; readonly label?: string; readonly mimeType?: string; readonly width?: number; readonly height?: number; readonly transformed?: boolean }
+  | { readonly kind: "phase"; readonly phase: "acquired-text" | "acquired-image" | "classifying" | "path-fallback" | "prepared"; readonly bytes?: number; readonly fileName?: string }
+  | { readonly kind: "output"; readonly type: "text" | "url" | "paths" | "image" | "empty"; readonly label?: string; readonly mimeType?: string; readonly width?: number; readonly height?: number; readonly transformed?: boolean; readonly fileName?: string }
   | { readonly kind: "data"; readonly data: string }
   | { readonly kind: "path"; readonly path: ClipboardPath }
   | { readonly kind: "done" }

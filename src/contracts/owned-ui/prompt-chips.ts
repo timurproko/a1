@@ -1,5 +1,18 @@
 const PROMPT_CHIP_PATTERN = /\[(?:paste #\d+ (?:\+\d+ lines|\d+ chars)|📷 [^\]]+|📁 [^\]]+|📄 [^\]]+|🖼 {1,2}[^\]]+|🔗 [^\]]+)\]/gu;
+const IMAGE_CHIP_IDENTIFIER_PATTERN = /^(?:\[📷 screenshot-([a-f0-9]+)(?:-resized)?\]|\[🖼 {1,2}[^\]\r\n]+ #([a-f0-9]+)(?:-resized)?\])$/u;
 const ZERO_WIDTH_MARKERS = ["\u2060", "\u200b", "\u200c", "\u200d", "\ufeff"] as const;
+
+/** Returns the durable payload key for clipboard and filename-bearing image attachments. */
+export function imagePromptChipIdentifier(tag: string): string | null {
+  const match = IMAGE_CHIP_IDENTIFIER_PATTERN.exec(tag);
+  return match?.[1] ?? match?.[2] ?? null;
+}
+
+/** Builds an atomic file-image label with an independent durable attachment identity. */
+export function imageFilePromptChipTag(fileName: string, id: string, transformed = false): string {
+  const label = fileName.replace(/[\u0000-\u001f\u007f-\u009f\[\]]/gu, "�").trim().slice(0, 256) || "image";
+  return `[🖼 ${label} #${id}${transformed ? "-resized" : ""}]`;
+}
 
 export interface PromptChipTextMatch {
   readonly text: string;

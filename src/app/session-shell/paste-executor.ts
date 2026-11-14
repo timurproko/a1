@@ -7,7 +7,20 @@ import type { ClipboardPath } from "./paste-text-preparation.js";
 import { HelperPool } from "./helper-pool.js";
 
 export interface PasteExecutorJob { readonly result: Promise<PreparedPaste>; readonly stopped: Promise<void>; cancel(): void }
-type PastePhase = (phase: PasteEvent["phase"], bytes?: number) => void;
+type PastePhase = (phase: PasteEvent["phase"], bytes?: number, fileName?: string) => void;
+function validFileName(value: unknown): boolean {
+  return value === undefined || typeof value === "string" && value.length > 0 && value.length <= 1024 && !/[\\/]/u.test(value);
+}
+function validPhase(message: Extract<PasteHelperOutput, { kind: "phase" }>, phases: ReadonlySet<string>): boolean {
+  return ["acquired-text", "acquired-image", "classifying", "path-fallback", "prepared"].includes(message.phase)
+    && !phases.has(message.phase) && validFileName(message.fileName)
+    && (message.fileName === undefined || message.phase === "acquired-image");
+}
+function validOutputHeader(message: Extract<PasteHelperOutput, { kind: "output" }>): boolean {
+  return ["text", "url", "paths", "image", "empty"].includes(message.type) && (message.label?.length ?? 0) <= 256
+    && (message.mimeType?.length ?? 0) <= 256 && validFileName(message.fileName)
+    && (message.fileName === undefined || message.type === "image");
+}
 const live = new Set<ChildProcess>();
 const conversionQueue: ChildProcess[] = [];
 let converting: ChildProcess | undefined;
@@ -99,15 +112,14 @@ export function startPasteExecutor(content: OwnedUiShellClipboardContent | undef
     if (message?.kind === "ready") {
       advance();
     } else if (message?.kind === "phase") {
-      if (!["acquired-text", "acquired-image", "classifying", "path-fallback", "prepared"].includes(message.phase) || phases.has(message.phase)) { fail(); return; }
+      if (!validPhase(message, phases)) { fail(); return; }
       phases.add(message.phase);
-      phase(message.phase, message.bytes);
+      phase(message.phase, message.bytes, message.fileName);
       // Concurrency: lifecycle observers may synchronously cancel; never grant new conversion work afterward.
       if (canceled) return;
       if (message.phase === "acquired-image") { conversionQueue.push(child); permitConversion(); }
     } else if (message?.kind === "output" && !header) {
-      if (!["text", "url", "paths", "image", "empty"].includes(message.type) || (message.label?.length ?? 0) > 256
-        || (message.mimeType?.length ?? 0) > 256) { fail(); return; }
+      if (!validOutputHeader(message)) { fail(); return; }
       header = message; input = undefined;
       send({ kind: "next" });
     } else if (message?.kind === "data" && header && ["text", "url", "image"].includes(header.type)) {
@@ -156,6 +168,7 @@ export function startPasteExecutor(content: OwnedUiShellClipboardContent | undef
       else if (header.type === "paths") resolve({ kind: "paths", paths });
       else if (header.mimeType && Number.isSafeInteger(header.width) && Number.isSafeInteger(header.height) && header.width! > 0 && header.height! > 0) resolve({
         kind: "image", data: payload, mimeType: header.mimeType, width: header.width!, height: header.height!, transformed: header.transformed === true,
+        ...(header.fileName === undefined ? {} : { fileName: header.fileName }),
       });
       else reject(new ImageAttachmentError("paste-unavailable"));
     } else reject(failure ?? new ImageAttachmentError(canceled ? "image-canceled" : "paste-unavailable"));
