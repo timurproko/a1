@@ -18,8 +18,9 @@ const PATH_OR_URL = /(?:[a-z][a-z0-9+.-]*:\/\/|www\.)[^\s<>]+|[^\s<>]*[\\/][^\s<
 
 /** Adds display-only emoji intent to prose tokens, preserving Markdown syntax and protected source. */
 export function presentEmojiMarkdown(markdown: string): string {
-  if (!/[^\x00-\x7f]/u.test(markdown)) return markdown;
+  if (!/[\p{Emoji}&&\P{Emoji_Presentation}&&\P{ASCII}]/v.test(markdown)) return markdown;
   const additions = new Map<number, string>();
+  const chips = canonicalPromptChipMatches(markdown);
   const visit = (nodes: readonly MarkdownNode[], parent: string, positions: readonly number[]): void => {
     let cursor = 0;
     for (const node of nodes) {
@@ -36,15 +37,12 @@ export function presentEmojiMarkdown(markdown: string): string {
       if (children !== undefined) {
         visit(children, raw, mapped);
       } else if (node.type === "text" || node.type === "escape") {
-        const protectedRanges = [
-          ...canonicalPromptChipMatches(raw),
-          ...[...raw.matchAll(PATH_OR_URL)].map(match => ({ start: match.index, end: match.index + match[0].length })),
-        ];
+        const paths = [...raw.matchAll(PATH_OR_URL)].map(match => ({ start: match.index, end: match.index + match[0].length }));
         // Rationale: use grapheme additions from the shared policy, never a hand-maintained symbol list.
         emojiPresentation(raw, true, (offset, addition) => {
-          if (!protectedRanges.some(range => offset > range.start && offset <= range.end)) {
-            additions.set(mapped[offset - 1]! + 1, addition);
-          }
+          const position = mapped[offset - 1]! + 1;
+          if (!paths.some(range => offset > range.start && offset <= range.end)
+            && !chips.some(range => position > range.start && position <= range.end)) additions.set(position, addition);
         });
       }
     }
