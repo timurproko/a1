@@ -37,6 +37,8 @@ import { renderPiShellChangelogLines } from "../integrations/pi/components/shell
 import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { HerdrBindingReservation } from "../features/owned-ui/herdr-binding.js";
+import { createOwnedRuntimeContext, type OwnedRuntimeContext } from "../features/owned-ui/runtime-context.js";
+import { RuntimeApiLifecycle } from "../features/owned-ui/runtime-api-lifecycle.js";
 import type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
 import { bindAutomaticSessionNaming } from "./session-naming.js";
 import { deferStartupReleaseUpdateObservation, readPackageVersion, StartupReleaseNote } from "./startup-route.js";
@@ -55,7 +57,9 @@ export interface OwnedUiCompositionOptions {
   readonly sessionColor?: UiAccentColor;
   readonly promptArguments?: readonly string[];
   readonly runtimeOptions?: import("../foundation/launch-context/index.js").RuntimeLaunchOptions;
-  /** Early bare-launch reservation; never supplied to comparison/noninteractive compositions. */
+  /** Explicit independent-process context shared by every normal-product API. */
+  readonly runtimeContext?: OwnedRuntimeContext;
+  /** Legacy embedded callers may pass an already-owned reservation. */
   readonly herdrBinding?: HerdrBindingReservation;
   readonly sessionForkPrompt?: PiSessionForkPrompt;
   /** A1 settings profile; comparison paths omit it. */
@@ -86,9 +90,9 @@ const inspectLiveProcessOnDemand = async (pid: number) =>
   (await import("../foundation/lifecycle/process-liveness.js")).inspectLiveProcess(pid);
 
 /** Load coordination only when composing a session, not while evaluating the startup facade. */
-async function createSessionRuntimes(bare: boolean, inspectProcess: (pid: number) => Promise<ProcessIdentity | null>) {
+async function createSessionRuntimes(runtimeId: string | undefined, inspectProcess: (pid: number) => Promise<ProcessIdentity | null>) {
   const { SessionRuntimeRegistry } = await import("./session-runtime-registry.js");
-  return new SessionRuntimeRegistry({ runtimeId: bare ? process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] : undefined, inspectProcess });
+  return new SessionRuntimeRegistry({ runtimeId, inspectProcess });
 }
 
 export async function composeOwnedUiApplication(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiApplicationPort> {
@@ -98,7 +102,10 @@ export async function composeOwnedUiApplication(options: OwnedUiCompositionOptio
 export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiComposition> {
   const cwd = options.cwd ?? process.cwd();
   const productMode = options.productMode ?? "bare", bare = productMode === "bare";
-  const sessionRuntimes = await createSessionRuntimes(bare, options.inspectProcess ?? inspectLiveProcessOnDemand);
+  const inheritedRuntimeId = process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId];
+  const runtimeContext = options.runtimeContext ?? createOwnedRuntimeContext(inheritedRuntimeId, options.herdrBinding);
+  const claimRuntimeId = bare && (options.runtimeContext !== undefined || inheritedRuntimeId !== undefined) ? runtimeContext.runtimeId : undefined;
+  const sessionRuntimes = await createSessionRuntimes(claimRuntimeId, options.inspectProcess ?? inspectLiveProcessOnDemand);
   const productPaths = resolveProductPaths();
   // Rationale: the manager reads the engine's settings port lazily, after the session exists.
   let backend: ComposedSessionBackend;
@@ -112,7 +119,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     backend = await host.create({
       cwd,
       ...(bare ? { repositoryContextReader: sessionRuntimes.readerFor(undefined) } : {}),
-      ...(bare && process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] !== undefined
+      ...(claimRuntimeId !== undefined
         ? { worktreeCwdReader: sessionRuntimes.toolReaderFor(undefined) } : {}),
       ...(options.sessionPath === undefined ? {} : { sessionPath: options.sessionPath }),
       ...(options.sessionSelection === undefined ? {} : { sessionSelection: options.sessionSelection }),
@@ -131,12 +138,13 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     ...(options.packageVersion === undefined ? {} : { packageVersion: options.packageVersion }),
     ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
   });
-  const sessionColor = bindSessionColor(backend, bareSettings, color => host.setAccentColor(color), productPaths.runtimeDir, options.herdrBinding);
+  const sessionColor = bareSettings === null ? null : new RuntimeApiLifecycle(backend, bareSettings, color => host.setAccentColor(color),
+    () => import("./session-colors.js").then(module => module.startSessionColorControl(backend, bareSettings, productPaths.runtimeDir, runtimeContext.runtimeId, undefined, runtimeContext)));
   // Rationale: peer refresh shares persisted preferences, never session-local Current color.
   const unwatchSharedSettings = bareSettings === null
     ? () => {}
     : watchSharedSettings(bareSettings);
-  const unsubscribeAccent = async (): Promise<void> => { unwatchSharedSettings(); await sessionColor.dispose(); };
+  const unsubscribeAccent = async (): Promise<void> => { unwatchSharedSettings(); await sessionColor?.dispose(); };
 
   // Invariant: the Settings search and agent prompt borrow the same resolved Pi keybindings.
   const keybindingsHost = createPiKeybindingsHost({ profile: bare ? "a1" : "pi", agentDir: backend.identity.agentDir });
@@ -234,7 +242,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       if (exitNoticePath) exitNotice = import("../app/session-shell/exit-notice.js")
         .then(module => module.armExitNotice(backend, exitNoticePath), () => null);
       presenter.start();
-      sessionColor.start();
+      sessionColor?.start();
       releaseUpdates.start();
     },
     flush: startupPromptFlush(backend, bare ? options.promptArguments : undefined, () => terminalHost.runtime.renderNow()),
@@ -273,29 +281,6 @@ function startupPromptFlush(backend: ComposedSessionBackend, arguments_: readonl
       present();
       await backend.session.execute({ type: "prompt", correlationId: randomUUID(), sessionId: backend.identity.sessionId, text });
     }
-  };
-}
-
-function bindSessionColor(backend: ComposedSessionBackend, settings: OwnedSettingsManager | null, apply: (color: UiAccentColor) => void, runtimeDir: string, herdrBinding?: HerdrBindingReservation) {
-  if (settings === null) return { start() {}, async dispose() {} };
-  let control: Promise<{ dispose(): Promise<void> } | null> = Promise.resolve(null);
-  let started = false, stopped = false;
-  const unsubscribe = settings.onChange(current => apply(current.value("accentColor")));
-  let binding = backend.identity.sessionBindingGeneration;
-  const unbind = backend.session.onEvent(() => {
-    if (binding === backend.identity.sessionBindingGeneration) return;
-    binding = backend.identity.sessionBindingGeneration;
-    settings.startSession();
-  });
-  return {
-    start() {
-      if (started || stopped) return;
-      started = true;
-      control = import("./session-colors.js").then(module => stopped ? null
-        : module.startSessionColorControl(backend, settings, runtimeDir, process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId], herdrBinding))
-        .catch(() => null);
-    },
-    async dispose() { stopped = true; unbind(); unsubscribe(); await (await control)?.dispose(); },
   };
 }
 

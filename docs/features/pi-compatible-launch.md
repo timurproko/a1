@@ -6,6 +6,16 @@ Only `a1` remains globally registered by npm. To opt in, prepend the installed p
 
 The shim starts the shipped Node entry, which uses A1's ordinary immutable-release/bootstrap/guardian path. It never invokes an independently installed vanilla Pi. A retained release without authenticated support for the new runtime payload is refused; options/instructions are never dropped to allow fallback.
 
+## Product API parity
+
+The compatible executable uses the same normal-product API identity and lifecycle
+as ordinary A1, including session color control, native Herdr reporting and
+session/worktree context. External clients use the existing public `a1` commands
+for sessions started by either launcher. The compatible parser remains an
+instruction grammar, not a second control CLI. API capability responses and
+identity/expiry/acknowledgement protections are unchanged; comparison `a1 pi` and
+noninteractive operations retain their intentional exclusions.
+
 ## Supported contract
 
 - One positional instruction, or literal arguments after `--`, reaches the ordinary prompt path once after startup and first presentation. Quotes, Unicode, spaces and newlines are not shell-evaluated. The complete joined prompt must be NUL-free and at most 32768 UTF-8 bytes; oversized input fails rather than truncates.

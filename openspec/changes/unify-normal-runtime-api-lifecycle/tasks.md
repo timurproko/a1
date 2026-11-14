@@ -1,9 +1,9 @@
 ## 1. Shared normal-product API lifecycle for both launchers
 
-- [ ] 1.1 Introduce an explicit immutable runtime integration context captured at independent UI entry; ordinary and compatible launch fixtures assert one runtime identity across color control, terminal reporting and existing worktree/session context.
-- [ ] 1.2 Move integration start/replacement/disposal policy into a focused lifecycle owner, with composition only constructing and connecting the existing API owners; lifecycle fixtures assert one endpoint/reporter and idempotent bounded teardown.
-- [ ] 1.3 Route both normal entrypoints through that owner without grammar/profile changes; parity fixtures cover external color commands and attached built-in tool/worktree context, including extension startup and session replacement.
-- [ ] 1.4 Preserve comparison/noninteractive/unsupported-context exclusions and existing CLI JSON/capability schemas in focused negative regressions; document that API parity is not identical launcher grammar or a second control CLI.
+- [x] 1.1 Introduce an explicit immutable runtime integration context captured at independent UI entry; ordinary and compatible launch fixtures assert one runtime identity across color control, terminal reporting and existing worktree/session context.
+- [x] 1.2 Move integration start/replacement/disposal policy into a focused lifecycle owner, with composition only constructing and connecting the existing API owners; lifecycle fixtures assert one endpoint/reporter and idempotent bounded teardown.
+- [x] 1.3 Route both normal entrypoints through that owner without grammar/profile changes; parity fixtures cover external color commands and attached built-in tool/worktree context, including extension startup and session replacement.
+- [x] 1.4 Preserve comparison/noninteractive/unsupported-context exclusions and existing CLI JSON/capability schemas in focused negative regressions; document that API parity is not identical launcher grammar or a second control CLI.
 
 ## 2. Ordered successor reporting through ordinary publication contention
 
