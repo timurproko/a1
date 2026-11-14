@@ -26,7 +26,7 @@ The maintainer integration decision accepts these scenarios:
     "A Kitty image on an over-width row is still drawn while the text beside it is clipped.",
     "Rows that already fit the terminal are rendered exactly as before."
   ],
-  "archiveDigest": "e1f37aeb96f07ef1c2ab3c785f71e5df42d5e502c6a3fb43f93cc636afc54491",
+  "archiveDigest": "66d54c81fe16eba7936464c8cff1dbad04f514efcef665a6d82665f4b76cca6f",
   "specDigest": "dfb7a42f8bfc5cfad76052d0a8348c9bf0e9cf689932f970d1652206f126bc1b",
   "tasksDigest": "2067b889c5e59af9dc06c5bcdafabcfcb529b14a6ddcfb7f8da3f85ad6678227",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
