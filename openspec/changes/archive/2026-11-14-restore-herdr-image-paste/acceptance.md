@@ -32,10 +32,10 @@ The maintainer integration decision accepts these scenarios:
     "Ambiguous markerless remote raw gestures retain documented host-image-only access, not verified viewer ownership.",
     "Image limits, ordered reservations, cancellation, undo, and history attachment recovery retain bounded behavior."
   ],
-  "archiveDigest": "c263f4153a7e7ad48c3db8c36b6c0855507412966b002333a42631d39ff1eddc",
+  "archiveDigest": "0241d2a3d0871c2c4a079faa296c264e96bbd60aef1c348ebc849a9a514746f0",
   "specDigest": "21214f8311f3f8de3137c9ab214ea20d52eca6ce0d227d9d849afd79cfb00a07",
   "tasksDigest": "c7b1d0bdd43363e900e0406a6e7015ee1be703e8a747dccf9bab840bc9eea7af",
-  "evidenceDigest": "0c7f780bf4f0fcfd5aff643271b8d088e881973dc66e6aaf5de126bcc4f5445a",
+  "evidenceDigest": "6aaec000b003da7c99353f5793b607d8a5aec0c2da24bcfeca57c25a91a3afd9",
   "knownGaps": []
 }
 ```
