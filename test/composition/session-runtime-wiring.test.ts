@@ -41,7 +41,7 @@ vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => (
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: (_settings: unknown, _references: unknown, options: OwnedRouteHostOptions) => {
   observed.routeOptions = options; return null;
 } }));
-vi.mock("../../src/composition/session-colors.js", () => ({ startSessionColorControl: async (_backend: unknown, _settings: unknown, _directory: string, runtime: string | OwnedRuntimeContext) => {
+vi.mock("../../src/composition/integration-api.js", () => ({ startIntegrationControl: async (_backend: unknown, _settings: unknown, _directory: string, runtime: string | OwnedRuntimeContext) => {
   observed.controlRuntime = typeof runtime === "string" ? runtime : runtime.runtimeId; return { dispose: async () => {} };
 } }));
 vi.mock("../../src/app/session-shell/system-clipboard.js", () => ({ writeSystemClipboardText: observed.clipboardWrite }));

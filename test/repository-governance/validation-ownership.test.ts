@@ -24,12 +24,29 @@ describe("bounded PR-core ownership", () => {
     ["image/history", "src/features/prompt-history/service.ts", "image-history"],
     ["governance", "scripts/governance/check-architecture.mjs", "governance"],
     ["shared product", "src/composition/workspace.ts", "shared-product"],
+    ["application settings", "src/app/settings/manager.ts", "shared-product"],
+    ["integration API", "src/features/integration-api/service.ts", "shared-product"],
   ])("selects the %s coarse owner", (_label, path, owner) => {
     const result = select([path]);
     expect(result.mode).toBe("impact");
     expect(result.owners.find(decision => decision.owner === owner)).toMatchObject({ selected: true });
     const criticalTests = authority.policy.owners.find((candidate: any) => candidate.id === owner).criticalTests;
     expect([...result.tests, ...result.resourceTests]).toEqual(expect.arrayContaining(criticalTests));
+  });
+
+  it.each([
+    ["src/app/settings/declarations.ts", "test/app/settings/declarations.test.ts"],
+    ["src/app/settings/profile-document.ts", "test/app/settings/profile-document.test.ts"],
+    ["src/features/integration-api/service.ts", "test/features/integration-api/service.test.ts"],
+  ])("retains application/API tests for %s and their own changes", (source, test) => {
+    expect(authority.ledger.find((entry: { test: string }) => entry.test === test)).toMatchObject({ owner: "shared-product", fastOwner: "fast-remainder" });
+    for (const path of [source, test]) {
+      const result = select([path]);
+      expect(result.mode).toBe("impact");
+      expect(result.unknown).toEqual([]);
+      expect(result.owners.find(owner => owner.owner === "shared-product")?.selected).toBe(true);
+      expect(result.tests).toContain(test);
+    }
   });
 
   it("owns session naming and retains its tests for feature changes and conservative selection", () => {

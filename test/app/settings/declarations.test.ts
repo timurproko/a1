@@ -6,7 +6,7 @@ import {
   findOwnedUiSettingDeclaration,
   isOwnedSettingId,
   type OwnedUiSettingDeclaration,
-} from "../../../src/ui/settings/index.js";
+} from "../../../src/app/settings/index.js";
 
 describe("owned UI setting declarations", () => {
   it("is one table keyed by id, from which the ordered list and the id guard derive", () => {

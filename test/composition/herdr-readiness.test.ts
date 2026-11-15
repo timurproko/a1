@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { startSessionColorControl } from "../../src/composition/session-colors.js";
+import { startIntegrationControl } from "../../src/composition/integration-api.js";
 import type { OwnedUiSessionBackend } from "../../src/contracts/owned-ui/index.js";
 import type { OwnedSettingsManager } from "../../src/ui/settings/manager.js";
 const observed = vi.hoisted(() => ({ fail: false, release: undefined as (() => void) | undefined, reporter: vi.fn(), request: vi.fn(), dispose: vi.fn() }));
@@ -20,12 +20,12 @@ describe("reporting readiness and replacement publication ordering", () => {
   it("does not create a reporter for failed endpoint startup", async () => {
     vi.clearAllMocks(); observed.fail = true;
     const f = fixture();
-    await expect(startSessionColorControl(f.backend, {} as OwnedSettingsManager, "unused", f.runtimeId, f.reservation)).rejects.toThrow("endpoint unavailable");
+    await expect(startIntegrationControl(f.backend, {} as OwnedSettingsManager, "unused", f.runtimeId, f.reservation)).rejects.toThrow("endpoint unavailable");
     expect(observed.reporter).not.toHaveBeenCalled(); observed.fail = false;
   });
   it("withholds a replacement identity until endpoint publication finishes and unsubscribes on disposal", async () => {
     vi.clearAllMocks(); const f = fixture();
-    const control = await startSessionColorControl(f.backend, {} as OwnedSettingsManager, "unused", f.runtimeId, f.reservation);
+    const control = await startIntegrationControl(f.backend, {} as OwnedSettingsManager, "unused", f.runtimeId, f.reservation);
     const options = observed.reporter.mock.calls[0]![0] as { identity: () => unknown };
     expect(options.identity()).toMatchObject({ sessionId: f.identity.sessionId, binding: 1 });
     f.identity.sessionId = randomUUID(); f.identity.sessionBindingGeneration++; f.emit();

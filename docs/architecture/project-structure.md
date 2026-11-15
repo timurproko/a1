@@ -11,10 +11,12 @@ src/
   cli/                             public command parsing, capabilities, packages, and version reporting
   composition/                     process-level wiring of neutral contracts to concrete adapters
   app/
+    settings/                       shared settings declarations, validation, resolution and persistence
     session-shell/                 the owned session shell: composes features, UI components, and the Pi adapters into the interactive session
   features/
     launch/                        launch profiles, profile paths, and runtime selection
     owned-ui/                      owned screens, settings application, diagnostics, and runtime lifecycle
+    integration-api/               versioned external settings and exact-session protocol
     prompt-history/                profile-isolated prompt retention and bounded SQLite worker lifecycle
     prompt-suggestions/            opt-in bounded metadata capture and local diagnostic snapshots
     session-naming/                prompt-driven naming policy, bounded generation, and context-aware regeneration
@@ -38,7 +40,7 @@ src/
   ui/
     apps/                          application registry and host lifecycle
     components/                    vendor-neutral terminal UI primitives
-    settings/                      owned settings declarations, resolution, and persistence
+    settings/                      settings-screen section and presentation projection
 ```
 
 Each directory owner exposes `index.ts`, which lists its named exports; `export *` is rejected there so a public contract is readable in one place. Imports within one owner may use private files. Imports crossing owners must use the provider's public entry and follow the dependency DAG declared by `PROJECT_OWNERS`. Two exceptions exist: `src/composition` is the dependency-injection root and may reach past any public entry, and a module on the eager startup path may import a leaf of a provider whose public entry is a prohibited startup entry (`PROHIBITED_STARTUP_ENTRIES` in `startup-graph-policy.mjs`), because loading that barrel would pull the provider's whole graph into startup. `product-identity` is the sole exception to the directory-entry convention because its public entry is `src/product-identity.ts`.

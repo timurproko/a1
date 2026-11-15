@@ -11,7 +11,7 @@ import {
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
     expect(Object.keys(PROJECT_OWNERS)).toEqual([
-      "product-identity", "cli", "composition", "session-shell", "launch", "owned-ui", "session-naming", "prompt-suggestions", "prompt-history", "terminal-cleanup", "launch-context", "session-writer-lock", "startup", "lifecycle", "release", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-presenters",
+      "product-identity", "cli", "composition", "session-shell", "launch", "owned-ui", "session-naming", "prompt-suggestions", "prompt-history", "terminal-cleanup", "launch-context", "session-writer-lock", "startup", "lifecycle", "release", "owned-ui-contracts", "ui-components", "ui-apps", "application-settings", "integration-api", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-presenters",
     ]);
     for (const owner of Object.values(PROJECT_OWNERS)) {
       if (owner.id === "product-identity") {

@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  OwnedSettingsManager,
+  ApplicationSettings as OwnedSettingsManager,
   settingValue,
   type OwnedUiSettingDeclaration,
-} from "../../../src/ui/settings/index.js";
+} from "../../../src/app/settings/index.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
 const PRODUCT_NAMESPACE = PRODUCT_IDENTITY.commandName;
