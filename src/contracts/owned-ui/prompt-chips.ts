@@ -1,4 +1,4 @@
-const PROMPT_CHIP_PATTERN = /\[(?:paste #\d+ (?:\+\d+ lines|\d+ chars)|📷 [^\]]+|(?:📁|📄|🖼\uFE0F?) {0,2}[^\]]+|🔗 [^\]]+)\]/gu;
+const PROMPT_CHIP_PATTERN = /\[(?:paste #\d+ (?:\+\d+ lines|\d+ chars)|📷 ?[^\]]+|(?:📁|📄|🖼\uFE0F?) {0,2}[^\]]+|🔗 [^\]]+)\]/gu;
 const IMAGE_CHIP_IDENTIFIER_PATTERN = /^(?:\[📷 screenshot-([a-f0-9]+)(?:-resized)?\]|\[🖼\uFE0F? {1,2}[^\]\r\n]+ #([a-f0-9]+)(?:-resized)?\])$/u;
 const ZERO_WIDTH_MARKERS = ["\u2060", "\u200b", "\u200c", "\u200d", "\ufeff"] as const;
 
@@ -27,10 +27,10 @@ export interface PromptChipTextMatch extends PromptChipTextRange {
 export function attachmentPromptChipHiddenRanges(text: string): readonly PromptChipTextRange[] {
   const ranges: PromptChipTextRange[] = [];
   for (const match of canonicalPromptChipMatches(text)) {
-    const parts = /^(\[(?:📁|📄|🖼\uFE0F?))( {1,2})([^\]]+)\]$/u.exec(match.text);
+    const parts = /^(\[(?:📷|📁|📄|🖼\uFE0F?))( {1,2})([^\]]+)\]$/u.exec(match.text);
     if (parts === null) continue;
     const labelStart = parts[1]!.length + parts[2]!.length;
-    const label = parts[3]!;
+    const label = parts[1] === "[📷" ? "" : parts[3]!;
     const metadata = / #(?:[A-Za-z]:[\\/]|\/)[^\r\n]+$/u.exec(label)
       ?? (parts[1]!.includes("🖼") ? / #[a-f0-9]+(?:-resized)?(?:-failed)?$/u.exec(label) : null);
     const labelEnd = metadata?.index ?? label.length;
@@ -45,7 +45,7 @@ export function attachmentPromptChipHiddenRanges(text: string): readonly PromptC
   return ranges;
 }
 
-/** Presents icon-plus-basename labels without rewriting chip source. */
+/** Compacts attachment labels without rewriting chip source. */
 export function compactAttachmentPromptChips(text: string): string {
   for (const range of [...attachmentPromptChipHiddenRanges(text)].reverse()) {
     text = text.slice(0, range.start) + text.slice(range.end);
