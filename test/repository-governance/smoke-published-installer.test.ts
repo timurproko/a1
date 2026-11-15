@@ -232,4 +232,79 @@ describe("published installer smoke evidence", () => {
     await expect(smokePublishedInstaller({ environment, spawnSync: () => ({ ...ok, status: null, error: new Error("spawn ENOENT") }) })).rejects.toThrow(/ENOENT/u);
     expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({ outcome: "failure", child: { status: null, error: "spawn ENOENT" } });
   });
+
+  it("records the live process set, update records, npm log identities, and stage durations when the predecessor update stalls", async () => {
+    const { output, environment } = await fixture();
+    const order: string[] = [];
+    let root = "";
+    const stalledArgv = [process.execPath, "npm-cli.js", "install", "--global", `--//registry/:_authToken=${environment.NODE_AUTH_TOKEN}`];
+    await expect(runSmoke({
+      environment: { ...environment, AUTH_WORD: "root" },
+      createRunner: fixtureRoot => {
+        root = fixtureRoot;
+        roots.push(fixtureRoot);
+        return {
+          run: (command, args, options) => {
+            if (args[0] !== "update") return successfulCommand(command, args, options);
+            const capsule = resolve(fixtureRoot, "update-data", "update-recovery", "5f1c0e2a-tx");
+            mkdirSync(capsule, { recursive: true });
+            writeFileSync(resolve(fixtureRoot, "update-data", "update-transaction.json"), JSON.stringify({ phase: "ownership-released", token: environment.NODE_AUTH_TOKEN }));
+            writeFileSync(resolve(capsule, "owner.json"), JSON.stringify({ pid: 4321, heartbeatAt: "2026-11-15T17:31:51Z" }));
+            writeFileSync(resolve(capsule, "capsule.json"), JSON.stringify({ npmCli: "ignored manifest" }));
+            const logs = resolve(options.env.npm_config_cache!, "_logs");
+            mkdirSync(logs, { recursive: true });
+            writeFileSync(resolve(logs, "2026-11-15T17_21_52_159Z-debug-0.log"), `7 verbose argv "root" "--global"\n15 verbose exit 0\n`);
+            writeFileSync(resolve(logs, "2026-11-15T17_22_10_000Z-debug-0.log"), "895 http cache dependency.tgz 0ms (cache hit)\n");
+            return { ...ok, status: null, error: new Error("published smoke command timed out after 1200000ms"), stdout: "a1 update: 0.2.7-dev.1307 → 0.2.7-dev.1316\nnpm root --global" };
+          },
+          inventory: async () => { order.push("inventory"); return [{ pid: 4321, parent: 1, start: "4321", executable: process.execPath, argv: stalledArgv }]; },
+          close: async () => { order.push("close"); },
+        };
+      },
+    })).rejects.toThrow("timed out after 1200000ms");
+    expect(order).toEqual(["inventory", "close"]);
+    const text = await readFile(output, "utf8");
+    expect(text).not.toContain(environment.NODE_AUTH_TOKEN);
+    const evidence = JSON.parse(text) as Record<string, unknown>;
+    expect(evidence).toMatchObject({
+      outcome: "failure", stage: "update-predecessor",
+      child: { stdout: expect.stringContaining("npm root --global") },
+      processes: [{ pid: 4321, parent: 1, start: "4321", argv: expect.stringContaining("install --global") }],
+      updateRecords: {
+        "update-data/update-transaction.json": { size: expect.any(Number), mtime: expect.any(String), tail: expect.stringContaining("ownership-released") },
+        "update-data/update-recovery/5f1c0e2a-tx/owner.json": { tail: expect.stringContaining("4321") },
+      },
+      npmLogs: [
+        { name: "2026-11-15T17_22_10_000Z-debug-0.log", size: expect.any(Number), mtime: expect.any(String) },
+        { name: "2026-11-15T17_21_52_159Z-debug-0.log", size: expect.any(Number), mtime: expect.any(String) },
+      ],
+      timings: { "install-application": expect.any(Number), "update-predecessor": expect.any(Number) },
+    });
+    expect(Object.keys(evidence.updateRecords as object)).not.toContain("update-data/update-recovery/5f1c0e2a-tx/capsule.json");
+    expect((evidence.processes as Array<{ argv: string }>)[0]!.argv).toContain("[redacted]");
+    expect((evidence.npmDiagnostics as string[]).join("\n")).toContain('verbose argv "root" "--global"');
+    expect(root).not.toBe("");
+  });
+
+  it("keeps the primary failure when process inventory is unavailable and records stage durations on success", async () => {
+    const { output, environment } = await fixture();
+    await expect(runSmoke({
+      environment,
+      createRunner: root => {
+        roots.push(root);
+        return {
+          run: (command, args, options) => args[0] === "update" ? { ...ok, status: 1, stderr: "replacement failed" } : successfulCommand(command, args, options),
+          inventory: async () => { throw new Error(`inspection unavailable ${environment.NODE_AUTH_TOKEN}`); },
+          close: async () => {},
+        };
+      },
+    })).rejects.toThrow("replacement failed");
+    const text = await readFile(output, "utf8");
+    expect(text).not.toContain(environment.NODE_AUTH_TOKEN);
+    expect(JSON.parse(text)).toMatchObject({ outcome: "failure", stage: "update-predecessor", error: "replacement failed", processes: { error: expect.stringContaining("inspection unavailable") }, updateRecords: {}, npmLogs: [] });
+
+    const success = await fixture();
+    await smokePublishedInstaller({ environment: success.environment, spawnSync: successfulCommand });
+    expect(JSON.parse(await readFile(success.output, "utf8"))).toMatchObject({ outcome: "success", timings: { "acquire-installer": expect.any(Number), "update-predecessor": expect.any(Number) } });
+  });
 });

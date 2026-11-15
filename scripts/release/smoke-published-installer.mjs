@@ -1,7 +1,7 @@
-import { chmod, mkdtemp, mkdir, open, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, open, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { createPublishedSmokeRunner } from "./published-smoke-processes.mjs";
 import { tmpdir } from "node:os";
-import { delimiter, dirname, resolve } from "node:path";
+import { delimiter, dirname, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { compareVersions, resolveInstallerNpmCli, sanitizeDiagnostic } from "../../packages/a1-install/bin/a1-install.js";
 
@@ -33,15 +33,21 @@ export async function smokePublishedInstaller({
   let childOutcome;
   let evidence;
   let primaryError;
+  /** Stage name to accumulated child-command milliseconds; dates each phase of a long Windows run. */
+  const timings = {};
   const safe = value => {
     let text = String(value ?? "").slice(-16_000);
     for (const [key, secret] of Object.entries(environment)) {
-      if (/token|password|secret|auth/iu.test(key) && typeof secret === "string" && secret.length >= 4) text = text.replaceAll(secret, "[redacted]");
+      // Security: credential-like keys are redacted by value; a short ordinary value (such as `root`) would
+      // otherwise erase that word from every diagnostic line.
+      if (/token|password|secret|auth/iu.test(key) && typeof secret === "string" && secret.length >= 8) text = text.replaceAll(secret, "[redacted]");
     }
     return text.split(/\r?\n/u).map(line => sanitizeDiagnostic(line)).filter(Boolean).slice(-80).join("\n").slice(-8_000);
   };
   const execute = async (command, args, options) => {
+    const startedAt = Date.now();
     const result = await runner.run(command, args, options);
+    timings[stage] = (timings[stage] ?? 0) + (Date.now() - startedAt);
     childOutcome = {
       status: result.status, signal: result.signal ?? null,
       error: safe(result.error?.message), stdout: safe(result.stdout), stderr: safe(result.stderr),
@@ -168,16 +174,28 @@ export async function smokePublishedInstaller({
       },
       transcript: "a1 successfully installed\n",
       installedVersion: installedManifest.version,
+      timings,
       launcherVerified: true,
       activationVerified: true,
     };
   } catch (error) {
     primaryError = new Error(safe(error instanceof Error ? error.message : error), { cause: error });
+    // Rationale: the live process set is read before settlement stops it; a stalled update is
+    // otherwise indistinguishable from one that was already gone.
+    const processes = root && runner?.inventory
+      ? await runner.inventory().then(rows => rows.slice(0, 40).map(row => ({
+        pid: row.pid, parent: row.parent, start: row.start, executable: safe(row.executable), argv: safe(row.argv?.join(" ")),
+      }))).catch(inventoryError => ({ error: safe(inventoryError instanceof Error ? inventoryError.message : inventoryError) }))
+      : [];
     evidence = {
       schema: "a1-published-installer-smoke-v1", outcome: "failure", stage,
       platform: process.platform, architecture: process.arch, nodeVersion: process.version,
       version, channel, error: primaryError.message,
       child: childOutcome,
+      timings,
+      processes,
+      updateRecords: root ? await updateRecordTails(root, safe).catch(error => ({ error: safe(error.message) })) : {},
+      npmLogs: root ? await npmLogIdentities(resolve(root, "npm-cache", "_logs")).catch(() => []) : [],
       npmDiagnostics: root ? await npmDiagnosticTails(resolve(root, "npm-cache", "_logs"), safe)
         .catch(error => [safe(`npm diagnostics unavailable: ${error.message}`)]) : [],
       launcherVerified: false, activationVerified: false,
@@ -227,16 +245,52 @@ async function npmDiagnosticTails(directory, safe) {
   const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
   const tails = [];
   for (const entry of entries.filter(entry => entry.isFile() && entry.name.endsWith(".log")).sort((left, right) => right.name.localeCompare(left.name)).slice(0, 3)) {
-    const file = await open(resolve(directory, entry.name), "r").catch(() => null);
-    if (!file) continue;
-    try {
-      const { size } = await file.stat();
-      const buffer = Buffer.alloc(Math.min(size, 16_000));
-      const { bytesRead } = await file.read(buffer, 0, buffer.length, Math.max(0, size - buffer.length));
-      tails.push(safe(buffer.subarray(0, bytesRead).toString("utf8")));
-    } finally { await file.close(); }
+    const tail = await fileTail(resolve(directory, entry.name), safe);
+    if (tail !== null) tails.push(tail.tail);
   }
   return tails;
+}
+
+/** Newest npm logs by name, size, and modification time; the names date each npm invocation. */
+async function npmLogIdentities(directory) {
+  const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
+  const identities = [];
+  for (const entry of entries.filter(entry => entry.isFile() && entry.name.endsWith(".log")).sort((left, right) => right.name.localeCompare(left.name)).slice(0, 10)) {
+    const metadata = await stat(resolve(directory, entry.name)).catch(() => null);
+    if (metadata) identities.push({ name: entry.name, size: metadata.size, mtime: metadata.mtime.toISOString() });
+  }
+  return identities;
+}
+
+/** The updater's journal and recovery-capsule records from every product data directory in the fixture. */
+async function updateRecordTails(root, safe) {
+  const records = {};
+  for (const dataDirectory of ["data", "update-data"]) {
+    const candidates = [resolve(root, dataDirectory, "update-transaction.json")];
+    const capsuleRoot = resolve(root, dataDirectory, "update-recovery");
+    for (const entry of await readdir(capsuleRoot, { withFileTypes: true }).catch(() => [])) {
+      if (!entry.isDirectory()) continue;
+      // Rationale: the capsule manifest only repeats fixture paths; the owner, result, cancellation,
+      // and start-lease records say what the detached replacement actually did.
+      for (const name of ["owner.json", "result.json", "cancel.json", "worker-starting.lock"]) candidates.push(resolve(capsuleRoot, entry.name, name));
+    }
+    for (const path of candidates) {
+      const tail = await fileTail(path, safe);
+      if (tail !== null) records[relative(root, path).replaceAll("\\", "/")] = tail;
+    }
+  }
+  return records;
+}
+
+async function fileTail(path, safe) {
+  const file = await open(path, "r").catch(() => null);
+  if (!file) return null;
+  try {
+    const { size, mtime } = await file.stat();
+    const buffer = Buffer.alloc(Math.min(size, 16_000));
+    const { bytesRead } = await file.read(buffer, 0, buffer.length, Math.max(0, size - buffer.length));
+    return { size, mtime: mtime.toISOString(), tail: safe(buffer.subarray(0, bytesRead).toString("utf8")) };
+  } finally { await file.close(); }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

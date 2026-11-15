@@ -22,7 +22,13 @@ A longer Windows budget lengthens a failing publication by up to ten minutes; it
 
 ## Implementation observations
 
-Not yet implemented.
+`updateCommandBudgetMs(platform)` returns twenty minutes on win32 and ten minutes elsewhere; only the `update-predecessor` command uses it. Installation stages keep the shared ten-minute constant, so a slow install still fails at the same point as before.
+
+The runner's `inventory()` reuses the exact selection `close()` terminates (owned children, fixture-path arguments, and descendants started after their owner) and stops nothing. The smoke reads it inside its failure path before settlement, records at most forty rows with sanitized executable and argument text, and stores an inventory error in place of rows when inspection fails. Update records come from `data` and `update-data`: the journal plus each capsule's owner, result, cancellation, and start-lease files, keyed by fixture-relative path with size, modification time, and sanitized tail; capsule manifests are skipped. The ten newest npm logs are listed by name, size, and modification time beside the existing three tails. `timings` accumulates child-command milliseconds per stage in success and failure evidence.
+
+Redaction now requires credential-like values of at least eight characters. The focused test shows `npm root --global` surviving an `AUTH_WORD=root` environment while a long token is still removed from child output, process arguments, update records, and inventory errors.
+
+Local targeted validation: core build, both typechecks, architecture boundaries, full code-documentation policy, strict OpenSpec validation, and the smoke evidence and process ownership tests including the native Windows settlement case.
 
 ## Known gaps
 

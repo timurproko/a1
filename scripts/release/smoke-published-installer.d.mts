@@ -1,3 +1,5 @@
+import type { ProcessSnapshot } from "../development/checkout-process-inspection.mjs";
+
 export interface SmokeChildOptions {
   readonly cwd: string;
   readonly env: NodeJS.ProcessEnv;
@@ -12,6 +14,8 @@ export interface SmokeChildResult {
 }
 export interface SmokeRunner {
   run(command: string, args: string[], options: SmokeChildOptions): SmokeChildResult | Promise<SmokeChildResult>;
+  /** Fixture-owned processes that settlement would stop, read without stopping anything. */
+  inventory?(): Promise<readonly ProcessSnapshot[]>;
   close(): Promise<void>;
 }
 export function updateCommandBudgetMs(platform?: NodeJS.Platform): number;

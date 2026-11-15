@@ -59,6 +59,10 @@ export function createPublishedSmokeRunner(root, {
     return [...selected.values()];
   };
   return {
+    /** The fixture-owned processes settlement would stop, read without stopping anything. */
+    async inventory() {
+      return await selectedProcesses(Date.now() + 30_000);
+    },
     async run(command, args, options) {
       // Platform: keep the shell alive until cleanup inventories its descendants. spawnSync's timeout kills
       // cmd.exe alone, stranding detached updater/npm owners and any inherited output handles.
