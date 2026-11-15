@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
+import { runInNewContext } from "node:vm";
 import { afterEach, describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { createTierPlan } from "../../scripts/release/validation-tier.mjs";
@@ -115,7 +116,13 @@ describe("PR whole-file naming validation", () => {
     expect(selector.env.MODE).toContain("needs.plan.outputs.mode");
     expect(selector.run).toContain('if [ "$MODE" = "develop" ]; then');
     expect(selector.run).toContain('else\n  selected=\'["full-release"]\'');
-    expect(workflowText).toContain('process.env.MODE === "nightly" || !exists');
+    const binding = workflow.jobs.plan.steps.find((step: { name?: string }) => step.name === "Bind source, number, version, and registry state");
+    const workExpression = /const work = ([^;]+);/u.exec(binding.run)?.[1];
+    expect(workExpression).toBeTypeOf("string");
+    // Invariant: existing immutable bytes still require nightly validation and staged promotion recovery.
+    for (const mode of ["nightly", "develop"]) for (const exists of [false, true]) for (const installerExists of [false, true]) {
+      expect(runInNewContext(`(${workExpression})`, { process: { env: { MODE: mode } }, exists, installerExists })).toBe(true);
+    }
     expect(workflow.jobs.publish.if).toContain("needs.validate.result == 'success'");
     const plan = await createTierPlan(["full-release"]);
     expect(plan.commands.filter(command => command.id === "internal-naming-full")).toEqual([
