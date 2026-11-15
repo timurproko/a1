@@ -35,6 +35,8 @@ export function dispatchPublication(channel: "develop", source: string, version:
   signal?: AbortSignal;
   isTTY?: boolean;
   environment?: NodeJS.ProcessEnv;
+  /** Read current output dimensions; defaults to stdout. Unknown dimensions disable cursor updates. */
+  terminalSize?: () => { columns: number; rows: number };
 }): Promise<number>;
 export function dispatchStableValidation(candidate: {
   repository: string;
