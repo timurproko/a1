@@ -6,10 +6,10 @@
 
 ## 2. Admit graceful exit in the owning runtime through the ordinary quit path
 
-- [ ] 2.1 Add `OwnedUiSessionLifecyclePort` (readiness snapshot and exit admission with named blockers) to the owned-UI contracts and `queuedWorkflowCount()` to the workflow port, implemented by the Pi engine adapter without altering `clearQueuedWorkflows()`.
-- [ ] 2.2 Implement the port in `SessionShell` from lifecycle, editor text, waiting submissions, queued input and overlays; admission marks the shell, schedules `shutdown()` on the next macrotask through the shell scheduler, and later requests report `session-stopping`.
-- [ ] 2.3 Bind a late-bound lifecycle provider into `startIntegrationControl` and `createRuntimeApis`, handling the lifecycle operations inside the serialized handler with no await between readiness and admission, and `session-unavailable` before the shell exists or after disposal.
-- [ ] 2.4 Write shell, composition and session-control fixture tests for each blocker, atomic admission under concurrent requests, acknowledgement written before teardown, single admission, disposed/absent shell, and unchanged settings operations.
+- [x] 2.1 Add `OwnedUiSessionLifecyclePort` (readiness snapshot and exit admission with named blockers) to the owned-UI contracts and `queuedWorkflowCount()` to the workflow port, implemented by the Pi engine adapter without altering `clearQueuedWorkflows()`.
+- [x] 2.2 Implement the port in `SessionShell` from lifecycle, editor text, waiting submissions, queued input and overlays; admission marks the shell, schedules `shutdown()` on the next macrotask through the shell scheduler, and later requests report `session-stopping`.
+- [x] 2.3 Bind a late-bound lifecycle provider into `startIntegrationControl` and `createRuntimeApis`, handling the lifecycle operations inside the serialized handler with no await between readiness and admission, and `session-unavailable` before the shell exists or after disposal.
+- [x] 2.4 Write shell, composition and session-control fixture tests for each blocker, atomic admission under concurrent requests, acknowledgement written before teardown, single admission, disposed/absent shell, and unchanged settings operations.
 
 ## 3. Document the exit contract for supervisors
 

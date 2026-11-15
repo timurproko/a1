@@ -59,6 +59,11 @@ export class PromptSubmission implements SessionConcern {
     return this.#waiting.size > 0;
   }
 
+  /** How many submissions still wait; exit readiness reports it without touching them. */
+  get waitingCount(): number {
+    return this.#waiting.size;
+  }
+
   /** The editor changed; a later recovery never overwrites input typed after its submission. */
   noteEditorChange(): void {
     this.#editorRevision++;

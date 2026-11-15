@@ -1,4 +1,4 @@
-import type { OwnedUiEvent, OwnedUiShellSelectorOption } from "../../contracts/owned-ui/index.js";
+import type { OwnedUiEvent, OwnedUiExitBlocker, OwnedUiExitReadiness, OwnedUiSessionLifecyclePort, OwnedUiShellSelectorOption } from "../../contracts/owned-ui/index.js";
 import type { TerminalComponentPort, TerminalInputListenerResult, TerminalInputSurfaceKind, TerminalOverlayHandle, TerminalPointerSurface } from "../../contracts/presentation/index.js";
 import { SessionTerminalPresentation } from "./session-terminal-presentation.js";
 import { ShellClipboard } from "./shell-clipboard.js";
@@ -86,7 +86,7 @@ export { formatSessionResumeCommand, quoteCommandArgument, type SessionResumeCom
  * Presents one engine session: its transcript root, editor, controllers, submission, workflows, and dialogs.
  * It reaches the terminal only through its terminal host's handle, and paints only while it is attached.
  */
-export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
+export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiSessionLifecyclePort {
   readonly backend: OwnedUiSessionBackend;
   readonly #presenters: OwnedUiSessionShellOptions["presenters"];
   readonly selectors: SessionSelectors;
@@ -110,6 +110,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   #disposed = false;
   #released: OwnedUiPresenterRelease | undefined;
   #shutdownPromise: Promise<OwnedUiCommandResult> | undefined;
+  // Invariant: an external exit is admitted at most once; later requests see session-stopping.
+  #exitAdmitted = false;
   #disposePromise: Promise<void> | undefined;
   #layoutParts: PinnedLayoutParts | undefined;
   // Invariant: translated startup diagnostics create at most one dock notice per kind per shell.
@@ -576,10 +578,45 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     return this.#dialogs.showSelector(title, options, onSelect, onCancel);
   }
 
+  /**
+   * Exit readiness for an external supervisor. Read-only: nothing is cleared, dismissed or interrupted.
+   * Whitespace-only drafts count as non-empty; an unknown queue count counts as pending input.
+   */
+  readiness(): OwnedUiExitReadiness {
+    const view = this.view();
+    const stopping = this.#disposed || this.#exitAdmitted || this.#shutdownPromise !== undefined
+      || view.lifecycle === "stopping" || view.lifecycle === "stopped" || view.lifecycle === "failed";
+    const editorEmpty = this.root.editor.getText().length === 0;
+    const pendingSubmissions = this.#submission.waitingCount;
+    const queued = this.backend.identity.disposed ? null : this.backend.workflows.queuedWorkflowCount();
+    const overlayOpen = this.#terminal.hasOverlay() || view.dialog !== null || view.overlay !== null;
+    const blockers: OwnedUiExitBlocker[] = [];
+    if (stopping) blockers.push("session-stopping");
+    else if (view.lifecycle !== "ready") blockers.push("session-busy");
+    if (!editorEmpty) blockers.push("editor-not-empty");
+    if (pendingSubmissions > 0 || queued === null || queued > 0) blockers.push("pending-input");
+    if (overlayOpen) blockers.push("overlay-open");
+    return { lifecycle: view.lifecycle, editorEmpty, pendingSubmissions, queuedInput: queued ?? 0, overlayOpen, exitAdmissible: blockers.length === 0, blockers };
+  }
+
+  /**
+   * Admits the ordinary quit path when nothing would be lost. Synchronous by contract: the check and the
+   * admission share one turn. The actual shutdown starts on the next macrotask so the caller's
+   * acknowledgement is written before teardown can close the control transport.
+   */
+  requestExit(): { readonly admitted: true } | { readonly admitted: false; readonly blocker: OwnedUiExitBlocker } {
+    const { blockers } = this.readiness();
+    if (blockers.length > 0) return { admitted: false, blocker: blockers[0]! };
+    this.#exitAdmitted = true;
+    setImmediate(() => { void this.shutdown().catch(() => {}); });
+    return { admitted: true };
+  }
+
   shutdown(): Promise<OwnedUiCommandResult> {
     this.#shutdownPromise ??= this.#shutdown().finally(() => {
-      // Invariant: a failed quit is retryable; ordinary shutdown has disposed the shell already.
-      if (!this.#disposed) this.#shutdownPromise = undefined;
+      // Invariant: a failed quit is retryable, including by a later external exit request; ordinary shutdown
+      // has disposed the shell already.
+      if (!this.#disposed) { this.#shutdownPromise = undefined; this.#exitAdmitted = false; }
     });
     return this.#shutdownPromise;
   }

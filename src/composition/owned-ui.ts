@@ -136,7 +136,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     ...(options.packageVersion === undefined ? {} : { packageVersion: options.packageVersion }),
     ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
   });
-  const sessionColor = createRuntimeApis(backend, bareSettings, host, productPaths.runtimeDir, runtimeContext);
+  // Rationale: the presenter is created later in this function; the integration host reads it through this provider.
+  let lifecyclePresenter: OwnedUiSessionPresenter | null = null;
+  const sessionColor = createRuntimeApis(backend, bareSettings, host, productPaths.runtimeDir, runtimeContext, () => lifecyclePresenter);
   // Rationale: peer refresh shares persisted preferences, never session-local Current color.
   const unwatchSharedSettings = bareSettings === null
     ? () => {}
@@ -213,6 +215,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     terminalHost = createdTerminalHost = new OwnedUiTerminalHost(sessionTerminalHostOptions(presenterOptions));
     presenter = new OwnedUiSessionPresenter(terminalHost, presenterOptions);
     terminalHost.attach(presenter);
+    lifecyclePresenter = presenter;
   } catch (error) {
     await createdTerminalHost?.dispose().catch(() => undefined);
     await releaseShared();
@@ -260,9 +263,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   return { application, settings };
 }
 
-function createRuntimeApis(backend: ComposedSessionBackend, settings: OwnedSettingsManager | null, host: ComposedEngineHost, runtimeDir: string, context: OwnedRuntimeContext) {
+function createRuntimeApis(backend: ComposedSessionBackend, settings: OwnedSettingsManager | null, host: ComposedEngineHost, runtimeDir: string, context: OwnedRuntimeContext, lifecycle: () => OwnedUiSessionPresenter | null) {
   return settings === null ? null : new RuntimeApiLifecycle(backend, settings, color => host.setAccentColor(color),
-    () => import("./integration-api.js").then(module => module.startIntegrationControl(backend, settings, runtimeDir, context)));
+    () => import("./integration-api.js").then(module => module.startIntegrationControl(backend, settings, runtimeDir, context, undefined, lifecycle)));
 }
 
 async function compositionRuntimeContext(options: OwnedUiCompositionOptions, bare: boolean) {
