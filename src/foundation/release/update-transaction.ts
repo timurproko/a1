@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
+import { mkdir, open, readFile, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
+import { renameFileWithRetry, type AtomicReplacementOptions } from "./atomic-replacement.js";
 
 export const UPDATE_JOURNAL_SCHEMA = PRODUCT_IDENTITY.protocol.updateJournalSchema;
 import type { UpdateChannel } from "./types.js";
@@ -44,7 +45,11 @@ export interface UpdateTransaction {
 /** Persists the durable update journal and permits only validated forward transaction phases. */
 export class UpdateTransactionStore {
   readonly path: string;
-  constructor(dataDir: string) { this.path = resolve(dataDir, "update-transaction.json"); }
+  readonly #replacementOptions: AtomicReplacementOptions;
+  constructor(dataDir: string, options: AtomicReplacementOptions = {}) {
+    this.path = resolve(dataDir, "update-transaction.json");
+    this.#replacementOptions = options;
+  }
 
   async read(): Promise<UpdateTransaction | null> {
     try {
@@ -116,14 +121,12 @@ export class UpdateTransactionStore {
     validate(value);
     await mkdir(dirname(this.path), { recursive: true, mode: 0o700 });
     const temporary = `${this.path}.${process.pid}.${randomUUID()}.tmp`;
-    const file = await open(temporary, "wx", 0o600);
     try {
-      await file.writeFile(JSON.stringify(value, null, 2));
-      await file.sync();
-    } finally {
-      await file.close();
-    }
-    await rename(temporary, this.path);
+      const file = await open(temporary, "wx", 0o600);
+      try { await file.writeFile(JSON.stringify(value, null, 2)); await file.sync(); }
+      finally { await file.close(); }
+      await renameFileWithRetry(temporary, this.path, this.#replacementOptions);
+    } finally { await rm(temporary, { force: true }).catch(() => {}); }
     return value;
   }
 }

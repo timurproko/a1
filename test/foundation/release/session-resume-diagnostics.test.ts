@@ -1,5 +1,8 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { summarizeResumeTrace } from "../../support/session-resume-diagnostics.js";
+import { readResumeFatalDiagnostics, summarizeResumeFatal, summarizeResumeTrace } from "../../support/session-resume-diagnostics.js";
 
 const event = (phase: string, elapsedMs: number, extra = {}) => JSON.stringify({ schema: "a1-startup-trace-v1", phase, elapsedMs, ...extra });
 
@@ -41,6 +44,39 @@ describe("packaged resume trace diagnostics", () => {
     const result = summarizeResumeTrace(source);
     expect(result).toMatchObject({ truncated: true, readyTrace: false });
     expect(result.phases).toHaveLength(64);
+  });
+
+  it("retains only safe shutdown failure classifications and relative owned code locations", () => {
+    const result = summarizeResumeFatal(JSON.stringify({
+      origin: "unhandledRejection", classification: "Error", cleanupFailed: false,
+      message: "private-message", token: "secret-token", releaseId: "private-release",
+      locations: [
+        { file: "foundation/release/update.js", line: 10, column: 2, private: "hidden" },
+        { file: "/private/secret.ts", line: 1, column: 1 },
+        { file: "foundation/../../secret.js", line: 1, column: 1 },
+        { file: "foundation/invalid.js", line: -1, column: 1 },
+      ],
+    }));
+    expect(result).toEqual({ origin: "unhandledRejection", classification: "Error", cleanupFailed: false,
+      locations: [{ file: "foundation/release/update.js", line: 10, column: 2 }],
+    });
+    expect(JSON.stringify(result)).not.toMatch(/private|secret|hidden/u);
+  });
+
+  it.each(["null", "{", "[]", JSON.stringify({ origin: "secret", classification: "Error", cleanupFailed: false, locations: [] }), "x".repeat(16_385)])("rejects malformed or oversized fatal records", source => {
+    expect(summarizeResumeFatal(source)).toBeNull();
+  });
+
+  it("reads bounded fixture fatal records without copying unrelated runtime content", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "resume-fatal-evidence-"));
+    try {
+      const record = { origin: "entry", classification: "TypeError", cleanupFailed: true, locations: [] };
+      await writeFile(resolve(root, "fatal-1-abc.json"), JSON.stringify(record));
+      await writeFile(resolve(root, "fatal-2-abc.json"), "x".repeat(16_385));
+      await writeFile(resolve(root, "unrelated.json"), JSON.stringify({ ...record, private: "secret" }));
+      expect(await readResumeFatalDiagnostics(root)).toEqual([record]);
+      expect(await readResumeFatalDiagnostics(resolve(root, "absent"))).toEqual([]);
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 
   it("bounds source size without leaking an oversized malformed record", () => {

@@ -26,6 +26,7 @@ import {
 } from "../../../src/foundation/release/index.js";
 import { acquireUpdateExecutionLease } from "../../../src/foundation/release/update-execution-lease.js";
 import { UpdateTransactionStore } from "../../../src/foundation/release/update-transaction.js";
+import { UpdateRecoveryPendingError } from "../../../src/foundation/release/update-recovery.js";
 import type { UpdateInstaller } from "../../../src/foundation/release/update-installer.js";
 import { fakeUpdateInstaller, replacementResult } from "../../support/update-installer-fake.js";
 
@@ -650,6 +651,64 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stderr.join("")).toContain("warning: post-activation step failed: installed release activation exited with status 1");
   });
 
+  it("does not roll back a committed activation when persisting its final phase is refused", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
+    const advance = harness.transactionStore.advance.bind(harness.transactionStore);
+    harness.transactionStore.advance = async phase => {
+      if (phase === "active-reference-committed") throw new Error("journal rename EPERM after commit");
+      return advance(phase);
+    };
+    const rollback = vi.fn<UpdateInstaller["rollback"]>(async () => "rolled back");
+    await expect(runSelfUpdate({ ...harness, installer: fakeUpdateInstaller(() => harness.runner, { rollback }) })).resolves.toBe(0);
+    expect(rollback).not.toHaveBeenCalled();
+    expect(harness.stdout.join("")).toContain("updated successfully");
+    expect(harness.stderr.join("")).toContain("journal rename EPERM after commit");
+    expect((await harness.transactionStore.read())?.phase).toBe("certified");
+  });
+
+  it("retains recovery authority when committed journal settlement fails", async () => {
+    const root = mkdtempSync(resolve(tmpdir(), "a1-update-retain-capsule-"));
+    try {
+      const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)] });
+      const capsulePath = resolve(root, "update-recovery", "test-update", "capsule.json");
+      await mkdir(resolve(capsulePath, ".."), { recursive: true });
+      await writeFile(capsulePath, "retained authority");
+      harness.transactionStore.finish = async () => { throw new Error("journal settlement locked"); };
+      const rollback = vi.fn<UpdateInstaller["rollback"]>(async () => "rolled back");
+      await expect(runSelfUpdate({ ...harness, environment: { A1_DATA_DIR: root }, installer: fakeUpdateInstaller(() => harness.runner, {
+        rollback,
+        replacePackage: async input => {
+          const result = replacementResult(input.transaction.transactionId, 0);
+          await input.onRecoveryState({ ...result.recovery, capsulePath });
+          return result;
+        },
+      }) })).resolves.toBe(0);
+      expect(rollback).not.toHaveBeenCalled();
+      expect(await readFile(capsulePath, "utf8")).toBe("retained authority");
+      expect(harness.stderr.join("")).toContain("journal settlement locked");
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("does not race rollback or launcher restoration against an unsettled guardian", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)] });
+    const rollback = vi.fn<UpdateInstaller["rollback"]>(async () => "rolled back");
+    const restoreLaunchers = vi.fn<UpdateInstaller["restoreLaunchers"]>(async () => {});
+    await expect(runSelfUpdate({ ...harness, installer: fakeUpdateInstaller(() => harness.runner, {
+      rollback, restoreLaunchers, replacePackage: async () => { throw new UpdateRecoveryPendingError(); },
+    }) })).resolves.toBe(1);
+    expect(rollback).not.toHaveBeenCalled();
+    expect(restoreLaunchers).not.toHaveBeenCalled();
+    expect(harness.stderr.join("")).toContain("no rollback was attempted");
+  });
+
+  it("does not mask the installation failure when failure-journal settlement is also refused", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), { code: 77, stdout: "npm failed" }] });
+    harness.transactionStore.finish = async () => { throw new Error("journal finish locked"); };
+    await expect(runSelfUpdate(harness)).resolves.toBe(77);
+    expect(harness.stderr.join("")).toContain("journal finish locked");
+    expect(harness.stderr.join("")).toContain("update failed");
+  });
+
   it("reports up to date when a settled failed update already activated its target", async () => {
     const harness = createHarness({ transactionPhase: "active-reference-committed", responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)] });
     await harness.transactionStore.finish("failed", "invalid release state; rollback failed: invalid release state");
@@ -754,6 +813,23 @@ describe("A1 self-update orchestration", () => {
     expect(rollback).toHaveBeenCalledWith("prior-release");
     expect(finish).toHaveBeenCalledWith("rolled-back", "activation refused; rolled back");
     expect(harness.stdout.join("")).not.toContain("updated successfully");
+  });
+
+  it("restores capsule-backed launchers before rolling back a failed activation", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)] });
+    harness.lifecycle.activateInstalled = async () => { throw new Error("activation failed"); };
+    const steps: string[] = [];
+    const installer = fakeUpdateInstaller(() => harness.runner, {
+      replacePackage: async input => {
+        const result = replacementResult(input.transaction.transactionId, 0);
+        await input.onRecoveryState(result.recovery);
+        return result;
+      },
+      restoreLaunchers: async transaction => { expect(transaction.recovery?.launcherDisposition).toBe("target"); steps.push("restore"); },
+      rollback: async () => { steps.push("rollback"); return "rolled back"; },
+    });
+    await expect(runSelfUpdate({ ...harness, installer })).resolves.toBe(1);
+    expect(steps).toEqual(["restore", "rollback"]);
   });
 
   it("fails safely when the activated startup graph cannot warm", async () => {

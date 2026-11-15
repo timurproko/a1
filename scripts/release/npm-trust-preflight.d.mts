@@ -6,4 +6,5 @@ export function proveTrustedPublishing(input: {
   packages: readonly string[];
   env: Record<string, string | undefined>;
   fetch: (url: string | URL, init?: RequestInit) => Promise<Response>;
+  consumeToken?: (name: string, token: string) => Promise<void>;
 }): Promise<{ workflow: string; packages: string[] }>;
