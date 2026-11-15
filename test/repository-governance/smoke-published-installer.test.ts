@@ -238,6 +238,7 @@ describe("published installer smoke evidence", () => {
     const order: string[] = [];
     let root = "";
     let sinceSeen = "";
+    const launcherName = "a1";
     const stalledArgv = [process.execPath, "npm-cli.js", "install", "--global", `--//registry/:_authToken=${environment.NODE_AUTH_TOKEN}`];
     await expect(runSmoke({
       environment: { ...environment, AUTH_WORD: "root" },
@@ -265,7 +266,7 @@ describe("published installer smoke evidence", () => {
             const prefix = options.env.npm_config_prefix!;
             const modules = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules");
             mkdirSync(resolve(modules, ".a1-retired-1307"), { recursive: true });
-            writeFileSync(resolve(process.platform === "win32" ? prefix : resolve(prefix, "bin"), "a1"), `#!/bin/sh
+            writeFileSync(resolve(process.platform === "win32" ? prefix : resolve(prefix, "bin"), launcherName), `#!/bin/sh
 exec node "${modules}/@timurproko/a1/bin/cli.js" "$@" ${environment.NODE_AUTH_TOKEN}
 `);
             const logs = resolve(options.env.npm_config_cache!, "_logs");
@@ -313,9 +314,12 @@ exec node "${modules}/@timurproko/a1/bin/cli.js" "$@" ${environment.NODE_AUTH_TO
     expect(systemEvents.events[0]).toMatchObject({ id: 1117, message: expect.stringContaining("Action: Remove node.exe [redacted]") });
     expect(systemEvents.events[0]!.message.length).toBeLessThanOrEqual(600);
     expect(evidence.replacementState).toMatchObject({
-      "update-application": { retired: [".a1-retired-1307"], scoped: true, installedVersion: "0.2.7-dev.1305", launchers: { a1: { content: expect.stringContaining("bin/cli.js") } } },
+      "update-application": { retired: [".a1-retired-1307"], scoped: true, installedVersion: "0.2.7-dev.1305", },
       application: { retired: [], scoped: true, installedVersion: version },
     });
+    const launchers = (evidence.replacementState as Record<string, { launchers: Record<string, { content: string }> }>)["update-application"]!.launchers;
+    expect(Object.keys(launchers)).toEqual([launcherName]);
+    expect(Object.values(launchers)[0]!.content).toContain("bin/cli.js");
     expect(JSON.stringify(evidence.replacementState)).not.toContain(environment.NODE_AUTH_TOKEN);
     expect((evidence.processes as Array<{ argv: string }>)[0]!.argv).toContain("[redacted]");
     expect((evidence.npmDiagnostics as string[]).join("\n")).toContain('verbose argv "root" "--global"');
