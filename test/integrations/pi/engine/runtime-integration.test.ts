@@ -104,6 +104,22 @@ describe("official Pi runtime integration", () => {
     } finally { await runtime.dispose(); }
   });
 
+  it.each([false, true])("honors structured control exclusions and persistent-session boundaries (memory: %s)", async memory => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-control-runtime-")); roots.push(root);
+    const applyControl = vi.fn(async () => ({ kind: "unlinked" as const, cwd: root }));
+    const reader = Object.assign(async () => root, { applyControl, detach: async () => root });
+    const runtime = await createPiRuntimeIntegration({ cwd: root, agentDir: resolve(root, "agent"), worktreeCwdReader: reader,
+      runtimeOptions: memory ? { noSession: true } : { excludeTools: ["worktree", "worktree_detach"] } });
+    try {
+      if (memory) await expect(runtime.session.getToolDefinition("worktree")!.execute("control", { action: "attach", path: root }, undefined, undefined, {} as never)).rejects.toThrow("saved persistent conversation");
+      else {
+        expect(runtime.session.getToolDefinition("worktree")).toBeUndefined();
+        expect(runtime.session.getToolDefinition("worktree_detach")).toBeUndefined();
+      }
+      expect(applyControl).not.toHaveBeenCalled();
+    } finally { await runtime.dispose(); }
+  });
+
   it("honors recovery tool exclusion", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-worktree-recovery-exclusion-")); roots.push(root);
     const detach = vi.fn(async () => root);

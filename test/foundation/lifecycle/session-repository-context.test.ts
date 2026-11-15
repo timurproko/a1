@@ -130,6 +130,28 @@ describe("semantic association revisions", () => {
 });
 
 describe("session repository context and live worktree claims", () => {
+  it("retains both claims outside the mutation gate during preparation and rolls back only the provisional target", async () => {
+    const f = await repositoryFixture();
+    await register(f, f.identity, f.firstRuntime);
+    await register(f, f.secondIdentity, f.secondRuntime);
+    const options = runtimeOptions(f, f.firstRuntime), other = runtimeOptions(f, f.secondRuntime);
+    await setSessionRepositoryContext(f.identity, f.worktree, options);
+    let ready!: () => void, fail!: (error: Error) => void;
+    const prepared = new Promise<void>(resolve => { ready = resolve; });
+    const hold = new Promise<void>((_resolve, reject) => { fail = reject; });
+    const switching = setSessionRepositoryContext(f.identity, f.secondWorktree, { ...options, prepareContext: async () => { ready(); await hold; } });
+    const failure = expect(switching).rejects.toThrow("preparation refused");
+    await prepared;
+    try {
+      expect((await readSessionRepositoryContext(f.identity, options))?.cwd).toBe(await realpath(f.worktree));
+      const inventory = await listSessionRepositoryWorktrees(f.identity, other);
+      expect(inventory.filter(entry => entry.status === "busy")).toHaveLength(2);
+      await expect(setSessionRepositoryContext(f.secondIdentity, f.worktree, other)).rejects.toMatchObject({ code: "worktree-active-in-another-session" });
+      await expect(setSessionRepositoryContext(f.secondIdentity, f.secondWorktree, other)).rejects.toMatchObject({ code: "worktree-active-in-another-session" });
+    } finally { fail(new Error("preparation refused")); await failure; }
+    expect((await readSessionRepositoryContext(f.identity, options))?.cwd).toBe(await realpath(f.worktree));
+    await expect(setSessionRepositoryContext(f.secondIdentity, f.secondWorktree, other)).resolves.toMatchObject({ branch: "fix/example-two" });
+  }, 15_000);
   it("persists context while keeping concurrent runtime claims exclusive", async () => {
     const fixture = await repositoryFixture();
     const canonicalWorktree = await realpath(fixture.worktree);
@@ -404,13 +426,13 @@ describe("session repository context and live worktree claims", () => {
       .find(entry => entry.branch === "fix/example")?.status).toBe("current");
   });
 
-  it("rejects foreign, non-root, detached, mismatched, and malformed durable contexts", async () => {
+  it("rejects primary, non-root, detached, mismatched, and malformed durable contexts", async () => {
     const fixture = await repositoryFixture();
     await register(fixture, fixture.identity, fixture.firstRuntime);
     const foreign = join(fixture.root, "foreign");
     await execFileAsync("git", ["init", "-b", "feature", foreign]);
     await expect(setSessionRepositoryContext(fixture.identity, foreign, runtimeOptions(fixture, fixture.firstRuntime)))
-      .rejects.toThrow(/different Git repository/);
+      .rejects.toThrow(/not the primary checkout/);
     await expect(setSessionRepositoryContext(fixture.identity, join(fixture.worktree, "subdirectory"), runtimeOptions(fixture, fixture.firstRuntime)))
       .rejects.toThrow();
 

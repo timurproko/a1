@@ -41,7 +41,74 @@ A1 SHALL recreate cwd-bound project settings, context files, skills, extensions,
 - **THEN** its result SHALL settle before runtime recreation
 - **AND** no intervening tool SHALL edit the target under the previous project's resources
 
+## RENAMED Requirements
+
+- FROM: `### Requirement: Completion returns the session to primary before cleanup`
+- TO: `### Requirement: Completion leaves task context before repository cleanup`
+
 ## MODIFIED Requirements
+
+### Requirement: Product commands own worktree entry and attachment
+
+A1 SHALL expose worktree enter, attach, detach, status, list, and complete through cwd-independent controls and compatible shell commands. Enter SHALL create or resume a registered task worktree and acquire its editing claim. Shell mutations SHALL queue an exact-session request rather than changing context while their process pins the old cwd. The runtime's final confirmation SHALL return the canonical root and branch after resource reload and claim commit, without requiring a second inventory check. Existing session-context aliases SHALL remain compatible. Detach SHALL preserve worktree files and branches. Creation SHALL support configured or explicit bases without assuming a universal branch name.
+
+#### Scenario: Create and resume a task
+
+- **WHEN** an active session enters a valid task branch in an explicitly selected or discovered repository
+- **THEN** A1 SHALL create its isolated worktree from the selected base and confirm attachment after the requesting tools settle
+- **AND** repeating entry SHALL preserve matching existing uncommitted work
+
+#### Scenario: A selected checkout cannot be acquired
+
+- **WHEN** the selected checkout is primary, locked, mismatched, or held by another live or unverifiable runtime
+- **THEN** the operation SHALL retain existing files and the prior attachment and return a bounded actionable failure
+- **AND** SHALL NOT force creation, overwrite a branch, or remove a worktree
+
+### Requirement: A definitively invalid attachment is released without blocking tools
+
+A1 SHALL distinguish definitively invalid attachments from uncertain identity. A missing checkout or Git pointer, non-worktree root, or changed recorded worktree Git/repository identity SHALL be definitive only when the recorded selected-repository anchor still verifies. Startup need not be a Git repository. A1 SHALL release only the session's association and claim, fail the triggering ordinary tool once, and reload startup resources at the safe idle boundary before further ordinary work. Uncertain failures SHALL retain the attachment and SHALL not redirect writes. Explicit controls SHALL remain callable without resolving the invalid cwd and SHALL preserve Git data and other owners' claims.
+
+#### Scenario: The attached checkout was removed
+
+- **GIVEN** an attachment whose checkout or Git pointer is missing but whose repository anchor verifies
+- **WHEN** an ordinary tool runs
+- **THEN** it SHALL fail without executing elsewhere
+- **AND** A1 SHALL restore startup resources at the idle boundary before subsequent ordinary tools run
+
+#### Scenario: A session resumes with an invalid attachment
+
+- **WHEN** a persisted session resumes with a definitively invalid attachment
+- **THEN** activation SHALL restore startup context without requiring manual metadata recovery
+
+#### Scenario: Validation is uncertain
+
+- **WHEN** validation times out, is cancelled, or cannot verify the selected repository anchor
+- **THEN** the association and claim SHALL be retained
+- **AND** ordinary work SHALL fail without redirection
+
+#### Scenario: Detach from an invalid checkout
+
+- **WHEN** explicit detach is requested while the attached checkout is missing
+- **THEN** it SHALL restore startup resources and clear the association through the runtime transition
+- **AND** SHALL remove no file or branch
+
+### Requirement: Explicit detach remains callable when ordinary tool root validation fails
+
+Claim-owning bare A1 sessions SHALL retain an argument-free sequential worktree_detach tool bound to the exact active session/runtime. It SHALL request startup context restoration without ordinary tool cwd resolution or validating the checkout being left. The runtime SHALL verify ownership and serialize association/claim mutation through existing coordination after the requesting tool result persists. It SHALL report a request separately from completed detach, restore the original startup directory and its resources, and preserve files, branches, conversation, other owners' claims, and cleanup authority. Failed, cancelled, disposed, or stale-session requests SHALL not report success. Comparison sessions SHALL not gain this tool. Explicit exclusions and extension overrides SHALL remain effective.
+
+#### Scenario: Invalid startup identity blocks every ordinary tool
+
+- **GIVEN** a persisted attachment whose identity cannot be validated by ordinary tools
+- **WHEN** the bound session explicitly invokes worktree_detach
+- **THEN** it SHALL request recovery without ordinary cwd validation
+- **AND** the runtime SHALL restore startup context and clear only that session's association and claims after the requesting batch
+
+#### Scenario: Ordinary modification encounters uncertain context
+
+- **WHEN** an ordinary modifying tool cannot validate the attachment or its loaded project context
+- **THEN** its requested operation SHALL remain unexecuted
+- **AND** recovery controls SHALL not permit arbitrary commands or target-session selection
+
 
 ### Requirement: Authoritative worktree identity ignores inherited Git redirection
 
@@ -66,9 +133,9 @@ Session worktree enter, attachment and authoritative validation SHALL determine 
 - **WHEN** explicit attachment selects a worktree held by another live or unverifiable runtime
 - **THEN** the switch SHALL fail without changing the previous context or either owner's claims
 
-### Requirement: Completion returns the session to primary before cleanup
+### Requirement: Completion leaves task context before repository cleanup
 
-A1 SHALL expose worktree completion with optional change and pull-request selectors. Completion SHALL require a valid owned attachment and SHALL retain it when Git-locked or holding tracked, staged, or untracked content. Otherwise it SHALL return the session to its immutable startup directory and reload startup resources before cleanup. Cleanup SHALL run after the issuing shell exits, from the selected repository's verified primary checkout through that checkout's committed declaration, never through a declaration from the task checkout or an unrelated startup directory. A1 SHALL not delete Git data itself. Missing declarations or selectors SHALL report cleanup unavailable after detach. Another live or unverifiable owner, changed repository identity, or an expired request SHALL skip cleanup. Results SHALL relay the cleanup command's report as authoritative.
+A1 SHALL expose worktree completion with optional change and pull-request selectors. Completion SHALL require a valid owned attachment and SHALL retain it when Git-locked or holding tracked, staged, or untracked content. It SHALL also refuse cleanup when startup is inside the checkout being completed. Otherwise it SHALL return the session to its immutable startup directory and reload startup resources before cleanup. Cleanup SHALL run after the issuing shell exits, from the selected repository's verified primary checkout through that checkout's committed declaration, never through a declaration from the task checkout or an unrelated startup directory. A1 SHALL not delete Git data itself. Missing declarations or selectors SHALL report cleanup unavailable after detach. Another live or unverifiable owner, changed repository identity, or an expired request SHALL skip cleanup. Results SHALL relay the cleanup command's report as authoritative.
 
 #### Scenario: Complete a task entered from home
 

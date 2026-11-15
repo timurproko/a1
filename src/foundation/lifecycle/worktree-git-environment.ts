@@ -14,11 +14,11 @@ export function worktreeGitEnvironment(
     !REPOSITORY_ENVIRONMENT.has(platform === "win32" ? name.toUpperCase() : name)));
 }
 
-/** A shell cd does not change the durable session startup repository; other failures stay uncertain. */
+/** Missing discovery requires explicit repository selection; other failures stay uncertain. */
 export function rethrowStartupGitFailure(error: unknown): never {
   if (error instanceof Error && "code" in error && error.code === 128
     && "stderr" in error && String(error.stderr).includes("not a git repository")) {
-    throw Object.assign(new Error("the session started outside a Git repository; start a new session in the repository before entering or attaching a worktree", { cause: error }), {
+    throw Object.assign(new Error("no repository was selected; pass --repo <absolute-path> to enter/list or attach an absolute task worktree", { cause: error }), {
       code: "worktree-startup-not-repository",
     });
   }

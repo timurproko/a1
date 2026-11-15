@@ -1,9 +1,9 @@
 import { lstat, mkdir, realpath } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { rethrowStartupGitFailure, worktreeGitEnvironment } from "./worktree-git-environment.js";
+import { worktreeGitEnvironment } from "./worktree-git-environment.js";
 import {
-  assertSessionRepositoryRuntime, readSessionStartupRoot, setSessionRepositoryContext,
+  assertSessionRepositoryRuntime, readSessionRepositoryRoot, setSessionRepositoryContext,
   type SessionRepositoryContext, type SessionRepositoryContextOptions, type SessionRepositoryIdentity,
 } from "./session-repository-context.js";
 
@@ -18,14 +18,14 @@ export async function enterSessionRepositoryWorktree(
     throw failure("worktree-branch-invalid", "use a task branch such as fix/short-description");
   }
   await assertSessionRepositoryRuntime(identity, options);
-  const startup = await readSessionStartupRoot(identity);
+  const repository = await readSessionRepositoryRoot(identity, options);
   // Performance: unrelated lifecycle consumers do not need Git process bindings at import time.
   const { execFile } = await import("node:child_process");
   const execute = promisify(execFile);
   const git = async (...args: string[]) => (await execute("git", ["-c", "core.hooksPath=/dev/null", ...args], {
-    cwd: startup, env: worktreeGitEnvironment(), encoding: "utf8", windowsHide: true, timeout: 15_000, maxBuffer: 256 * 1024, signal: options.signal,
+    cwd: repository.root, env: worktreeGitEnvironment(), encoding: "utf8", windowsHide: true, timeout: 15_000, maxBuffer: 256 * 1024, signal: options.signal,
   })).stdout.trim();
-  const inventory = await git("worktree", "list", "--porcelain", "-z").catch(rethrowStartupGitFailure);
+  const inventory = await git("worktree", "list", "--porcelain", "-z");
   const rows = inventory.split("\0\0").filter(Boolean).map(record => {
     const fields = record.split("\0");
     return {

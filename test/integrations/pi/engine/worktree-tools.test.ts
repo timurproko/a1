@@ -9,6 +9,22 @@ const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true, maxRetries: 5 }))); });
 
 describe("attachment-aware built-in tools", () => {
+  it("dispatches structured controls outside ordinary cwd resolution and distinguishes requests from confirmation", async () => {
+    const resolve = vi.fn(async () => { throw new Error("old cwd is unavailable"); });
+    const control = vi.fn(async (request: { action: string }) => ({ text: "request accepted", queued: request.action !== "worktree-status" }));
+    const tools = createSessionWorktreeTools("/unused", resolve, undefined, undefined, control);
+    const tool = tools.find(tool => tool.name === "worktree")!;
+    expect(tool.executionMode).toBe("sequential");
+    const queued = await tool.execute("attach", { action: "attach", path: "/repo/task" }, undefined, undefined, {} as ExtensionToolContext);
+    expect(queued).toMatchObject({ terminate: true, details: { queued: true } });
+    expect(control).toHaveBeenLastCalledWith({ action: "link-worktree", path: "/repo/task" }, undefined);
+    await tool.execute("enter", { action: "enter", branch: "fix/task", repo: "/repo", base: "main" }, undefined, undefined, {} as ExtensionToolContext);
+    expect(control).toHaveBeenLastCalledWith({ action: "enter-worktree", branch: "fix/task", repo: "/repo", base: "main" }, undefined);
+    expect((await tool.execute("status", { action: "status" }, undefined, undefined, {} as ExtensionToolContext)).terminate).not.toBe(true);
+    await expect(tool.execute("invalid", { action: "detach", path: "/another" }, undefined, undefined, {} as ExtensionToolContext)).rejects.toThrow("unexpected arguments");
+    await expect(tool.execute("missing", { action: "attach" }, undefined, undefined, {} as ExtensionToolContext)).rejects.toThrow("absolute path");
+    expect(resolve).not.toHaveBeenCalled();
+  });
   it("uses the current cwd per call while preserving absolute paths and native rendering", async () => {
     const root = await mkdtemp(join(tmpdir(), "a1-worktree-tools-")); roots.push(root);
     const startup = join(root, "startup"), attached = join(root, "attached");

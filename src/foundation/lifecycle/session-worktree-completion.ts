@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { worktreeGitEnvironment } from "./worktree-git-environment.js";
 import {
-  detachSessionRepositoryContextForCompletion, readActiveSessionRepositoryContext, readSessionStartupRoot,
+  detachSessionRepositoryContextForCompletion, readActiveSessionRepositoryContext, readSessionStartupRoot, readSessionRepositoryRoot,
   sessionWorktreeClaimState, sessionWorktreeCompletionPath,
   type SessionRepositoryContextOptions, type SessionRepositoryIdentity,
 } from "./session-repository-context.js";
@@ -48,6 +48,7 @@ interface CompletionRecord extends WorktreeCompletionSelectors {
   readonly sessionId: string;
   readonly startupRoot: string;
   readonly commonDir: string;
+  readonly primaryRoot?: string;
   readonly worktreeRoot: string;
   readonly worktreeGitDir: string;
   readonly branch: string;
@@ -71,6 +72,11 @@ export async function requestSessionWorktreeCompletion(
   }
   const attached = await readActiveSessionRepositoryContext(identity, options);
   if (attached === null) throw failure("worktree-not-attached", "no task worktree is attached");
+  const startup = await readSessionStartupRoot(identity);
+  const within = relative(attached.cwd, startup);
+  if (within === "" || (within.split(/[/\\]/u)[0] !== ".." && !isAbsolute(within))) {
+    throw failure("worktree-completion-startup", "the startup directory is inside the checkout being completed; detach without cleanup and use repository cleanup from primary");
+  }
   const status = await execute("git", ["-c", "core.hooksPath=/dev/null", "status", "--porcelain", "--untracked-files=all"], attached.cwd, options.signal);
   const changed = status.split(/\r?\n/u).filter(Boolean);
   if (changed.length > 0) {
@@ -81,7 +87,7 @@ export async function requestSessionWorktreeCompletion(
   const detached = await detachSessionRepositoryContextForCompletion(identity, options, async left => {
     if (!samePath(left.worktreeRoot, attached.cwd)) throw failure("worktree-context-changed", "the attachment changed during completion");
     const record: CompletionRecord = {
-      schema: SCHEMA, sessionId: identity.sessionId, startupRoot: left.startupRoot, commonDir: left.commonDir,
+      schema: SCHEMA, sessionId: identity.sessionId, startupRoot: left.startupRoot, commonDir: left.commonDir, primaryRoot: left.primaryRoot,
       worktreeRoot: left.worktreeRoot, worktreeGitDir: left.worktreeGitDir, branch: left.branch,
       ...(selectors.change === undefined ? {} : { change: selectors.change }),
       ...(selectors.pr === undefined ? {} : { pr: selectors.pr }),
@@ -114,16 +120,20 @@ export async function settleSessionWorktreeCompletion(
   try {
     if ((options.now ?? Date.now)() - record.requestedAt > REQUEST_LIFETIME_MS) return result("cleanup-skipped", "the completion request expired before the runtime could settle it");
     const startup = await realpath(await readSessionStartupRoot(identity));
-    if (!samePath(startup, record.startupRoot)) return result("cleanup-skipped", "the session's startup checkout is not the recorded primary checkout");
+    if (!samePath(startup, record.startupRoot)) return result("cleanup-skipped", "the session's startup directory changed");
+    const primary = await readSessionRepositoryRoot(identity, { ...options, repo: record.primaryRoot ?? record.startupRoot });
+    if (!samePath(primary.root, record.primaryRoot ?? record.startupRoot) || !samePath(primary.commonDir, record.commonDir)) {
+      return result("cleanup-skipped", "the selected repository's primary checkout identity changed");
+    }
     const claim = await sessionWorktreeClaimState(record.commonDir, record.worktreeGitDir, options);
     if (claim === "live") return result("cleanup-skipped", "a live session attached the checkout again");
     if (claim === "unverifiable") return result("cleanup-skipped", "the checkout's editing claim cannot be verified");
     // Security: the command is the primary checkout's committed declaration, never a file of the task checkout being left.
-    const declared = await readCleanupDeclaration(join(startup, CLEANUP_DECLARATION));
+    const declared = await readCleanupDeclaration(join(primary.root, CLEANUP_DECLARATION));
     if (declared === null) return result("cleanup-unavailable", `this repository declares no cleanup command in ${CLEANUP_DECLARATION}; the checkout was retained`);
     if (declared === "invalid") return result("cleanup-unavailable", `${CLEANUP_DECLARATION} must hold {"cleanup": ["program", "argument", ...]}; the checkout was retained`);
     const values: Readonly<Record<string, string | undefined>> = {
-      primary: startup, worktree: record.worktreeRoot, branch: record.branch,
+      primary: primary.root, worktree: record.worktreeRoot, branch: record.branch,
       change: record.change, pr: record.pr === undefined ? undefined : String(record.pr),
     };
     const missing = new Set<string>();
@@ -137,7 +147,7 @@ export async function settleSessionWorktreeCompletion(
     }
     const run = options.run ?? execute;
     try {
-      return result("cleanup-finished", bounded(await run(command, arguments_, startup, options.signal)));
+      return result("cleanup-finished", bounded(await run(command, arguments_, primary.root, options.signal)));
     } catch (error) {
       const output = isRecord(error) ? [error.stdout, error.stderr].filter(value => typeof value === "string" && value.length > 0).join("\n") : "";
       return result("cleanup-failed", bounded(output || (error instanceof Error ? error.message : String(error))));
@@ -187,6 +197,7 @@ async function readRecord(path: string): Promise<CompletionRecord | null> {
     if (!isRecord(value) || value.schema !== SCHEMA) return null;
     const text = (name: string) => typeof value[name] === "string" && value[name].length > 0 && value[name].length <= 32_768;
     if (!["sessionId", "startupRoot", "commonDir", "worktreeRoot", "worktreeGitDir", "branch"].every(text)) return null;
+    if (value.primaryRoot !== undefined && !text("primaryRoot")) return null;
     if (typeof value.requestedAt !== "number" || !Number.isFinite(value.requestedAt)) return null;
     if (value.change !== undefined && typeof value.change !== "string") return null;
     if (value.pr !== undefined && (typeof value.pr !== "number" || !Number.isSafeInteger(value.pr) || value.pr < 1)) return null;
