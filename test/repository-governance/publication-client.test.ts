@@ -17,16 +17,32 @@ function fakeRunner(responses: (call: Call) => string | Error) {
   return { run, calls };
 }
 
-const jobsResponse = JSON.stringify([
-  { id: 1, name: "Validate win32-node24", conclusion: "failure" },
-  { id: 2, name: "Validate linux-node24", conclusion: "success" },
-  { id: 3, name: "Publish 0.1.8-dev.9 to npm next", conclusion: "skipped" },
-]);
-const annotationsResponse = JSON.stringify([
+const fixtureJobs = [
+  { id: 1, name: "Validate win32-node24", status: "completed", conclusion: "failure" },
+  { id: 2, name: "Validate linux-node24", status: "completed", conclusion: "success" },
+  { id: 3, name: "Develop / Stage 0.1.8-dev.9 on npm", status: "completed", conclusion: "skipped" },
+];
+const jobsResponse = JSON.stringify([{ jobs: fixtureJobs }]);
+const annotationPages = (...messages: string[]) => JSON.stringify([messages.map(message => ({ annotation_level: "failure", message }))]);
+const annotationsResponse = annotationPages(
   "startup budget failed for pi warm: 2438ms exceeds 2000ms; dominant phases: ui-entry 741ms\nsecond line is dropped",
   "Process completed with exit code 1.",
   "startup budget failed for pi warm: 2438ms exceeds 2000ms; dominant phases: ui-entry 741ms",
-]);
+);
+
+function developmentRunner(snapshots: Array<{ status: string; conclusion: string | null; jobs: unknown[] }>) {
+  let index = -1;
+  return fakeRunner(({ args }) => {
+    if (args[0] === "auth" || args[0] === "workflow") return "";
+    if (args[0] === "run" && args[1] === "list") return JSON.stringify([{ databaseId: 42, displayTitle: "develop publication fixture-request" }]);
+    if (args[1] === "repos/owner/app/actions/runs/42") return JSON.stringify(snapshots[Math.min(++index, snapshots.length - 1)]);
+    if (args[1]?.includes("/jobs?")) return JSON.stringify([{ jobs: snapshots[Math.min(index, snapshots.length - 1)]!.jobs }]);
+    if (args[1]?.includes("/annotations")) return annotationsResponse;
+    throw new Error(`unexpected call ${args.join(" ")}`);
+  });
+}
+
+const developmentOptions = { repository: "owner/app", requestId: "fixture-request", sleep: async () => {} };
 
 describe("development preview version", () => {
   const source = "b".repeat(40);
@@ -64,53 +80,133 @@ describe("publication failure reporting", () => {
       throw new Error(`unexpected call ${args.join(" ")}`);
     });
     const message = describePublicationFailure(42, { run, repository: "owner/app" });
-    expect(message).toBe(
-      "publication run 42 failed in Validate win32-node24\n"
-      + "  Validate win32-node24: startup budget failed for pi warm: 2438ms exceeds 2000ms; dominant phases: ui-entry 741ms",
-    );
+    expect(message).toBe([
+      "Publication failed (run 42)",
+      "  Windows validation (Node 24) [failure]",
+      "    startup budget failed for pi warm: 2438ms exceeds 2000ms; dominant phases: ui-entry 741ms",
+      "  Publication blocked before npm staging.",
+      "  Next: inspect the full log and fix the failure before retrying.",
+      "  Full log: https://github.com/owner/app/actions/runs/42",
+    ].join("\n"));
+    expect(calls[0]!.args).toContain("--paginate");
+    expect(calls[1]!.args).toContain("--paginate");
+    expect(calls.every(call => !(call.args.includes("--slurp") && call.args.includes("--jq")))).toBe(true);
     expect(calls.map(call => call.args[1])).toEqual(["repos/owner/app/actions/runs/42/jobs?per_page=100", "repos/owner/app/check-runs/1/annotations"]);
   });
 
   it("caps the report at ten lines and survives unreadable annotations", () => {
-    const many = JSON.stringify(Array.from({ length: 30 }, (_value, index) => `assertion ${index} failed`));
-    const jobs = JSON.stringify([{ id: 7, name: "PR core", conclusion: "failure" }, { id: 8, name: "Rendering", conclusion: "failure" }]);
+    const many = annotationPages(...Array.from({ length: 30 }, (_value, index) => `assertion ${index} failed`));
+    const jobs = JSON.stringify([{ jobs: [{ id: 7, name: "PR core", conclusion: "failure" }] }, { jobs: [{ id: 8, name: "Rendering", conclusion: "failure" }] }]);
     const { run } = fakeRunner(({ args }) => {
       if (args[1]?.includes("/actions/runs/")) return jobs;
       if (args[1] === "repos/owner/app/check-runs/7/annotations") return many;
       return new Error("annotations unavailable");
     });
     const message = describePublicationFailure(9, { run, repository: "owner/app" });
-    expect(message.split("\n")).toHaveLength(11);
-    expect(message.startsWith("publication run 9 failed in PR core, Rendering")).toBe(true);
+    expect(message.split("\n").filter(line => line.includes("assertion"))).toHaveLength(10);
+    expect(message).toContain("PR core [failure]");
+    expect(message).toContain("Rendering [failure]");
+    expect(message).toContain("Detailed failure evidence unavailable");
+    expect(message).toContain("npm publication state is unknown");
   });
 
-  it("prints the run identifier and URL, then throws the readable report when the watch fails", async () => {
-    const output: string[] = [];
-    const { run, calls } = fakeRunner(({ args }) => {
-      if (args[0] === "auth" || args[0] === "workflow") return "";
-      if (args[0] === "run" && args[1] === "list") return JSON.stringify([{ databaseId: 42, displayTitle: "develop publication fixture-request" }]);
-      if (args[0] === "run" && args[1] === "view") return "https://github.com/owner/app/actions/runs/42";
-      if (args[0] === "run" && args[1] === "watch") return new Error("Command failed: gh run watch 42 --exit-status");
-      if (args[1]?.includes("/actions/runs/42/jobs")) return jobsResponse;
-      if (args[1]?.includes("/check-runs/1/annotations")) return annotationsResponse;
-      throw new Error(`unexpected call ${args.join(" ")}`);
-    });
+  it("prioritizes the macOS cause over derivative gates and preserves unknown failed jobs", () => {
+    const queried: string[] = [];
+    const message = describePublicationFailure(42, { repository: "owner/app", version: "0.2.7-dev.1312", jobs: [
+      { id: 9, name: "Develop / Validate publication lanes", conclusion: "failure" },
+      { id: 10, name: "Develop / Publication result", conclusion: "failure" },
+      { id: 1, name: "Develop / Validate sequential (darwin-node24, macos-15, 24)", conclusion: "failure" },
+      { id: 11, name: "Unexpected producer", conclusion: "timed_out" },
+      { id: 3, name: "Develop / Stage 0.2.7-dev.1312 on npm", conclusion: "skipped" },
+    ], run: (_executable, args) => {
+      queried.push(args[1]!);
+      return args[1]!.includes("/1/") ? annotationPages("Error: recovery guardian timed out", "Process completed with exit code 1.") : "[]";
+    } });
+    expect(message).toContain("macOS validation (Node 24) [failure]\n    Error: recovery guardian timed out");
+    expect(message).toContain("Unexpected producer [timed_out]");
+    expect(message).toContain("Downstream lane/result checks also failed.");
+    expect(message).toContain("Publication blocked before npm staging.");
+    expect(queried).toHaveLength(2);
+    expect(queried.some(path => /\/(9|10)\//u.test(path))).toBe(false);
+  });
+
+  it.each(["failure", "cancelled", "success"])("does not claim nothing was published after npm staging %s", conclusion => {
+    const message = describePublicationFailure(42, { repository: "owner/app", jobs: [
+      { id: 3, name: "Develop / Stage 0.2.7-dev.1312 on npm", status: "completed", conclusion },
+      { id: 4, name: "Develop / Publication result", conclusion: "failure" },
+    ], run: () => "[]" });
+    expect(message).toContain(`npm staging: ${conclusion}. Packages may already exist`);
+    expect(message).not.toContain("blocked before npm");
+    expect(message).not.toContain("nothing was published");
+  });
+
+  it.each(["[]", annotationPages("Process completed with exit code 1."), new Error("unavailable")])("retains aggregate-only failures when no primary cause is available", response => {
+    const message = describePublicationFailure(42, { repository: "owner/app", jobs: [
+      { id: 4, name: "Develop / Publication result", conclusion: "failure" },
+    ], run: () => { if (response instanceof Error) throw response; return response; } });
+    expect(message).toContain("Publication result [failure]");
+    expect(message).toContain("Detailed failure evidence unavailable");
+    expect(message).toContain("Full log: https://github.com/owner/app/actions/runs/42");
+  });
+
+  it("bounds and sanitizes diagnostic lines without terminal controls", () => {
+    const diagnostic = `\u001b[31mrecovery failed\u001b[0m ${"x".repeat(1_000)}\ntrace omitted`;
+    const message = describePublicationFailure(42, { repository: "owner/app", jobs: [
+      { id: 1, name: "Bad\u001b[31m job\u001b[0m", conclusion: "failure" },
+    ], run: () => annotationPages(diagnostic, diagnostic) });
+    expect(message).not.toContain("\u001b");
+    expect(message).not.toContain("trace omitted");
+    expect(message.split("\n").filter(line => line.includes("recovery failed"))).toHaveLength(1);
+    expect(message.split("\n").every(line => line.length <= 324)).toBe(true);
+  });
+
+  it("keeps a failed-run summary readable when the job API is unavailable", () => {
+    const message = describePublicationFailure(42, { repository: "owner/app", run: () => { throw new Error("offline"); } });
+    expect(message).toContain("Failed job details unavailable");
+    expect(message).toContain("npm publication state is unknown");
+    expect(message).toContain("Full log: https://github.com/owner/app/actions/runs/42");
+  });
+
+  it.each(["offline", "malformed"])("does not turn %s status observation into a publication failure", async kind => {
+    const runner = developmentRunner([{ status: "in_progress", conclusion: null, jobs: [] }]);
+    const run = (executable: string, args: string[]) => {
+      if (args[1] === "repos/owner/app/actions/runs/42") {
+        if (kind === "offline") throw new Error("network error");
+        return "{}";
+      }
+      return runner.run(executable, args);
+    };
     await expect(dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.9", {
-      run, repository: "owner/app", requestId: "fixture-request", write: (text: string) => { output.push(text); }, sleep: async () => {},
-    })).rejects.toThrow(/^publication run 42 failed in Validate win32-node24\n  Validate win32-node24: startup budget failed/);
-    expect(output).toEqual(["[publication] workflow run 42 is responsible for 0.1.8-dev.9\n[publication] https://github.com/owner/app/actions/runs/42\n"]);
-    expect(calls.some(call => call.args[0] === "run" && call.args[1] === "watch" && call.args.includes("--exit-status"))).toBe(true);
+      ...developmentOptions, run, write: () => {},
+    })).rejects.toThrow(/Stopped watching.*GitHub status unavailable.*Remote outcome unknown/);
+  });
+
+  it("interrupts compact watching without cancelling or misreporting the remote run", async () => {
+    const controller = new AbortController();
+    const before = [process.listenerCount("SIGINT"), process.listenerCount("SIGTERM")];
+    const { run, calls } = developmentRunner([{ status: "in_progress", conclusion: null, jobs: [] }]);
+    await expect(dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.9", {
+      ...developmentOptions, run, signal: controller.signal, write: () => {}, sleep: async () => { controller.abort(); },
+    })).rejects.toThrow(/Stopped watching.*interrupted.*Remote outcome unknown/);
+    expect(calls.some(call => call.args.includes("cancel"))).toBe(false);
+    expect([process.listenerCount("SIGINT"), process.listenerCount("SIGTERM")]).toEqual(before);
+  });
+
+  it("prints the version and log URL, then throws the readable primary failure", async () => {
+    const output: string[] = [];
+    const { run, calls } = developmentRunner([{ status: "completed", conclusion: "failure", jobs: fixtureJobs }]);
+    await expect(dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.9", {
+      ...developmentOptions, run, write: (text: string) => { output.push(text); },
+    })).rejects.toThrow(/^Publication failed: 0.1.8-dev.9 \(run 42\)\n  Windows validation \(Node 24\) \[failure\]\n    startup budget failed/);
+    expect(output[0]).toBe("[publication] 0.1.8-dev.9 — run 42\n[publication] Full log: https://github.com/owner/app/actions/runs/42\n");
+    expect(calls.some(call => call.args[0] === "run" && call.args[1] === "watch")).toBe(false);
   });
 
   it("dispatches development publication only through the dedicated wrapper", async () => {
-    const { run, calls } = fakeRunner(({ args }) => {
-      if (args[0] === "run" && args[1] === "list") return JSON.stringify([{ databaseId: 44, displayTitle: "develop publication fixture-request" }]);
-      if (args[0] === "run" && args[1] === "view") return "https://github.com/owner/app/actions/runs/44";
-      return "";
-    });
+    const { run, calls } = developmentRunner([{ status: "completed", conclusion: "success", jobs: [] }]);
     await expect(dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
       run, repository: "owner/app", requestId: "fixture-request", write: () => {}, sleep: async () => {},
-    })).resolves.toBe(44);
+    })).resolves.toBe(42);
     const dispatch = calls.find(call => call.args[0] === "workflow" && call.args[1] === "run")!;
     expect(dispatch.args).toEqual([
       "workflow", "run", "develop.yml", "--ref", "develop",
@@ -173,17 +269,27 @@ describe("publication failure reporting", () => {
       .rejects.toThrow(/does not match/);
   });
 
-  it("returns the run identifier unchanged when the watch succeeds", async () => {
+  it("reports changed job states once without setup or teardown step dumps", async () => {
+    const job = { id: 1, name: "Develop / Validate sequential (darwin-node24, macos-15, 24)", status: "in_progress", conclusion: null,
+      steps: [{ name: "Set up job", conclusion: "success" }] };
     const output: string[] = [];
-    const { run } = fakeRunner(({ args }) => {
-      if (args[0] === "run" && args[1] === "list") return JSON.stringify([{ databaseId: 43, displayTitle: "develop publication fixture-request" }]);
-      if (args[0] === "run" && args[1] === "view") return "https://github.com/owner/app/actions/runs/43";
-      return "";
-    });
+    const { run, calls } = developmentRunner([
+      { status: "queued", conclusion: null, jobs: [] },
+      { status: "in_progress", conclusion: null, jobs: [job] },
+      { status: "in_progress", conclusion: null, jobs: [job] },
+      { status: "completed", conclusion: "success", jobs: [{ ...job, status: "completed", conclusion: "success" }] },
+    ]);
     await expect(dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
-      run, repository: "owner/app", requestId: "fixture-request", write: (text: string) => { output.push(text); }, sleep: async () => {},
-    })).resolves.toBe(43);
-    expect(output.join("")).toContain("[publication] https://github.com/owner/app/actions/runs/43\n");
+      ...developmentOptions, run, write: (text: string) => { output.push(text); },
+    })).resolves.toBe(42);
+    expect(output).toEqual([
+      "[publication] 0.1.8-dev.10 — run 42\n[publication] Full log: https://github.com/owner/app/actions/runs/42\n",
+      "[publication] Running: macOS validation (Node 24)\n",
+      "[publication] Passed: macOS validation (Node 24)\n",
+      "[publication] 0.1.8-dev.10: workflow passed; verifying npm packages.\n",
+    ]);
+    expect(calls.some(call => call.args[1] === "watch")).toBe(false);
+    expect(calls.filter(call => call.args[1]?.includes("/jobs?")).every(call => call.args.includes("--paginate"))).toBe(true);
   });
 
   it("summarizes a failed publication in the result job before the unchanged outcome requirement", async () => {
@@ -204,7 +310,9 @@ describe("publication failure reporting", () => {
     expect(summary.run).toContain("budgetViolations");
     expect(require.if).toBeUndefined();
     expect(require.run).toContain('test "$VALIDATE" = success');
-    expect(require.run).toContain('if [ "$MODE" != candidate ] && { [ "$BUILD" = true ] || [ "$INSTALLER_BUILD" = true ]; }; then');
+    expect(require.run).toContain('if [ "$MODE" = stable ]; then test "$VALIDATE" = skipped; else test "$VALIDATE" = success; fi');
+    expect(require.run).toContain('if [ "$MODE" != candidate ]; then');
+    expect(require.run).toContain('test "$PROMOTE" = success');
     expect(require.run).toContain('test "$PUBLISH" = success');
     expect(require.run).toContain('test "$POST_PUBLISH" = success');
     expect(require.run).toContain('test "$COMPLETE" = success');
@@ -216,12 +324,12 @@ describe("stable candidate validation waiting", () => {
   const watched = (watch: "success" | Error, status: string, conclusion: string | null) => fakeRunner(({ args }) => {
     if (args[0] === "run" && args[1] === "watch") return watch === "success" ? "" : watch;
     if (args[0] === "api" && args[1] === "repos/owner/app/actions/runs/51") return JSON.stringify({ id: 51, status, conclusion });
-    if (args[0] === "api" && String(args[1]).includes("/jobs")) return JSON.stringify([{ id: 7, name: "Validate linux-node24", conclusion: "failure" }]);
-    if (args[0] === "api" && String(args[1]).includes("/annotations")) return JSON.stringify(["expected 1 to be 2"]);
+    if (args[0] === "api" && String(args[1]).includes("/jobs")) return JSON.stringify([{ jobs: [{ id: 7, name: "Validate linux-node24", conclusion: "failure" }] }]);
+    if (args[0] === "api" && String(args[1]).includes("/annotations")) return annotationPages("expected 1 to be 2");
     throw new Error(`unexpected call ${args.join(" ")}`);
   });
 
-  it("shows the live job list through gh run watch, like npm run develop, and returns the successful run", async () => {
+  it("keeps the stable candidate live job list through gh run watch and returns the successful run", async () => {
     const { run, calls } = watched("success", "completed", "success");
     await expect(waitForStableValidation({ repository: "owner/app", runId: 51 }, { run })).resolves.toMatchObject({ conclusion: "success" });
     expect(calls[0]).toEqual({
@@ -233,7 +341,7 @@ describe("stable candidate validation waiting", () => {
   it("throws the failed jobs and reasons when validation fails", async () => {
     const { run } = watched(new Error("exit status 1"), "completed", "failure");
     await expect(waitForStableValidation({ repository: "owner/app", runId: 51 }, { run }))
-      .rejects.toThrow(/Validate linux-node24: expected 1 to be 2/);
+      .rejects.toThrow(/Linux validation \(Node 24\) \[failure\]\n    expected 1 to be 2/);
   });
 
   it("reports that validation keeps running when watching stops early", async () => {

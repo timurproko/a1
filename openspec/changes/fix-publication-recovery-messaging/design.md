@@ -36,4 +36,13 @@ Use focused recovery-entry and publication-client tests, including aliased direc
 
 ## Known Gaps
 
-None in the proposed implementation scope. Live publication recovery and native macOS confirmation are pending implementation and subsequent authoritative validation, not claimed results.
+No unresolved implementation gap is identified. Native macOS validation and a later authoritative publication remain necessary before claiming live publication recovery; local Windows evidence does not replace either. An optional adjacent release-command run exceeded its 120-second local command bound after fixture failures, including Git setup failures; it is not passing evidence and does not justify changing the unchanged release owner or weakening its assertions.
+
+## Implementation and Local Evidence
+
+- The new directory-junction recovery case reproduced the original guardian timeout on Windows before the fix. Canonicalizing both entry identities fixed it without changing capsule checks or timeouts.
+- Focused recovery and atomic-replacement files passed 34 tests, with four Unix-only cases skipped on Windows. The exact freshly packed candidate passed both previously failing cancellation and updater-loss contracts through deliberate directory aliases.
+- The publication client uses quiet structured API reads, paginates job and annotation evidence, and emits only changed job states. Stable-candidate live watching remains unchanged. API pagination uses raw slurped pages, not the unsupported combination of GitHub CLI slurp and jq flags.
+- The reporting file passed 29 tests. Its existing workflow assertion was stale relative to the unchanged current workflow; it now asserts the deployed stable-only validation skip, unconditional non-candidate publication requirement, and promotion gate rather than the obsolete build-dependent condition.
+- A read-only rendering of the original failed run now identifies macOS, both concrete recovery errors, derivative lane/result failures, skipped npm staging, and the full log URL in one bounded summary. No publication was dispatched during implementation.
+- The managed core build passed. Typecheck initially required emitted build files in this fresh checkout; the subsequent type pass and any final exact-head CI results belong to validation rather than implementation progress.

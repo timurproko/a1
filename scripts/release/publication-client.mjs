@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
+import { stripVTControlCharacters } from "node:util";
 import { matchesStableValidationRun, STABLE_VALIDATION_WORKFLOW } from "./release-approval.mjs";
 
 const POLL_INTERVAL_MS = 5_000;
@@ -60,40 +61,129 @@ export async function registryVersion(packageName, version, fetchImpl = fetch) {
 }
 
 const MAX_FAILURE_LINES = 10;
+const MAX_FAILURE_JOBS = 4;
+const QUIET_READ = { stdio: ["ignore", "pipe", "pipe"], timeout: 30_000, maxBuffer: 16 * 1024 * 1024 };
+const FAILED_CONCLUSIONS = new Set(["failure", "timed_out", "cancelled", "action_required", "startup_failure", "stale"]);
 
-/** Turn a failed run into the failed job names and their recorded failure messages. */
+function plainText(value, limit = 320) {
+  const text = stripVTControlCharacters(String(value ?? "")).split(/\r?\n/u)[0]
+    .replace(/[\u0000-\u001f\u007f-\u009f]/gu, " ").replace(/\s+/gu, " ").trim();
+  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+}
+
+function shortJobName(name) {
+  const text = plainText(name, 160).replace(/^(?:Develop|Stable|Nightly|Candidate) \/ /u, "");
+  const lane = /^Validate (?:sequential )?\(?(linux|darwin|win32)-node(\d+)/u.exec(text);
+  if (lane) return `${{ linux: "Linux", darwin: "macOS", win32: "Windows" }[lane[1]]} validation (Node ${lane[2]})`;
+  if (/^Stage .* on npm$/u.test(text)) return "npm staging";
+  return text;
+}
+
+function isAggregate(job) {
+  return /^(?:Validate publication lanes|Publication result)$/u.test(shortJobName(job.name));
+}
+
+function readPublicationJobs(execute, repository, runId) {
+  const pages = JSON.parse(execute("gh", [
+    "api", `repos/${repository}/actions/runs/${runId}/jobs?per_page=100`, "--paginate", "--slurp",
+  ], QUIET_READ));
+  if (!Array.isArray(pages) || pages.some(page => !Array.isArray(page.jobs))) throw new Error("GitHub job status is unavailable");
+  return pages.flatMap(page => page.jobs);
+}
+
+function publicationState(jobs) {
+  const staging = jobs.filter(job => shortJobName(job.name) === "npm staging");
+  if (staging.length > 0 && staging.every(job => job.conclusion === "skipped")) return "Publication blocked before npm staging.";
+  if (staging.length > 0) return `npm staging: ${staging.map(job => plainText(job.conclusion || job.status || "unknown", 40)).join(", ")}. Packages may already exist; inspect the registry before retrying.`;
+  return "npm publication state is unknown; inspect the log and registry before retrying.";
+}
+
+/** Prioritize producer failures without mistaking downstream gates or missing evidence for a cause. */
 export function describePublicationFailure(runId, options = {}) {
   const execute = options.run ?? run;
   const repository = options.repository ?? repositoryName();
-  const jobs = JSON.parse(execute("gh", [
-    "api", `repos/${repository}/actions/runs/${runId}/jobs?per_page=100`,
-    "--jq", "[.jobs[] | {id: .id, name: .name, conclusion: .conclusion}]",
-  ]));
-  const failed = jobs.filter(job => job.conclusion === "failure");
-  const lines = [];
-  for (const job of failed) {
-    let annotations = [];
+  const url = `https://github.com/${repository}/actions/runs/${runId}`;
+  let jobs = options.jobs;
+  try { jobs ??= readPublicationJobs(execute, repository, runId); }
+  catch { jobs = []; }
+  const failed = jobs.filter(job => FAILED_CONCLUSIONS.has(job.conclusion));
+  const primary = failed.filter(job => !isAggregate(job));
+  const selected = primary.length > 0 ? primary : failed;
+  const lines = [`Publication failed${options.version ? `: ${plainText(options.version, 80)}` : ""} (run ${runId})`];
+  let remaining = MAX_FAILURE_LINES;
+  for (const job of selected.slice(0, MAX_FAILURE_JOBS)) {
+    let annotations;
     try {
-      annotations = JSON.parse(execute("gh", [
-        "api", `repos/${repository}/check-runs/${job.id}/annotations`,
-        "--jq", '[.[] | select(.annotation_level == "failure") | .message]',
-      ]));
-    } catch {
-      annotations = [];
-    }
-    for (const message of annotations) {
-      const text = String(message ?? "").split("\n")[0].trim();
-      // Rationale: the generic exit-code annotation restates that the step failed without
-      // saying why, so it is dropped in favour of the assertion or error that preceded it.
-      if (!text || /^Process completed with exit code \d+\.?$/.test(text)) continue;
-      const line = `${job.name}: ${text}`;
-      if (!lines.includes(line)) lines.push(line);
-      if (lines.length >= MAX_FAILURE_LINES) break;
-    }
-    if (lines.length >= MAX_FAILURE_LINES) break;
+      const pages = JSON.parse(execute("gh", [
+        "api", `repos/${repository}/check-runs/${job.id}/annotations`, "--paginate", "--slurp",
+      ], QUIET_READ));
+      annotations = pages.flat().filter(annotation => annotation.annotation_level === "failure").map(annotation => annotation.message);
+    } catch { annotations = []; }
+    const messages = [...new Set((Array.isArray(annotations) ? annotations : []).map(message => plainText(message)))]
+      .filter(text => text && !/^Process completed with exit code \d+\.?$/u.test(text));
+    lines.push(`  ${shortJobName(job.name)} [${plainText(job.conclusion, 40)}]`);
+    const visible = messages.slice(0, remaining);
+    lines.push(...(visible.length > 0 ? visible.map(text => `    ${text}`) : [messages.length > 0 ? "    Additional diagnostics in the full log." : "    Detailed failure evidence unavailable; see the full log."]));
+    remaining -= visible.length;
   }
-  const names = failed.map(job => job.name).join(", ") || "no job reported failure";
-  return `publication run ${runId} failed in ${names}${lines.length > 0 ? `\n  ${lines.join("\n  ")}` : ""}`;
+  if (selected.length > MAX_FAILURE_JOBS) lines.push(`  ${selected.length - MAX_FAILURE_JOBS} additional failed jobs in the full log.`);
+  if (selected.length === 0) lines.push("  Failed job details unavailable; see the full log.");
+  if (primary.length > 0 && failed.some(isAggregate)) lines.push("  Downstream lane/result checks also failed.");
+  lines.push(`  ${publicationState(jobs)}`);
+  lines.push(options.develop ? "  Next: fix the failure, then rerun npm run develop after checking the run above." : "  Next: inspect the full log and fix the failure before retrying.");
+  lines.push(`  Full log: ${url}`);
+  return lines.join("\n");
+}
+
+/** Observe development publication without inheriting GitHub's repeated job/step screen dumps. */
+async function waitForDevelopmentPublication(runId, version, repository, options) {
+  const execute = options.run ?? run;
+  const write = options.write ?? (text => process.stdout.write(text));
+  const wait = options.sleep ?? sleep;
+  const controller = new AbortController();
+  const signal = options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal;
+  const interrupt = () => controller.abort();
+  const states = new Map();
+  const stopped = reason => new Error(`Stopped watching ${plainText(version, 80)} (run ${runId}): ${reason}. Remote outcome unknown; it may still be running. Check this run before starting another publication.\n  Full log: https://github.com/${repository}/actions/runs/${runId}`);
+  process.once("SIGINT", interrupt);
+  process.once("SIGTERM", interrupt);
+  try {
+    while (!signal.aborted) {
+      let current;
+      let jobs;
+      try {
+        current = JSON.parse(execute("gh", ["api", `repos/${repository}/actions/runs/${runId}`], QUIET_READ));
+        if (typeof current.status !== "string" || (current.status === "completed" && typeof current.conclusion !== "string")) throw new Error("missing run status");
+        jobs = readPublicationJobs(execute, repository, runId);
+      } catch {
+        throw stopped(signal.aborted ? "interrupted" : "GitHub status unavailable");
+      }
+      if (signal.aborted) break;
+      const changes = new Map();
+      for (const job of jobs) {
+        if (isAggregate(job) || job.conclusion === "skipped") continue;
+        const state = job.status === "completed" ? job.conclusion : job.status;
+        if (state !== "in_progress" && state !== "success" && !FAILED_CONCLUSIONS.has(state)) continue;
+        if (states.get(job.id) === state) continue;
+        states.set(job.id, state);
+        const label = state === "in_progress" ? "Running" : state === "success" ? "Passed" : "Failed";
+        if (!changes.has(label)) changes.set(label, []);
+        changes.get(label).push(shortJobName(job.name));
+      }
+      for (const [label, names] of changes) write(`[publication] ${label}: ${names.slice(0, 4).join(", ")}${names.length > 4 ? ` (+${names.length - 4} more)` : ""}\n`);
+      if (current.status === "completed") {
+        if (current.conclusion !== "success") throw new Error(describePublicationFailure(runId, { run: execute, repository, version, jobs, develop: true }));
+        write(`[publication] ${plainText(version, 80)}: workflow passed; verifying npm packages.\n`);
+        return;
+      }
+      try { await wait(POLL_INTERVAL_MS, undefined, { signal }); }
+      catch { throw stopped(signal.aborted ? "interrupted" : "status waiting unavailable"); }
+    }
+    throw stopped("interrupted");
+  } finally {
+    process.off("SIGINT", interrupt);
+    process.off("SIGTERM", interrupt);
+  }
 }
 
 export async function dispatchPublication(channel, source, version, options = {}) {
@@ -101,34 +191,31 @@ export async function dispatchPublication(channel, source, version, options = {}
   if (channel !== "develop") throw new Error("stable publication starts only when an authorized human publishes the prepared draft Release");
   const write = options.write ?? (text => process.stdout.write(text));
   const wait = options.sleep ?? sleep;
-  execute("gh", ["auth", "status"], { stdio: "inherit" });
+  const repository = options.repository ?? repositoryName();
+  execute("gh", ["auth", "status"], QUIET_READ);
   const requestId = options.requestId ?? randomUUID();
   execute("gh", [
     "workflow", "run", "develop.yml", "--ref", "develop",
     "-f", `source_sha=${source}`,
     "-f", `request_id=${requestId}`,
-  ], { stdio: "inherit" });
+  ], QUIET_READ);
 
   const deadline = Date.now() + RUN_APPEAR_TIMEOUT_MS;
   let runId;
   while (Date.now() < deadline) {
     const runs = JSON.parse(execute("gh", [
-      "run", "list", "--workflow", "develop.yml", "--event", "workflow_dispatch",
+      "run", "list", "--repo", repository, "--workflow", "develop.yml", "--event", "workflow_dispatch",
       "--json", "databaseId,displayTitle", "--limit", "50",
-    ]));
+    ], QUIET_READ));
     runId = runs.find(entry => entry.displayTitle?.includes(requestId))?.databaseId;
     if (runId !== undefined) break;
     await wait(POLL_INTERVAL_MS);
   }
   if (runId === undefined) throw new Error(`publication request ${requestId} did not appear in GitHub Actions within 5 minutes`);
 
-  const url = execute("gh", ["run", "view", String(runId), "--json", "url", "--jq", ".url"]);
-  write(`[publication] workflow run ${runId} is responsible for ${version}\n[publication] ${url}\n`);
-  try {
-    execute("gh", ["run", "watch", String(runId), "--exit-status"], { stdio: "inherit" });
-  } catch {
-    throw new Error(describePublicationFailure(runId, { run: execute, repository: options.repository }));
-  }
+  const url = `https://github.com/${repository}/actions/runs/${runId}`;
+  write(`[publication] ${plainText(version, 80)} — run ${runId}\n[publication] Full log: ${url}\n`);
+  await waitForDevelopmentPublication(runId, version, repository, options);
   return runId;
 }
 

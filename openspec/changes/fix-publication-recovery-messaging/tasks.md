@@ -5,6 +5,6 @@
 
 ## 2. Readable development-publication reporting
 
-- [ ] 2.1 Replace verbose development-publication step watching with compact state-change progress and a persistent Actions log link.
-- [ ] 2.2 Summarize primary failures, downstream blocking, publication state, and unavailable/interrupted status truthfully with bounded deduplicated diagnostics.
-- [ ] 2.3 Add focused reporting regression tests and document the output and retry behavior without changing publication gates.
+- [x] 2.1 Replace verbose development-publication step watching with compact state-change progress and a persistent Actions log link.
+- [x] 2.2 Summarize primary failures, downstream blocking, publication state, and unavailable/interrupted status truthfully with bounded deduplicated diagnostics.
+- [x] 2.3 Add focused reporting regression tests and document the output and retry behavior without changing publication gates.
