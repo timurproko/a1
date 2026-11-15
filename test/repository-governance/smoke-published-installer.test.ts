@@ -11,7 +11,7 @@ function smokePublishedInstaller({ environment, spawnSync }: {
   environment: NodeJS.ProcessEnv;
   spawnSync: (command: string, args: string[], options: SmokeChildOptions) => SmokeChildResult;
 }) {
-  return runSmoke({ environment, createRunner: () => ({ run: spawnSync, close: async () => {} }) });
+  return runSmoke({ environment, createRunner: () => ({ run: spawnSync, close: async () => {} }), readSystemEvents: async () => ({ events: [], antimalware: null }) });
 }
 
 const roots: string[] = [];
