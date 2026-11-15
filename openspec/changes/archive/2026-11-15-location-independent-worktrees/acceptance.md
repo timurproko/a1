@@ -26,7 +26,7 @@ The maintainer integration decision accepts these scenarios:
     "Explicit controls recover invalid attachments without deleting files, branches, or another session's claims.",
     "Completion restores startup context and runs declared cleanup only from the selected repository primary checkout after requesting tools exit."
   ],
-  "archiveDigest": "958917633c010a49e8e9b3367ef9ee0fe83e810e84e11d785ad806e968db04e5",
+  "archiveDigest": "d05f8713918675d40f9ce46eacbfc180d2a8666c019b65610a1a414dc3233eef",
   "specDigest": "33387a58e5bcb7d2c273d9b31104fcf8adbe93f1bc58c1db6d6913795b6585f0",
   "tasksDigest": "3e5ca048aadfb91511c7d252f55ac420d98ff360824acef1da177de9009f00a6",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
