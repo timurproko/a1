@@ -3,7 +3,7 @@ import {
   resolveOwnedUiSettings,
   settingValue,
   type OwnedUiSettingDeclaration,
-} from "../../../src/ui/settings/index.js";
+} from "../../../src/app/settings/index.js";
 
 const DECLARATIONS: readonly OwnedUiSettingDeclaration[] = [
   {

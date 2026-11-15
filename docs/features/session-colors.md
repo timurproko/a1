@@ -24,60 +24,13 @@ Bootstrap carries the value in owned literal child arguments, not Pi flags. Supp
 
 If the selected retained UI genuinely cannot consume this startup payload, or its required evidence cannot be verified, startup fails before spawning that UI rather than silently dropping the color or prompt. Installed capability discovery does not authorize a different unsupported retained release. Ordinary no-payload launch and fallback behavior, comparison mode, and unrelated installation/update progress are unchanged.
 
-## Integration commands
+## Shared integration API
 
-External applications such as Herdr can invoke the installed CLI as a subprocess. These commands always return JSON without a `--json` switch:
+The [versioned integration API](integration-api.md) replaces all dedicated color commands. Invoke `a1` with literal arguments `["api", JSON.stringify(request)]`. Discover operations with `capabilities` and color choices with `settings.list`; neither starts a session or probes Core.
 
-| Arguments after `a1` | Result |
-| --- | --- |
-| `session color capabilities` | Version-1 delivered startup-color and automatic terminal-identity support; no interactive/Core startup |
-| `session color list` | Available color identifiers in display order; no running session needed |
-| `session color get --session <id>` | One live session's Current color |
-| `session color set pink --session <id>` | Set only that session's Current color and acknowledge the applied value |
+Current color is setting `accentColor`, addressed with both complete session and runtime UUIDs in a session target. Read/update return correlated versioned envelopes, exact target, stored/effective values and application metadata. Live updates acknowledge `status: applied` only after the shared Settings authority adopts the value. Profile `defaultAccentColor` updates acknowledge durable `status: stored` for future initialization, not live recoloring. No ambient shell selector or retired-command fallback remains. Keep the runtime-directory environment consistent for custom runtime roots.
 
-The selector is a **complete session UUID**, shown by A1's Session Info workflow. It is not a PID, terminal index, abbreviated prefix, transcript path, or machine-wide current session. Get/set require one explicitly targeted live bare-A1 session outside an A1 shell. Within a shell launched by that exact session, omission uses the existing `PI_SESSION_ID`, `PI_SESSION_FILE`, and A1 runtime identity together; it never selects a different session implicitly. Keep the runtime-directory environment consistent when controlling a custom runtime root.
-
-Get/set do not change Default color. Configure the startup preference in Settings. An API write immediately updates the Current color value visible there, along with semantic colors and accent-derived backgrounds.
-
-### Responses
-
-Capability discovery succeeds with exactly this object followed by one newline:
-
-```json
-{"version":1,"launchColor":true,"terminalIdentity":true}
-```
-
-It reports delivered implementation support even outside Herdr or with unavailable Core. It does not initialize an interactive profile, ask for trust, start an endpoint/reporter, or probe Core. Hosts should require version 1 and both booleans before adding the startup option; older/missing/failed/malformed discovery leaves ordinary launching available without an override. Probe the configured installation on the target machine, not a desktop installation when launching over SSH.
-
-Inventory returns only the color list, not a hard-coded default that could be confused with the configured startup preference:
-
-```json
-{"colors":["blue","green","orange","pink","purple","cyan","grey"]}
-```
-
-Get and successful set use the same shape:
-
-```json
-{"sessionId":"57e38e80-f348-4b28-b791-7cc080886a70","color":"pink"}
-```
-
-Failures return:
-
-```json
-{"error":{"code":"session-unavailable","message":"Select one running bare session by its complete session id."}}
-```
-
-Exactly one newline-terminated JSON object is written to stdout, without progress or human-readable prefixes. Error messages are explanatory text and can evolve; applications should branch on `error.code`. Exit statuses:
-
-- **0:** successful capabilities/list/get/applied set.
-- **2:** invalid arguments, color, session format, or missing required selector.
-- **1:** unavailable/ambiguous target, timeout, or control failure.
-
-Error codes include `invalid-request`, `invalid-color`, `invalid-session`, `session-required`, `session-unavailable`, `ambiguous-session`, `request-expired`, `control-boundary`, `control-limit`, and `control-failed`. Hosts without a color command adapter return `control-unavailable`. Ordinary `session color help` and global help remain human-readable. CLI capability metadata advertises `sessionColors: true`.
-
-### Herdr integration
-
-Invoke `a1` with an argument array rather than interpolating a shell string. For example, pass `["session", "color", "set", "pink", "--session", sessionId]`, capture stdout, await process completion, and parse its one JSON object. On exit 0, update Herdr's local UI from the returned `sessionId` and `color`. On nonzero exit, display or handle the structured error; do not treat a queued write or process creation as successful application. No subscription/event feed or host-app icon recoloring is provided.
+Clients must validate envelope version, correlation ID, operation, target and applied readback, not merely JSON parse success. Exit zero means success; failures are nonzero with structured error codes. Discovery and all ordinary calls emit exactly one bounded LF-terminated JSON response. There is no subscription feed or host-app icon recoloring.
 
 ## Automatic Herdr Core terminal identity
 
@@ -105,7 +58,7 @@ Partial/foreign/malformed labels or unverifiable coordination fail closed rather
 
 ### Matching and compatibility boundary
 
-Herdr treats complete native `a1.*` identity as authoritative over the optional legacy companion's `custom.a1.*`. A partial native binding fails closed and cannot borrow legacy values; legacy fallback is permitted only when all three native keys are absent. A1 never edits companion package references or configuration.
+Herdr accepts only complete fresh native `a1.*` identity. Partial native bindings and legacy `custom.a1.*` labels never authorize control. A1 leaves unrelated legacy labels and companion configuration untouched; neither project installs a compatibility companion for this protocol.
 
 The supplied Herdr consumer freshness contract is 90 seconds with five seconds of future-clock tolerance. Fresh labels alone are not control authority: the host must also validate a live A1 target and current terminal/space/tab membership, use short-expiry requests, and honor acknowledged API responses. Do not infer a target from titles, PIDs, transcripts, or private endpoint files.
 
@@ -113,7 +66,7 @@ Once a normal or compatible session reports its ready identity, same-machine tab
 
 New producer code does not hot-patch an already running immutable release. An existing session with unavailable identity must be updated/relaunched by its owner when safe; never clear its labels or coordination files or restart it as an automatic color repair.
 
-First-frame space matching covers supported explicit Herdr A1-profile launches in an existing identified space. Herdr chooses the latest space color immediately before launch, requires both discovered capabilities, and passes no override when matching is disabled. Custom wrappers/unrelated profiles are not rewritten, and conflicting configured startup-color options should be refused rather than silently replaced. Manually launched Core-hosted A1 gains public identity and subsequent live matching, not a first-frame host handshake. Launches into new spaces without a known space ID retain live-sync fallback.
+First-frame space matching covers supported explicit Herdr A1-profile launches in an existing identified space. Herdr targets the coordinated current A1 contract without startup capability probes, chooses the latest space color immediately before launch, and passes no override when matching is disabled. Custom wrappers/unrelated profiles are not rewritten, and conflicting configured startup-color options should be refused rather than silently replaced. Manually launched Core-hosted A1 gains public identity and subsequent live matching, not a first-frame host handshake. Launches into new spaces without a known space ID retain live-sync fallback.
 
 ## Lifetime and safety
 

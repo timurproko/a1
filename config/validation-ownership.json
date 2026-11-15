@@ -276,12 +276,16 @@
       "id": "shared-product",
       "paths": [
         "src/cli/",
-        "src/composition/"
+        "src/composition/",
+        "src/app/settings/",
+        "src/features/integration-api/"
       ],
       "testPaths": [
         "test/cli/",
         "test/composition/",
-        "test/contracts/"
+        "test/contracts/",
+        "test/app/settings/",
+        "test/features/integration-api/"
       ],
       "criticalTests": [
         "test/cli/capabilities.test.ts",
