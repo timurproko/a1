@@ -12,18 +12,33 @@ describe("mutable bootstrap boundary", () => {
   });
 
   it("routes interactive launch through bootstrap and starts the owned runtime lazily", async () => {
-    const [bin, ui] = await Promise.all([
+    const [bin, compatible, handlers, ui] = await Promise.all([
       readFile(resolve(repository, "bin/cli.js"), "utf8"),
+      readFile(resolve(repository, "bin/pi-compatible.js"), "utf8"),
+      readFile(resolve(repository, "bin/command-handlers.js"), "utf8"),
       readFile(resolve(repository, "bin/ui.js"), "utf8"),
     ]);
-    expect(bin).toContain('import("../dist/foundation/release/bootstrap.js")');
-    expect(bin).not.toContain('import("../dist/foundation/release/index.js")');
-    expect(bin).not.toContain("runOwnedUi");
+    for (const entry of [bin, compatible]) {
+      expect(entry).toContain('import("./command-handlers.js")');
+      expect(entry).toContain("createCommandHandlers(packageRoot)");
+      expect(entry).not.toContain("/dist/foundation/release/");
+    }
+    const launchHandler = handlers.indexOf("launch: async intent =>");
+    const bootstrapImport = handlers.indexOf('import("../dist/foundation/release/bootstrap.js")');
+    const bootstrapCall = handlers.indexOf("return runBootstrap({");
+    const versionHandler = handlers.indexOf("version: async () =>");
+    expect(launchHandler).toBeGreaterThan(0);
+    expect(bootstrapImport).toBeGreaterThan(launchHandler);
+    expect(bootstrapCall).toBeGreaterThan(bootstrapImport);
+    expect(versionHandler).toBeGreaterThan(bootstrapCall);
+    const launchEntries = `${bin}\n${compatible}\n${handlers}`;
+    expect(launchEntries).not.toContain('import("../dist/foundation/release/index.js")');
+    expect(launchEntries).not.toContain("runOwnedUi");
     expect(ui).toContain("runSelectedInteractiveRuntime");
     expect(ui).toContain("runOwnedUi");
     expect(ui).toContain("terminateOwnedUiProcess");
-    expect(`${bin}\n${ui}`).not.toMatch(/node-pty|pi-tui|@xterm|host-terminal-renderer|terminal-input/);
-    expect(`${bin}\n${ui}`).not.toMatch(/Start-Process|wt\.exe|SendInput|SetForegroundWindow/);
+    expect(`${launchEntries}\n${ui}`).not.toMatch(/node-pty|pi-tui|@xterm|host-terminal-renderer|terminal-input/);
+    expect(`${launchEntries}\n${ui}`).not.toMatch(/Start-Process|wt\.exe|SendInput|SetForegroundWindow/);
   });
 
   it("starts the selected release's UI as the one attached child", async () => {
