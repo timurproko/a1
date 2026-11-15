@@ -223,12 +223,12 @@ it dispatches GitHub Actions, waits, and verifies both published versions. It ne
 builds or uploads npm bytes from the workstation.
 
 While waiting, the command prints `[publication] version — run ID` once, followed
-by an indented full Actions log link. Subsequent lines omit that prefix and show
+by an unindented full Actions log link. Subsequent lines omit that prefix and show
 each changed job separately, with job names aligned after a fixed-width status field:
 
 ```text
 [publication] 0.2.7-dev.1313 — run 43732033913
-  Full log: https://github.com/timurproko/a1/actions/runs/43732033913
+Full log: https://github.com/timurproko/a1/actions/runs/43732033913
 
   ● Running: Windows validation (Node 24)
   ● Passed:  Linux validation (Node 24)
@@ -244,8 +244,23 @@ Unchanged snapshots, setup/teardown steps, derivative lane/result gates, and
 never-started inactive-mode optional skips remain omitted. Previously started jobs
 that become skipped and skipped npm staging remain visible. A final failure names
 the primary lane or stage and bounded, deduplicated diagnostic messages; the full
-log retains the complete detail. If npm staging was skipped,
-it reports publication blocked before staging. Otherwise it warns that packages
+log retains the complete detail. A blank line separates a completed failure from
+progress. Its plain heading keeps the existing `[develop]` prefix without a dot;
+the unindented log link comes next, then a blank line and uniformly indented
+asterisk bullets for every detail, including diagnostics:
+
+```text
+[develop] Publication failed: 0.2.7-dev.1313 (run 43732033913)
+Full log: https://github.com/timurproko/a1/actions/runs/43732033913
+
+  * Published pair (win32-node24, windows-2025, 24) [failure]
+  * Detailed failure evidence unavailable; see the full log.
+  * Downstream lane/result checks also failed.
+  * npm staging: success. Packages may already exist; inspect the registry before retrying.
+  * Next: fix the failure, then rerun npm run develop after checking the run above.
+```
+
+If npm staging was skipped, it reports publication blocked before staging. Otherwise it warns that packages
 may already exist, or that publication state is unknown, so inspect the run and
 registry before retrying. Fix the cause before rerunning `npm run develop`.
 Interrupting the local wait does not cancel the remote run. Interrupted waiting or
