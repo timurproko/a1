@@ -24,7 +24,7 @@ The maintainer integration decision accepts these scenarios:
     "Color opt-outs retain neutral live rows, while redirected, dumb, resized, or undersized terminals preserve safe append-only status transitions.",
     "Failure details and interrupted observation remain readable below progress without changing publication outcomes or gates."
   ],
-  "archiveDigest": "00973981576cd33371a915c4c794a9ce36c245ed02b381a0c2c909324d0523f8",
+  "archiveDigest": "dab3caf83e81082798aec465b12a48885660317e3746aad1363a72a7dddfe78a",
   "specDigest": "d83ff11afc254ff3c636349aaf0f91af73455706da70bf48c5ed4e3319c7a374",
   "tasksDigest": "e6a6bda3c7d101c19169707f8a1be0131addd4fcf6394a08402ffb9b104d1d7c",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
