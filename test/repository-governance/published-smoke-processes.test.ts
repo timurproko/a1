@@ -100,8 +100,7 @@ describe("published smoke process ownership", () => {
       expect(pids.some(alive)).toBe(false);
       await rm(root, { recursive: true, force: true });
     } finally {
-      // Only fixture-created PIDs are fallback authority if a failed assertion interrupts cleanup.
-      for (const pid of pids) { try { process.kill(pid, "SIGKILL"); } catch { /* Already settled. */ } }
+      // Reuse creation-time-verified cleanup even if an assertion interrupts the first pass.
       await runner.close();
     }
   }, 60_000);

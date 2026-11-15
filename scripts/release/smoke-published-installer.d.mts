@@ -17,4 +17,6 @@ export interface SmokeRunner {
 export function smokePublishedInstaller(options?: {
   environment?: NodeJS.ProcessEnv;
   createRunner?: (root: string) => SmokeRunner;
+  removeFixture?: (root: string) => Promise<void>;
+  writeDiagnostic?: (text: string) => void;
 }): Promise<void>;

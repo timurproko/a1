@@ -6,7 +6,11 @@ import { pathToFileURL } from "node:url";
 import { compareVersions, resolveInstallerNpmCli, sanitizeDiagnostic } from "../../packages/a1-install/bin/a1-install.js";
 
 /** Run published installation in disposable prefixes and retain safe evidence on either outcome. */
-export async function smokePublishedInstaller({ environment = process.env, createRunner = createPublishedSmokeRunner } = {}) {
+export async function smokePublishedInstaller({
+  environment = process.env, createRunner = createPublishedSmokeRunner,
+  removeFixture = root => rm(root, { recursive: true, force: true, maxRetries: 4, retryDelay: 200 }),
+  writeDiagnostic = text => process.stderr.write(text),
+} = {}) {
   const version = environment.RELEASE_VERSION;
   const channel = environment.RELEASE_CHANNEL;
   const output = resolve(environment.PUBLISHED_INSTALLER_EVIDENCE ?? ".artifacts/validation/published-installer.json");
@@ -14,6 +18,8 @@ export async function smokePublishedInstaller({ environment = process.env, creat
   let runner;
   let stage = "prepare";
   let childOutcome;
+  let evidence;
+  let primaryError;
   const safe = value => {
     let text = String(value ?? "").slice(-16_000);
     for (const [key, secret] of Object.entries(environment)) {
@@ -135,8 +141,7 @@ export async function smokePublishedInstaller({ environment = process.env, creat
     if (updatedManifest.name !== applicationSource.name || updatedManifest.version !== version) throw new Error("predecessor update selected the wrong application package");
     await execute(updateLauncher, ["--help"], { cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: 30_000 });
 
-    await mkdir(dirname(output), { recursive: true });
-    await writeFile(output, `${JSON.stringify({
+    evidence = {
       schema: "a1-published-installer-smoke-v1",
       outcome: "success",
       predecessorVersion,
@@ -152,25 +157,57 @@ export async function smokePublishedInstaller({ environment = process.env, creat
       installedVersion: installedManifest.version,
       launcherVerified: true,
       activationVerified: true,
-    }, null, 2)}\n`);
-    process.stdout.write(`Published installer smoke passed on ${process.platform}/${process.arch}.\n`);
+    };
   } catch (error) {
-    await mkdir(dirname(output), { recursive: true });
-    await writeFile(output, `${JSON.stringify({
+    primaryError = new Error(safe(error instanceof Error ? error.message : error), { cause: error });
+    evidence = {
       schema: "a1-published-installer-smoke-v1", outcome: "failure", stage,
       platform: process.platform, architecture: process.arch, nodeVersion: process.version,
-      version, channel, error: safe(error instanceof Error ? error.message : error),
+      version, channel, error: primaryError.message,
       child: childOutcome,
-      npmDiagnostics: root ? await npmDiagnosticTails(resolve(root, "npm-cache", "_logs"), safe) : [],
+      npmDiagnostics: root ? await npmDiagnosticTails(resolve(root, "npm-cache", "_logs"), safe)
+        .catch(error => [safe(`npm diagnostics unavailable: ${error.message}`)]) : [],
       launcherVerified: false, activationVerified: false,
-    }, null, 2)}\n`);
-    throw error;
-  } finally {
-    if (root) {
+    };
+  }
+  if (root) {
+    try {
       await runner?.close();
-      await rm(root, { recursive: true, force: true, maxRetries: 4, retryDelay: 200 });
+      await removeFixture(root);
+    } catch (error) {
+      const cleanupError = safe(error instanceof Error ? error.message : error);
+      if (!primaryError) {
+        primaryError = new Error(cleanupError, { cause: error });
+        evidence = { ...evidence, outcome: "failure", stage: "cleanup", error: cleanupError, launcherVerified: false, activationVerified: false };
+      }
+      evidence.cleanup = { error: cleanupError };
     }
   }
+  const diagnostic = (title, message) => {
+    const text = safe(message).replace(/\r?\n/gu, " | ").slice(0, 1_000);
+    // Security: percent and line breaks must never inject another Actions workflow command.
+    writeDiagnostic(environment.GITHUB_ACTIONS === "true"
+      ? `::error title=${title}::${text.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A")}\n`
+      : `${title}: ${text}\n`);
+  };
+  if (primaryError) {
+    diagnostic("Published installer smoke", `${evidence.stage}: ${evidence.error}`);
+    if (evidence.cleanup && evidence.stage !== "cleanup") diagnostic("Published installer smoke cleanup", `secondary cleanup failure: ${evidence.cleanup.error}`);
+  }
+  try {
+    await mkdir(dirname(output), { recursive: true });
+    await writeFile(output, `${JSON.stringify(evidence, null, 2)}\n`);
+  } catch (error) {
+    if (!primaryError) {
+      const failure = new Error(safe(error instanceof Error ? error.message : error), { cause: error });
+      diagnostic("Published installer smoke", `write-evidence: ${failure.message}`);
+      throw failure;
+    }
+    diagnostic("Published installer smoke evidence", `secondary evidence write failure: ${error instanceof Error ? error.message : error}`);
+    throw primaryError;
+  }
+  if (primaryError) throw primaryError;
+  process.stdout.write(`Published installer smoke passed on ${process.platform}/${process.arch}.\n`);
 }
 
 async function npmDiagnosticTails(directory, safe) {

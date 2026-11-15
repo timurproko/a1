@@ -6,6 +6,6 @@
 
 ## 2. Actionable primary and cleanup failure reporting
 
-- [ ] 2.1 Keep the primary smoke failure authoritative when cleanup also fails, and record cleanup-only failures as unsuccessful outcomes.
-- [ ] 2.2 Emit bounded sanitized Actions annotations for smoke stage, primary child outcome, and secondary cleanup failure.
-- [ ] 2.3 Add focused failure-precedence, redaction, annotation, and cleanup-only regression cases.
+- [x] 2.1 Keep the primary smoke failure authoritative when cleanup also fails, and record cleanup-only failures as unsuccessful outcomes.
+- [x] 2.2 Emit bounded sanitized Actions annotations for smoke stage, primary child outcome, and secondary cleanup failure.
+- [x] 2.3 Add focused failure-precedence, redaction, annotation, and cleanup-only regression cases.

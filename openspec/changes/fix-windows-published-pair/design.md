@@ -32,6 +32,10 @@ A native command-shim fixture isolates the demonstrated timeout boundary: cmd.ex
 
 Focused native coverage includes command completion, output limits, detached/relative descendants, unrelated paths, stale parent IDs, changed start identity, unavailable caller identity, and actual fixture removal. Existing shared process-inspection tests exercise the reused creation-time-pinned Windows termination handle.
 
+Primary-error evidence now remains authoritative when process settlement, fixture removal, or evidence writing also fails. Cleanup-only failure rewrites the final outcome to failure; neither the success artifact nor success banner is emitted before cleanup completes. If process settlement fails, removal is not attempted. Failure annotations identify the primary stage, separate secondary cleanup/evidence failures, redact environment credentials and URL secrets, bound text, and escape Actions command syntax. Focused tests pass emitted annotations through the existing publication-summary reader, so no artifact download is required for the primary diagnostic.
+
+Local targeted validation: core build, both typechecks, architecture boundaries, strict OpenSpec validation, smoke/process ownership tests including native Windows timeout settlement, existing shared process-inspection tests, and publication-client reporting tests. The initial bin typecheck required the normal core build because the fresh worktree deliberately installed dependencies without lifecycle scripts; it passed after that build.
+
 ## Known gaps
 
 The exact inner npm stall from the hosted Windows run remains unreproduced. Disposition: retain the original deadline, fail closed on any recurrence, and use the repaired process settlement and stage diagnostics rather than guessing at an updater fix or increasing budgets. Native exact-pair success and timeout containment are local evidence only; they do not establish live publication recovery. No publication retry or registry mutation has been performed.
