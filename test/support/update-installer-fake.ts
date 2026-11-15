@@ -23,6 +23,7 @@ export function fakeUpdateInstaller(runner: () => UpdateProcessRunner, overrides
       const result = await runner()("npm", updateNpmInstallArguments(input.globalRoot, input.transaction.targetVersion), { captureStdout: true });
       return replacementResult(transactionId, result.code, result.stdout, result.stderr ?? "");
     },
+    restoreLaunchers: async () => {},
     rollback: async () => FAKE_ROLLBACK_RESULT,
     maintenance: async () => {},
     ...overrides,

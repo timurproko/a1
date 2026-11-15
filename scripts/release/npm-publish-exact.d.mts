@@ -1,9 +1,10 @@
 export const NPM_PUBLISH_ATTEMPTS: 2;
 export const NPM_PUBLISH_RETRY_DELAY_MS: 5000;
+export const NPM_STAGING_TAG: "a1-staging";
 
 export interface NpmPublishInvocation {
   readonly tarball: string;
-  readonly channel: "latest" | "next";
+  readonly channel: "a1-staging";
 }
 
 export interface NpmPublishResult {

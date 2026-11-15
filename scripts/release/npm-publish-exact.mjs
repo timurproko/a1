@@ -11,6 +11,7 @@ const MAX_CAPTURE_BYTES = 1024 * 1024;
 export const NPM_PUBLISH_ATTEMPTS = 2;
 /** Delay before the final registry reconciliation and retry. */
 export const NPM_PUBLISH_RETRY_DELAY_MS = 5_000;
+export const NPM_STAGING_TAG = "a1-staging";
 
 function requiredString(value, label) {
   if (typeof value !== "string" || value.length === 0) throw new Error(`${label} is required for exact npm publication`);
@@ -34,7 +35,8 @@ function validateIdentity({ name, version, integrity, shasum, channel }) {
 
 /** Build the invariant npm upload arguments used by every recovery attempt. */
 export function npmPublishArguments(tarball, channel) {
-  return [tarball, "--tag", channel, "--access", "public", "--ignore-scripts", "--provenance", "--registry", `${REGISTRY}/`];
+  if (channel !== NPM_STAGING_TAG) throw new Error("exact npm uploads must use the staging tag");
+  return [tarball, "--tag", NPM_STAGING_TAG, "--access", "public", "--ignore-scripts", "--provenance", "--registry", `${REGISTRY}/`];
 }
 
 function appendBounded(current, chunk) {
@@ -111,7 +113,7 @@ export async function publishExactPackage({
   }
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const result = await publish({ tarball: exactTarball, channel: identity.channel });
+    const result = await publish({ tarball: exactTarball, channel: NPM_STAGING_TAG });
     if (result?.code === 0) return { status: "published", attempts: attempt, ...identity };
     const output = String(result?.output ?? "");
     if (!isDuplicateTransparencyLogFailure(output)) {

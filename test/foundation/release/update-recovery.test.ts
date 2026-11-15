@@ -15,7 +15,7 @@ import {
   updateNpmInstallArguments,
   type UpdateTransaction,
 } from "../../../src/foundation/release/index.js";
-import { resolveNpmCli } from "../../../src/foundation/release/update-recovery.js";
+import { resolveNpmCli, restoreUpdateRecoveryLaunchers } from "../../../src/foundation/release/update-recovery.js";
 
 const roots: string[] = [];
 afterEach(async () => await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -220,6 +220,38 @@ describe("cancellation-safe package replacement", () => {
     await expect(runProtectedPackageReplacement(fixture.options)).resolves.toMatchObject({ outcome: "installed" });
   }, 15_000);
 
+  it("does not start npm when prepared journal authority cannot be persisted", async () => {
+    const fixture = await recoveryFixture("success");
+    let spawned = false;
+    await expect(runProtectedPackageReplacement({ ...fixture.options,
+      onRecoveryState: async () => { throw new Error("journal locked before start"); },
+      workerSpawner: async () => { spawned = true; },
+    })).rejects.toThrow(/before start/u);
+    expect(spawned).toBe(false);
+    for (const path of fixture.launchers) expect(await readFile(path, "utf8")).toBe("old launcher");
+  });
+
+  it("waits for detached npm settlement despite running and final journal callback failures", async () => {
+    const fixture = await recoveryFixture("slow-success");
+    const warnings: string[] = [];
+    const states: string[] = [];
+    const result = await runProtectedPackageReplacement({ ...fixture.options,
+      output: { stderr: message => { warnings.push(message); } },
+      onRecoveryState: async state => {
+        states.push(state.status);
+        if (state.status !== "prepared") throw new Error("persistent journal sharing violation");
+      },
+    });
+    expect(states).toContain("running");
+    expect(states.at(-1)).toBe("package-installed");
+    expect(result).toMatchObject({ outcome: "installed", launcherDisposition: "target" });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("waiting for launcher settlement");
+    for (const launcher of fixture.launchers) expect(await readFile(launcher, "utf8")).toContain("node_modules/@timurproko/a1/bin/cli.js");
+    const capsule = await readUpdateRecoveryCapsule(result.recovery.capsulePath);
+    expect(JSON.parse(await readFile(capsule.resultPath, "utf8"))).toMatchObject({ outcome: "installed" });
+  }, 15_000);
+
   it("bounds a guardian that never publishes ownership or a result", async () => {
     const fixture = await recoveryFixture("success");
     await expect(runProtectedPackageReplacement({
@@ -253,6 +285,19 @@ describe("cancellation-safe package replacement", () => {
     for (const launcher of fixture.launchers) expect((await lstat(launcher)).isSymbolicLink()).toBe(false);
   }, 15_000);
 
+  it("restores prior-release launchers after successful npm is followed by activation failure", async () => {
+    const fixture = await recoveryFixture("success");
+    const result = await runProtectedPackageReplacement(fixture.options);
+    expect(result.outcome).toBe("installed");
+    await writeFile(resolve(fixture.options.packageRoot, "bin", "cli.js"), "process.exitCode = 42;");
+    await restoreUpdateRecoveryLaunchers(result.recovery.capsulePath, fixture.options.environment);
+    const capsule = await readUpdateRecoveryCapsule(result.recovery.capsulePath);
+    for (const launcher of fixture.launchers) expect(await readFile(launcher, "utf8")).toContain("recovery.js");
+    const child = spawn(process.execPath, [capsule.recoveryEntry, "--launch", result.recovery.capsulePath, "--", "--version"], { stdio: "ignore", windowsHide: true });
+    await expect(new Promise<number | null>((resolvePromise, rejectPromise) => { child.once("error", rejectPromise); child.once("close", resolvePromise); })).resolves.toBe(0);
+    expect(JSON.parse(await readFile(capsule.resultPath, "utf8"))).toMatchObject({ outcome: "recovery-launcher", launcherDisposition: "recovery" });
+  }, 15_000);
+
   it("restores every launcher after npm failure and preserves its diagnostics", async () => {
     const fixture = await recoveryFixture("fail");
     const result = await runProtectedPackageReplacement(fixture.options);
@@ -260,6 +305,15 @@ describe("cancellation-safe package replacement", () => {
     expect(result).toMatchObject({ outcome: "recovery-launcher", npmExitCode: 7, cancelled: false, launcherDisposition: "recovery" });
     expect(result.stderr).toContain("injected npm failure");
     for (const launcher of fixture.launchers) await expect(readFile(launcher, "utf8")).resolves.toContain("recovery.js");
+  }, 15_000);
+
+  it("does not launch a partial target when npm failed after writing its entry", async () => {
+    const fixture = await recoveryFixture("fail-partial");
+    const result = await runProtectedPackageReplacement(fixture.options);
+    expect(result).toMatchObject({ outcome: "recovery-launcher", npmExitCode: 7, launcherDisposition: "recovery" });
+    const capsule = await readUpdateRecoveryCapsule(result.recovery.capsulePath);
+    const child = spawn(process.execPath, [capsule.recoveryEntry, "--launch", result.recovery.capsulePath, "--", "--version"], { stdio: "ignore", windowsHide: true });
+    await expect(new Promise<number | null>((resolvePromise, rejectPromise) => { child.once("error", rejectPromise); child.once("close", resolvePromise); })).resolves.toBe(0);
   }, 15_000);
 
   it("restores the complete platform launcher set after cancellation at each launcher mutation", async () => {
@@ -484,7 +538,7 @@ async function recoveryFixture(mode: RecoveryNpmMode, cancelAfter = 0) {
   };
 }
 
-type RecoveryNpmMode = "success" | "slow-success" | "wait" | "staged-wait" | "fail" | "link-success" | "link-foreign";
+type RecoveryNpmMode = "success" | "slow-success" | "wait" | "staged-wait" | "fail" | "fail-partial" | "link-success" | "link-foreign";
 
 function fakeNpmSource(mode: RecoveryNpmMode, packageRoot: string, launchers: readonly string[]): string {
   if (mode === "link-success" || mode === "link-foreign") {
@@ -523,12 +577,13 @@ function fakeNpmSource(mode: RecoveryNpmMode, packageRoot: string, launchers: re
       ${mode === "slow-success" ? "await new Promise(resolvePromise => setTimeout(resolvePromise, 1000));" : ""}
       await mkdir(resolve(packageRoot, "bin"), { recursive: true });
       await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", privateLaunchContract: "neutral-launch-v1", version: "1.1.0" }));
-      await writeFile(resolve(packageRoot, "bin", "cli.js"), "// target");
+      await writeFile(resolve(packageRoot, "bin", "cli.js"), ${JSON.stringify(mode === "fail-partial" ? "process.exitCode = 42;" : "// target")});
       for (const launcher of launchers) {
         await mkdir(dirname(launcher), { recursive: true });
         await writeFile(launcher, "node_modules/@timurproko/a1/bin/cli.js");
         await require("node:fs/promises").chmod(launcher, 0o755);
       }
+      ${mode === "fail-partial" ? "console.error('npm failed after partial target write'); process.exitCode = 7;" : ""}
       `}
     })().catch(error => { console.error(error); process.exitCode = 1; });
   `;
