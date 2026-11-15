@@ -1,18 +1,25 @@
-import crossSpawn from "cross-spawn";
-import { chmod, mkdtemp, mkdir, open, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, open, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
+import { createPublishedSmokeRunner } from "./published-smoke-processes.mjs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { compareVersions, resolveInstallerNpmCli, sanitizeDiagnostic } from "../../packages/a1-install/bin/a1-install.js";
 
 /** Run published installation in disposable prefixes and retain safe evidence on either outcome. */
-export async function smokePublishedInstaller({ environment = process.env, spawnSync = crossSpawn.sync } = {}) {
+export async function smokePublishedInstaller({
+  environment = process.env, createRunner = createPublishedSmokeRunner,
+  removeFixture = root => rm(root, { recursive: true, force: true, maxRetries: 4, retryDelay: 200 }),
+  writeDiagnostic = text => process.stderr.write(text),
+} = {}) {
   const version = environment.RELEASE_VERSION;
   const channel = environment.RELEASE_CHANNEL;
   const output = resolve(environment.PUBLISHED_INSTALLER_EVIDENCE ?? ".artifacts/validation/published-installer.json");
   let root;
+  let runner;
   let stage = "prepare";
   let childOutcome;
+  let evidence;
+  let primaryError;
   const safe = value => {
     let text = String(value ?? "").slice(-16_000);
     for (const [key, secret] of Object.entries(environment)) {
@@ -20,13 +27,13 @@ export async function smokePublishedInstaller({ environment = process.env, spawn
     }
     return text.split(/\r?\n/u).map(line => sanitizeDiagnostic(line)).filter(Boolean).slice(-80).join("\n").slice(-8_000);
   };
-  const execute = (command, args, options) => {
-    const result = spawnSync(command, args, options);
+  const execute = async (command, args, options) => {
+    const result = await runner.run(command, args, options);
     childOutcome = {
       status: result.status, signal: result.signal ?? null,
       error: safe(result.error?.message), stdout: safe(result.stdout), stderr: safe(result.stderr),
     };
-    if (result.status !== 0) throw new Error(safe(result.stderr || result.error?.message || `${stage} failed with ${result.status}`));
+    if (result.status !== 0 || result.error) throw new Error(safe(result.error?.message || result.stderr || `${stage} failed with ${result.status}`));
     return result;
   };
   try {
@@ -36,7 +43,8 @@ export async function smokePublishedInstaller({ environment = process.env, spawn
     }
     const installerSource = JSON.parse(await readFile(resolve("packages", "a1-install", "package.json"), "utf8"));
     const applicationSource = JSON.parse(await readFile(resolve("package.json"), "utf8"));
-    root = await mkdtemp(resolve(tmpdir(), "a1-published-installer-"));
+    root = await realpath(await mkdtemp(resolve(tmpdir(), "a1-published-installer-")));
+    runner = createRunner(root);
     const bootstrapPrefix = resolve(root, "bootstrap");
     const applicationPrefix = resolve(root, "application");
     const bootstrapBin = process.platform === "win32" ? bootstrapPrefix : resolve(bootstrapPrefix, "bin");
@@ -47,7 +55,7 @@ export async function smokePublishedInstaller({ environment = process.env, spawn
     // Security: diagnostics belong only to this fixture, never the runner's shared npm cache.
     const acquisitionEnvironment = { ...environment, npm_config_cache: resolve(root, "npm-cache") };
     stage = "acquire-installer";
-    execute(npm, [
+    await execute(npm, [
       "install", "--global", "--prefix", bootstrapPrefix, `${installerSource.name}@${version}`,
       "--ignore-scripts", "--no-audit", "--no-fund",
     ], { cwd: root, encoding: "utf8", env: acquisitionEnvironment, windowsHide: true, timeout: 120_000 });
@@ -75,7 +83,7 @@ export async function smokePublishedInstaller({ environment = process.env, spawn
     installedEnvironment.PATH = [bridgeBin, installedEnvironment.PATH].join(delimiter);
     const args = channel === "next" ? ["--develop", version] : [];
     stage = "install-application";
-    const installed = execute(installerLauncher, args, { cwd: root, encoding: "utf8", env: installedEnvironment, windowsHide: true, timeout: 10 * 60_000 });
+    const installed = await execute(installerLauncher, args, { cwd: root, encoding: "utf8", env: installedEnvironment, windowsHide: true, timeout: 10 * 60_000 });
     if (installed.stdout.replace(/\r\n/gu, "\n") !== "a1 successfully installed\n" || installed.stderr !== "") {
       throw new Error("published installer transcript is invalid");
     }
@@ -87,18 +95,18 @@ export async function smokePublishedInstaller({ environment = process.env, spawn
       throw new Error("published installer selected the wrong application package");
     }
     stage = "launch-application";
-    execute(applicationLauncher, ["version"], { cwd: root, encoding: "utf8", env: installedEnvironment, windowsHide: true, timeout: 30_000 });
+    await execute(applicationLauncher, ["version"], { cwd: root, encoding: "utf8", env: installedEnvironment, windowsHide: true, timeout: 30_000 });
 
-    execute(applicationLauncher, ["--help"], { cwd: root, encoding: "utf8", env: installedEnvironment, windowsHide: true, timeout: 30_000 });
+    await execute(applicationLauncher, ["--help"], { cwd: root, encoding: "utf8", env: installedEnvironment, windowsHide: true, timeout: 30_000 });
 
     // Rationale: a second prefix proves predecessor-owned replacement, not merely a fresh install.
     stage = "resolve-predecessor";
-    const predecessor = execute(npm, ["view", `${applicationSource.name}@${channel}`, "version", "--json"], {
+    const predecessor = await execute(npm, ["view", `${applicationSource.name}@${channel}`, "version", "--json"], {
       cwd: root, encoding: "utf8", env: acquisitionEnvironment, windowsHide: true, timeout: 30_000,
     });
     let predecessorVersion = JSON.parse(predecessor.stdout);
     if (predecessorVersion === version) {
-      const published = execute(npm, ["view", applicationSource.name, "versions", "--json"], {
+      const published = await execute(npm, ["view", applicationSource.name, "versions", "--json"], {
         cwd: root, encoding: "utf8", env: acquisitionEnvironment, windowsHide: true, timeout: 30_000,
       });
       const candidates = JSON.parse(published.stdout);
@@ -118,23 +126,22 @@ export async function smokePublishedInstaller({ environment = process.env, spawn
       PATH: [bridgeBin, updateBin, bootstrapBin, environment.PATH ?? ""].join(delimiter),
     };
     stage = "install-predecessor";
-    execute(installerLauncher, channel === "next" ? ["--develop", predecessorVersion] : [], {
+    await execute(installerLauncher, channel === "next" ? ["--develop", predecessorVersion] : [], {
       cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: 10 * 60_000,
     });
     stage = "update-predecessor";
     updateEnvironment.PUBLISHED_SMOKE_VERSION = version;
     const updateLauncher = resolve(updateBin, process.platform === "win32" ? "a1.cmd" : "a1");
-    execute(updateLauncher, ["update", ...(channel === "next" ? ["--develop", version] : ["--release"])], {
+    await execute(updateLauncher, ["update", ...(channel === "next" ? ["--develop", version] : ["--release"])], {
       cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: 10 * 60_000,
     });
     stage = "launch-updated-application";
     const updatedRoot = resolve(updatePrefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", ...applicationSource.name.split("/"));
     const updatedManifest = JSON.parse(await readFile(resolve(updatedRoot, "package.json"), "utf8"));
     if (updatedManifest.name !== applicationSource.name || updatedManifest.version !== version) throw new Error("predecessor update selected the wrong application package");
-    execute(updateLauncher, ["--help"], { cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: 30_000 });
+    await execute(updateLauncher, ["--help"], { cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: 30_000 });
 
-    await mkdir(dirname(output), { recursive: true });
-    await writeFile(output, `${JSON.stringify({
+    evidence = {
       schema: "a1-published-installer-smoke-v1",
       outcome: "success",
       predecessorVersion,
@@ -150,26 +157,57 @@ export async function smokePublishedInstaller({ environment = process.env, spawn
       installedVersion: installedManifest.version,
       launcherVerified: true,
       activationVerified: true,
-    }, null, 2)}\n`);
-    process.stdout.write(`Published installer smoke passed on ${process.platform}/${process.arch}.\n`);
+    };
   } catch (error) {
-    await mkdir(dirname(output), { recursive: true });
-    await writeFile(output, `${JSON.stringify({
+    primaryError = new Error(safe(error instanceof Error ? error.message : error), { cause: error });
+    evidence = {
       schema: "a1-published-installer-smoke-v1", outcome: "failure", stage,
       platform: process.platform, architecture: process.arch, nodeVersion: process.version,
-      version, channel, error: safe(error instanceof Error ? error.message : error),
+      version, channel, error: primaryError.message,
       child: childOutcome,
-      npmDiagnostics: root ? await npmDiagnosticTails(resolve(root, "npm-cache", "_logs"), safe) : [],
+      npmDiagnostics: root ? await npmDiagnosticTails(resolve(root, "npm-cache", "_logs"), safe)
+        .catch(error => [safe(`npm diagnostics unavailable: ${error.message}`)]) : [],
       launcherVerified: false, activationVerified: false,
-    }, null, 2)}\n`);
-    throw error;
-  } finally {
-    if (root) {
-      await stopOwnedProcesses(resolve(root, "runtime"));
-      await stopOwnedProcesses(resolve(root, "update-runtime"));
-      await rm(root, { recursive: true, force: true, maxRetries: 4, retryDelay: 200 });
+    };
+  }
+  if (root) {
+    try {
+      await runner?.close();
+      await removeFixture(root);
+    } catch (error) {
+      const cleanupError = safe(error instanceof Error ? error.message : error);
+      if (!primaryError) {
+        primaryError = new Error(cleanupError, { cause: error });
+        evidence = { ...evidence, outcome: "failure", stage: "cleanup", error: cleanupError, launcherVerified: false, activationVerified: false };
+      }
+      evidence.cleanup = { error: cleanupError };
     }
   }
+  const diagnostic = (title, message) => {
+    const text = safe(message).replace(/\r?\n/gu, " | ").slice(0, 1_000);
+    // Security: percent and line breaks must never inject another Actions workflow command.
+    writeDiagnostic(environment.GITHUB_ACTIONS === "true"
+      ? `::error title=${title}::${text.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A")}\n`
+      : `${title}: ${text}\n`);
+  };
+  if (primaryError) {
+    diagnostic("Published installer smoke", `${evidence.stage}: ${evidence.error}`);
+    if (evidence.cleanup && evidence.stage !== "cleanup") diagnostic("Published installer smoke cleanup", `secondary cleanup failure: ${evidence.cleanup.error}`);
+  }
+  try {
+    await mkdir(dirname(output), { recursive: true });
+    await writeFile(output, `${JSON.stringify(evidence, null, 2)}\n`);
+  } catch (error) {
+    if (!primaryError) {
+      const failure = new Error(safe(error instanceof Error ? error.message : error), { cause: error });
+      diagnostic("Published installer smoke", `write-evidence: ${failure.message}`);
+      throw failure;
+    }
+    diagnostic("Published installer smoke evidence", `secondary evidence write failure: ${error instanceof Error ? error.message : error}`);
+    throw primaryError;
+  }
+  if (primaryError) throw primaryError;
+  process.stdout.write(`Published installer smoke passed on ${process.platform}/${process.arch}.\n`);
 }
 
 async function npmDiagnosticTails(directory, safe) {
@@ -186,33 +224,6 @@ async function npmDiagnosticTails(directory, safe) {
     } finally { await file.close(); }
   }
   return tails;
-}
-
-/** Stop only processes whose metadata was created inside this disposable runtime. */
-async function stopOwnedProcesses(directory) {
-  const records = [];
-  async function visit(path) {
-    for (const entry of await readdir(path, { withFileTypes: true }).catch(() => [])) {
-      const child = resolve(path, entry.name);
-      if (entry.isDirectory()) await visit(child);
-      else if (entry.isFile() && entry.name.endsWith(".json")) records.push(child);
-    }
-  }
-  await visit(directory);
-  const pids = new Set();
-  for (const path of records) {
-    try {
-      const value = JSON.parse(await readFile(path, "utf8"));
-      if (Number.isInteger(value.pid) && value.pid > 0 && value.pid !== process.pid) pids.add(value.pid);
-    } catch { /* Rationale: ignore unrelated or concurrently replaced runtime evidence. */ }
-  }
-  for (const pid of pids) {
-    try { process.kill(pid, "SIGTERM"); } catch { /* Rationale: an already stopped owned process needs no cleanup. */ }
-  }
-  await new Promise(resolvePromise => setTimeout(resolvePromise, 250));
-  for (const pid of pids) {
-    try { process.kill(pid, 0); process.kill(pid, "SIGKILL"); } catch { /* Rationale: the graceful stop already completed. */ }
-  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
