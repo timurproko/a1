@@ -1,5 +1,5 @@
 import { OWNED_SETTING_DECLARATIONS, type ApplicationSettings } from "../../app/settings/index.js";
-import { integrationCapabilities, integrationFailure, integrationResponse, parseIntegrationRequest, type IntegrationRequest, type IntegrationResponse } from "./protocol.js";
+import { integrationCapabilities, integrationFailure, integrationResponse, parseIntegrationRequest, type ExitBlocker, type IntegrationRequest, type IntegrationResponse, type SessionLifecycleSnapshot } from "./protocol.js";
 
 /** Deliberately small allowlist; no engine settings, private paths or credentials cross this boundary. */
 function integrationSettingDescriptors() {
@@ -14,6 +14,35 @@ function integrationSettingDescriptors() {
 export interface IntegrationServices {
   profile(): ApplicationSettings;
   session(request: IntegrationRequest): Promise<unknown>;
+}
+
+/** What the owning shell answers about stopping; implemented by the live session presenter. */
+export interface SessionLifecycleServices {
+  readiness(): SessionLifecycleSnapshot;
+  requestExit(): { readonly admitted: true } | { readonly admitted: false; readonly blocker: ExitBlocker };
+}
+const BLOCKER_MESSAGES: Record<ExitBlocker, string> = {
+  "session-stopping": "The session is already stopping or has stopped.",
+  "session-busy": "The session is not idle.",
+  "editor-not-empty": "The editor holds a draft.",
+  "pending-input": "A submission is waiting or input is queued.",
+  "overlay-open": "A dialog, selector or overlay is open.",
+};
+
+/**
+ * Runs inside the owning runtime's serialized handler. Deliberately synchronous: the readiness check and
+ * the admission happen with no await between them, so a concurrent request cannot interleave.
+ */
+export function applySessionLifecycle(input: unknown, lifecycle: SessionLifecycleServices | null): IntegrationResponse {
+  try {
+    const request = parseIntegrationRequest(input);
+    if (request.type !== "session.lifecycle" && request.type !== "session.exit") throw integrationFailure("unsupported-operation", "Not a lifecycle operation.");
+    if (lifecycle === null) throw integrationFailure("session-unavailable", "The session shell is not available.");
+    if (request.type === "session.lifecycle") return integrationResponse(request, { target: request.target, ...lifecycle.readiness() });
+    const outcome = lifecycle.requestExit();
+    if (!outcome.admitted) throw integrationFailure(outcome.blocker, BLOCKER_MESSAGES[outcome.blocker]);
+    return integrationResponse(request, { target: request.target, status: "admitted", lifecycle: "stopping" });
+  } catch (error) { return integrationResponse(input, undefined, error); }
 }
 
 /** The shared command router; session work is forwarded into the existing exact-target runtime. */

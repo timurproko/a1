@@ -1,8 +1,8 @@
 ## 1. Add session lifecycle snapshot and graceful-exit operations to the integration protocol
 
-- [ ] 1.1 Extend `protocol.ts` with `session.lifecycle` and `session.exit`: session-target-only parsing, exact-field rejection, `lifecycle: true` in capabilities, and response assertions for the snapshot shape, `status: "admitted"`, and the stable blocker error codes.
-- [ ] 1.2 Route both operations through `service.ts` and the `a1 api` process boundary unchanged in shape, with help text and error-code lists updated.
-- [ ] 1.3 Write protocol/service/CLI tests for parsing, rejection of extra fields and profile scope, capability additivity, and response validation of success and each refusal code.
+- [x] 1.1 Extend `protocol.ts` with `session.lifecycle` and `session.exit`: session-target-only parsing, exact-field rejection, `lifecycle: true` in capabilities, and response assertions for the snapshot shape, `status: "admitted"`, and the stable blocker error codes.
+- [x] 1.2 Route both operations through `service.ts` and the `a1 api` process boundary unchanged in shape, with help text and error-code lists updated.
+- [x] 1.3 Write protocol/service/CLI tests for parsing, rejection of extra fields and profile scope, capability additivity, and response validation of success and each refusal code.
 
 ## 2. Admit graceful exit in the owning runtime through the ordinary quit path
 

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApplicationSettings } from "../../../src/app/settings/index.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import { OwnedSettingsManager } from "../../../src/ui/settings/index.js";
-import { applyIntegrationSettings, assertIntegrationResponse, executeIntegrationRequest, parseIntegrationRequest } from "../../../src/features/integration-api/index.js";
+import { applyIntegrationSettings, applySessionLifecycle, assertIntegrationResponse, executeIntegrationRequest, parseIntegrationRequest, type SessionLifecycleServices } from "../../../src/features/integration-api/index.js";
 
 const roots: string[] = [];
 const root = () => { const directory = mkdtempSync(join(tmpdir(), "integration-settings-")); roots.push(directory); return directory; };
@@ -18,7 +18,7 @@ describe("shared integration application authority", () => {
     const services = { profile: vi.fn(), session: vi.fn() };
     const capabilities = await executeIntegrationRequest(request("capabilities"), services);
     expect(capabilities).toMatchObject({ version: 1, id: "request-1", type: "response", command: "capabilities", success: true,
-      data: { operations: ["capabilities", "settings.list", "settings.get", "settings.update", "session.get"], launchColor: true, terminalIdentity: true } });
+      data: { operations: ["capabilities", "settings.list", "settings.get", "settings.update", "session.get", "session.lifecycle", "session.exit"], launchColor: true, terminalIdentity: true, lifecycle: true } });
     const descriptors = await executeIntegrationRequest(request("settings.list"), services);
     expect(descriptors.data).toMatchObject({ settings: [
       { id: "defaultAccentColor", scope: "profile", application: "next-session" },
@@ -37,6 +37,10 @@ describe("shared integration application authority", () => {
     [request("settings.get", { setting: "accentColor" }), "target-required"],
     [request("settings.get", { target, setting: "defaultAccentColor" }), "unsupported-scope"],
     [request("settings.list", { target }), "invalid-request"],
+    [request("session.lifecycle"), "target-required"],
+    [request("session.exit", { target: { scope: "profile", profileId: "a1" } }), "unsupported-scope"],
+    [request("session.exit", { target, force: true }), "invalid-request"],
+    [request("session.lifecycle", { target, setting: "accentColor" }), "invalid-request"],
   ])("rejects unsupported input before reaching services", async (input, code) => {
     const services = { profile: vi.fn(), session: vi.fn() };
     expect(await executeIntegrationRequest(input, services)).toMatchObject({ success: false, error: { code } });
@@ -82,6 +86,51 @@ describe("shared integration application authority", () => {
     const data = response.data as Record<string, unknown>;
     for (const patch of [{ status: "queued" }, { effectiveValue: "blue" }, { target: { ...target, runtimeId: target.sessionId } }]) {
       expect(() => assertIntegrationResponse({ ...response, data: { ...data, ...patch } }, update)).toThrow();
+    }
+  });
+
+  const idle = { lifecycle: "ready" as const, editorEmpty: true, pendingSubmissions: 0, queuedInput: 0, overlayOpen: false, exitAdmissible: true, blockers: [] as const };
+  const lifecycleServices = (snapshot: ReturnType<SessionLifecycleServices["readiness"]>, exit: ReturnType<SessionLifecycleServices["requestExit"]>) => {
+    const services = { readiness: vi.fn(() => snapshot), requestExit: vi.fn(() => exit) };
+    return services;
+  };
+
+  it("routes lifecycle operations to the exact runtime, never to profile settings", async () => {
+    const services = { profile: vi.fn(), session: vi.fn(async () => ({ forwarded: true })) };
+    expect(await executeIntegrationRequest(request("session.lifecycle", { target }), services)).toEqual({ forwarded: true });
+    expect(await executeIntegrationRequest(request("session.exit", { target }), services)).toEqual({ forwarded: true });
+    expect(services.profile).not.toHaveBeenCalled();
+    const settings = new ApplicationSettings({ profileDir: root(), profileId: "a1" });
+    expect(await applyIntegrationSettings(request("session.exit", { target }), settings)).toMatchObject({ success: false, error: { code: "unsupported-operation" } });
+  });
+
+  it("answers a read-only snapshot and validates its consistency", () => {
+    const services = lifecycleServices(idle, { admitted: true });
+    const snapshot = parseIntegrationRequest(request("session.lifecycle", { target }));
+    const response = applySessionLifecycle(snapshot, services);
+    assertIntegrationResponse(response, snapshot);
+    expect(response.data).toEqual({ target, ...idle });
+    expect(services.requestExit).not.toHaveBeenCalled();
+    const data = response.data as Record<string, unknown>;
+    for (const patch of [{ exitAdmissible: false }, { blockers: ["forced"] }, { lifecycle: "gone" }, { queuedInput: -1 }, { pendingSubmissions: "0" }]) {
+      expect(() => assertIntegrationResponse({ ...response, data: { ...data, ...patch } }, snapshot)).toThrow(/Malformed lifecycle snapshot/);
+    }
+    expect(applySessionLifecycle(snapshot, null)).toMatchObject({ success: false, error: { code: "session-unavailable" } });
+    expect(applySessionLifecycle(request("session.get", { target }), services)).toMatchObject({ success: false, error: { code: "unsupported-operation" } });
+  });
+
+  it("acknowledges an admitted exit once and reports the first blocker otherwise", () => {
+    const exit = parseIntegrationRequest(request("session.exit", { target }));
+    const admitted = applySessionLifecycle(exit, lifecycleServices(idle, { admitted: true }));
+    assertIntegrationResponse(admitted, exit);
+    expect(admitted.data).toEqual({ target, status: "admitted", lifecycle: "stopping" });
+    for (const patch of [{ status: "queued" }, { lifecycle: "ready" }]) {
+      expect(() => assertIntegrationResponse({ ...admitted, data: { ...(admitted.data as object), ...patch } }, exit)).toThrow(/not acknowledged as admitted/);
+    }
+    for (const blocker of ["session-stopping", "session-busy", "editor-not-empty", "pending-input", "overlay-open"] as const) {
+      const refused = applySessionLifecycle(exit, lifecycleServices({ ...idle, exitAdmissible: false, blockers: [blocker] }, { admitted: false, blocker }));
+      expect(refused).toMatchObject({ success: false, id: "request-1", command: "session.exit", error: { code: blocker } });
+      assertIntegrationResponse(refused, exit);
     }
   });
 });
