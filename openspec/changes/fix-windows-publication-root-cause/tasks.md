@@ -1,8 +1,8 @@
 ## 1. Hosted published-pair diagnosis
 
-- [ ] Add an explicit diagnostic-only workflow route for an existing immutable published pair, with no npm writes or publication credentials.
-- [ ] Retain worker stderr, exception, and exit information while leaving predecessor and candidate package bytes unchanged.
-- [ ] Add focused contracts for diagnostic routing, capture, and redaction.
+- [x] Add an explicit diagnostic-only workflow route for an existing immutable published pair, with no npm writes or publication credentials.
+- [x] Retain worker stderr, exception, and exit information while leaving predecessor and candidate package bytes unchanged.
+- [x] Add focused contracts for diagnostic routing, capture, and redaction.
 
 ## 2. Root-cause repair
 
