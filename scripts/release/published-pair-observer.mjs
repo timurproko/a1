@@ -18,7 +18,7 @@ if (directory) {
   process.on("exit", code => log({ event: "exit", code }));
   const spawn = childProcess.spawn;
   childProcess.spawn = function(command, args, options) {
-    if (!args?.includes("--worker")) return spawn(command, args, options);
+    if (args?.[1] !== "--worker" || basename(args[0] ?? "") !== "recovery.js") return spawn(command, args, options);
     const fd = openSync(resolve(directory, `worker-stderr-${process.pid}.log`), "a", 0o600);
     let child;
     try { child = spawn(command, args, { ...options, stdio: ["ignore", fd, fd] }); }

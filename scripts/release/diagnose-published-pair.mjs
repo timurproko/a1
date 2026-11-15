@@ -1,5 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { mkdir, open, readdir, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
@@ -42,7 +42,9 @@ export async function diagnosePublishedPair(environment = process.env) {
     if (typeof value !== "string" || !value.startsWith("sha512-")) throw new Error("published-pair diagnostic requires existing registry integrity");
     return value;
   };
-  const [application, installer] = await Promise.all([integrity("@timurproko/a1"), integrity("@timurproko/a1-install")]);
+  const applicationName = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8")).name;
+  const installerName = JSON.parse(await readFile(new URL("../../packages/a1-install/package.json", import.meta.url), "utf8")).name;
+  const [application, installer] = await Promise.all([integrity(applicationName), integrity(installerName)]);
   const raw = resolve(".artifacts", "published-pair-diagnostic-raw");
   const output = resolve(".artifacts", "validation", "published-pair-diagnostic");
   await mkdir(raw, { recursive: true });
