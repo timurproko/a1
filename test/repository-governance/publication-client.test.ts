@@ -3,6 +3,7 @@ import { stripVTControlCharacters } from "node:util";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { describePublicationFailure, dispatchPublication, dispatchStableValidation, resolveDevelopPreview, waitForStableValidation } from "../../scripts/release/publication-client.mjs";
+import { replayTerminalCheckpoints, replayTerminalPaint } from "../support/rendering/terminal-paint-evidence.js";
 
 type Call = { executable: string; args: string[] };
 
@@ -491,6 +492,203 @@ describe("publication failure reporting", () => {
     expect(require.run).toContain('test "$POST_PUBLISH" = success');
     expect(require.run).toContain('test "$COMPLETE" = success');
     expect(require.run).not.toContain("REOPEN");
+  });
+});
+
+describe("interactive development publication rows", () => {
+  const size = { columns: 120, rows: 40 };
+  const interactiveOptions = { ...developmentOptions, isTTY: true, environment: { TERM: "xterm-256color" }, terminalSize: () => size };
+  const terminalWrites = (output: string[]) => output.map((data, atMs) => ({ data: data.replace(/\n/gu, "\r\n"), atMs }));
+  const replay = (output: string[], geometry = size) => replayTerminalPaint(terminalWrites(output), {
+    ...geometry, synchronizedUpdates: "honor", captureStyles: true,
+  });
+  const job = (id: number, name: string) => ({ id, name, status: "in_progress", conclusion: null });
+  const complete = (entry: ReturnType<typeof job>, conclusion = "success") => ({ ...entry, status: "completed", conclusion });
+  const snapshot = (jobs: unknown[], status = "in_progress", conclusion: string | null = null) => ({ jobs, status, conclusion });
+
+  it("replaces yellow Running rows with green Passed rows without duplicates or reordered identities", async () => {
+    const resizeListeners = process.stdout.listenerCount("resize");
+    const linux = job(1, "Linux validation (Node 24)");
+    const mac = job(2, "macOS validation (Node 24)");
+    const windows = job(3, "Windows validation (Node 24)");
+    const output: string[] = [];
+    const pollWrites: number[] = [];
+    const { run } = developmentRunner([
+      snapshot([linux, mac]),
+      snapshot([mac, linux, complete(job(99, "Full documentation review"), "skipped"), complete(job(98, "Publication result"))]),
+      snapshot([mac, complete(linux), windows]),
+      snapshot([complete(windows), complete(mac), complete(linux)], "completed", "success"),
+    ]);
+    await dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
+      ...interactiveOptions, run, write: text => { output.push(text); }, sleep: async () => { pollWrites.push(output.length); },
+    });
+    expect(process.stdout.listenerCount("resize")).toBe(resizeListeners);
+    expect(pollWrites).toEqual([3, 3, 5]);
+    const first = await replay(output.slice(0, 3));
+    expect(first.final.rows.filter(line => line.includes("●"))).toEqual([
+      "  ● Running: Linux validation (Node 24)", "  ● Running: macOS validation (Node 24)",
+    ]);
+    expect(first.finalStyles?.map(cell => cell.colors[1])).toEqual([3, 3]);
+    const final = await replay(output);
+    expect(final.final.rows.filter(line => line.includes("●"))).toEqual([
+      "  ● Passed:  Linux validation (Node 24)", "  ● Passed:  macOS validation (Node 24)", "  ● Passed:  Windows validation (Node 24)",
+    ]);
+    expect(final.finalStyles?.map(cell => [cell.column, cell.colors[1]])).toEqual([[3, 2], [3, 2], [3, 2]]);
+    expect(final.final.rows.filter(line => line.startsWith("[publication]"))).toHaveLength(1);
+    expect(final.final.rows.filter(line => line.startsWith("Full log:"))).toHaveLength(1);
+    const lastJob = final.final.rows.findIndex(line => line.includes("Windows validation"));
+    expect(final.final.rows[lastJob + 1]).toBe("  Workflow passed; verifying npm packages.");
+    expect(final.final.cursor).toEqual({ row: lastJob + 3, column: 1 });
+  });
+
+  it("keeps jobs with identical names separate by their job IDs", async () => {
+    const first = job(1, "Build");
+    const second = job(2, "Build");
+    const output: string[] = [];
+    const { run } = developmentRunner([snapshot([first, second]), snapshot([complete(second), first]), snapshot([complete(first), complete(second)], "completed", "success")]);
+    await dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", { ...interactiveOptions, run, write: text => { output.push(text); } });
+    const final = await replay(output);
+    expect(final.final.rows.filter(line => line.includes("●"))).toEqual(["  ● Passed:  Build", "  ● Passed:  Build"]);
+    expect(output).toContain("\u001b[1A\r\u001b[2K  \u001b[32m●\u001b[39m Passed:  Build\u001b[1B\r");
+  });
+
+  it.each([{ NO_COLOR: "" }, { NO_COLOR: "1" }, { FORCE_COLOR: "0" }])("updates neutral rows with color opt-out %j", async environment => {
+    const entry = job(1, "Build");
+    const output: string[] = [];
+    const { run } = developmentRunner([snapshot([entry]), snapshot([complete(entry)], "completed", "success")]);
+    await dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
+      ...interactiveOptions, environment: { TERM: "xterm", ...environment }, run, write: text => { output.push(text); },
+    });
+    expect(output).toContain("\u001b[1A\r\u001b[2K  ● Passed:  Build\u001b[1B\r");
+    expect(output.join("")).not.toMatch(/\u001b\[\d+m/u);
+    const final = await replay(output);
+    expect(final.final.rows.filter(line => line.includes("●"))).toEqual(["  ● Passed:  Build"]);
+    expect(final.finalStyles).toEqual([]);
+  });
+
+  it("updates failures and meaningful skips in place before the separate unchanged failure footer", async () => {
+    const resizeListeners = process.stdout.listenerCount("resize");
+    const conclusions = ["failure", "timed_out", "cancelled", "action_required", "startup_failure", "stale"];
+    const jobs = conclusions.map((_conclusion, index) => job(index + 1, `Failed owner ${index + 1}`));
+    const optional = job(20, "Full documentation review");
+    const staging = job(21, "Develop / Stage 0.1.8-dev.10 on npm");
+    const output: string[] = [];
+    const { run } = developmentRunner([
+      snapshot([...jobs, optional, staging]),
+      snapshot([...jobs.map((entry, index) => complete(entry, conclusions[index])), complete(optional, "skipped"), complete(staging, "skipped"),
+        complete(job(22, "Snapshot the stable Release note"), "skipped"), complete(job(23, "Publication result"), "failure")], "completed", "failure"),
+    ], "[]");
+    const error = await dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
+      ...interactiveOptions, run, write: text => { output.push(text); },
+    }).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain("Publication blocked before npm staging.");
+    expect(process.stdout.listenerCount("resize")).toBe(resizeListeners);
+    output.push(`[develop] ${(error as Error).message}\n`);
+    const final = await replay(output);
+    expect(final.final.rows.filter(line => line.includes("●"))).toEqual([
+      ...jobs.map(entry => `  ● Failed:  ${entry.name}`), "  ● Skipped: Full documentation review", "  ● Skipped: npm staging",
+    ]);
+    expect(final.finalStyles?.map(cell => [cell.column, cell.colors[1]])).toEqual([
+      ...jobs.map(() => [3, 1]), [3, 8], [3, 8],
+    ]);
+    const lastJob = final.final.rows.findIndex(line => line === "  ● Skipped: npm staging");
+    expect(final.final.rows[lastJob + 1]).toBe("");
+    expect(final.final.rows[lastJob + 2]).toBe("[develop] Publication failed: 0.1.8-dev.10 (run 42)");
+    expect(final.final.rows[lastJob + 3]).toBe("Full log: https://github.com/owner/app/actions/runs/42");
+    expect(final.final.rows.some(line => line.includes("Snapshot the stable Release note"))).toBe(false);
+  });
+
+  it.each([16, 24, 40])("contains Unicode job rows within %i columns and erases stale text on update", async columns => {
+    const geometry = { columns, rows: 60 };
+    const entry = job(1, "漢字🙂e\u0301".repeat(10));
+    const output: string[] = [];
+    const { run } = developmentRunner([snapshot([entry]), snapshot([{ ...complete(entry), name: "X" }], "completed", "success")]);
+    await dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
+      ...interactiveOptions, terminalSize: () => geometry, run, write: text => { output.push(text); },
+    });
+    const initial = await replay(output.slice(0, 2), geometry);
+    const row = initial.final.rows.findIndex(line => line.includes("●"));
+    expect(initial.final.rows[row]).toMatch(/^  ● Running: .*…$/u);
+    expect(initial.final.rows[row + 1]).toBe("");
+    expect(initial.final.cursor.row).toBe(row + 2);
+    const updated = await replay(output.slice(0, 3), geometry);
+    expect(updated.final.rows[row]).toBe("  ● Passed:  X");
+    expect(updated.final.rows[row + 1]).toBe("");
+    expect(updated.final.cursor).toEqual({ row: row + 2, column: 1 });
+    expect(updated.final.rows.slice(0, row)).toEqual(initial.final.rows.slice(0, row));
+  });
+
+  it.each(["interrupted", "unavailable"])("leaves %s observation messages below the live region", async kind => {
+    const resizeListeners = process.stdout.listenerCount("resize");
+    const entry = job(1, "Build");
+    const controller = new AbortController();
+    const output: string[] = [];
+    const runner = developmentRunner([snapshot([entry]), snapshot([complete(entry)])]);
+    let reads = 0;
+    let waits = 0;
+    const run = (executable: string, args: string[]) => {
+      if (args[1] === "repos/owner/app/actions/runs/42" && ++reads === 3) throw new Error("offline");
+      return runner.run(executable, args);
+    };
+    const error = await dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
+      ...interactiveOptions, run, signal: controller.signal, write: text => { output.push(text); },
+      sleep: async () => { if (++waits === 2 && kind === "interrupted") controller.abort(); },
+    }).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(Error);
+    expect(process.stdout.listenerCount("resize")).toBe(resizeListeners);
+    expect((error as Error).message).toContain("Remote outcome unknown");
+    expect((error as Error).message).toContain(kind === "interrupted" ? "interrupted" : "GitHub status unavailable");
+    output.push(`${(error as Error).message}\n`);
+    const final = await replay(output);
+    const row = final.final.rows.findIndex(line => line === "  ● Passed:  Build");
+    expect(row).toBeGreaterThan(0);
+    expect(final.final.rows[row + 1]).toMatch(/^Stopped watching/u);
+    expect(final.final.rows.some(line => line.startsWith("[publication]"))).toBe(true);
+    expect(final.final.rows.some(line => line.startsWith("Full log:"))).toBe(true);
+    expect(final.final.rows.some(line => line.includes("Publication failed"))).toBe(false);
+  });
+
+  it.each([{ columns: 80, rows: 40 }, { columns: 120, rows: 24 }, size])("stops cursor movement after resizing to %j", async resized => {
+    const entry = job(1, "Build");
+    const output: string[] = [];
+    let geometry = size;
+    let resizeAt = 0;
+    const { run } = developmentRunner([snapshot([entry]), snapshot([complete(entry)], "completed", "success")]);
+    await dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
+      ...interactiveOptions, terminalSize: () => geometry, run, write: text => { output.push(text); },
+      sleep: async () => {
+        resizeAt = output.length;
+        geometry = resized;
+        // A shrink-and-grow between polls can restore dimensions but still reflow prior rows.
+        if (resized.columns === size.columns && resized.rows === size.rows) process.stdout.emit("resize");
+      },
+    });
+    expect(output.slice(resizeAt).join("")).not.toMatch(/\u001b\[\d*[ABK]/u);
+    const frames = await replayTerminalCheckpoints(terminalWrites(output), [
+      { ...size, writeEnd: resizeAt }, { ...resized, writeEnd: output.length },
+    ]);
+    expect(frames[1]?.rows.filter(line => line.startsWith("[publication]"))).toEqual(frames[0]?.rows.filter(line => line.startsWith("[publication]")));
+    expect(frames[1]?.rows.filter(line => line.includes("●"))).toEqual(["  ● Running: Build", "  ● Passed:  Build"]);
+  });
+
+  it.each([
+    ["redirected output", false, { TERM: "xterm", FORCE_COLOR: "1" }, size],
+    ["dumb terminal", true, { TERM: "dumb" }, size],
+    ["unknown dimensions", true, { TERM: "xterm", NO_COLOR: "1" }, { columns: NaN, rows: NaN }],
+    ["very narrow terminal", true, { TERM: "xterm", NO_COLOR: "1" }, { columns: 12, rows: 40 }],
+    ["off-screen rows", true, { TERM: "xterm", NO_COLOR: "1" }, { columns: 120, rows: 2 }],
+  ] as const)("keeps %s append-only without terminal controls", async (_name, isTTY, environment, geometry) => {
+    const jobs = [job(1, "Build"), job(2, "Validate")];
+    const output: string[] = [];
+    const { run } = developmentRunner([snapshot(jobs), snapshot(jobs.map(entry => complete(entry)), "completed", "success")]);
+    await dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
+      ...interactiveOptions, isTTY, environment, terminalSize: () => geometry, run, write: text => { output.push(text); },
+    });
+    expect(output.join("")).not.toContain("\u001b");
+    expect(output.slice(1, -1)).toEqual([
+      "  ● Running: Build\n", "  ● Running: Validate\n", "  ● Passed:  Build\n", "  ● Passed:  Validate\n",
+    ]);
   });
 });
 

@@ -14,6 +14,14 @@ Extend `test/repository-governance/publication-client.test.ts` with simulated te
 
 The stable-candidate watcher remains unchanged. This is a local progress presentation change, not a publication retry or validation-policy change.
 
+## Implementation Notes
+
+The renderer assigns rows by job ID in first-seen order, appends newly observed jobs, and updates only an existing job's row with bounded relative cursor movement and line erasure. Each update returns the cursor beneath the whole region. Non-ASCII names use a conservative two-cell-per-code-point budget, and every live row leaves the last terminal column unused to avoid wrapping.
+
+Interactive capability is independent of color opt-outs. Unknown dimensions, widths below 16 columns, a dimension change or stdout resize event, and a job list reaching the terminal height permanently disable cursor updates for that observation. A resize event also protects against shrinking and growing back to the original dimensions between polls. The resize listener is removed on success, failure, interruption, or unavailable status.
+
+The focused tests replay output through the existing headless terminal helper to inspect final visible rows, dot colors, neutral labels, and cursor placement. They include reordered and identically named jobs, new jobs, unchanged snapshots, all failure conclusions, meaningful skips, color opt-outs, narrow Unicode rows, resizing, fallback output, and observation errors.
+
 ## Known Gaps
 
-Implementation has not started. Real-terminal acceptance remains available to the maintainer after implementation; simulated terminal assertions do not claim a live publication was run.
+No unresolved implementation gap is identified. Resized or undersized terminals intentionally retain append-only transitions for safety, so their history can contain multiple states for a job. Real-terminal acceptance remains available to the maintainer; simulated terminal assertions do not claim a live publication was run.

@@ -223,8 +223,10 @@ it dispatches GitHub Actions, waits, and verifies both published versions. It ne
 builds or uploads npm bytes from the workstation.
 
 While waiting, the command prints `[publication] version — run ID` once, followed
-by an unindented full Actions log link. Subsequent lines omit that prefix and show
-each changed job separately, with job names aligned after a fixed-width status field:
+by an unindented full Actions log link. In an interactive terminal, each job keeps
+one row: its dot and label update in place when its state changes, so yellow Running
+becomes green Passed without a duplicate row. Rows omit the publication prefix,
+with job names aligned after a fixed-width status field:
 
 ```text
 [publication] 0.2.7-dev.1313 — run 43732033913
@@ -238,8 +240,13 @@ Full log: https://github.com/timurproko/a1/actions/runs/43732033913
 
 Only the small dot is colored: yellow for running, green for passed, red for failed,
 and gray for skipped. Labels and job names keep the terminal's default text color.
-Redirected output, `NO_COLOR`, `FORCE_COLOR=0`, and dumb terminals use plain dots
-without ANSI color. Output is append-only: no spinner, cursor movement, or rewriting.
+`NO_COLOR` and `FORCE_COLOR=0` use neutral dots while retaining interactive row
+updates. Redirected output and dumb terminals use plain append-only transitions
+without terminal controls. Interactive names are shortened to fit the terminal
+width; the full log retains complete identities. Unknown or very narrow dimensions,
+a terminal resize, or more rows than fit on screen switch to append-only transitions
+for the rest of that observation, avoiding unsafe cursor movement into unrelated
+output. There is no spinner or continuous animation.
 Unchanged snapshots, setup/teardown steps, derivative lane/result gates, and
 never-started inactive-mode optional skips remain omitted. Previously started jobs
 that become skipped and skipped npm staging remain visible. A final failure names
