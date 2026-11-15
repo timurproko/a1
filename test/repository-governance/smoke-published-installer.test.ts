@@ -11,7 +11,7 @@ function smokePublishedInstaller({ environment, spawnSync }: {
   environment: NodeJS.ProcessEnv;
   spawnSync: (command: string, args: string[], options: SmokeChildOptions) => SmokeChildResult;
 }) {
-  return runSmoke({ environment, createRunner: () => ({ run: spawnSync, close: async () => {} }), readSystemEvents: async () => ({ events: [], antimalware: null }) });
+  return runSmoke({ environment, createRunner: () => ({ run: spawnSync, close: async () => {} }), readSystemEvents: async () => ({ events: [], antimalware: null }), writeProgress: () => {} });
 }
 
 const roots: string[] = [];
@@ -116,19 +116,39 @@ describe("published installer smoke evidence", () => {
     expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({ outcome: "failure", stage: "update-predecessor" });
   });
 
-  it("gives only the Windows predecessor update a budget beyond the updater's fifteen-minute worker deadline", async () => {
-    expect(updateCommandBudgetMs("win32")).toBe(20 * 60_000);
-    for (const platform of ["linux", "darwin"] as const) expect(updateCommandBudgetMs(platform)).toBe(10 * 60_000);
+  it("bounds every predecessor update to five minutes without extending installation or launch budgets", async () => {
+    expect(updateCommandBudgetMs()).toBe(5 * 60_000);
     const { environment } = await fixture();
     const budgets = new Map<string, number>();
     await smokePublishedInstaller({ environment, spawnSync: (command, args, options) => {
       budgets.set(args[0] === "--develop" && budgets.has("--develop") ? "install-predecessor" : args[0] ?? command, options.timeout);
       return successfulCommand(command, args, options);
     } });
-    expect(budgets.get("update")).toBe(updateCommandBudgetMs(process.platform));
+    expect(budgets.get("update")).toBe(5 * 60_000);
     expect(budgets.get("--develop")).toBe(10 * 60_000);
     expect(budgets.get("install-predecessor")).toBe(10 * 60_000);
     expect(budgets.get("version")).toBe(30_000);
+  });
+
+  it("prints each phase before waiting and reports failed commands without a success message", async () => {
+    const { environment } = await fixture();
+    const progress: string[] = [];
+    await expect(runSmoke({
+      environment,
+      readSystemEvents: async () => ({ events: [], antimalware: null }),
+      writeProgress: text => { progress.push(text); },
+      createRunner: () => ({
+        run: (command, args, options) => {
+          expect(progress.at(-1)).toMatch(/ started\n$/u);
+          return args[0] === "update" ? { ...ok, status: 1, stderr: "replacement failed" } : successfulCommand(command, args, options);
+        },
+        close: async () => {},
+      }),
+    })).rejects.toThrow("replacement failed");
+    expect(progress[0]).toBe("[published installer] acquire-installer started\n");
+    expect(progress).toContain("[published installer] update-predecessor started\n");
+    expect(progress.at(-1)).toMatch(/^\[published installer\] update-predecessor failed \(\d+ms\)\n$/u);
+    expect(progress.join("")).not.toContain("update-predecessor passed");
   });
 
   it("pins only A1 tag discovery while forwarding actual npm installs unchanged", async () => {

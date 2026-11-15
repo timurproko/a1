@@ -8,5 +8,5 @@
 
 - [ ] Correct the failing boundary identified by native reproduction and preserve real predecessor-owned update and promotion assertions.
 - [ ] Add regression coverage that reproduces the identified failure and distinguishes it from a successful install.
-- [ ] Print smoke phases and bound a stalled update to five minutes while retaining safe failure settlement.
+- [x] Print smoke phases and bound a stalled update to five minutes while retaining safe failure settlement.
 - [ ] Document the regression introduction, failure mechanism, earlier repairs, observed outcomes, and explicit remaining gaps.

@@ -31,7 +31,7 @@ export interface SmokeRunner {
   history?(): SmokeProcessHistory;
   close(): Promise<void>;
 }
-export function updateCommandBudgetMs(platform?: NodeJS.Platform): number;
+export function updateCommandBudgetMs(): number;
 export interface SmokeSystemEvent {
   readonly log: string;
   readonly id: number;
@@ -52,5 +52,6 @@ export function smokePublishedInstaller(options?: {
   createRunner?: (root: string) => SmokeRunner;
   removeFixture?: (root: string) => Promise<void>;
   writeDiagnostic?: (text: string) => void;
+  writeProgress?: (text: string) => void;
   readSystemEvents?: (since: string) => Promise<SmokeSystemEvents>;
 }): Promise<void>;

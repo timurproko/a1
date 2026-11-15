@@ -18,3 +18,26 @@ Development validation SHALL provide an explicitly selected diagnostic route tha
 
 - **WHEN** a read-only published-pair reproduction fails
 - **THEN** neither package publishing nor public-tag promotion SHALL occur and failure evidence SHALL still be uploaded
+
+## MODIFIED Requirements
+
+### Requirement: Published installer smoke replacement budget
+
+The published-installer smoke harness SHALL bound the predecessor update command to five minutes on every platform. On timeout it SHALL retain failure evidence and settle fixture-owned descendants before removal, without trusting a partially installed target or relaxing promotion assertions. It SHALL print each command's phase before waiting and its outcome and elapsed time afterward. Existing acquisition, fresh-installation, and launch command budgets SHALL remain unchanged.
+
+#### Scenario: Windows predecessor update runs long
+
+- **WHEN** a published-predecessor update has not finished within five minutes
+- **THEN** the harness SHALL fail that stage, collect bounded diagnostics, and settle the fixture-owned process tree
+- **AND** promotion SHALL remain blocked even if target files already exist
+
+#### Scenario: A phase is running without child output
+
+- **WHEN** the harness starts a smoke command that buffers its child output
+- **THEN** it SHALL print the smoke phase before awaiting that command
+- **AND** it SHALL print the outcome and duration when the command returns
+
+#### Scenario: Other platforms and stages keep their budget
+
+- **WHEN** the smoke runs acquisition, fresh installation, or a launch command
+- **THEN** that command SHALL retain its existing deadline

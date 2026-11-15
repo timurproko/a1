@@ -9,16 +9,11 @@ import { compareVersions, resolveInstallerNpmCli, sanitizeDiagnostic } from "../
 
 const execFile = promisify(execFileCallback);
 const COMMAND_BUDGET_MS = 10 * 60_000;
-/**
- * The published updater waits fifteen minutes for its protected-replacement worker before it cancels
- * and reports. On the hosted Windows runner the replacement alone needs several minutes, so the smoke
- * must outlast that deadline or it kills the updater before the updater can say what happened.
- */
-const WINDOWS_UPDATE_BUDGET_MS = 20 * 60_000;
+const UPDATE_BUDGET_MS = 5 * 60_000;
 
-/** The deadline the predecessor update command receives on a platform. */
-export function updateCommandBudgetMs(platform = process.platform) {
-  return platform === "win32" ? WINDOWS_UPDATE_BUDGET_MS : COMMAND_BUDGET_MS;
+/** Bound a stalled predecessor update independently of its older internal recovery deadline. */
+export function updateCommandBudgetMs() {
+  return UPDATE_BUDGET_MS;
 }
 
 /** Run published installation in disposable prefixes and retain safe evidence on either outcome. */
@@ -26,6 +21,7 @@ export async function smokePublishedInstaller({
   environment = process.env, createRunner = createPublishedSmokeRunner,
   removeFixture = root => rm(root, { recursive: true, force: true, maxRetries: 4, retryDelay: 200 }),
   writeDiagnostic = text => process.stderr.write(text),
+  writeProgress = text => process.stdout.write(text),
   readSystemEvents = readWindowsSystemEvents,
 } = {}) {
   const version = environment.RELEASE_VERSION;
@@ -52,8 +48,11 @@ export async function smokePublishedInstaller({
   };
   const execute = async (command, args, options) => {
     const startedAt = Date.now();
+    writeProgress(`[published installer] ${stage} started\n`);
     const result = await runner.run(command, args, options);
-    timings[stage] = (timings[stage] ?? 0) + (Date.now() - startedAt);
+    const durationMs = Date.now() - startedAt;
+    timings[stage] = (timings[stage] ?? 0) + durationMs;
+    writeProgress(`[published installer] ${stage} ${result.status === 0 && !result.error ? "passed" : "failed"} (${durationMs}ms)\n`);
     childOutcome = {
       status: result.status, signal: result.signal ?? null,
       error: safe(result.error?.message), stdout: safe(result.stdout), stderr: safe(result.stderr),
