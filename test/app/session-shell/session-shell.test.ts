@@ -610,7 +610,8 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       const rows = shell.root.render(50).map(row => stripTerminalSequences(row).trimEnd());
       const chipRows = rows.filter(row => row.includes("[📷") || row.includes("screenshot-0123456789"));
       expect(chipRows).toHaveLength(1);
-      expect(chipRows[0]).toContain(marker);
+      expect(chipRows[0]).toContain("[📷screenshot-0123456789]");
+      expect(rows.join("\n")).not.toContain(marker);
       expect(rows.join("").replace(/\s/gu, "")).toContain("2".repeat(40));
     } finally { await shell.dispose(); }
   });
@@ -631,7 +632,8 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       } });
       await adapter.flushEvents();
       const frame = stripTerminalSequences(shell.root.render(120).join("\n"));
-      expect(frame).toContain(marker);
+      expect(frame).toContain("[📷screenshot-0123456789]");
+      expect(frame).not.toContain(marker);
       expect(frame).not.toContain(note);
       expect(frame).not.toContain("Image attached");
       expect(frame).not.toContain("Image hidden:");

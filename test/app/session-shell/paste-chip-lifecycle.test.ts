@@ -58,7 +58,13 @@ describe("provisional paste chip ownership", () => {
     try {
       const paste = store.beginPaste("", { kind: "text", text: "/work/Clipboard (2).png" }, () => {});
       await vi.advanceTimersByTimeAsync(0);
-      expect(store.hiddenRanges(paste.marker)).toHaveLength(1);
+      expect(store.hiddenRanges(paste.marker)).toEqual([{ start: 0, end: paste.marker.length }]);
+      let draft = `left ${paste.marker}[📷 screenshot-abc123]${paste.marker} right`;
+      const pendingRanges = store.hiddenRanges(draft);
+      expect(pendingRanges).toHaveLength(3);
+      expect(pendingRanges.every((range, index) => index === 0 || pendingRanges[index - 1]!.end <= range.start)).toBe(true);
+      for (const range of [...pendingRanges].reverse()) draft = draft.slice(0, range.start) + draft.slice(range.end);
+      expect(draft).toBe("left [📷screenshot-abc123] right");
       pending.resolve({ kind: "image", fileName: "Clipboard (2).png", data: "eA==", mimeType: "image/png", width: 1, height: 1, transformed: true });
       await vi.advanceTimersByTimeAsync(0);
       const ready = await paste.result; paste.complete?.();
@@ -75,7 +81,7 @@ describe("provisional paste chip ownership", () => {
       expect(recall.hiddenRanges(ready)).toEqual(hidden);
       expect(recall.prepareSubmission(`${ready}${ready}`).images).toEqual([{ type: "image", data: "eA==", mimeType: "image/png" }]);
       expect(missing.rehydrateHistoryText(`before ${history} after`, () => null)).toBe("before  after");
-    } finally { await store.dispose(); await recall.dispose(); await missing.dispose(); }
+    } finally { pending.resolve(null); await store.dispose(); await recall.dispose(); await missing.dispose(); }
   });
 
   it.each(["image-count", "image-conversion"] as const)("retains filename presentation for %s rejection without a usable payload", async code => {
