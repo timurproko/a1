@@ -20,7 +20,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-15-session-exit-control/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-15-session-exit-control/acceptance.md",
   "finalizedDate": "2026-11-15",
-  "specBaseSha": "64709ced58d6b31ccd0929d80c16e5817dfe9618",
+  "specBaseSha": "a87e847b82e9394a4acf9f1451267328b7ffd1e8",
   "acceptanceScenarios": [
     "`a1 api` capabilities now lists `session.lifecycle` and `session.exit` and reports `lifecycle: true` while every existing operation and flag is unchanged.",
     "`session.lifecycle` returns the exact target plus lifecycle, editor emptiness, pending submissions, queued input, overlay state and ordered blockers without clearing, dismissing or interrupting anything.",
