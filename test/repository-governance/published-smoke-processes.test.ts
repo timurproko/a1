@@ -49,6 +49,21 @@ describe("published smoke process ownership", () => {
     expect(rows.map(record => record.pid)).toEqual([1, 2, 5, 6]);
   });
 
+  it("inventories the same fixture-owned processes settlement would stop without stopping them", async () => {
+    const root = await fixture();
+    const rows = [
+      row(1, 0, "1"), row(2, 1, "2", [process.execPath, resolve(root, "caller.mjs")]),
+      row(3, 2, "3", [process.execPath, resolve(root, "update-data", "update-recovery", "recovery.js")]),
+      row(4, 3, "4", [process.execPath, "relative-npm-cli.js", "install", "--global"]),
+      row(6, 1, "6", [process.execPath, `${root}-other/script.js`]),
+    ];
+    const stopped: number[] = [];
+    const runner = createPublishedSmokeRunner(root, { self: 2, list: async () => rows, terminate: async record => { stopped.push(record.pid); } });
+    const inventory = await runner.inventory!();
+    expect(inventory.map(record => [record.pid, record.parent, record.argv.at(-1)])).toEqual([[3, 2, resolve(root, "update-data", "update-recovery", "recovery.js")], [4, 3, "--global"]]);
+    expect(stopped).toEqual([]);
+  });
+
   it("refuses a changed process identity before termination", async () => {
     const root = await fixture();
     let reads = 0;
