@@ -26,7 +26,7 @@ The maintainer integration decision accepts these scenarios:
     "Publication summaries show bounded sanitized smoke-stage diagnostics without requiring a manual artifact download.",
     "The real public predecessor, exact candidate version, installer transcript, and promotion gates remain unchanged."
   ],
-  "archiveDigest": "63ef2069eae16ef95046e4e5751492b64b916ef59b1c79676a0af528e2416c8a",
+  "archiveDigest": "fab807a2e2fc6869a7875735d1d8497f3442e3fe5a25a053c7ced0978ee1e9eb",
   "specDigest": "709fa9580434887e7b4675d3ee70362ca2bc0f7fb753ff32397f1eed141681ac",
   "tasksDigest": "9534b076977739914e2b472ae35b0816d6d4c84088db7442d2587b0405e7ea91",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
