@@ -24,7 +24,7 @@ The maintainer integration decision accepts these scenarios:
     "Screenshot attachment identities, backing tags, and original-source copy remain intact while editing and wrapping stay atomic.",
     "Filename-bearing image labels and pinned Pi presentation retain their existing behavior."
   ],
-  "archiveDigest": "0b5a8b397b9ddac4c76090039c33112d754308413787a7ee7401a9983391c6e3",
+  "archiveDigest": "ef19fa4f5db9f735fc9fe49bb03841eda28d84f7886d62f111f3a852ccea6092",
   "specDigest": "8a3a2565f2b2d204d2209984494437694ba4ce2261f9a844c973373f1e198a25",
   "tasksDigest": "1113f9991908397559e73d66d40c1eb114571114188f3134b156247bfb17dade",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
