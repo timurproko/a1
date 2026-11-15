@@ -136,9 +136,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     ...(options.packageVersion === undefined ? {} : { packageVersion: options.packageVersion }),
     ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
   });
-  // Rationale: the presenter is created later in this function; the integration host reads it through this provider.
-  let lifecyclePresenter: OwnedUiSessionPresenter | null = null;
-  const sessionColor = createRuntimeApis(backend, bareSettings, host, productPaths.runtimeDir, runtimeContext, () => lifecyclePresenter);
+  const sessionColor = createRuntimeApis(backend, bareSettings, host, productPaths.runtimeDir, runtimeContext, () => presenter); // Rationale: invoked only after shell construction, like the hotkeys route.
   // Rationale: peer refresh shares persisted preferences, never session-local Current color.
   const unwatchSharedSettings = bareSettings === null
     ? () => {}
@@ -215,7 +213,6 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     terminalHost = createdTerminalHost = new OwnedUiTerminalHost(sessionTerminalHostOptions(presenterOptions));
     presenter = new OwnedUiSessionPresenter(terminalHost, presenterOptions);
     terminalHost.attach(presenter);
-    lifecyclePresenter = presenter;
   } catch (error) {
     await createdTerminalHost?.dispose().catch(() => undefined);
     await releaseShared();

@@ -13,5 +13,5 @@
 
 ## 3. Document the exit contract for supervisors
 
-- [ ] 3.1 Update `docs/features/integration-api.md` and README with the two operations, snapshot fields, blocker codes, admitted-not-exited acknowledgement semantics, lost-acknowledgement guidance and the Core-label consumer flow.
-- [ ] 3.2 Reconcile the design's open questions and any explicit implementation gaps in the maintained documentation.
+- [x] 3.1 Update `docs/features/integration-api.md` and README with the two operations, snapshot fields, blocker codes, admitted-not-exited acknowledgement semantics, lost-acknowledgement guidance and the Core-label consumer flow.
+- [x] 3.2 Reconcile the design's open questions and any explicit implementation gaps in the maintained documentation.

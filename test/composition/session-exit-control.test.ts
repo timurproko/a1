@@ -75,7 +75,7 @@ describe("session exit control over the private transport", () => {
     expect(responses.filter(response => !response.success).map(response => response.error?.code)).toEqual(["session-stopping", "session-stopping"]);
     expect(double.admittedCount()).toBe(1);
     expect(await call("session.lifecycle")).toMatchObject({ success: true, data: { exitAdmissible: false, blockers: ["session-stopping"] } });
-    // The handler stays shared: color control over the same endpoint is unchanged.
+    // Invariant: the handler stays shared; color control over the same endpoint is unchanged.
     const request = { version: 1, id: "color", type: "settings.get", setting: "accentColor", target };
     const color = await requestSessionControl({ runtimeDir: join(root, "runtime"), sessionId: target.sessionId, runtimeId: target.runtimeId, payload: request });
     expect(color).toMatchObject({ success: true, data: { setting: "accentColor", effectiveValue: "blue" } });
@@ -85,7 +85,7 @@ describe("session exit control over the private transport", () => {
     const double = shellDouble();
     const { call, identity } = await host(() => double.port);
     identity.disposed = true;
-    // The transport-level refusal reaches the client as a structured failure, not an envelope.
+    // Protocol: the transport-level refusal reaches the client as a structured failure, not an envelope.
     await expect(call("session.exit")).rejects.toMatchObject({ code: "session-unavailable" });
     expect(double.port.requestExit).not.toHaveBeenCalled();
   });

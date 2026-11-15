@@ -86,5 +86,9 @@ Additive. No persisted state, no settings schema change, no consumer edit requir
 
 ## Open Questions
 
-- Whether `suspended` (shell suspended to a child process) should be a distinct blocker code; this plan folds it into `session-busy`.
-- Whether the lifecycle snapshot should include the current model-turn count for supervisors to detect progress; left out to keep the surface minimal.
+Resolved during implementation:
+
+- `suspended` is folded into `session-busy`; the snapshot still carries the exact `lifecycle` value so a supervisor can distinguish it.
+- The snapshot carries no turn counter; supervisors already receive turn facts from Core.
+- A disposed backend is refused by the transport host before the shell is consulted and reaches the client as a structured `session-unavailable` failure (a rejected call), not a response envelope. Clients already treat rejected calls and failure envelopes alike.
+- A failed engine quit clears the admission flag together with the retryable shutdown promise, so a later external request may try again instead of being stuck on `session-stopping`.

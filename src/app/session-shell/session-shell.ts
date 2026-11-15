@@ -110,8 +110,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
   #disposed = false;
   #released: OwnedUiPresenterRelease | undefined;
   #shutdownPromise: Promise<OwnedUiCommandResult> | undefined;
-  // Invariant: an external exit is admitted at most once; later requests see session-stopping.
-  #exitAdmitted = false;
   #disposePromise: Promise<void> | undefined;
   #layoutParts: PinnedLayoutParts | undefined;
   // Invariant: translated startup diagnostics create at most one dock notice per kind per shell.
@@ -510,7 +508,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
 
   async interrupt(now = Date.now()): Promise<OwnedUiCommandResult> {
     this.#promptSuggestions?.invalidate();
-    if (this.#submission.waiting) {
+    if (this.#submission.waiting > 0) {
       this.#submission.cancelWaiting();
       return { outcome: "completed", diagnostic: null };
     }
@@ -584,10 +582,10 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
    */
   readiness(): OwnedUiExitReadiness {
     const view = this.view();
-    const stopping = this.#disposed || this.#exitAdmitted || this.#shutdownPromise !== undefined
+    const stopping = this.#disposed || this.#shutdownPromise !== undefined
       || view.lifecycle === "stopping" || view.lifecycle === "stopped" || view.lifecycle === "failed";
     const editorEmpty = this.root.editor.getText().length === 0;
-    const pendingSubmissions = this.#submission.waitingCount;
+    const pendingSubmissions = this.#submission.waiting;
     const queued = this.backend.identity.disposed ? null : this.backend.workflows.queuedWorkflowCount();
     const overlayOpen = this.#terminal.hasOverlay() || view.dialog !== null || view.overlay !== null;
     const blockers: OwnedUiExitBlocker[] = [];
@@ -601,22 +599,22 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
 
   /**
    * Admits the ordinary quit path when nothing would be lost. Synchronous by contract: the check and the
-   * admission share one turn. The actual shutdown starts on the next macrotask so the caller's
-   * acknowledgement is written before teardown can close the control transport.
+   * admission share one turn. The pending shutdown promise itself is the single-shot admission marker; the
+   * quit starts on the next macrotask so the caller's acknowledgement is written before teardown can close
+   * the control transport.
    */
   requestExit(): { readonly admitted: true } | { readonly admitted: false; readonly blocker: OwnedUiExitBlocker } {
     const { blockers } = this.readiness();
     if (blockers.length > 0) return { admitted: false, blocker: blockers[0]! };
-    this.#exitAdmitted = true;
-    setImmediate(() => { void this.shutdown().catch(() => {}); });
+    void this.shutdown(true).catch(() => {});
     return { admitted: true };
   }
 
-  shutdown(): Promise<OwnedUiCommandResult> {
-    this.#shutdownPromise ??= this.#shutdown().finally(() => {
+  shutdown(deferred = false): Promise<OwnedUiCommandResult> {
+    this.#shutdownPromise ??= (deferred ? new Promise<void>(resolve => setImmediate(resolve)).then(() => this.#shutdown()) : this.#shutdown()).finally(() => {
       // Invariant: a failed quit is retryable, including by a later external exit request; ordinary shutdown
       // has disposed the shell already.
-      if (!this.#disposed) { this.#shutdownPromise = undefined; this.#exitAdmitted = false; }
+      if (!this.#disposed) this.#shutdownPromise = undefined;
     });
     return this.#shutdownPromise;
   }
@@ -634,13 +632,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
     } finally {
       this.#stop.resolve();
     }
-  }
-
-  #currentSessionFile(): string | null {
-    const direct = this.backend.identity.currentSessionFile?.();
-    if (direct !== undefined && direct !== null) return direct;
-    const resume = this.backend.identity.currentSessionResumeMetadata();
-    return resume === null ? null : `${resume.sessionDir}/${resume.sessionId}`;
   }
 
   async runWorkflow(request: OwnedUiWorkflowRequest): Promise<OwnedUiCommandResult> {
@@ -756,11 +747,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
   }
 
   // Invariant: bare A1 routes `models`; the comparison profile keeps the pinned `model`/`scoped-models` pair. Hidden routes are shared.
-  #isWorkflowRoute(value: string): value is OwnedUiWorkflowRoute {
-    return (this.#presenters.components.workflows.commandNames(this.backend.settings.productMode) as readonly string[]).includes(value)
-      || (OWNED_UI_HIDDEN_COMMAND_NAMES as readonly string[]).includes(value);
-  }
-
   // Invariant: one teardown per presenter, starting on a microtask so never inside the event listener that
   // requested it. Callers during the teardown share its outcome; a later call finds it done. Closing the
   // terminal host's last presenter ends the terminal.
@@ -903,7 +889,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
       disposed: () => this.#disposed,
       correlation: prefix => this.#correlation(prefix),
       lifecycle: () => this.view().lifecycle,
-      currentSessionFile: () => this.#currentSessionFile(),
+      currentSessionFile: () => currentSessionFile(this.backend),
       slashCommand: text => this.#slashCommand(text),
       invalidateSuggestions: () => this.#promptSuggestions?.invalidate(),
     });
@@ -987,7 +973,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
     const argument = separator < 0 ? "" : body.slice(separator + 1).trimStart();
     const applicationOnly = this.#customViewport && (name === "settings" || name === "changelog" || name === "hotkeys");
     if (!applicationOnly && this.#dialogs.claimsRoute(name)) return this.#dialogs.openRoute(name);
-    if (this.#isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
+    if (isWorkflowRoute(this.#presenters, this.backend, name)) return this.runWorkflow({ command: name, argument });
     if (this.#skillsCollapsed()) {
       if (name === this.#presenters.components.skills.commandName) return this.#runSkillsCommand(text, argument);
       const rewritten = this.#presenters.components.skills.rewriteTunnelSubmission(text);
@@ -1069,6 +1055,18 @@ export class OwnedUiSessionShell extends OwnedUiSessionPresenter {
   damagePresentationDecision(): TerminalDamageDecision | null {
     return this.terminalHost.damagePresentationDecision;
   }
+}
+
+function currentSessionFile(backend: OwnedUiSessionBackend): string | null {
+  const direct = backend.identity.currentSessionFile?.();
+  if (direct !== undefined && direct !== null) return direct;
+  const resume = backend.identity.currentSessionResumeMetadata();
+  return resume === null ? null : `${resume.sessionDir}/${resume.sessionId}`;
+}
+
+function isWorkflowRoute(presenters: OwnedUiSessionShellOptions["presenters"], backend: OwnedUiSessionBackend, value: string): value is OwnedUiWorkflowRoute {
+  return (presenters.components.workflows.commandNames(backend.settings.productMode) as readonly string[]).includes(value)
+    || (OWNED_UI_HIDDEN_COMMAND_NAMES as readonly string[]).includes(value);
 }
 
 function isCoalescedStreamBlock(kind: OwnedUiSessionViewModel["transcript"][number]["kind"]): boolean {

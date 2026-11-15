@@ -54,13 +54,8 @@ export class PromptSubmission implements SessionConcern {
     this.#ports = ports;
   }
 
-  /** True while a submission waits for its image pastes. */
-  get waiting(): boolean {
-    return this.#waiting.size > 0;
-  }
-
-  /** How many submissions still wait; exit readiness reports it without touching them. */
-  get waitingCount(): number {
+  /** How many submissions still wait for their image pastes; exit readiness reports it without touching them. */
+  get waiting(): number {
     return this.#waiting.size;
   }
 
