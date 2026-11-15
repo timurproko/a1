@@ -26,10 +26,10 @@ The maintainer integration decision accepts these scenarios:
     "Startup overrides retain first-frame and successful-replacement policy without persistence or tool-environment leakage.",
     "External Herdr workers use one packaged client, descriptor choices and native identity while preserving membership and disabled-matching guards."
   ],
-  "archiveDigest": "820a3bba02db3f5f3d7b5f43502df7acd01fd698a36100b375fd24e9275f7990",
+  "archiveDigest": "081a899428f8158f4d0a6f3d3966be3432fb4a676f2715136dd8a81e9f34f9cb",
   "specDigest": "9721cd9053a072051a1c97b4c7f3a085a3da68c10201a801c078ffb69a3dea82",
   "tasksDigest": "5271c3b9f3219c6ca4d9c0241ec31cf4ff81f56c4cb7677ac6755443cce97a56",
-  "evidenceDigest": "5627b39e731ef51683a06779431b2ca5cb2f8a44805e965df125bc83886ecaff",
+  "evidenceDigest": "c50d2402b410e91c68f93200f8e17983b35e40f64c6e743a9b25bcb285fe6d45",
   "knownGaps": []
 }
 ```
