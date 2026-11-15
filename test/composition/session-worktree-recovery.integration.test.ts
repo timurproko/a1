@@ -77,9 +77,9 @@ describe("owner-verified explicit worktree recovery", () => {
     const foreignClaim = await f.foreignClaim();
     await f.poisonStartup();
     const header = await readFile(f.identity.sessionFile, "utf8");
-    await expect(f.call("write", { path: "note.txt", content: "must not execute" })).rejects.toThrow("not a git repository");
-    await expect(f.call("bash", { command: "a1 worktree detach" })).rejects.toThrow("not a git repository");
-    await expect(f.call("read", { path: join(f.home, "note.txt") })).rejects.toThrow("not a git repository");
+    await expect(f.call("write", { path: "note.txt", content: "must not execute" })).rejects.toThrow("associated repository identity changed");
+    await expect(f.call("bash", { command: "a1 worktree detach" })).rejects.toThrow("associated repository identity changed");
+    await expect(f.call("read", { path: join(f.home, "note.txt") })).rejects.toThrow("associated repository identity changed");
     expect(await readFile(join(f.home, "note.txt"), "utf8")).toBe("original home\n");
     expect(await readFile(join(f.task, "note.txt"), "utf8")).toBe("task data\n");
     expect(await f.call("worktree_detach")).toMatchObject({ details: { cwd: f.home } });
