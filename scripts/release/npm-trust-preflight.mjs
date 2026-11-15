@@ -32,7 +32,7 @@ export function callingWorkflow(workflowRef) {
  * Rationale: npm otherwise refuses only at the upload, and a refusal for the second package
  * would leave a half-published pair. The exchanged tokens are discarded, never printed.
  */
-export async function proveTrustedPublishing({ packages, env, fetch }) {
+export async function proveTrustedPublishing({ packages, env, fetch, consumeToken = async () => {} }) {
   const workflow = callingWorkflow(env.GITHUB_WORKFLOW_REF);
   const registration = `register ${workflow.file} (repository ${workflow.repository}, environment ${NPM_PUBLISH_ENVIRONMENT}) as a trusted publisher`;
   if (!env.ACTIONS_ID_TOKEN_REQUEST_URL || !env.ACTIONS_ID_TOKEN_REQUEST_TOKEN) {
@@ -44,6 +44,7 @@ export async function proveTrustedPublishing({ packages, env, fetch }) {
   const idToken = identity.ok ? (await identity.json())?.value : undefined;
   if (typeof idToken !== "string" || idToken.length === 0) throw new Error(`GitHub did not issue an OIDC token for ${AUDIENCE} (HTTP ${identity.status})`);
   const refused = [];
+  const tokens = [];
   for (const name of packages) {
     // Compatibility: the same escaped package name npm-package-arg gives the npm CLI.
     const escaped = name.replace("/", "%2f");
@@ -52,10 +53,12 @@ export async function proveTrustedPublishing({ packages, env, fetch }) {
     });
     const token = response.ok ? (await response.json().catch(() => null))?.token : undefined;
     if (typeof token !== "string" || token.length === 0) refused.push(`${name} (HTTP ${response.status})`);
+    else tokens.push([name, token]);
   }
   if (refused.length > 0) {
     throw new Error(`npm refused trusted publishing for ${refused.join(" and ")}; nothing was uploaded. On npmjs.com, ${registration} of each refused package, then publish again`);
   }
+  for (const [name, token] of tokens) await consumeToken(name, token);
   return { workflow: workflow.file, packages: [...packages] };
 }
 
