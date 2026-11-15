@@ -1,6 +1,5 @@
 import type { AgentJsonValue, AgentSettingApplicationBoundary, AgentSettingDescriptor, AgentSettingFlag } from "../../contracts/agent-engine/index.js";
-import type { OwnedUiSettingValue } from "./declarations.js";
-import type { OwnedUiSettingsResolution } from "./resolution.js";
+import type { OwnedUiSettingValue, OwnedUiSettingsResolution } from "../../app/settings/index.js";
 
 export type OwnedUiSettingsBackend = "a1" | "agent";
 
@@ -80,7 +79,7 @@ export function buildOwnedUiSettingsSections(
       flags: flagged?.map(flag => ({ ...flag, fallback: false })) ?? [],
       choices: setting.declaration.allowedValues,
       origin: setting.source,
-      application: setting.declaration.application === "restart" ? "next-start" : "live",
+      application: setting.declaration.application === "restart" ? "next-start" : setting.declaration.application,
     });
     grouped.set(section.id, group);
   }

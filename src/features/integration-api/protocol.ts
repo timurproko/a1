@@ -1,0 +1,103 @@
+import { OWNED_SETTING_DECLARATIONS } from "../../app/settings/index.js";
+
+export const INTEGRATION_VERSION = 1;
+export const INTEGRATION_LIMIT = 8192;
+const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
+const OPERATIONS = ["capabilities", "settings.list", "settings.get", "settings.update", "session.get"] as const;
+export type IntegrationOperation = typeof OPERATIONS[number];
+export type IntegrationTarget = { readonly scope: "profile"; readonly profileId: "a1" }
+  | { readonly scope: "session"; readonly sessionId: string; readonly runtimeId: string };
+export interface IntegrationRequest {
+  readonly version: 1;
+  readonly id: string;
+  readonly type: IntegrationOperation;
+  readonly target?: IntegrationTarget;
+  readonly setting?: "accentColor" | "defaultAccentColor";
+  readonly value?: string;
+}
+export interface IntegrationResponse {
+  readonly version: 1;
+  readonly id: string | null;
+  readonly type: "response";
+  readonly command: string | null;
+  readonly success: boolean;
+  readonly data?: unknown;
+  readonly error?: { readonly code: string; readonly message: string };
+}
+export const integrationFailure = (code: string, message: string): Error & { code: string } => Object.assign(new Error(message), { code });
+const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
+const only = (value: Record<string, unknown>, keys: readonly string[]) => Object.keys(value).every(key => keys.includes(key));
+
+/** Strict public requests: unsupported versions and ambiguous targets fail before any mutation. */
+export function parseIntegrationRequest(value: unknown): IntegrationRequest {
+  if (!record(value) || Buffer.byteLength(JSON.stringify(value)) > 4096) throw integrationFailure("invalid-request", "Expected a bounded JSON request object.");
+  if (value.version !== INTEGRATION_VERSION) throw integrationFailure("unsupported-version", "This installation supports integration protocol 1.");
+  if (typeof value.id !== "string" || !/^[a-zA-Z0-9._:-]{1,64}$/u.test(value.id)) throw integrationFailure("invalid-request", "Supply a bounded correlation id.");
+  if (!OPERATIONS.includes(value.type as IntegrationOperation)) throw integrationFailure("unsupported-operation", "Unknown integration operation.");
+  const type = value.type as IntegrationOperation;
+  const discovery = type === "capabilities" || type === "settings.list";
+  const keys = discovery ? ["version", "id", "type"] : type === "session.get" ? ["version", "id", "type", "target"]
+    : ["version", "id", "type", "target", "setting", ...(type === "settings.update" ? ["value"] : [])];
+  if (!only(value, keys)) throw integrationFailure("invalid-request", "Unexpected request fields.");
+  if (discovery) return value as unknown as IntegrationRequest;
+  const target = value.target;
+  if (!record(target)) throw integrationFailure("target-required", "Supply an explicit target.");
+  if (target.scope === "session") {
+    if (!only(target, ["scope", "sessionId", "runtimeId"]) || typeof target.sessionId !== "string" || !UUID.test(target.sessionId)
+      || typeof target.runtimeId !== "string" || !UUID.test(target.runtimeId)) throw integrationFailure("invalid-target", "Supply exact session and runtime UUIDs.");
+  } else if (target.scope === "profile") {
+    if (!only(target, ["scope", "profileId"]) || target.profileId !== "a1") throw integrationFailure("unsupported-profile", "Only the a1 profile is supported.");
+  } else throw integrationFailure("unsupported-scope", "Only profile and session scopes are supported.");
+  if (type === "session.get") {
+    if (target.scope !== "session") throw integrationFailure("unsupported-scope", "Session snapshots require a session target.");
+  } else {
+    if (value.setting !== "accentColor" && value.setting !== "defaultAccentColor") throw integrationFailure("unsupported-setting", "This setting is not exposed.");
+    if ((value.setting === "accentColor") !== (target.scope === "session")) throw integrationFailure("unsupported-scope", "Setting is not supported in this scope.");
+    if (type === "settings.update" && !OWNED_SETTING_DECLARATIONS[value.setting].allowedValues.includes(value.value as never)) {
+      throw integrationFailure("invalid-value", "Choose a value from the setting descriptor.");
+    }
+  }
+  return value as unknown as IntegrationRequest;
+}
+
+export function integrationResponse(request: unknown, data?: unknown, error?: unknown): IntegrationResponse {
+  const input = record(request) ? request : {};
+  const identity = { version: INTEGRATION_VERSION as 1, id: typeof input.id === "string" && /^[a-zA-Z0-9._:-]{1,64}$/u.test(input.id) ? input.id : null,
+    type: "response" as const, command: typeof input.type === "string" && input.type.length <= 64 ? input.type : null };
+  if (error === undefined) return { ...identity, success: true, data };
+  const detail = error as Error & { code?: string };
+  return { ...identity, success: false, error: { code: detail.code ?? "control-failed", message: (detail.message ?? "Integration request failed.").slice(0, 512) } };
+}
+
+/** A parsed JSON object alone is not an acknowledgement. Validate its envelope and exact operation target. */
+export function assertIntegrationResponse(value: unknown, request: IntegrationRequest): asserts value is IntegrationResponse {
+  if (!record(value) || Buffer.byteLength(JSON.stringify(value)) > INTEGRATION_LIMIT || value.version !== INTEGRATION_VERSION
+    || value.id !== request.id || value.type !== "response" || value.command !== request.type || typeof value.success !== "boolean"
+    || !only(value, ["version", "id", "type", "command", "success", ...(value.success ? ["data"] : ["error"])])) {
+    throw integrationFailure("invalid-response", "Integration response identity did not match the request.");
+  }
+  if (!value.success) {
+    if (!record(value.error) || typeof value.error.code !== "string" || typeof value.error.message !== "string") throw integrationFailure("invalid-response", "Malformed integration failure.");
+    return;
+  }
+  if (!record(value.data)) throw integrationFailure("invalid-response", "Missing integration result.");
+  if (request.target !== undefined) {
+    const target = value.data.target;
+    if (!record(target) || Object.keys(target).length !== Object.keys(request.target).length
+      || Object.entries(request.target).some(([key, expected]) => target[key] !== expected)) throw integrationFailure("invalid-response", "Integration result target did not match.");
+  }
+  if (request.setting !== undefined) {
+    const data = value.data;
+    const choices = OWNED_SETTING_DECLARATIONS[request.setting].allowedValues;
+    if (data.setting !== request.setting || !choices.includes(data.storedValue as never) || !choices.includes(data.effectiveValue as never)
+      || !["default", "stored", "session", "invocation"].includes(data.origin as string)
+      || data.application !== (request.target?.scope === "session" ? "live" : "next-session")) throw integrationFailure("invalid-response", "Malformed setting readback.");
+    if (request.type === "settings.update" && (data.storedValue !== request.value
+      || data.status !== (request.target?.scope === "session" ? "applied" : "stored")
+      || (request.target?.scope === "session" && data.effectiveValue !== request.value))) throw integrationFailure("invalid-response", "Setting update was not acknowledged as applied or stored.");
+  }
+}
+
+export function integrationCapabilities() {
+  return { operations: OPERATIONS, launchColor: true, terminalIdentity: true, snapshots: true };
+}

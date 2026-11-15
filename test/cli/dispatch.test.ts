@@ -78,6 +78,17 @@ describe("A1 CLI dispatch", () => {
     expect(parseCliCommand(["worktree", ...args], PRERELEASE)).toMatchObject({ kind: "error" });
   });
 
+  it.each([PRERELEASE, RELEASE])("advertises worktree controls and the integration API without retired color syntax (%j)", capabilities => {
+    const usage = cliUsage(capabilities);
+    expect(usage).toContain("worktree enter <branch> [--repo <absolute-path>] [--base <branch>]");
+    expect(usage).toContain("worktree list [--repo <absolute-path>]");
+    expect(usage).toContain("worktree status");
+    expect(usage).toContain("api <request-json>");
+    expect(usage).not.toContain("session color");
+    expect(cliHelp(capabilities)).toContain("Integration API");
+    expect(cliHelp(capabilities)).not.toContain("session color");
+  });
+
   it("dispatches session repository context without launching a nested UI", async () => {
     const commands = handlers();
     const transcript = output();

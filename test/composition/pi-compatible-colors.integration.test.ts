@@ -3,8 +3,10 @@ import { chmod, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } fro
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { promisify } from "node:util";
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { initializeStartupTrace } from "../../src/foundation/startup/index.js";
+import { assertIntegrationResponse, parseIntegrationRequest } from "../../src/features/integration-api/index.js";
 import { PRODUCT_IDENTITY } from "../../src/product-identity.js";
 import { HERDR_IDENTITY_LABELS as LABELS } from "../../src/features/owned-ui/herdr-binding.js";
 import { fixtureColorTargets, freshHerdrColorBinding, syncFixtureColors, type FixtureColorTarget, type FixtureColorTerminal } from "./fixtures/herdr-color-consumer.js";
@@ -63,7 +65,15 @@ pi.on('session_shutdown',()=>{clearInterval(timer);});}
     [PRODUCT_IDENTITY.environment.profileHome]: home, [PRODUCT_IDENTITY.environment.dataDir]: join(home, "data"), [PRODUCT_IDENTITY.environment.runtimeDir]: join(home, "runtime"), [PRODUCT_IDENTITY.environment.configDir]: join(home, "config") });
   // Platform: Node's Windows environment selects the first case-insensitive PATH key.
   for (const key of Object.keys(env)) if (key !== "PATH" && key.toUpperCase() === "PATH") delete env[key];
-  const cli = async (args: string[]) => JSON.parse((await execute(process.execPath, [join(packageRoot, "bin", "cli.js"), "session", "color", ...args], { cwd, env, timeout: 10_000 })).stdout);
+  const cli = async (binding: { sessionId: string; runtimeId: string }, color?: string) => {
+    const request = parseIntegrationRequest({ version: 1, id: randomUUID(), type: color === undefined ? "settings.get" : "settings.update",
+      target: { scope: "session", sessionId: binding.sessionId, runtimeId: binding.runtimeId }, setting: "accentColor", ...(color === undefined ? {} : { value: color }) });
+    const result = JSON.parse((await execute(process.execPath, [join(packageRoot, "bin", "cli.js"), "api", JSON.stringify(request)], { cwd, env, timeout: 10_000 })).stdout);
+    assertIntegrationResponse(result, request);
+    expect(result.success).toBe(true);
+    const data = result.data as { target: { sessionId: string }; effectiveValue: string };
+    return { sessionId: data.target.sessionId, color: data.effectiveValue };
+  };
   const labels = async (terminal: string): Promise<Record<string, string>> => (await readJson(core))[terminal];
   const terminal = async (id: string): Promise<FixtureColorTerminal> => ({ address: id, state: "live", app: PRODUCT_IDENTITY.commandName, labels: await labels(id) });
   let sequence = 0;
@@ -100,8 +110,8 @@ pi.on('session_shutdown',()=>{clearInterval(timer);});}
   const ports = {
     now: Date.now,
     terminal: async (target: FixtureColorTarget) => { expect(target.machine).toBe(machine); return terminal(target.terminal); },
-    get: async (target: FixtureColorTarget) => { routed.push(target.machine); return cli(["get", "--session", target.sessionId]); },
-    set: async (target: FixtureColorTarget) => { routed.push(target.machine); return cli(["set", target.color, "--session", target.sessionId]); },
+    get: async (target: FixtureColorTarget) => { routed.push(target.machine); return cli(target); },
+    set: async (target: FixtureColorTarget) => { routed.push(target.machine); return cli(target, target.color); },
   };
   const adopt = async (id: string, space: string, tab: string) => {
     const { createHerdrCommand } = await import("../../src/features/owned-ui/herdr-command.js");
@@ -128,8 +138,8 @@ describe("packaged compatible producer and unchanged membership consumer contrac
       await f.adopt("t5z", "space-b", "tab-a");
       expect(await syncFixtureColors(old, Date.now() + 10_000, f.ports)).toEqual([]);
       expect(await syncFixtureColors(moved, Date.now() + 10_000, f.ports)).toHaveLength(1);
-      expect(await f.cli(["get", "--session", first.binding.sessionId])).toMatchObject({ color: "cyan" });
-      expect(await f.cli(["get", "--session", peer.binding.sessionId])).toMatchObject({ color: "orange" });
+      expect(await f.cli(first.binding)).toMatchObject({ color: "cyan" });
+      expect(await f.cli(peer.binding)).toMatchObject({ color: "orange" });
       expect(f.routed.every(value => value === machine)).toBe(true);
       expect(await f.settings()).toEqual(originalSettings);
       const expired = Date.now() - 1;
@@ -144,8 +154,8 @@ describe("packaged compatible producer and unchanged membership consumer contrac
       expect(await syncFixtureColors(pending, Date.now() + 10_000, replacementPorts)).toEqual([]);
       const replacement = freshHerdrColorBinding(await f.labels("t5z"), Date.now())!;
       expect(replacement.runtimeId).toBe(first.binding.runtimeId);
-      expect(await f.cli(["get", "--session", replacement.sessionId])).toMatchObject({ color: "green" });
-      await expect(f.cli(["get", "--session", first.binding.sessionId])).rejects.toBeDefined();
+      expect(await f.cli(replacement)).toMatchObject({ color: "green" });
+      await expect(f.cli(first.binding)).rejects.toBeDefined();
     } finally { await first.stop(); await peer.stop(); }
     // Protocol: same terminal, new compatible process: no manual label clearing or coordination repair.
     const successor = await f.launch("t5z", true, "green");

@@ -46,7 +46,7 @@ describe("default and current session colors", () => {
     const one = manager(), two = manager();
     await one.change("a1", "accentColor", "pink");
     await two.change("a1", "accentColor", "orange");
-    expect(await one.change("a1", "defaultAccentColor", "green")).toMatchObject({ status: "deferred", application: "next-start", storedValue: "green", effectiveValue: "blue" });
+    expect(await one.change("a1", "defaultAccentColor", "green")).toMatchObject({ status: "deferred", application: "next-session", storedValue: "green", effectiveValue: "blue" });
     two.refresh();
     expect([one.value("accentColor"), two.value("accentColor")]).toEqual(["pink", "orange"]);
     expect(manager().value("accentColor")).toBe("green");
@@ -75,7 +75,7 @@ describe("default and current session colors", () => {
     await session.change("a1", "defaultAccentColor", "grey");
     const entries = session.sections().find(group => group.id === "appearance")!.entries;
     expect(entries.slice(0, 2)).toMatchObject([
-      { id: "defaultAccentColor", label: "Default color", value: "grey", effectiveValue: "blue", application: "next-start" },
+      { id: "defaultAccentColor", label: "Default color", value: "grey", effectiveValue: "blue", application: "next-session" },
       { id: "accentColor", label: "Current color", value: "pink", effectiveValue: "pink", application: "live" },
     ]);
     expect(entries[0]!.choices).toEqual(entries[1]!.choices);

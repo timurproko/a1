@@ -45,9 +45,9 @@ export function createCommandHandlers(packageRoot) {
       const { createPiPackagesPort } = await import("../dist/integrations/pi/engine/package-integration.js");
       return runPackageCommand(request, { createPort: createPiPackagesPort });
     },
-    sessionColor: async arguments_ => {
-      const { runSessionColorCommand } = await import("../dist/cli/session-color.js");
-      return runSessionColorCommand(arguments_);
+    api: async arguments_ => {
+      const { runApiCommand } = await import("../dist/cli/api.js");
+      return runApiCommand(arguments_);
     },
     sessionContext: async request => {
       const { runSessionContextCommand } = await import("../dist/cli/session-context.js");

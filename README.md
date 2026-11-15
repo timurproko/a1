@@ -105,7 +105,7 @@ a1 pi
 
 Settings → Appearance separates a saved **Default color** (initially blue) from **Current color**, which affects only this session. Both offer blue, green, orange, pink, purple, cyan, and grey. `a1 --session-color green` overrides initialization before the first startup/trust/editor frame without saving a setting. Successful session replacements retain that invocation policy; live Current edits do not change it.
 
-External hosts discover support with `a1 session color capabilities` and control one targeted runtime through the [always-JSON local color API](docs/features/session-colors.md). Inside Herdr Core, bare A1 automatically reports complete native session/runtime identity with bounded heartbeat and ownership-safe cleanup. Local and SSH machines need only Core, A1, and normal Node—not App or companion setup. Supported launches from a known Herdr space can receive its color before first paint; manual and new-space launches retain subsequent live matching rather than a promised startup handshake.
+External hosts use `a1 api <request-json>` for versioned discovery and exact runtime/session settings control through the [shared integration API](docs/features/integration-api.md). Inside Herdr Core, bare A1 automatically reports complete native session/runtime identity with bounded heartbeat and ownership-safe cleanup. Local and SSH machines need only Core, A1, and normal Node—not App or companion setup. Supported launches from a known Herdr space can receive its color before first paint; manual and new-space launches retain subsequent live matching rather than a promised startup handshake.
 
 ## Update
 
