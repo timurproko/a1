@@ -1,7 +1,7 @@
 ## 1. Recovery entry dispatch through filesystem aliases
 
-- [ ] 1.1 Canonicalize direct recovery-entry recognition while retaining safe import-only behavior and all capsule authority checks.
-- [ ] 1.2 Add regression cases for aliased worker entry, cancellation restoration, and updater-loss settlement with fixture-owned process cleanup and useful failure diagnostics.
+- [x] 1.1 Canonicalize direct recovery-entry recognition while retaining safe import-only behavior and all capsule authority checks.
+- [x] 1.2 Add regression cases for aliased worker entry, cancellation restoration, and updater-loss settlement with fixture-owned process cleanup and useful failure diagnostics.
 
 ## 2. Readable development-publication reporting
 
