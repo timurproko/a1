@@ -21,7 +21,7 @@ describe("PromptChipStore", () => {
     let imageNotifications = 0;
     const paste = store.beginPaste("", () => content, error => errors.push(error), () => {
       imageNotifications++;
-      expect(store.hiddenRanges(paste.marker)).toEqual([]);
+      expect(store.hiddenRanges(paste.marker)).toEqual([{ start: 3, end: 4 }]);
       expect(store.hasPending(paste.marker)).toBe(true);
     });
     try {
@@ -35,7 +35,7 @@ describe("PromptChipStore", () => {
       const ready = await paste.result;
       expect(ready).toBe(paste.marker);
       expect(imageNotifications).toBe(1);
-      expect(store.hiddenRanges(ready)).toEqual([]);
+      expect(store.hiddenRanges(ready)).toEqual([{ start: 3, end: 4 }]);
       expect(store.hasPending(paste.marker)).toBe(false);
       expect(store.prepareSubmission(`${paste.marker} ${ready}`)).toEqual({
         text: `${ready} ${ready}`,
