@@ -194,6 +194,7 @@ export async function smokePublishedInstaller({
       child: childOutcome,
       timings,
       processes,
+      processHistory: runner?.history ? sanitizedHistory(runner.history(), safe) : null,
       updateRecords: root ? await updateRecordTails(root, safe).catch(error => ({ error: safe(error.message) })) : {},
       npmLogs: root ? await npmLogIdentities(resolve(root, "npm-cache", "_logs")).catch(() => []) : [],
       npmDiagnostics: root ? await npmDiagnosticTails(resolve(root, "npm-cache", "_logs"), safe)
@@ -239,6 +240,17 @@ export async function smokePublishedInstaller({
   }
   if (primaryError) throw primaryError;
   process.stdout.write(`Published installer smoke passed on ${process.platform}/${process.arch}.\n`);
+}
+
+/** Sampled sightings with arguments reduced to safe text; the last sighting dates each disappearance. */
+function sanitizedHistory(history, safe) {
+  return {
+    samples: history.samples, errors: history.errors, lastError: history.lastError === null ? null : safe(history.lastError),
+    rows: history.rows.slice(0, 80).map(row => ({
+      pid: row.pid, parent: row.parent, start: row.start, firstSeen: row.firstSeen, lastSeen: row.lastSeen,
+      executable: safe(row.executable), argv: safe(row.argv.join(" ")),
+    })),
+  };
 }
 
 async function npmDiagnosticTails(directory, safe) {

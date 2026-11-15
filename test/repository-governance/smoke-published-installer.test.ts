@@ -258,6 +258,10 @@ describe("published installer smoke evidence", () => {
             return { ...ok, status: null, error: new Error("published smoke command timed out after 1200000ms"), stdout: "a1 update: 0.2.7-dev.1307 → 0.2.7-dev.1316\nnpm root --global" };
           },
           inventory: async () => { order.push("inventory"); return [{ pid: 4321, parent: 1, start: "4321", executable: process.execPath, argv: stalledArgv }]; },
+          history: () => ({ samples: 90, errors: 1, lastError: `inspection busy ${environment.NODE_AUTH_TOKEN}`, rows: [
+            { pid: 9092, parent: 4321, start: "9092", executable: process.execPath, argv: [process.execPath, resolve(fixtureRoot, "update-data", "update-recovery", "tx", "recovery.js"), "--worker"], firstSeen: "2026-11-15T19:18:47.000Z", lastSeen: "2026-11-15T19:20:37.000Z" },
+            { pid: 4321, parent: 1, start: "4321", executable: process.execPath, argv: stalledArgv, firstSeen: "2026-11-15T19:18:37.000Z", lastSeen: "2026-11-15T19:33:37.000Z" },
+          ] }),
           close: async () => { order.push("close"); },
         };
       },
@@ -279,6 +283,10 @@ describe("published installer smoke evidence", () => {
         { name: "2026-11-15T17_21_52_159Z-debug-0.log", size: expect.any(Number), mtime: expect.any(String) },
       ],
       timings: { "install-application": expect.any(Number), "update-predecessor": expect.any(Number) },
+      processHistory: { samples: 90, errors: 1, lastError: expect.stringContaining("inspection busy"), rows: [
+        { pid: 9092, parent: 4321, firstSeen: "2026-11-15T19:18:47.000Z", lastSeen: "2026-11-15T19:20:37.000Z", argv: expect.stringContaining("recovery.js --worker") },
+        { pid: 4321, lastSeen: "2026-11-15T19:33:37.000Z", argv: expect.stringContaining("[redacted]") },
+      ] },
     });
     expect(Object.keys(evidence.updateRecords as object)).not.toContain("update-data/update-recovery/5f1c0e2a-tx/capsule.json");
     expect((evidence.processes as Array<{ argv: string }>)[0]!.argv).toContain("[redacted]");

@@ -64,6 +64,50 @@ describe("published smoke process ownership", () => {
     expect(stopped).toEqual([]);
   });
 
+  it("samples fixture-owned processes during a long command, dates disappearances, records sampling errors, and leaves settlement identities alone", async () => {
+    const root = await fixture();
+    let tick = 0;
+    let clock = Date.parse("2026-11-15T19:18:37.000Z");
+    const guardian = row(3, 2, "3", [process.execPath, resolve(root, "update-data", "update-recovery", "recovery.js")]);
+    const npm = row(4, 3, "4", [process.execPath, resolve(root, "npm-bridge", "npm-cli.mjs"), "install"]);
+    const reusedPid = row(4, 1, "99", [process.execPath, resolve(root, "later-unrelated-owner.js")]);
+    const gone = new Set<number>();
+    const runner = createPublishedSmokeRunner(root, {
+      self: 2, sampleIntervalMs: 5, sampleThresholdMs: 0, now: () => clock, pause: async () => {},
+      list: async () => {
+        tick += 1;
+        clock += 1_000;
+        if (tick === 2) throw new Error("inspection busy");
+        // Timeline: both alive, then only the guardian, then nothing fixture-owned except a reused pid.
+        return [row(1, 0, "1"), row(2, 1, "2"), ...(tick <= 3 ? [guardian, npm] : tick <= 5 ? [guardian] : [reusedPid])].filter(record => !gone.has(record.pid));
+      },
+      terminate: async record => { gone.add(record.pid); },
+    });
+    const result = await runner.run(process.execPath, ["-e", "setTimeout(() => {}, 150)"], { cwd: root, env: process.env, timeout: 60_000 });
+    expect(result.status).toBe(0);
+    const history = runner.history!();
+    expect(history.samples).toBeGreaterThanOrEqual(5);
+    expect(history.errors).toBe(1);
+    expect(history.lastError).toBe("inspection busy");
+    const byPid = new Map(history.rows.map(record => [`${record.pid}:${record.start}`, record]));
+    const guardianSeen = byPid.get("3:3")!;
+    const npmSeen = byPid.get("4:4")!;
+    expect(npmSeen.argv.at(-1)).toBe("install");
+    expect(npmSeen.lastSeen < guardianSeen.lastSeen).toBe(true);
+    expect(byPid.get("4:99")!.lastSeen >= guardianSeen.lastSeen).toBe(true);
+    // The reused pid 4 was only ever sampled, so settlement's identity check does not fail on it.
+    await expect(runner.close()).resolves.toBeUndefined();
+  });
+
+  it("does not sample short commands", async () => {
+    const root = await fixture();
+    let lists = 0;
+    const runner = createPublishedSmokeRunner(root, { self: 2, sampleIntervalMs: 5, list: async () => { lists += 1; return [row(2, 1, "2")]; } });
+    await runner.run(process.execPath, ["-e", "setTimeout(() => {}, 60)"], { cwd: root, env: process.env, timeout: 60_000 });
+    expect(lists).toBe(0);
+    expect(runner.history!()).toMatchObject({ samples: 0, errors: 0, rows: [] });
+  });
+
   it("refuses a changed process identity before termination", async () => {
     const root = await fixture();
     let reads = 0;

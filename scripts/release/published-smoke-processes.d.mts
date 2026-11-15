@@ -5,4 +5,7 @@ export function createPublishedSmokeRunner(root: string, options?: {
   terminate?: (record: ProcessSnapshot, options?: { deadline?: number }) => Promise<void>;
   pause?: (milliseconds: number) => Promise<void>;
   self?: number;
+  now?: () => number;
+  sampleIntervalMs?: number;
+  sampleThresholdMs?: number;
 }): SmokeRunner;

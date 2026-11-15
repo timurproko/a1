@@ -1,8 +1,8 @@
 ## 1. Process history during long smoke commands
 
-- [ ] 1.1 Sample fixture-owned processes while a command with a long budget runs, without recording sampled identities into settlement state, and expose first and last sightings with arguments and sampling errors.
-- [ ] 1.2 Write the sanitized process history into failure evidence.
-- [ ] 1.3 Add focused regression cases for sampling, disappearance ordering, sampling errors, and settlement independence.
+- [x] 1.1 Sample fixture-owned processes while a command with a long budget runs, without recording sampled identities into settlement state, and expose first and last sightings with arguments and sampling errors.
+- [x] 1.2 Write the sanitized process history into failure evidence.
+- [x] 1.3 Add focused regression cases for sampling, disappearance ordering, sampling errors, and settlement independence.
 
 ## 2. Windows system records and replacement state at failure
 
