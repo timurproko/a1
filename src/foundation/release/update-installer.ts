@@ -4,7 +4,7 @@ import { scheduleReleaseCleanup } from "./release-gc.js";
 import { ReleaseStateStore } from "./release-state.js";
 import { materializeRelease, readMaterializedRelease } from "./release-store.js";
 import type { UpdateRecoveryState, UpdateTransaction } from "./update-transaction.js";
-import { resolveNpmCli, runProtectedPackageReplacement, type ProtectedPackageReplacementResult } from "./update-recovery.js";
+import { resolveNpmCli, restoreUpdateRecoveryLaunchers, runProtectedPackageReplacement, type ProtectedPackageReplacementResult } from "./update-recovery.js";
 
 /** The approved release protected replacement restores when the new package cannot launch. */
 export interface UpdatePriorRelease {
@@ -42,6 +42,8 @@ export interface UpdateInstaller {
   /** Make sure an approved release can launch while npm replaces the package. */
   protectPriorRelease(packageRoot: string): Promise<UpdatePriorReleaseProtection>;
   replacePackage(input: UpdatePackageReplacementInput): Promise<ProtectedPackageReplacementResult>;
+  /** Restore the capsule-backed public command after settled replacement or activation fails. */
+  restoreLaunchers(transaction: UpdateTransaction): Promise<void>;
   /** Return to the prior release after a failure, describing what happened. "rolled back" means it did. */
   rollback(priorReleaseId: string | null): Promise<string>;
   /** Release cleanup committed after activation and before success is reported. */
@@ -55,6 +57,9 @@ export function createProtectedUpdateInstaller(paths: ProductPaths, environment:
     preflight: async npmCliRoot => await resolveNpmCli(npmCliRoot, environment),
     protectPriorRelease: async packageRoot => await protectPriorRelease(dataDir, packageRoot),
     replacePackage: async input => await runProtectedPackageReplacement({ ...input, dataDir, environment }),
+    restoreLaunchers: async transaction => {
+      if (transaction.recovery?.capsulePath) await restoreUpdateRecoveryLaunchers(transaction.recovery.capsulePath, environment);
+    },
     rollback: async priorReleaseId => await rollbackPriorRelease(dataDir, priorReleaseId),
     maintenance: async () => { await scheduleReleaseCleanup(dataDir, paths); },
   };

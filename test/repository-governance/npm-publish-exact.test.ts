@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   isDuplicateTransparencyLogFailure,
   npmPublishArguments,
+  NPM_STAGING_TAG,
   publishExactPackage,
 } from "../../scripts/release/npm-publish-exact.mjs";
 
@@ -29,9 +30,9 @@ function registryResponse(status: number, body?: unknown) {
 
 describe("exact npm publication recovery", () => {
   it("retains provenance and the trusted public registry on every attempt", () => {
-    expect(npmPublishArguments(identity.tarball, identity.channel)).toEqual([
+    expect(npmPublishArguments(identity.tarball, NPM_STAGING_TAG)).toEqual([
       identity.tarball,
-      "--tag", "next",
+      "--tag", "a1-staging",
       "--access", "public",
       "--ignore-scripts",
       "--provenance",
@@ -50,8 +51,8 @@ describe("exact npm publication recovery", () => {
 
     expect(result).toMatchObject({ status: "published", attempts: 2, name: identity.name, version: identity.version });
     expect(publish).toHaveBeenCalledTimes(2);
-    expect(publish).toHaveBeenNthCalledWith(1, { tarball: identity.tarball, channel: "next" });
-    expect(publish).toHaveBeenNthCalledWith(2, { tarball: identity.tarball, channel: "next" });
+    expect(publish).toHaveBeenNthCalledWith(1, { tarball: identity.tarball, channel: "a1-staging" });
+    expect(publish).toHaveBeenNthCalledWith(2, { tarball: identity.tarball, channel: "a1-staging" });
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining("publish-recovery=7-1"), expect.objectContaining({ headers: expect.objectContaining({ "cache-control": "no-cache" }) }));
     expect(sleep).toHaveBeenCalledWith(25);
   });

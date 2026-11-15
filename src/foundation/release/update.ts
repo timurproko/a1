@@ -28,6 +28,7 @@ import {
   npmPrefixForGlobalRoot,
   removeUpdateRecoveryCapsule,
   updateLauncherPaths,
+  UpdateRecoveryPendingError,
 } from "./update-recovery.js";
 import { errorMessage, samePath } from "./managed-path.js";
 import {
@@ -813,13 +814,18 @@ async function replaceUpdatePackage(
     priorRelease,
     output,
     onRecoveryState: async recovery => {
+      // Invariant: keep live authority even when its durable notification is temporarily refused.
+      if (run.transaction) run.transaction = { ...run.transaction, recovery };
       if (transactionStore.setRecovery) run.transaction = await transactionStore.setRecovery(recovery) ?? run.transaction;
     },
   }));
   // Rationale: npm's own text explains a failed replacement and says nothing about a
   // successful one, so it reaches the terminal only when the installation did not happen.
   if (replacement.outcome !== "installed") reportChildDiagnostics(output, replacement);
-  if (replacement.outcome === "installed") run.transaction = await transactionStore.advance("package-installed");
+  if (replacement.outcome === "installed") run.transaction = {
+    ...await transactionStore.advance("package-installed"),
+    ...(run.transaction?.recovery ? { recovery: run.transaction.recovery } : {}),
+  };
   if (replacement.cancelled) {
     progress.clear();
     output.stderr(`${PRODUCT_TEXT.diagnostic("update cancelled safely; the launcher is available and the transaction can be resumed.")}\n`);
@@ -838,7 +844,12 @@ async function activateUpdate(plan: UpdatePlan, run: UpdateRun): Promise<number>
   let activationPhaseStartedAt = now();
   const recordActivationPhase = async (phase: UpdateActivationPhase) => {
     onPhaseTiming?.({ phase, durationMs: Math.max(0, now() - activationPhaseStartedAt) });
-    run.transaction = await transactionStore.advance(phase);
+    // Invariant: the activator emits this only after committing; a journal failure cannot undo it.
+    if (phase === "active-reference-committed" && run.transaction) run.transaction = { ...run.transaction, phase };
+    run.transaction = {
+      ...await transactionStore.advance(phase),
+      ...(run.transaction?.recovery ? { recovery: run.transaction.recovery } : {}),
+    };
     progress.set(ACTIVATION_PROGRESS[phase].at, ACTIVATION_PROGRESS[phase].creepTo);
     activationPhaseStartedAt = now();
   };
@@ -872,14 +883,22 @@ async function activateUpdate(plan: UpdatePlan, run: UpdateRun): Promise<number>
  */
 async function completeCommittedUpdate(plan: UpdatePlan, transaction: UpdateTransaction | null, warnings: string[]): Promise<void> {
   const { output, progress, transactionStore, paths } = plan;
-  if (transaction?.recovery?.capsulePath) {
+  let settled = false;
+  try {
+    if (transaction?.phase === "active-reference-committed" && (await transactionStore.read())?.phase !== "active-reference-committed") {
+      await transactionStore.advance("active-reference-committed");
+    }
+    await transactionStore.finish("completed", warnings.length === 0 ? null : warnings.join("; ").slice(0, 2_000));
+    settled = true;
+  } catch (error) { warnings.push(`update journal could not be settled: ${errorMessage(error)}`); }
+  // Invariant: preserve recovery authority until the journal settles and no launcher needs the capsule.
+  if (settled && transaction?.recovery?.capsulePath && transaction.recovery.launcherDisposition === "target") {
     await removeUpdateRecoveryCapsule(paths.dataDir, transaction.transactionId)
       .catch(error => { warnings.push(`recovery evidence will be removed later: ${errorMessage(error)}`); });
   }
   // Concurrency: this is the launch cutover. No failure-prone update work follows success.
-  await transactionStore.finish("completed", warnings.length === 0 ? null : warnings.join("; ").slice(0, 2_000))
-    .catch(error => { warnings.push(`update journal could not be settled: ${errorMessage(error)}`); });
-  await Promise.all([transactionStore.clearCompleted(), invalidateReleaseCheckCache(paths.configDir)]).catch(() => undefined);
+  if (settled) await transactionStore.clearCompleted().catch(() => undefined);
+  await invalidateReleaseCheckCache(paths.configDir).catch(() => undefined);
   progress.finish();
   output.stdout(`${PRODUCT_TEXT.commandName} updated successfully to ${plan.targetVersion}\n`);
   for (const warning of warnings) output.stderr(`${PRODUCT_TEXT.diagnostic(`warning: ${singleLine(warning)}`)}\n`);
@@ -897,15 +916,29 @@ async function settleUpdateFailure(plan: UpdatePlan, transaction: UpdateTransact
     output.stderr(`${PRODUCT_TEXT.diagnostic(`update could not start safely: ${message}. Nothing was changed. Retry with npm x -y -- ${PRODUCT_PACKAGE}-install`)}\n`);
     return 1;
   }
+  if (error instanceof UpdateRecoveryPendingError) {
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`update recovery is still owned by its guardian; no rollback was attempted. Details: ${transaction?.recovery?.capsulePath ?? transactionStore.path}`)}\n`);
+    return 1;
+  }
   if (transaction?.status === "active" && transaction.phase === "active-reference-committed") {
     // Invariant: once the active reference names the target, running agents may already use it.
     // Rolling back would move the reference under them, so a later failure only warns.
     await completeCommittedUpdate(plan, transaction, [`post-activation step failed: ${message}`]);
     return 0;
   }
+  if (transaction?.recovery?.capsulePath) {
+    try {
+      await plan.installer.restoreLaunchers(transaction);
+      const recovery: UpdateRecoveryState = { ...transaction.recovery, status: "recovery-launcher", launcherDisposition: "recovery" };
+      if (transactionStore.setRecovery) await transactionStore.setRecovery(recovery);
+    } catch (recoveryError) {
+      output.stderr(`${PRODUCT_TEXT.diagnostic(`warning: launcher recovery needs attention: ${singleLine(errorMessage(recoveryError))}. Capsule: ${transaction.recovery.capsulePath}`)}\n`);
+    }
+  }
   const rollback = await plan.installer.rollback(transaction?.priorActiveReleaseId ?? null)
     .catch(rollbackError => `rollback failed: ${errorMessage(rollbackError)}`);
-  if (transaction) await transactionStore.finish(rollback === "rolled back" ? "rolled-back" : "failed", `${message}; ${rollback}`);
+  if (transaction) await transactionStore.finish(rollback === "rolled back" ? "rolled-back" : "failed", `${message}; ${rollback}`)
+    .catch(journalError => { output.stderr(`${PRODUCT_TEXT.diagnostic(`warning: update journal could not be settled: ${singleLine(errorMessage(journalError))}`)}\n`); });
   output.stderr(updateFailureLine(message, rollback, transactionStore.path));
   return error instanceof UpdateFailure ? error.exitCode : 1;
 }
