@@ -24,6 +24,14 @@ The public predecessor owns the executing updater, so changing candidate updater
 
 Native Windows behavior needs native coverage. Cross-platform injected failures can prove evidence precedence but cannot prove Windows child-tree settlement. No broad suite is required locally beyond focused reproduction and changed-owner tests.
 
+## Implementation observations
+
+The immutable 1307-to-1313 pair completed successfully on native Windows twice: first under Node 24.21.0/npm 11.19.0, then under the failed job's Node 24.22.2/npm 11.19.1 with isolated empty npm configuration. The latter executed the dependency lifecycle scripts shown in the failed run. The original inner npm stall did not recur; no predecessor, target, installation arguments, or installed payload was changed. This rules out a deterministic incompatible predecessor in these local conditions, not a hosted-runner-specific failure.
+
+A native command-shim fixture isolates the demonstrated timeout boundary: cmd.exe invokes an updater, which starts a detached recovery owner under update-data and a relative npm descendant. The async supervisor retains the shell until it can inventory descendants, rechecks process-start identities, protects caller ancestry, stops only fixture-associated processes, and verifies settlement before deletion. It replaces the synchronous shell-only timeout and unverified runtime JSON PID cleanup; public predecessor execution and its ten-minute deadline remain unchanged.
+
+Focused native coverage includes command completion, output limits, detached/relative descendants, unrelated paths, stale parent IDs, changed start identity, unavailable caller identity, and actual fixture removal. Existing shared process-inspection tests exercise the reused creation-time-pinned Windows termination handle.
+
 ## Known gaps
 
-The exact inner update hang has not yet been reproduced or localized. A successful focused test is not publication recovery evidence. Implementation and live publication recovery remain pending.
+The exact inner npm stall from the hosted Windows run remains unreproduced. Disposition: retain the original deadline, fail closed on any recurrence, and use the repaired process settlement and stage diagnostics rather than guessing at an updater fix or increasing budgets. Native exact-pair success and timeout containment are local evidence only; they do not establish live publication recovery. No publication retry or registry mutation has been performed.

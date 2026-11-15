@@ -1,8 +1,8 @@
 ## 1. Settled Windows published-predecessor replacement
 
-- [ ] 1.1 Reproduce and isolate the Windows predecessor update hang without changing the published predecessor or target.
-- [ ] 1.2 Repair the demonstrated process-execution or settlement cause and stop only fixture-owned descendants before cleanup.
-- [ ] 1.3 Add focused native Windows regression cases for replacement completion and timeout descendant settlement while retaining real predecessor semantics.
+- [x] 1.1 Investigate the unchanged Windows predecessor update, isolate its timeout/cleanup boundary, and explicitly disposition any unreproduced inner stall.
+- [x] 1.2 Repair the demonstrated process-execution or settlement cause and stop only fixture-owned descendants before cleanup.
+- [x] 1.3 Add focused native Windows regression cases for replacement completion and timeout descendant settlement while retaining real predecessor semantics.
 
 ## 2. Actionable primary and cleanup failure reporting
 

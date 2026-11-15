@@ -4,7 +4,14 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { smokePublishedInstaller, type SmokeChildOptions } from "../../scripts/release/smoke-published-installer.mjs";
+import { smokePublishedInstaller as runSmoke, type SmokeChildOptions, type SmokeChildResult } from "../../scripts/release/smoke-published-installer.mjs";
+
+function smokePublishedInstaller({ environment, spawnSync }: {
+  environment: NodeJS.ProcessEnv;
+  spawnSync: (command: string, args: string[], options: SmokeChildOptions) => SmokeChildResult;
+}) {
+  return runSmoke({ environment, createRunner: () => ({ run: spawnSync, close: async () => {} }) });
+}
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });

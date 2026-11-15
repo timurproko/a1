@@ -10,7 +10,11 @@ export interface SmokeChildResult {
   readonly signal?: string | null;
   readonly error?: Error;
 }
+export interface SmokeRunner {
+  run(command: string, args: string[], options: SmokeChildOptions): SmokeChildResult | Promise<SmokeChildResult>;
+  close(): Promise<void>;
+}
 export function smokePublishedInstaller(options?: {
   environment?: NodeJS.ProcessEnv;
-  spawnSync?: (command: string, args: string[], options: SmokeChildOptions) => SmokeChildResult;
+  createRunner?: (root: string) => SmokeRunner;
 }): Promise<void>;
