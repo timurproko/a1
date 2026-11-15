@@ -13,6 +13,8 @@ describe("attachment chip presentation", () => {
     ["[📷 screenshot-pending]", "[📷screenshot-pending]"],
     ["[📷 screenshot-abc123-resized]", "[📷screenshot-abc123-resized]"],
     ["[📷 failed-abc123]", "[📷failed-abc123]"],
+    ["[📷 screenshot-abc123 #/original]", "[📷screenshot-abc123 #/original]"],
+    ["[📷 screenshot-abc123/path]", "[📷screenshot-abc123/path]"],
     ["[📷 screenshot-👩‍💻-abc123]", "[📷screenshot-👩‍💻-abc123]"],
     ["[📄 notes.txt]", "[📄notes.txt]"],
     ["[📄 other/notes.txt]", "[📄notes.txt]"],

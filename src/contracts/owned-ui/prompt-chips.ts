@@ -27,15 +27,10 @@ export interface PromptChipTextMatch extends PromptChipTextRange {
 export function attachmentPromptChipHiddenRanges(text: string): readonly PromptChipTextRange[] {
   const ranges: PromptChipTextRange[] = [];
   for (const match of canonicalPromptChipMatches(text)) {
-    if (match.text.startsWith("[📷 ")) {
-      const start = match.start + "[📷".length;
-      ranges.push({ start, end: start + 1 });
-      continue;
-    }
-    const parts = /^(\[(?:📁|📄|🖼\uFE0F?))( {1,2})([^\]]+)\]$/u.exec(match.text);
+    const parts = /^(\[(?:📷|📁|📄|🖼\uFE0F?))( {1,2})([^\]]+)\]$/u.exec(match.text);
     if (parts === null) continue;
     const labelStart = parts[1]!.length + parts[2]!.length;
-    const label = parts[3]!;
+    const label = parts[1] === "[📷" ? "" : parts[3]!;
     const metadata = / #(?:[A-Za-z]:[\\/]|\/)[^\r\n]+$/u.exec(label)
       ?? (parts[1]!.includes("🖼") ? / #[a-f0-9]+(?:-resized)?(?:-failed)?$/u.exec(label) : null);
     const labelEnd = metadata?.index ?? label.length;
@@ -50,7 +45,7 @@ export function attachmentPromptChipHiddenRanges(text: string): readonly PromptC
   return ranges;
 }
 
-/** Presents icon-adjacent attachment labels without rewriting chip source. */
+/** Compacts attachment labels without rewriting chip source. */
 export function compactAttachmentPromptChips(text: string): string {
   for (const range of [...attachmentPromptChipHiddenRanges(text)].reverse()) {
     text = text.slice(0, range.start) + text.slice(range.end);
