@@ -14,6 +14,7 @@ export interface SmokeRunner {
   run(command: string, args: string[], options: SmokeChildOptions): SmokeChildResult | Promise<SmokeChildResult>;
   close(): Promise<void>;
 }
+export function updateCommandBudgetMs(platform?: NodeJS.Platform): number;
 export function smokePublishedInstaller(options?: {
   environment?: NodeJS.ProcessEnv;
   createRunner?: (root: string) => SmokeRunner;

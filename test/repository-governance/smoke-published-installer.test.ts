@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { smokePublishedInstaller as runSmoke, type SmokeChildOptions, type SmokeChildResult } from "../../scripts/release/smoke-published-installer.mjs";
+import { smokePublishedInstaller as runSmoke, updateCommandBudgetMs, type SmokeChildOptions, type SmokeChildResult } from "../../scripts/release/smoke-published-installer.mjs";
 import { describePublicationFailure } from "../../scripts/release/publication-client.mjs";
 
 function smokePublishedInstaller({ environment, spawnSync }: {
@@ -114,6 +114,21 @@ describe("published installer smoke evidence", () => {
     } })).rejects.toThrow(/replacement failed/u);
     expect(calls.at(-1)).toEqual(channel === "next" ? ["update", "--develop", version] : ["update", "--release"]);
     expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({ outcome: "failure", stage: "update-predecessor" });
+  });
+
+  it("gives only the Windows predecessor update a budget beyond the updater's fifteen-minute worker deadline", async () => {
+    expect(updateCommandBudgetMs("win32")).toBe(20 * 60_000);
+    for (const platform of ["linux", "darwin"] as const) expect(updateCommandBudgetMs(platform)).toBe(10 * 60_000);
+    const { environment } = await fixture();
+    const budgets = new Map<string, number>();
+    await smokePublishedInstaller({ environment, spawnSync: (command, args, options) => {
+      budgets.set(args[0] === "--develop" && budgets.has("--develop") ? "install-predecessor" : args[0] ?? command, options.timeout);
+      return successfulCommand(command, args, options);
+    } });
+    expect(budgets.get("update")).toBe(updateCommandBudgetMs(process.platform));
+    expect(budgets.get("--develop")).toBe(10 * 60_000);
+    expect(budgets.get("install-predecessor")).toBe(10 * 60_000);
+    expect(budgets.get("version")).toBe(30_000);
   });
 
   it("pins only A1 tag discovery while forwarding actual npm installs unchanged", async () => {

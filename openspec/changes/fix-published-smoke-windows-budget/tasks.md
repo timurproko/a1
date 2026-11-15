@@ -1,7 +1,7 @@
 ## 1. Windows predecessor update budget above the updater's deadline
 
-- [ ] 1.1 Give the Windows `update-predecessor` command a twenty-minute budget that exceeds the published updater's fifteen-minute protected-replacement deadline while every other platform and stage keeps ten minutes.
-- [ ] 1.2 Add focused regression cases for the platform-specific budget passed to the predecessor update command.
+- [x] 1.1 Give the Windows `update-predecessor` command a twenty-minute budget that exceeds the published updater's fifteen-minute protected-replacement deadline while every other platform and stage keeps ten minutes.
+- [x] 1.2 Add focused regression cases for the platform-specific budget passed to the predecessor update command.
 
 ## 2. Stall evidence for published-pair failures
 

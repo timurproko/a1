@@ -5,6 +5,19 @@ import { delimiter, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { compareVersions, resolveInstallerNpmCli, sanitizeDiagnostic } from "../../packages/a1-install/bin/a1-install.js";
 
+const COMMAND_BUDGET_MS = 10 * 60_000;
+/**
+ * The published updater waits fifteen minutes for its protected-replacement worker before it cancels
+ * and reports. On the hosted Windows runner the replacement alone needs several minutes, so the smoke
+ * must outlast that deadline or it kills the updater before the updater can say what happened.
+ */
+const WINDOWS_UPDATE_BUDGET_MS = 20 * 60_000;
+
+/** The deadline the predecessor update command receives on a platform. */
+export function updateCommandBudgetMs(platform = process.platform) {
+  return platform === "win32" ? WINDOWS_UPDATE_BUDGET_MS : COMMAND_BUDGET_MS;
+}
+
 /** Run published installation in disposable prefixes and retain safe evidence on either outcome. */
 export async function smokePublishedInstaller({
   environment = process.env, createRunner = createPublishedSmokeRunner,
@@ -83,7 +96,7 @@ export async function smokePublishedInstaller({
     installedEnvironment.PATH = [bridgeBin, installedEnvironment.PATH].join(delimiter);
     const args = channel === "next" ? ["--develop", version] : [];
     stage = "install-application";
-    const installed = await execute(installerLauncher, args, { cwd: root, encoding: "utf8", env: installedEnvironment, windowsHide: true, timeout: 10 * 60_000 });
+    const installed = await execute(installerLauncher, args, { cwd: root, encoding: "utf8", env: installedEnvironment, windowsHide: true, timeout: COMMAND_BUDGET_MS });
     if (installed.stdout.replace(/\r\n/gu, "\n") !== "a1 successfully installed\n" || installed.stderr !== "") {
       throw new Error("published installer transcript is invalid");
     }
@@ -127,13 +140,13 @@ export async function smokePublishedInstaller({
     };
     stage = "install-predecessor";
     await execute(installerLauncher, channel === "next" ? ["--develop", predecessorVersion] : [], {
-      cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: 10 * 60_000,
+      cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: COMMAND_BUDGET_MS,
     });
     stage = "update-predecessor";
     updateEnvironment.PUBLISHED_SMOKE_VERSION = version;
     const updateLauncher = resolve(updateBin, process.platform === "win32" ? "a1.cmd" : "a1");
     await execute(updateLauncher, ["update", ...(channel === "next" ? ["--develop", version] : ["--release"])], {
-      cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: 10 * 60_000,
+      cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: updateCommandBudgetMs(),
     });
     stage = "launch-updated-application";
     const updatedRoot = resolve(updatePrefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", ...applicationSource.name.split("/"));
