@@ -148,6 +148,56 @@ function formatPublicationProgress(label, name, color) {
   return `  ${dot} ${`${label}:`.padEnd(8)} ${name}\n`;
 }
 
+function fitPublicationName(name, width) {
+  // Rationale: a conservative two-cell budget for non-ASCII code points avoids underestimating row width.
+  const cellBudget = character => character.codePointAt(0) <= 0x7f ? 1 : 2;
+  if ([...name].reduce((total, character) => total + cellBudget(character), 0) <= width) return name;
+  let result = "";
+  let used = 0;
+  for (const character of name) {
+    const cells = cellBudget(character);
+    if (used + cells > width - 1) break;
+    result += character;
+    used += cells;
+  }
+  return `${result}…`;
+}
+
+function createPublicationProgress(options) {
+  const write = options.write ?? (text => process.stdout.write(text));
+  const color = publicationColorEnabled(options);
+  const environment = options.environment ?? process.env;
+  let interactive = Boolean(options.isTTY ?? process.stdout.isTTY) && environment.TERM !== "dumb";
+  const rows = new Map();
+  let geometry;
+  const stopUpdating = () => { interactive = false; };
+  if (interactive) process.stdout.on("resize", stopUpdating);
+  const update = (id, label, name) => {
+    const size = options.terminalSize?.() ?? { columns: process.stdout.columns, rows: process.stdout.rows };
+    const index = rows.get(id);
+    const count = rows.size + (index === undefined ? 1 : 0);
+    // Platform: a resize may reflow old rows, and off-screen rows cannot be addressed safely.
+    // Abandon cursor updates for this observation rather than risk overwriting unrelated output.
+    if (!Number.isInteger(size.columns) || size.columns < 16 || !Number.isInteger(size.rows) || count >= size.rows
+      || (geometry && (geometry.columns !== size.columns || geometry.rows !== size.rows))) interactive = false;
+    if (!interactive) {
+      write(formatPublicationProgress(label, name, color));
+      return;
+    }
+    geometry = { ...size };
+    // Invariant: the fixed prefix occupies 13 cells; leave the last column unused to avoid wrapping.
+    const line = formatPublicationProgress(label, fitPublicationName(name, size.columns - 14), color);
+    if (index === undefined) {
+      rows.set(id, rows.size);
+      write(line);
+    } else {
+      const distance = rows.size - index;
+      write(`\u001b[${distance}A\r\u001b[2K${line.slice(0, -1)}\u001b[${distance}B\r`);
+    }
+  };
+  return { update, dispose: () => process.stdout.off("resize", stopUpdating) };
+}
+
 function isOptionalSkippedJob(job) {
   return /^(?:Snapshot the stable Release note|Full documentation review|Validate Windows shard|Reconstruct Windows lane|Complete stable release records)(?: \(|$)/u.test(shortJobName(job.name));
 }
@@ -161,7 +211,7 @@ async function waitForDevelopmentPublication(runId, version, repository, options
   const signal = options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal;
   const interrupt = () => controller.abort();
   const states = new Map();
-  const color = publicationColorEnabled(options);
+  const progress = createPublicationProgress(options);
   const stopped = reason => new Error(`Stopped watching ${plainText(version, 80)} (run ${runId}): ${reason}. Remote outcome unknown; it may still be running. Check this run before starting another publication.\nFull log: https://github.com/${repository}/actions/runs/${runId}`);
   process.once("SIGINT", interrupt);
   process.once("SIGTERM", interrupt);
@@ -185,7 +235,7 @@ async function waitForDevelopmentPublication(runId, version, repository, options
         if (states.get(job.id) === state) continue;
         states.set(job.id, state);
         const label = state === "in_progress" ? "Running" : state === "success" ? "Passed" : state === "skipped" ? "Skipped" : "Failed";
-        write(formatPublicationProgress(label, shortJobName(job.name), color));
+        progress.update(job.id, label, shortJobName(job.name));
       }
       if (current.status === "completed") {
         if (current.conclusion !== "success") {
@@ -202,6 +252,7 @@ async function waitForDevelopmentPublication(runId, version, repository, options
   } finally {
     process.off("SIGINT", interrupt);
     process.off("SIGTERM", interrupt);
+    progress.dispose();
   }
 }
 
