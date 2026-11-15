@@ -1,0 +1,411 @@
+import path from "node:path";
+import { UI_ACCENT_COLORS, type UiAccentColor } from "../../contracts/owned-ui/index.js";
+import { assertAgentSettingDescriptor } from "../../contracts/agent-engine/index.js";
+import type {
+  AgentJsonValue,
+  AgentSettingApplicationBoundary,
+  AgentSettingChangeOutcome,
+  AgentSettingsPort,
+} from "../../contracts/agent-engine/index.js";
+import {
+  OWNED_SETTING_DECLARATIONS,
+  OWNED_UI_SETTING_DECLARATIONS,
+  type OwnedSettingId,
+  type OwnedSettingValueOf,
+  type OwnedUiSettingDeclaration,
+  type OwnedUiSettingValue,
+} from "./declarations.js";
+import {
+  resolveOwnedUiSettings,
+  type OwnedUiSettingsResolution,
+} from "./resolution.js";
+import type { AgentSettingDescriptor } from "../../contracts/agent-engine/index.js";
+
+export interface AgentSettingsSnapshot {
+  readonly descriptors: readonly AgentSettingDescriptor[];
+  readonly writeAdvertised: boolean;
+  readonly failure: string | null;
+}
+export type OwnedUiSettingsBackend = "a1" | "agent";
+import {
+  readProfileSettingsNamespace,
+  repairProfileSettingsDocument,
+  updateProfileSettingsNamespace,
+} from "./profile-document.js";
+
+const PROFILE_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
+const MAX_DOCUMENT_BYTES = 256 * 1024;
+
+export interface OwnedSettingsManagerOptions {
+  /** Selected global agent profile containing the shared `settings.json`. */
+  readonly profileDir?: string;
+  /** Compatibility alias for SDK/tests that supplied the former root option. */
+  readonly configDir?: string;
+  readonly profileId: string;
+  /** Immutable invocation policy; live Current edits do not modify it. */
+  readonly sessionColor?: UiAccentColor;
+  /** Product namespace; defaults to profileId for generic and hermetic consumers. */
+  readonly namespace?: string;
+  readonly declarations?: readonly OwnedUiSettingDeclaration[];
+  readonly agent?: AgentSettingsPort | null;
+  readonly agentProvider?: () => AgentSettingsPort | null;
+  readonly hiddenOwnedSettingIds?: readonly string[];
+  readonly hiddenAgentSettingIds?: readonly string[];
+  readonly agentSettingLabelOverrides?: Readonly<Record<string, string>>;
+}
+
+export interface OwnedUiSettingsChangeOutcome {
+  readonly status: "applied" | "deferred" | "unavailable" | "failed";
+  readonly applied: boolean;
+  /** Compatibility projection for existing A1 restart-bound declarations. */
+  readonly pendingRestart: boolean;
+  readonly application: AgentSettingApplicationBoundary | null;
+  readonly storedValue: AgentJsonValue | null;
+  readonly effectiveValue: AgentJsonValue | null;
+  readonly limitationReason: string | null;
+  readonly failure: string | null;
+}
+
+export type OwnedUiSettingsListener = (manager: ApplicationSettings) => void;
+
+interface WriteOutcome {
+  readonly stored: boolean;
+  readonly failure: string | null;
+}
+
+/**
+ * Owns a profile's durable settings and this session's ephemeral overrides. Durable changes
+ * persist atomically without discarding unknown or legacy session keys; session changes stay local.
+ * Routes every accepted change only to its
+ * owning backend, with agent settings reached through the engine settings port.
+ */
+export class ApplicationSettings {
+  readonly #file: string;
+  readonly #sessionColor: UiAccentColor | undefined;
+  readonly #namespace: string;
+  readonly #declarations: readonly OwnedUiSettingDeclaration[];
+  readonly #agent: AgentSettingsPort | null;
+  readonly #agentProvider: (() => AgentSettingsPort | null) | null;
+  readonly #listeners = new Set<OwnedUiSettingsListener>();
+  readonly #hiddenOwnedSettingIds: ReadonlySet<string>;
+  readonly #hiddenAgentSettingIds: ReadonlySet<string>;
+  readonly #agentSettingLabelOverrides: Readonly<Record<string, string>>;
+  #resolution: OwnedUiSettingsResolution;
+  #agentSnapshot: AgentSettingsSnapshot | null = null;
+  #pending = new Map<string, OwnedUiSettingValue>();
+  readonly #restartEffective = new Map<string, OwnedUiSettingValue>();
+  readonly #sessionValues = new Map<string, OwnedUiSettingValue>();
+
+  constructor(options: OwnedSettingsManagerOptions) {
+    if (options.sessionColor !== undefined && !UI_ACCENT_COLORS.includes(options.sessionColor)) throw new Error("Invalid invocation color");
+    this.#sessionColor = options.sessionColor;
+    if (!PROFILE_ID_PATTERN.test(options.profileId)) {
+      throw new Error(`owned UI settings profile id is not a bounded slug: ${options.profileId}`);
+    }
+    const profileDir = options.profileDir ?? options.configDir;
+    if (profileDir === undefined) throw new Error("owned UI settings require a profile directory");
+    this.#file = path.join(path.resolve(profileDir), "settings.json");
+    this.#namespace = options.namespace ?? options.profileId;
+    this.#declarations = options.declarations ?? OWNED_UI_SETTING_DECLARATIONS;
+    this.#agent = options.agent ?? null;
+    this.#agentProvider = options.agentProvider ?? null;
+    this.#hiddenOwnedSettingIds = new Set(options.hiddenOwnedSettingIds ?? []);
+    this.#hiddenAgentSettingIds = new Set(options.hiddenAgentSettingIds ?? []);
+    this.#agentSettingLabelOverrides = { ...(options.agentSettingLabelOverrides ?? {}) };
+    this.#resolution = this.read();
+    this.startSession();
+    for (const setting of this.#resolution.settings) {
+      if (setting.declaration.application === "restart") this.#restartEffective.set(setting.declaration.id, setting.value);
+    }
+  }
+
+  get file(): string {
+    return this.#file;
+  }
+
+  get resolution(): OwnedUiSettingsResolution {
+    return this.#resolution;
+  }
+
+  /** Reads and resolves the product namespace. Never throws: every failure becomes a notice. */
+  read(): OwnedUiSettingsResolution {
+    try { repairProfileSettingsDocument(this.#file); } catch {
+      // Compatibility: recovery is opportunistic; unreadable-document handling stays authoritative.
+    }
+    const shared = readProfileSettingsNamespace(this.#file, this.#namespace);
+    if (shared.status === "available") {
+      if (Buffer.byteLength(JSON.stringify(shared.value), "utf8") > MAX_DOCUMENT_BYTES) {
+        return this.#resolveNamespace(null, `${this.#file} contains a ${this.#namespace} namespace exceeding the ${MAX_DOCUMENT_BYTES}-byte settings limit`);
+      }
+      return this.#resolveNamespace(shared.value);
+    }
+    return this.#resolveNamespace(null, shared.status === "invalid" ? shared.detail : undefined);
+  }
+
+  #resolveNamespace(
+    values: Readonly<Record<string, unknown>> | null,
+    unreadableDetail?: string,
+  ): OwnedUiSettingsResolution {
+    const resolution = resolveOwnedUiSettings({
+      declarations: this.#declarations,
+      values,
+      ...(unreadableDetail === undefined ? {} : { unreadableDetail }),
+    });
+    return { ...resolution, settings: resolution.settings.map(setting => {
+      const value = this.#sessionValues.get(setting.declaration.id);
+      return setting.declaration.storage !== "session" || value === undefined ? setting : { ...setting, value };
+    }) };
+  }
+
+  startSession(): void {
+    this.#resolution = this.read();
+    for (const declaration of this.#declarations) {
+      if (declaration.storage !== "session") continue;
+      const source = this.#resolution.settings.find(setting => setting.declaration.id === declaration.initialValueFrom);
+      const value = declaration.id === "accentColor" && this.#sessionColor !== undefined ? this.#sessionColor
+        : source !== undefined && declaration.allowedValues.includes(source.value) ? source.value : declaration.defaultValue;
+      this.#sessionValues.set(declaration.id, value);
+      if (source !== undefined && source.declaration.application === "restart") {
+        this.#restartEffective.set(source.declaration.id, source.value);
+        this.#pending.delete(source.declaration.id);
+      }
+    }
+    this.#resolution = this.read();
+    this.#notify();
+  }
+
+  async load(): Promise<void> {
+    this.#resolution = this.read();
+    const agent = this.#currentAgent();
+    this.#agentSnapshot = agent === null ? null : await snapshotOf(agent, this.#hiddenAgentSettingIds);
+    this.#notify();
+  }
+
+  /**
+   * Adopts values another process stored in the shared document. Notifies only when a
+   * resolved value differs, so a peer's own write echo stays silent. Restart-bound values
+   * keep their session-start effect and surface as pending instead.
+   */
+  refresh(): boolean {
+    const next = this.read();
+    if (resolvedValuesKey(next) === resolvedValuesKey(this.#resolution)) return false;
+    this.#resolution = next;
+    for (const setting of next.settings) {
+      const id = setting.declaration.id;
+      if (!this.#restartEffective.has(id)) continue;
+      if (setting.value === this.#restartEffective.get(id)) this.#pending.delete(id);
+      else this.#pending.set(id, setting.value);
+    }
+    this.#notify();
+    return true;
+  }
+
+  /** Available settings metadata for presentation; rendering and section projection stay in the UI. */
+  snapshot() {
+    const resolution = this.#hiddenOwnedSettingIds.size === 0
+      ? this.#resolution
+      : {
+        ...this.#resolution,
+        settings: this.#resolution.settings.filter(setting => !this.#hiddenOwnedSettingIds.has(setting.declaration.id)),
+      };
+    return { resolution, agent: this.#agentSnapshot, agentLabels: this.#agentSettingLabelOverrides };
+  }
+
+  /**
+   * The value in effect for a declared setting, typed by its declaration. A restart-bound
+   * setting reads as the value the session started with until the next start.
+   */
+  value<Id extends OwnedSettingId>(id: Id): OwnedSettingValueOf<Id> {
+    return (this.valueOf(id) ?? OWNED_SETTING_DECLARATIONS[id].defaultValue) as OwnedSettingValueOf<Id>;
+  }
+
+  /** The value in effect for any setting id, or null when nothing declares it. */
+  valueOf(id: string): OwnedUiSettingValue | null {
+    return this.#restartEffective.get(id) ?? this.#resolution.settings.find(setting => setting.declaration.id === id)?.value ?? null;
+  }
+
+  pendingValue(id: string): OwnedUiSettingValue | null {
+    return this.#pending.get(id) ?? null;
+  }
+
+  onChange(listener: OwnedUiSettingsListener): () => void {
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
+  }
+
+  async changeStructured(
+    backend: OwnedUiSettingsBackend,
+    id: string,
+    value: Readonly<Record<string, unknown>>,
+  ): Promise<OwnedUiSettingsChangeOutcome> {
+    if (backend === "agent") return await this.#changeAgentValue(id, value as AgentJsonValue);
+    // Invariant: a flagged A1 setting stores its enabled parts as one value, in declaration order.
+    const flags = this.#declarations.find(declaration => declaration.id === id)?.flags ?? [];
+    if (flags.length === 0) return failed(`${id} holds no structured value`);
+    return await this.change("a1", id, flags.filter(flag => value[flag.key] === true).map(flag => flag.key).join(","));
+  }
+
+  async change(
+    backend: OwnedUiSettingsBackend,
+    id: string,
+    value: OwnedUiSettingValue,
+  ): Promise<OwnedUiSettingsChangeOutcome> {
+    const available = backend === "a1"
+      ? !this.#hiddenOwnedSettingIds.has(id) && this.#declarations.some(declaration => declaration.id === id)
+      : this.#agentSnapshot?.descriptors.some(descriptor => descriptor.key === id) === true;
+    if (!available) return failed(`unknown ${backend} setting: ${id}`);
+    return backend === "a1" ? this.#changeOwned(id, value) : await this.#changeAgentValue(id, value);
+  }
+
+  #changeOwned(id: string, value: OwnedUiSettingValue): OwnedUiSettingsChangeOutcome {
+    const declaration = this.#declarations.find(candidate => candidate.id === id);
+    if (!declaration?.allowedValues.includes(value)) return failed(`value ${JSON.stringify(value)} is not allowed for ${id}`);
+    if (declaration.storage === "session") {
+      this.#sessionValues.set(id, value);
+      this.#resolution = this.read();
+      this.#notify();
+      return changed("applied", "live", value, value);
+    }
+    const outcome = this.#write(id, value);
+    if (!outcome.stored) return failed(outcome.failure ?? `${id} could not be stored`);
+
+    const previous = this.#resolution;
+    this.#resolution = this.read();
+    const previousSetting = previous.settings.find(setting => setting.declaration.id === id);
+    if (previousSetting?.declaration.application === "restart") {
+      this.#pending.set(id, value);
+      this.#notify();
+      return changed("deferred", "next-start", value as AgentJsonValue, this.#restartEffective.get(id) as AgentJsonValue);
+    }
+    this.#pending.delete(id);
+    this.#notify();
+    return changed("applied", "live", value as AgentJsonValue, value as AgentJsonValue);
+  }
+
+  // Invariant: only non-default declared values and unknown product properties are stored.
+  // Concurrency: the namespace updater rereads current JSON while holding Pi's compatible lock.
+  #write(id: string, value: OwnedUiSettingValue): WriteOutcome {
+    const declaration = this.#declarations.find(candidate => candidate.id === id);
+    if (!declaration) return { stored: false, failure: `unknown owned UI setting: ${id}` };
+    if (!declaration.allowedValues.includes(value)) {
+      return { stored: false, failure: `value ${JSON.stringify(value)} is not allowed for ${id}` };
+    }
+
+    try {
+      updateProfileSettingsNamespace(this.#file, this.#namespace, current => {
+        const next = compactValues(this.#resolveNamespace(current));
+        if (value === declaration.defaultValue) delete next[id];
+        else next[id] = value;
+        return Object.keys(next).length === 0 ? null : next;
+      });
+      return { stored: true, failure: null };
+    } catch (error) {
+      return { stored: false, failure: `${this.#file} could not be written: ${describe(error)}` };
+    }
+  }
+
+  async #changeAgentValue(id: string, value: AgentJsonValue): Promise<OwnedUiSettingsChangeOutcome> {
+    const agent = this.#currentAgent();
+    if (agent === null) return failed("no agent engine is attached");
+    if (!agent.capabilities.write || !agent.writeSetting) {
+      return failed("the agent engine does not support changing settings from this surface");
+    }
+    let result: AgentSettingChangeOutcome;
+    try {
+      // Invariant: the bridge behind the port owns effect installation, persistence,
+      // flush, and rollback. A second surface-level flush would split authority.
+      result = await agent.writeSetting(id, value);
+    } catch (error) {
+      return failed(`${id} could not be written to the agent engine: ${describe(error)}`);
+    }
+    this.#agentSnapshot = await snapshotOf(agent, this.#hiddenAgentSettingIds);
+    this.#notify();
+    return fromAgentOutcome(result);
+  }
+
+  #currentAgent(): AgentSettingsPort | null {
+    return this.#agentProvider === null ? this.#agent : this.#agentProvider();
+  }
+
+  #notify(): void {
+    for (const listener of this.#listeners) listener(this);
+  }
+}
+
+async function snapshotOf(agent: AgentSettingsPort, hidden: ReadonlySet<string>): Promise<AgentSettingsSnapshot> {
+  try {
+    const listed = await agent.listSettings();
+    for (const descriptor of listed) assertAgentSettingDescriptor(descriptor);
+    const writeAdvertised = agent.capabilities.write && typeof agent.writeSetting === "function";
+    const descriptors = listed.filter(descriptor =>
+      !hidden.has(descriptor.key) && writeAdvertised && descriptor.writable && descriptor.available,
+    );
+    return {
+      descriptors,
+      writeAdvertised,
+      failure: null,
+    };
+  } catch (error) {
+    return { descriptors: [], writeAdvertised: false, failure: describe(error) };
+  }
+}
+
+function resolvedValuesKey(resolution: OwnedUiSettingsResolution): string {
+  return JSON.stringify(resolution.settings.map(setting => [setting.declaration.id, setting.value]));
+}
+
+function failed(failure: string): OwnedUiSettingsChangeOutcome {
+  return {
+    status: "failed",
+    applied: false,
+    pendingRestart: false,
+    application: null,
+    storedValue: null,
+    effectiveValue: null,
+    limitationReason: null,
+    failure,
+  };
+}
+
+function changed(
+  status: "applied" | "deferred",
+  application: AgentSettingApplicationBoundary,
+  storedValue: AgentJsonValue,
+  effectiveValue: AgentJsonValue,
+): OwnedUiSettingsChangeOutcome {
+  return {
+    status,
+    applied: status === "applied",
+    pendingRestart: status === "deferred" && application === "next-start",
+    application,
+    storedValue,
+    effectiveValue,
+    limitationReason: null,
+    failure: null,
+  };
+}
+
+function fromAgentOutcome(result: AgentSettingChangeOutcome): OwnedUiSettingsChangeOutcome {
+  return {
+    status: result.status,
+    applied: result.status === "applied",
+    pendingRestart: result.status === "deferred" && result.application === "next-start",
+    application: result.application,
+    storedValue: result.storedValue,
+    effectiveValue: result.effectiveValue,
+    limitationReason: result.limitationReason,
+    failure: result.failure,
+  };
+}
+
+function compactValues(resolution: OwnedUiSettingsResolution): Record<string, unknown> {
+  const values: Record<string, unknown> = { ...resolution.preserved };
+  for (const setting of resolution.settings) {
+    if (setting.declaration.storage !== "session" && setting.value !== setting.declaration.defaultValue) values[setting.declaration.id] = setting.value;
+  }
+  return values;
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

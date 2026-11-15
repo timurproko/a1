@@ -1,6 +1,5 @@
 import type { AgentJsonValue, AgentSettingApplicationBoundary, AgentSettingDescriptor, AgentSettingFlag } from "../../contracts/agent-engine/index.js";
-import type { OwnedUiSettingValue } from "./declarations.js";
-import type { OwnedUiSettingsResolution } from "./resolution.js";
+import type { OwnedUiSettingValue, OwnedUiSettingsResolution } from "../../app/settings/index.js";
 
 export type OwnedUiSettingsBackend = "a1" | "agent";
 

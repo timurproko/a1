@@ -3,7 +3,7 @@ import { PROHIBITED_STARTUP_ENTRIES } from "./startup-graph-policy.mjs";
 
 export const PROJECT_OWNERS = Object.freeze({
   "product-identity": Object.freeze({ id: "product-identity", layer: "foundation", sourceRoot: "src", testRoot: "test/product-identity", publicEntry: "src/product-identity.ts", mayImport: Object.freeze([]) }),
-  cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release", "agent-engine-contracts", "owned-ui-contracts", "lifecycle", "launch-context"]),
+  cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release", "agent-engine-contracts", "owned-ui-contracts", "lifecycle", "launch-context", "application-settings", "integration-api"]),
   composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "release", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-presenters", "session-shell", "ui-apps", "ui-components", "owned-ui", "prompt-history", "prompt-suggestions", "session-naming", "launch", "terminal-cleanup", "launch-context"]),
   "session-shell": owner("session-shell", "app", "src/app/session-shell", "test/app/session-shell", [
     "owned-ui-contracts", "agent-engine-contracts", "presentation-contracts", "ui-components", "ui-apps", "owned-ui-settings",
@@ -25,7 +25,9 @@ export const PROJECT_OWNERS = Object.freeze({
   "owned-ui-contracts": owner("owned-ui-contracts", "foundation", "src/contracts/owned-ui", "test/contracts/owned-ui", []),
   "ui-components": owner("ui-components", "foundation", "src/ui/components", "test/ui/components", ["presentation-contracts"]),
   "ui-apps": owner("ui-apps", "foundation", "src/ui/apps", "test/ui/apps", ["ui-components"]),
-  "owned-ui-settings": owner("owned-ui-settings", "foundation", "src/ui/settings", "test/ui/settings", ["agent-engine-contracts", "owned-ui-contracts", "presentation-contracts"]),
+  "application-settings": owner("application-settings", "app", "src/app/settings", "test/app/settings", ["agent-engine-contracts", "owned-ui-contracts", "presentation-contracts"]),
+  "integration-api": owner("integration-api", "feature", "src/features/integration-api", "test/features/integration-api", ["application-settings"]),
+  "owned-ui-settings": owner("owned-ui-settings", "foundation", "src/ui/settings", "test/ui/settings", ["application-settings", "agent-engine-contracts", "owned-ui-contracts", "presentation-contracts"]),
   "agent-engine-contracts": owner("agent-engine-contracts", "foundation", "src/contracts/agent-engine", "test/contracts/agent-engine", []),
   "presentation-contracts": owner("presentation-contracts", "foundation", "src/contracts/presentation", "test/contracts/presentation", []),
   "pi-engine-adapter": owner("pi-engine-adapter", "foundation", "src/integrations/pi/engine", "test/integrations/pi/engine", ["owned-ui-contracts", "agent-engine-contracts", "startup", "session-writer-lock", "launch-context"]),

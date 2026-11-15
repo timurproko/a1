@@ -1,8 +1,8 @@
 ## 1. Shared application settings and integration contract
 
-- [ ] 1.1 Move reusable settings ownership out of UI while retaining engine delegation, atomic writes, peer refresh and ephemeral behavior.
-- [ ] 1.2 Define bounded versioned discovery, descriptor, settings read/update and exact-target snapshot contracts with stable errors and correlated replies.
-- [ ] 1.3 Add focused application/protocol fixtures and document the supported boundary and concurrency policy.
+- [x] 1.1 Move reusable settings ownership out of UI while retaining engine delegation, atomic writes, peer refresh and ephemeral behavior.
+- [x] 1.2 Define bounded versioned discovery, descriptor, settings read/update and exact-target snapshot contracts with stable errors and correlated replies.
+- [x] 1.3 Add focused application/protocol fixtures and document the supported boundary and concurrency policy.
 
 ## 2. Exact-session API and color semantics
 
