@@ -42,6 +42,14 @@ The first finalized candidate (`df16638ed`) failed change classification before 
 
 Focused ownership, impact and refinement fixtures passed (48 tests). The ownership ledger accounts for all 506 retained tests, and the exact failed base/head impact-selection command completes successfully with the repaired policy. Regression assertions require these sources and changed tests to retain their matching tests under shared-product. Trusted re-finalization and exact-head CI remain required after this repair; no green CI result is inferred from local reproduction.
 
+## CI migration contract repair
+
+Run `43699771261` passed change classification, naming, changed-file documentation, rendering and the resource-sensitive partition. Its core lane exposed the stale project-owner inventory and a packaged compatible-color fixture still invoking the removed dedicated color command. The inventory now explicitly includes both new owners. The packaged fixture uses protocol-1 settings operations with both identities and validates the correlated acknowledgement; membership, peer isolation, expiry, replacement and successor assertions remain intact.
+
+Finalized delivery validation also reported `delivery-artifact-missing`: the manually authored planning artifacts had omitted the required `.openspec.yaml`. The archive now contains its spec-driven schema and original creation date; trusted automation remains responsible for updating the manifest/digests, rather than relaxing the validator.
+
+Build and typecheck passed. The owner-policy fixture passed all 22 tests. The first local packaged-fixture run had one initial reporter-readiness timeout; the remote case passed. An unchanged standalone rerun passed both local and remote cases, with no timeout increase, retry loop or weakened assertions. This transient local readiness observation is retained rather than claimed as uniformly green evidence. Read-only finalization inspection succeeds and reports `would-refinalize` for the manifest.
+
 ## Known gaps and rollout disposition
 
 No unfinished implementation scope is accepted. Herdr source/build is ready but deployment is intentionally pending a matching A1 protocol-1 installation on every target machine. Old immutable sessions are skipped, not restarted or repaired. Any explicitly installed legacy companion reference needs owner removal before a future deployment deletes its generated worker. No existing preference values were migrated or reset.
