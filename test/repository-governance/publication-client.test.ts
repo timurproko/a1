@@ -660,7 +660,7 @@ describe("interactive development publication rows", () => {
       sleep: async () => {
         resizeAt = output.length;
         geometry = resized;
-        // A shrink-and-grow between polls can restore dimensions but still reflow prior rows.
+        // Platform: a shrink-and-grow between polls can restore dimensions but still reflow prior rows.
         if (resized.columns === size.columns && resized.rows === size.rows) process.stdout.emit("resize");
       },
     });

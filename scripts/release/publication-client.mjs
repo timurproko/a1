@@ -149,7 +149,7 @@ function formatPublicationProgress(label, name, color) {
 }
 
 function fitPublicationName(name, width) {
-  // Non-ASCII code points get a conservative two-cell budget, including combining marks.
+  // Rationale: a conservative two-cell budget for non-ASCII code points avoids underestimating row width.
   const cellBudget = character => character.codePointAt(0) <= 0x7f ? 1 : 2;
   if ([...name].reduce((total, character) => total + cellBudget(character), 0) <= width) return name;
   let result = "";
@@ -176,7 +176,7 @@ function createPublicationProgress(options) {
     const size = options.terminalSize?.() ?? { columns: process.stdout.columns, rows: process.stdout.rows };
     const index = rows.get(id);
     const count = rows.size + (index === undefined ? 1 : 0);
-    // A resize may reflow old rows, and off-screen rows cannot be addressed safely.
+    // Platform: a resize may reflow old rows, and off-screen rows cannot be addressed safely.
     // Abandon cursor updates for this observation rather than risk overwriting unrelated output.
     if (!Number.isInteger(size.columns) || size.columns < 16 || !Number.isInteger(size.rows) || count >= size.rows
       || (geometry && (geometry.columns !== size.columns || geometry.rows !== size.rows))) interactive = false;
@@ -185,7 +185,7 @@ function createPublicationProgress(options) {
       return;
     }
     geometry = { ...size };
-    // The fixed prefix occupies 13 cells; leave the last terminal column unused to avoid wrapping.
+    // Invariant: the fixed prefix occupies 13 cells; leave the last column unused to avoid wrapping.
     const line = formatPublicationProgress(label, fitPublicationName(name, size.columns - 14), color);
     if (index === undefined) {
       rows.set(id, rows.size);
