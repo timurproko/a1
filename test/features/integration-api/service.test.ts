@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApplicationSettings } from "../../../src/app/settings/index.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import { OwnedSettingsManager } from "../../../src/ui/settings/index.js";
 import { applyIntegrationSettings, assertIntegrationResponse, executeIntegrationRequest, parseIntegrationRequest } from "../../../src/features/integration-api/index.js";
 
@@ -59,14 +60,15 @@ describe("shared integration application authority", () => {
 
   it("stores profile defaults atomically, preserving peers and unknown root/namespace fields", async () => {
     const directory = root(), file = join(directory, "settings.json");
-    writeFileSync(file, JSON.stringify({ piRoot: true, a1: { future: { keep: true } } }));
-    const settings = new ApplicationSettings({ profileDir: directory, profileId: "a1" });
+    writeFileSync(file, JSON.stringify({ piRoot: true, [PRODUCT_IDENTITY.commandName]: { future: { keep: true } } }));
+    const settings = new OwnedSettingsManager({ profileDir: directory, profileId: "a1" });
     const peer = new ApplicationSettings({ profileDir: directory, profileId: "a1" });
     await peer.change("a1", "backgroundStyle", "dark");
     const update = parseIntegrationRequest(request("settings.update", { target: { scope: "profile", profileId: "a1" }, setting: "defaultAccentColor", value: "purple" }));
     const response = await applyIntegrationSettings(update, settings); assertIntegrationResponse(response, update);
     expect(response.data).toMatchObject({ status: "stored", application: "next-session", storedValue: "purple" });
-    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ piRoot: true, a1: { future: { keep: true }, backgroundStyle: "dark", defaultAccentColor: "purple" } });
+    expect(settings.sections().flatMap(section => section.entries).find(entry => entry.id === "defaultAccentColor")).toMatchObject({ application: "next-session", storedValue: "purple", effectiveValue: "blue" });
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ piRoot: true, [PRODUCT_IDENTITY.commandName]: { future: { keep: true }, backgroundStyle: "dark", defaultAccentColor: "purple" } });
     peer.refresh(); expect(peer.value("accentColor")).toBe("blue"); peer.startSession(); expect(peer.value("accentColor")).toBe("purple");
   });
 

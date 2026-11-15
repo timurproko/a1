@@ -115,7 +115,7 @@ export class ApplicationSettings {
     this.#resolution = this.read();
     this.startSession();
     for (const setting of this.#resolution.settings) {
-      if (setting.declaration.application === "restart") this.#restartEffective.set(setting.declaration.id, setting.value);
+      if (setting.declaration.application !== "live") this.#restartEffective.set(setting.declaration.id, setting.value);
     }
   }
 
@@ -165,7 +165,7 @@ export class ApplicationSettings {
       const value = declaration.id === "accentColor" && this.#sessionColor !== undefined ? this.#sessionColor
         : source !== undefined && declaration.allowedValues.includes(source.value) ? source.value : declaration.defaultValue;
       this.#sessionValues.set(declaration.id, value);
-      if (source !== undefined && source.declaration.application === "restart") {
+      if (source !== undefined && source.declaration.application !== "live") {
         this.#restartEffective.set(source.declaration.id, source.value);
         this.#pending.delete(source.declaration.id);
       }
@@ -272,10 +272,10 @@ export class ApplicationSettings {
     const previous = this.#resolution;
     this.#resolution = this.read();
     const previousSetting = previous.settings.find(setting => setting.declaration.id === id);
-    if (previousSetting?.declaration.application === "restart") {
+    if (previousSetting !== undefined && previousSetting.declaration.application !== "live") {
       this.#pending.set(id, value);
       this.#notify();
-      return changed("deferred", "next-start", value as AgentJsonValue, this.#restartEffective.get(id) as AgentJsonValue);
+      return changed("deferred", previousSetting.declaration.application === "restart" ? "next-start" : "next-session", value as AgentJsonValue, this.#restartEffective.get(id) as AgentJsonValue);
     }
     this.#pending.delete(id);
     this.#notify();

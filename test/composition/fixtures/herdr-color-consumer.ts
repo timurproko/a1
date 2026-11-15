@@ -1,8 +1,9 @@
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
+import { HERDR_IDENTITY_LABELS as LABELS } from "../../../src/features/owned-ui/herdr-binding.js";
 // Protocol: disposable equivalent of the supplied Herdr consumer, not product matching code.
 const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
 export function freshHerdrColorBinding(labels: Record<string, string>, now: number) {
-  const sessionId = labels["a1.session"], runtimeId = labels["a1.runtime"], at = labels["a1.at"];
+  const sessionId = labels[LABELS.session], runtimeId = labels[LABELS.runtime], at = labels[LABELS.at];
   if (!sessionId || !runtimeId || !at || !UUID.test(sessionId) || !UUID.test(runtimeId) || !/^\d+$/u.test(at)) return undefined;
   const age = now - Number(at);
   return age >= -5000 && age <= 90_000 ? { sessionId, runtimeId } : undefined;

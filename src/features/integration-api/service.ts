@@ -7,7 +7,7 @@ function integrationSettingDescriptors() {
     const setting = OWNED_SETTING_DECLARATIONS[key as "accentColor" | "defaultAccentColor"];
     return { id: setting.id, label: setting.label, description: setting.description, section: setting.section,
       type: "string", choices: setting.allowedValues, scope: key === "accentColor" ? "session" : "profile",
-      application: key === "accentColor" ? "live" : "next-session", concurrency: key === "accentColor" ? "serialized" : "atomic-key-assignment" };
+      application: setting.application, concurrency: key === "accentColor" ? "serialized" : "atomic-key-assignment" };
   });
 }
 
@@ -46,7 +46,7 @@ export async function applyIntegrationSettings(input: unknown, settings: Applica
     const session = request.target?.scope === "session";
     return integrationResponse(request, { target: request.target, setting: id,
       storedValue: setting.value, effectiveValue: session ? settings.valueOf(id) : setting.value,
-      origin: session ? "session" : setting.source, application: session ? "live" : "next-session",
+      origin: session ? "session" : setting.source, application: setting.declaration.application,
       ...(status === undefined ? {} : { status }) });
   } catch (error) { return integrationResponse(input, undefined, error); }
 }

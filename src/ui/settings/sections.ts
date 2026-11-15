@@ -79,7 +79,7 @@ export function buildOwnedUiSettingsSections(
       flags: flagged?.map(flag => ({ ...flag, fallback: false })) ?? [],
       choices: setting.declaration.allowedValues,
       origin: setting.source,
-      application: setting.declaration.application === "restart" ? "next-start" : "live",
+      application: setting.declaration.application === "restart" ? "next-start" : setting.declaration.application,
     });
     grouped.set(section.id, group);
   }

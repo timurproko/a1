@@ -5,7 +5,7 @@ const UI_ACCENT_COLOR_CHOICES = UI_ACCENT_COLORS;
 
 export type OwnedUiSettingValue = string | number | boolean;
 
-export type OwnedUiSettingApplication = "live" | "restart";
+export type OwnedUiSettingApplication = "live" | "restart" | "next-session";
 
 export interface OwnedUiSettingDeclaration {
   readonly id: string;
@@ -47,7 +47,7 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     label: "Default color",
     section: APPEARANCE_SECTION,
     description: "Startup color for future sessions. Changing this does not recolor running sessions.",
-    application: "restart",
+    application: "next-session",
     defaultValue: "blue",
     allowedValues: UI_ACCENT_COLOR_CHOICES,
   }),
