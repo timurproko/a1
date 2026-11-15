@@ -18,7 +18,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-15-unify-integration-api-and-colors/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-15-unify-integration-api-and-colors/acceptance.md",
   "finalizedDate": "2026-11-15",
-  "specBaseSha": "9893a86e1683942bb2efb04117f0411c8ccb63bd",
+  "specBaseSha": "0460ab39baed6a4f23ce3b9eb8df75c655cf3861",
   "acceptanceScenarios": [
     "Discovery returns bounded versioned JSON without interactive startup or a Core probe.",
     "API and Settings share color authority while profile Default and session Current remain isolated.",
