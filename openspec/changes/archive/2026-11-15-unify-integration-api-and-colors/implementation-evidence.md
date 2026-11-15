@@ -36,6 +36,12 @@ The shared client retains explicit executable/npm installation identity, literal
 
 The normal yadm push unexpectedly ran the existing `.config/yadm/hooks/post_push`. Its local output reported `herdr-shell: already current`, Paseo autostart excluded on this PC, and restarts of AutoHotkey and logi-mouse-follow. The user was notified immediately. Read-only inspection then established that this hook also requests a best-effort peer pull of that peer's own configured upstream; its outcome is unverified. No further yadm mutation or improvised restart/undo was attempted. These hook effects were not requested product behavior, and no agent/Core restart or customization deployment was explicitly invoked by the task.
 
+## CI ownership repair
+
+The first finalized candidate (`df16638ed`) failed change classification before product tests in run `43698984297`: moved `test/app/settings/*` had no coarse validation owner. The new integration feature had the same missing mapping. `config/validation-ownership.json` now assigns both application settings and the shared integration API source/tests to the existing shared-product owner, without relaxing the one-owner requirement, dropping tests, or changing validation gates.
+
+Focused ownership, impact and refinement fixtures passed (48 tests). The ownership ledger accounts for all 506 retained tests, and the exact failed base/head impact-selection command completes successfully with the repaired policy. Regression assertions require these sources and changed tests to retain their matching tests under shared-product. Trusted re-finalization and exact-head CI remain required after this repair; no green CI result is inferred from local reproduction.
+
 ## Known gaps and rollout disposition
 
 No unfinished implementation scope is accepted. Herdr source/build is ready but deployment is intentionally pending a matching A1 protocol-1 installation on every target machine. Old immutable sessions are skipped, not restarted or repaired. Any explicitly installed legacy companion reference needs owner removal before a future deployment deletes its generated worker. No existing preference values were migrated or reset.
