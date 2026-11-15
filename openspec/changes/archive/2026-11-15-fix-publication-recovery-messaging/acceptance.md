@@ -26,7 +26,7 @@ The maintainer integration decision accepts these scenarios:
     "Failed publication identifies the primary lane and concrete diagnostics, with full logs and truthful npm staging state.",
     "Interrupted waiting and unavailable status retain the run link without claiming a final remote outcome."
   ],
-  "archiveDigest": "c3dd3e8dc6ab9ccefa7a6785320c1f15432907170b0539e57cc68ab3b4f778cc",
+  "archiveDigest": "e07c598eaffe9135596636c9fd412621ee8e3eb6e0bdd1b400f810a14cc85a9d",
   "specDigest": "c09cbb43277ae8e4c4456a4ec8dd7af153850b9abff3743478785f7d48b22c26",
   "tasksDigest": "155485e03b611f3f8ebf339e2eb8a9117a7f3d370e5172ef022be36a349447cd",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
