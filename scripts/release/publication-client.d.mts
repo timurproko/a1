@@ -33,6 +33,8 @@ export function dispatchPublication(channel: "develop", source: string, version:
   write?: (text: string) => void;
   sleep?: (ms: number) => Promise<unknown>;
   signal?: AbortSignal;
+  isTTY?: boolean;
+  environment?: NodeJS.ProcessEnv;
 }): Promise<number>;
 export function dispatchStableValidation(candidate: {
   repository: string;
