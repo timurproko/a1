@@ -30,7 +30,7 @@ The maintainer integration decision accepts these scenarios:
     "Lifecycle requests before the shell exists, after disposal, or for a mismatched runtime fail with `session-unavailable` without reaching the shell.",
     "Pinned Pi queued input is read through its pending count, never through `clearQueue`."
   ],
-  "archiveDigest": "61cf32a2464fea8d57132e4a84c03a6d2d19e269a3f706cdfcf22a0dbe6d8916",
+  "archiveDigest": "6c6a1d54866fec43e96904182a43e84cd7d7679c701e3598fb3fee232dc29571",
   "specDigest": "de56c5c30ed381d74dd38d2d24acc1cec9d0aa095f2ab4e6d68856a814af1625",
   "tasksDigest": "834e53087feeaaab995e0a228bddccb2f4a8cf20b402eda6636fd3d01cbff2a1",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
