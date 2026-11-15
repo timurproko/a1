@@ -6,27 +6,35 @@ Defines A1-owned settings declarations, profile-local persistence and migration,
 ## Requirements
 
 ### Requirement: A1 settings have a declared shape, defaults, and validation
-Every A1 setting SHALL have a declared identifier, type, allowed values, and default. A1 SHALL resolve a complete value set from defaults overlaid with accepted properties in the product-owned object of the selected global agent settings document. Invalid values SHALL fall back individually. A1 settings SHALL remain logically distinct from Pi settings: they SHALL NOT become Pi root fields or engine descriptors. One manager SHALL own declaration-derived resolution, compatibility transforms, persistence, sections, and typed getters.
+Every A1 setting SHALL have a declared identifier, type, allowed values, and default. Application-owned services SHALL resolve defaults over accepted product-namespace values, preserve unknown fields and isolate session-only values. Invalid persisted values SHALL fall back individually. The Settings UI and public API SHALL use the same application authority for validation, resolution and mutation; UI grouping/projection SHALL remain presentation-owned. A1 settings SHALL remain distinct from Pi root fields and engine descriptors. Engine-backed effects and durability SHALL continue through the existing settings port/coordinator.
 
 #### Scenario: Resolve settings with no stored file
-- **WHEN** the owned UI starts and the global agent settings document has no product-owned object
-- **THEN** every A1 setting SHALL resolve to its declared default and A1 SHALL start normally without reporting an error
+- **WHEN** no product namespace exists
+- **THEN** declared defaults apply without startup failure
 
 #### Scenario: Resolve settings with a partial stored file
-- **WHEN** the stored product object supplies accepted values for some declared settings and omits others
-- **THEN** the supplied values SHALL apply and every omitted setting SHALL resolve to its declared default
+- **WHEN** only some valid values are stored
+- **THEN** they apply and omitted settings use defaults
 
 #### Scenario: Reject an out-of-range stored value
-- **WHEN** a stored product value is present but violates its setting's declared type or allowed values
-- **THEN** that setting SHALL resolve to its declared default, the remaining accepted values SHALL still apply, and A1 SHALL report the rejected setting once without failing startup
+- **WHEN** a stored value is invalid
+- **THEN** that value falls back individually and reports a notice
 
 #### Scenario: Encounter an unknown stored key
-- **WHEN** the product object contains a key that matches no declared setting
-- **THEN** A1 SHALL ignore that key, SHALL preserve it on the next write so a downgrade does not destroy a newer release's value, and SHALL NOT expose it as a setting
+- **WHEN** an unknown property is encountered
+- **THEN** it is preserved on writes but not exposed as a setting
 
 #### Scenario: Read a declared setting through its typed getter
-- **WHEN** production code reads a declared A1 setting by id
-- **THEN** the value SHALL be typed by that setting's allowed values, SHALL be the value in effect for the running session, and SHALL never be absent
+- **WHEN** code reads a declared ID
+- **THEN** its typed effective value is never absent
+
+#### Scenario: Resolve a partial or invalid stored object
+- **WHEN** some declared values are valid, others invalid or absent, and unknown fields exist
+- **THEN** valid values apply, invalid or absent values use declared defaults, and unknown fields survive subsequent writes
+
+#### Scenario: Read from API and UI
+- **WHEN** either surface changes a supported live setting
+- **THEN** both observe the same effective application-owned value without a second settings store or engine writer
 
 ### Requirement: A1 settings persist profile-local and survive restart
 A1 SHALL persist non-default A1 values as direct properties of a reserved product object in `<effective-home>/.a1/agent/settings.json`, scoped to the normal A1 profile. That object SHALL contain no schema version, `values` wrapper, or other implementation metadata. Pi-owned settings SHALL remain root properties. Shared-file writes SHALL be coordinated and atomic, and stored choices SHALL survive restart, update, reinstall, and materialized-release replacement.
