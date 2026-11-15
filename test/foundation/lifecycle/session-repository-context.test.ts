@@ -144,7 +144,7 @@ describe("session repository context and live worktree claims", () => {
     await prepared;
     try {
       expect((await readSessionRepositoryContext(f.identity, options))?.cwd).toBe(await realpath(f.worktree));
-      const inventory = await listSessionRepositoryWorktrees(f.identity, other);
+      const inventory = await listSessionRepositoryWorktrees(f.secondIdentity, other);
       expect(inventory.filter(entry => entry.status === "busy")).toHaveLength(2);
       await expect(setSessionRepositoryContext(f.secondIdentity, f.worktree, other)).rejects.toMatchObject({ code: "worktree-active-in-another-session" });
       await expect(setSessionRepositoryContext(f.secondIdentity, f.secondWorktree, other)).rejects.toMatchObject({ code: "worktree-active-in-another-session" });

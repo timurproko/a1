@@ -31,4 +31,6 @@ The dependency-free worktree control request/outcome contract belongs to agent-e
 
 - Typecheck, architecture boundaries, writer guard, product identity boundaries, and the pinned Pi source ledger passed during implementation.
 - Strict OpenSpec validation passed.
-- The initial focused command/tool/queue/project-context/guidance run passed 196 tests, including a real offline agent tool-result/idle-host transition and automatic continuation. Additional focused regressions and the final source split receive follow-up checks without delaying truthful implementation completion.
+- The initial focused command/tool/queue/project-context/guidance run passed 196 tests, including a real offline agent tool-result/idle-host transition and automatic continuation.
+- Follow-up checks caught and fixed a TypeScript compiler self-inference error, missing archive schema metadata, and a mismatched identity in the provisional-claim regression. The actual managed build and both typecheck configurations passed after repair.
+- A larger named-test run exceeded the local Windows time budget and is not a passing result. Isolated queued-input, stale-request, claim-retention, semantic-revision, and primary/locked/busy safeguards passed after repair. Repository inventory is reused and non-host mutations retain a single-gate fast path without changing ownership checks or test budgets.

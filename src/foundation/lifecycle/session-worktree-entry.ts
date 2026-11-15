@@ -25,17 +25,8 @@ export async function enterSessionRepositoryWorktree(
   const git = async (...args: string[]) => (await execute("git", ["-c", "core.hooksPath=/dev/null", ...args], {
     cwd: repository.root, env: worktreeGitEnvironment(), encoding: "utf8", windowsHide: true, timeout: 15_000, maxBuffer: 256 * 1024, signal: options.signal,
   })).stdout.trim();
-  const inventory = await git("worktree", "list", "--porcelain", "-z");
-  const rows = inventory.split("\0\0").filter(Boolean).map(record => {
-    const fields = record.split("\0");
-    return {
-      root: fields.find(field => field.startsWith("worktree "))?.slice(9),
-      branch: fields.find(field => field.startsWith("branch refs/heads/"))?.slice(18),
-    };
-  });
-  const primary = rows[0]?.root;
-  if (primary === undefined) throw failure("worktree-repository-invalid", "cannot determine the primary Git checkout");
-  const root = await realpath(primary);
+  const rows = repository.worktrees;
+  const root = repository.root;
   const worktreeRoot = join(root, ".worktrees");
   await mkdir(worktreeRoot, { recursive: true });
   const directory = await lstat(worktreeRoot);

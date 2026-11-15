@@ -12,7 +12,7 @@ type Pending = { readonly identity: Identity; readonly request: SessionWorktreeC
 
 /** Keep optional project-transition preparation out of non-claiming runtimes. */
 export function createPiWorktreeTransitions(options: PiRuntimeIntegrationOptions): PiWorktreeTransitions {
-  const transitions = new PiWorktreeTransitions(options.worktreeCwdReader!, async (cwd, trusted) => {
+  const transitions: PiWorktreeTransitions = new PiWorktreeTransitions(options.worktreeCwdReader!, async (cwd, trusted): Promise<Prepared> => {
     const { createPiRuntimeServicesAfterTrust } = await import("./runtime-services.js");
     return await createPiRuntimeServicesAfterTrust({
       ...options, cwd, worktreeExtension: transitions.extension,
