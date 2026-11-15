@@ -3,7 +3,22 @@ import { OWNED_SETTING_DECLARATIONS } from "../../app/settings/index.js";
 export const INTEGRATION_VERSION = 1;
 export const INTEGRATION_LIMIT = 8192;
 const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
-const OPERATIONS = ["capabilities", "settings.list", "settings.get", "settings.update", "session.get"] as const;
+const OPERATIONS = ["capabilities", "settings.list", "settings.get", "settings.update", "session.get", "session.lifecycle", "session.exit"] as const;
+/** Why one exact live session cannot stop safely right now; the first listed blocker is the refusal code. */
+export const EXIT_BLOCKERS = ["session-stopping", "session-busy", "editor-not-empty", "pending-input", "overlay-open"] as const;
+export type ExitBlocker = typeof EXIT_BLOCKERS[number];
+const LIFECYCLES = ["starting", "ready", "busy", "suspended", "stopping", "stopped", "failed"] as const;
+/** Read-only answer of session.lifecycle; admission is re-evaluated inside the runtime, never trusted from a snapshot. */
+export interface SessionLifecycleSnapshot {
+  readonly lifecycle: typeof LIFECYCLES[number];
+  readonly editorEmpty: boolean;
+  readonly pendingSubmissions: number;
+  readonly queuedInput: number;
+  readonly overlayOpen: boolean;
+  readonly exitAdmissible: boolean;
+  readonly blockers: readonly ExitBlocker[];
+}
+const LIFECYCLE_OPERATIONS = new Set<string>(["session.get", "session.lifecycle", "session.exit"]);
 export type IntegrationOperation = typeof OPERATIONS[number];
 export type IntegrationTarget = { readonly scope: "profile"; readonly profileId: "a1" }
   | { readonly scope: "session"; readonly sessionId: string; readonly runtimeId: string };
@@ -36,7 +51,7 @@ export function parseIntegrationRequest(value: unknown): IntegrationRequest {
   if (!OPERATIONS.includes(value.type as IntegrationOperation)) throw integrationFailure("unsupported-operation", "Unknown integration operation.");
   const type = value.type as IntegrationOperation;
   const discovery = type === "capabilities" || type === "settings.list";
-  const keys = discovery ? ["version", "id", "type"] : type === "session.get" ? ["version", "id", "type", "target"]
+  const keys = discovery ? ["version", "id", "type"] : LIFECYCLE_OPERATIONS.has(type) ? ["version", "id", "type", "target"]
     : ["version", "id", "type", "target", "setting", ...(type === "settings.update" ? ["value"] : [])];
   if (!only(value, keys)) throw integrationFailure("invalid-request", "Unexpected request fields.");
   if (discovery) return value as unknown as IntegrationRequest;
@@ -48,8 +63,8 @@ export function parseIntegrationRequest(value: unknown): IntegrationRequest {
   } else if (target.scope === "profile") {
     if (!only(target, ["scope", "profileId"]) || target.profileId !== "a1") throw integrationFailure("unsupported-profile", "Only the a1 profile is supported.");
   } else throw integrationFailure("unsupported-scope", "Only profile and session scopes are supported.");
-  if (type === "session.get") {
-    if (target.scope !== "session") throw integrationFailure("unsupported-scope", "Session snapshots require a session target.");
+  if (LIFECYCLE_OPERATIONS.has(type)) {
+    if (target.scope !== "session") throw integrationFailure("unsupported-scope", "Session operations require a session target.");
   } else {
     if (value.setting !== "accentColor" && value.setting !== "defaultAccentColor") throw integrationFailure("unsupported-setting", "This setting is not exposed.");
     if ((value.setting === "accentColor") !== (target.scope === "session")) throw integrationFailure("unsupported-scope", "Setting is not supported in this scope.");
@@ -86,6 +101,7 @@ export function assertIntegrationResponse(value: unknown, request: IntegrationRe
     if (!record(target) || Object.keys(target).length !== Object.keys(request.target).length
       || Object.entries(request.target).some(([key, expected]) => target[key] !== expected)) throw integrationFailure("invalid-response", "Integration result target did not match.");
   }
+  if (request.type === "session.lifecycle" || request.type === "session.exit") assertLifecycleReadback(value.data, request.type);
   if (request.setting !== undefined) {
     const data = value.data;
     const choices = OWNED_SETTING_DECLARATIONS[request.setting].allowedValues;
@@ -98,6 +114,21 @@ export function assertIntegrationResponse(value: unknown, request: IntegrationRe
   }
 }
 
+/** A lifecycle snapshot or exit acknowledgement must be internally consistent before a supervisor acts on it. */
+function assertLifecycleReadback(data: Record<string, unknown>, type: "session.lifecycle" | "session.exit"): void {
+  if (type === "session.exit") {
+    if (data.status !== "admitted" || data.lifecycle !== "stopping") throw integrationFailure("invalid-response", "Exit was not acknowledged as admitted.");
+    return;
+  }
+  const count = (candidate: unknown) => Number.isSafeInteger(candidate) && (candidate as number) >= 0;
+  const blockers = data.blockers;
+  if (!LIFECYCLES.includes(data.lifecycle as never) || typeof data.editorEmpty !== "boolean" || !count(data.pendingSubmissions) || !count(data.queuedInput)
+    || typeof data.overlayOpen !== "boolean" || typeof data.exitAdmissible !== "boolean" || !Array.isArray(blockers)
+    || !blockers.every(blocker => EXIT_BLOCKERS.includes(blocker as ExitBlocker)) || data.exitAdmissible !== (blockers.length === 0)) {
+    throw integrationFailure("invalid-response", "Malformed lifecycle snapshot.");
+  }
+}
+
 export function integrationCapabilities() {
-  return { operations: OPERATIONS, launchColor: true, terminalIdentity: true, snapshots: true };
+  return { operations: OPERATIONS, launchColor: true, terminalIdentity: true, snapshots: true, lifecycle: true };
 }

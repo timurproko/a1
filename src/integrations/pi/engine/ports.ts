@@ -71,6 +71,7 @@ export interface EnginePortParts {
   disposed(): boolean;
   executeWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult>;
   clearQueuedWorkflows(): readonly string[];
+  queuedWorkflowCount(): number | null;
   setWorkflowInteractionHost(interaction: PiWorkflowInteractionHost): void;
   announceReleaseUpdate(release: OwnedUiReleaseUpdate): void;
   resolveTranscriptImage(assetId: string): OwnedUiImageAttachment | null;
@@ -103,6 +104,7 @@ export function createEnginePorts(parts: EnginePortParts): PiEngineAdapterPorts 
       cycleModelWorkflow: direction => workflows.cycleModelWorkflow(direction),
       workflowAutocompleteCommands: () => resources.workflowAutocompleteCommands(),
       clearQueuedWorkflows: () => parts.clearQueuedWorkflows(),
+      queuedWorkflowCount: () => parts.queuedWorkflowCount(),
       reloadBlockedResult: () => workflows.reloadBlockedResult(),
       copyWorkflowText: text => workflows.copyWorkflowText(text),
       setWorkflowInteractionHost: interaction => { parts.setWorkflowInteractionHost(interaction); },

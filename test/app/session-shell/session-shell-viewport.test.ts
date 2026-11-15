@@ -395,7 +395,8 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       timestamp: Date.now() + index,
     }));
     const { engine, terminal, shell } = await fixture(messages, [], true);
-    const marker = "[📷 screenshot-0123456789]";
+    // Compatibility: queued source keeps the spaced label; the rendered chip compacts it (#940).
+    const marker = "[📷 screenshot-0123456789]", shown = "[📷screenshot-0123456789]";
     try {
       terminal.resize(50, 18);
       engine.session.emit({ type: "agent_start" });
@@ -405,8 +406,9 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       let rows = shell.root.render(50).map(row => stripTerminalSequences(row));
       const chipRows = rows.filter(row => row.includes("[📷") || row.includes("screenshot-0123456789]"));
       expect(chipRows).toHaveLength(1);
-      expect(chipRows[0]).toContain(marker);
-      const chip = rows.findIndex(row => row.includes(marker));
+      expect(chipRows[0]).toContain(shown);
+      expect(rows.join("\n")).not.toContain(marker);
+      const chip = rows.findIndex(row => row.includes(shown));
       const second = rows.findIndex(row => row.includes("Steering: second"));
       const hint = rows.findIndex(row => row.includes(DEQUEUE_HINT));
       const working = rows.findIndex(row => row.includes("Working"));

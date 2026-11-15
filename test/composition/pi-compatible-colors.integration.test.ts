@@ -42,7 +42,9 @@ async function fixture(machine: string) {
   const script = join(commands, "node_modules", "core-fixture", "cli.js");
   await Promise.all([mkdir(agentDir, { recursive: true }), mkdir(resolve(script, ".."), { recursive: true }), mkdir(cwd, { recursive: true })]);
   await writeFile(core, JSON.stringify({ t5z: {}, t6z: {} }));
-  const coreSource = `const fs=require('node:fs'); const file=${JSON.stringify(core)}; const args=process.argv.slice(2); const lock=file+'.lock',deadline=Date.now()+500;while(true){try{fs.mkdirSync(lock);break;}catch(error){if(error.code!=='EEXIST'||Date.now()>deadline)throw error;Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,2);}}try{const all=JSON.parse(fs.readFileSync(file));const address=args[1],labels=all[address];if(!labels)throw Error('Unknown fixture terminal');if(args[0]==='label'){for(const item of args.slice(2).filter(x=>x!=='--json')){const i=item.indexOf('=');const key=item.slice(0,i),value=item.slice(i+1);if(value)labels[key]=value;else delete labels[key];}const temporary=file+'.'+process.pid+'.tmp';fs.writeFileSync(temporary,JSON.stringify(all));fs.renameSync(temporary,file);}process.stdout.write(JSON.stringify({address,labels}));}finally{fs.rmdirSync(lock);}`;
+  // Concurrency: two packaged children and this test contend for the fake core lock; a loaded machine can hold it
+  // well past 500 ms per node invocation.
+  const coreSource = `const fs=require('node:fs'); const file=${JSON.stringify(core)}; const args=process.argv.slice(2); const lock=file+'.lock',deadline=Date.now()+10000;while(true){try{fs.mkdirSync(lock);break;}catch(error){if(error.code!=='EEXIST'||Date.now()>deadline)throw error;Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,2);}}try{const all=JSON.parse(fs.readFileSync(file));const address=args[1],labels=all[address];if(!labels)throw Error('Unknown fixture terminal');if(args[0]==='label'){for(const item of args.slice(2).filter(x=>x!=='--json')){const i=item.indexOf('=');const key=item.slice(0,i),value=item.slice(i+1);if(value)labels[key]=value;else delete labels[key];}const temporary=file+'.'+process.pid+'.tmp';fs.writeFileSync(temporary,JSON.stringify(all));fs.renameSync(temporary,file);}process.stdout.write(JSON.stringify({address,labels}));}finally{fs.rmdirSync(lock);}`;
   await writeFile(script, coreSource);
   await writeFile(join(commands, "hc.cmd"), '@"node" "%dp0%\\node_modules\\core-fixture\\cli.js" %*\r\n');
   if (process.platform !== "win32") { const hc = join(commands, "hc"); await writeFile(hc, `#!${process.execPath}\n${coreSource}`); await chmod(hc, 0o755); }
@@ -98,7 +100,9 @@ pi.on('session_shutdown',()=>{clearInterval(timer);});}
     await until(async () => {
       if (closed) throw new Error(`packaged ${compatible ? "compatible" : "normal"} launch exited: ${output}`);
       return Boolean(freshHerdrColorBinding(await labels(id), Date.now()));
-    }, () => output);
+    // Performance: the production adapter gives hc 750 ms; this node-based fake can miss that while the child still cold-starts,
+    // and the reporter then retries on its 30 s heartbeat. Readiness therefore spans one heartbeat; the steady state stays ~9 s.
+    }, () => output, 70_000);
     const binding = freshHerdrColorBinding(await labels(id), Date.now())!;
     const notes = (await readFile(audit, "utf8")).trim().split("\n").map(line => JSON.parse(line));
     expect(notes.at(-1)).toMatchObject({ session: binding.sessionId, runtime: binding.runtimeId });
@@ -162,5 +166,5 @@ describe("packaged compatible producer and unchanged membership consumer contrac
     expect(successor.binding.runtimeId).not.toBe(first.binding.runtimeId);
     expect(successor.binding.sessionId).not.toBe(first.binding.sessionId);
     await successor.stop();
-  }, 120_000);
+  }, 180_000);
 });
