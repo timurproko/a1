@@ -18,7 +18,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-15-location-independent-worktrees/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-15-location-independent-worktrees/acceptance.md",
   "finalizedDate": "2026-11-15",
-  "specBaseSha": "9893a86e1683942bb2efb04117f0411c8ccb63bd",
+  "specBaseSha": "0460ab39baed6a4f23ce3b9eb8df75c655cf3861",
   "acceptanceScenarios": [
     "A session started outside Git can enter an explicitly selected repository or attach an absolute task worktree without restarting.",
     "Switching worktrees reloads trusted project instructions, settings, skills, and extensions while preserving conversation and writer ownership.",
