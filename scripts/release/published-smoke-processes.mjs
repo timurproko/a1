@@ -36,7 +36,7 @@ export function createPublishedSmokeRunner(root, {
       const retained = known.get(row.pid);
       if (ownedChild || ownedCode || (retained && retained.start === row.start)) selected.set(row.pid, row);
     }
-    // Detached recovery/npm owners still have descendants, including relative lifecycle commands.
+    // Security: detached recovery/npm owners also own descendants with relative lifecycle commands.
     let changed = true;
     while (changed) {
       changed = false;
@@ -60,7 +60,7 @@ export function createPublishedSmokeRunner(root, {
   };
   return {
     async run(command, args, options) {
-      // Keep the shell alive until cleanup inventories its descendants. spawnSync's timeout kills
+      // Platform: keep the shell alive until cleanup inventories its descendants. spawnSync's timeout kills
       // cmd.exe alone, stranding detached updater/npm owners and any inherited output handles.
       const child = spawn(command, args, { ...options, timeout: undefined, stdio: ["ignore", "pipe", "pipe"] });
       if (child.pid) children.add(child.pid);

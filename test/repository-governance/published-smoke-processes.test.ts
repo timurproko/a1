@@ -100,7 +100,7 @@ describe("published smoke process ownership", () => {
       expect(pids.some(alive)).toBe(false);
       await rm(root, { recursive: true, force: true });
     } finally {
-      // Reuse creation-time-verified cleanup even if an assertion interrupts the first pass.
+      // Security: reuse creation-time-verified cleanup if an assertion interrupts the first pass.
       await runner.close();
     }
   }, 60_000);
