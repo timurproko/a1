@@ -31,14 +31,14 @@ const annotationsResponse = annotationPages(
   "startup budget failed for pi warm: 2438ms exceeds 2000ms; dominant phases: ui-entry 741ms",
 );
 
-function developmentRunner(snapshots: Array<{ status: string; conclusion: string | null; jobs: unknown[] }>) {
+function developmentRunner(snapshots: Array<{ status: string; conclusion: string | null; jobs: unknown[] }>, annotations = annotationsResponse) {
   let index = -1;
   return fakeRunner(({ args }) => {
     if (args[0] === "auth" || args[0] === "workflow") return "";
     if (args[0] === "run" && args[1] === "list") return JSON.stringify([{ databaseId: 42, displayTitle: "develop publication fixture-request" }]);
     if (args[1] === "repos/owner/app/actions/runs/42") return JSON.stringify(snapshots[Math.min(++index, snapshots.length - 1)]);
     if (args[1]?.includes("/jobs?")) return JSON.stringify([{ jobs: snapshots[Math.min(index, snapshots.length - 1)]!.jobs }]);
-    if (args[1]?.includes("/annotations")) return annotationsResponse;
+    if (args[1]?.includes("/annotations")) return annotations;
     throw new Error(`unexpected call ${args.join(" ")}`);
   });
 }
@@ -83,11 +83,12 @@ describe("publication failure reporting", () => {
     const message = describePublicationFailure(42, { run, repository: "owner/app" });
     expect(message).toBe([
       "Publication failed (run 42)",
-      "  Windows validation (Node 24) [failure]",
-      "    startup budget failed for pi warm: 2438ms exceeds 2000ms; dominant phases: ui-entry 741ms",
-      "  Publication blocked before npm staging.",
-      "  Next: inspect the full log and fix the failure before retrying.",
-      "  Full log: https://github.com/owner/app/actions/runs/42",
+      "Full log: https://github.com/owner/app/actions/runs/42",
+      "",
+      "  * Windows validation (Node 24) [failure]",
+      "  * startup budget failed for pi warm: 2438ms exceeds 2000ms; dominant phases: ui-entry 741ms",
+      "  * Publication blocked before npm staging.",
+      "  * Next: inspect the full log and fix the failure before retrying.",
     ].join("\n"));
     expect(calls[0]!.args).toContain("--paginate");
     expect(calls[1]!.args).toContain("--paginate");
@@ -107,6 +108,7 @@ describe("publication failure reporting", () => {
     expect(message.split("\n").filter(line => line.includes("assertion"))).toHaveLength(10);
     expect(message).toContain("PR core [failure]");
     expect(message).toContain("Rendering [failure]");
+    expect(message.split("\n").slice(3).every(line => line.startsWith("  * "))).toBe(true);
     expect(message).toContain("Detailed failure evidence unavailable");
     expect(message).toContain("npm publication state is unknown");
   });
@@ -123,7 +125,7 @@ describe("publication failure reporting", () => {
       queried.push(args[1]!);
       return args[1]!.includes("/1/") ? annotationPages("Error: recovery guardian timed out", "Process completed with exit code 1.") : "[]";
     } });
-    expect(message).toContain("macOS validation (Node 24) [failure]\n    Error: recovery guardian timed out");
+    expect(message).toContain("macOS validation (Node 24) [failure]\n  * Error: recovery guardian timed out");
     expect(message).toContain("Unexpected producer [timed_out]");
     expect(message).toContain("Downstream lane/result checks also failed.");
     expect(message).toContain("Publication blocked before npm staging.");
@@ -164,6 +166,8 @@ describe("publication failure reporting", () => {
   it("keeps a failed-run summary readable when the job API is unavailable", () => {
     const message = describePublicationFailure(42, { repository: "owner/app", run: () => { throw new Error("offline"); } });
     expect(message).toContain("Failed job details unavailable");
+    expect(message.split("\n").slice(0, 3)).toEqual(["Publication failed (run 42)", "Full log: https://github.com/owner/app/actions/runs/42", ""]);
+    expect(message.split("\n").slice(3).every(line => line.startsWith("  * "))).toBe(true);
     expect(message).toContain("npm publication state is unknown");
     expect(message).toContain("Full log: https://github.com/owner/app/actions/runs/42");
   });
@@ -193,13 +197,83 @@ describe("publication failure reporting", () => {
     expect([process.listenerCount("SIGINT"), process.listenerCount("SIGTERM")]).toEqual(before);
   });
 
+  it("renders the approved development transcript with log-first equally indented failure bullets", async () => {
+    const windows = { id: 1, name: "Develop / Published pair (win32-node24, windows-2025, 24)", status: "in_progress", conclusion: null };
+    const linux = { id: 2, name: "Develop / Published pair (linux-node24, ubuntu-24.04, 24)", status: "in_progress", conclusion: null };
+    const staging = { id: 3, name: "Develop / Stage 0.1.8-dev.9 on npm", status: "completed", conclusion: "success" };
+    const output: string[] = [];
+    const { run } = developmentRunner([
+      { status: "in_progress", conclusion: null, jobs: [staging, windows, linux] },
+      { status: "completed", conclusion: "failure", jobs: [
+        staging,
+        { ...windows, status: "completed", conclusion: "failure" },
+        { ...linux, status: "completed", conclusion: "success" },
+        { id: 4, name: "Develop / Publication result", status: "completed", conclusion: "failure" },
+      ] },
+    ], "[]");
+    const error = await dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.9", {
+      ...developmentOptions, run, write: text => { output.push(text); },
+    }).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(Error);
+    const transcript = `[develop] requesting 0.1.8-dev.9 for ${"a".repeat(40)}\n${output.join("")}[develop] ${(error as Error).message}\n`;
+    expect(transcript).toBe([
+      `[develop] requesting 0.1.8-dev.9 for ${"a".repeat(40)}`,
+      "",
+      "[publication] 0.1.8-dev.9 — run 42",
+      "Full log: https://github.com/owner/app/actions/runs/42",
+      "",
+      "  ● Passed:  npm staging",
+      "  ● Running: Published pair (win32-node24, windows-2025, 24)",
+      "  ● Running: Published pair (linux-node24, ubuntu-24.04, 24)",
+      "  ● Failed:  Published pair (win32-node24, windows-2025, 24)",
+      "  ● Passed:  Published pair (linux-node24, ubuntu-24.04, 24)",
+      "",
+      "[develop] Publication failed: 0.1.8-dev.9 (run 42)",
+      "Full log: https://github.com/owner/app/actions/runs/42",
+      "",
+      "  * Published pair (win32-node24, windows-2025, 24) [failure]",
+      "  * Detailed failure evidence unavailable; see the full log.",
+      "  * Downstream lane/result checks also failed.",
+      "  * npm staging: success. Packages may already exist; inspect the registry before retrying.",
+      "  * Next: fix the failure, then rerun npm run develop after checking the run above.",
+      "",
+    ].join("\n"));
+    expect(transcript.match(/\[publication\]/gu)).toHaveLength(1);
+    expect(transcript.match(/\[develop\] Publication failed:/gu)).toHaveLength(1);
+    expect(transcript.match(/^Full log:/gmu)).toHaveLength(2);
+    expect(transcript).not.toContain("\u001b");
+  });
+
+  it("uses uniform bullets even when job and diagnostic limits truncate the summary", () => {
+    const message = describePublicationFailure(42, { repository: "owner/app", jobs: Array.from({ length: 6 }, (_unused, index) => ({
+      id: index + 1, name: `Failed owner ${index + 1}`, conclusion: "failure",
+    })), run: () => annotationPages(...Array.from({ length: 12 }, (_unused, index) => `Error ${index + 1}`)) });
+    expect(message.split("\n").slice(3).every(line => line.startsWith("  * "))).toBe(true);
+    expect(message.match(/^  \* Error /gmu)).toHaveLength(10);
+    expect(message).toContain("  * Additional diagnostics in the full log.");
+    expect(message).toContain("  * 2 additional failed jobs in the full log.");
+    expect(message.match(/^Full log:/gmu)).toHaveLength(1);
+    expect(message).not.toContain("●");
+  });
+
+  it("keeps unknown-outcome observation log links unindented", async () => {
+    const controller = new AbortController();
+    const { run } = developmentRunner([{ status: "in_progress", conclusion: null, jobs: [] }]);
+    const error = await dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.9", {
+      ...developmentOptions, run, signal: controller.signal, sleep: async () => { controller.abort(); }, write: () => {},
+    }).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toMatch(/Remote outcome unknown.*\nFull log: https:\/\/github.com\/owner\/app\/actions\/runs\/42$/u);
+    expect((error as Error).message).not.toContain("Publication failed");
+  });
+
   it("prints the version and log URL, then throws the readable primary failure", async () => {
     const output: string[] = [];
     const { run, calls } = developmentRunner([{ status: "completed", conclusion: "failure", jobs: fixtureJobs }]);
     await expect(dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.9", {
       ...developmentOptions, run, write: (text: string) => { output.push(text); },
-    })).rejects.toThrow(/^Publication failed: 0.1.8-dev.9 \(run 42\)\n  Windows validation \(Node 24\) \[failure\]\n    startup budget failed/);
-    expect(output[0]).toBe("[publication] 0.1.8-dev.9 — run 42\n  Full log: https://github.com/owner/app/actions/runs/42\n\n");
+    })).rejects.toThrow(/^Publication failed: 0.1.8-dev.9 \(run 42\)\nFull log: https:\/\/github.com\/owner\/app\/actions\/runs\/42\n\n  \* Windows validation \(Node 24\) \[failure\]\n  \* startup budget failed/);
+    expect(output[0]).toBe("\n[publication] 0.1.8-dev.9 — run 42\nFull log: https://github.com/owner/app/actions/runs/42\n\n");
     expect(calls.some(call => call.args[0] === "run" && call.args[1] === "watch")).toBe(false);
   });
 
@@ -284,7 +358,7 @@ describe("publication failure reporting", () => {
       ...developmentOptions, run, write: (text: string) => { output.push(text); },
     })).resolves.toBe(42);
     expect(output).toEqual([
-      "[publication] 0.1.8-dev.10 — run 42\n  Full log: https://github.com/owner/app/actions/runs/42\n\n",
+      "\n[publication] 0.1.8-dev.10 — run 42\nFull log: https://github.com/owner/app/actions/runs/42\n\n",
       "  ● Running: macOS validation (Node 24)\n",
       "  ● Passed:  macOS validation (Node 24)\n",
       "  Workflow passed; verifying npm packages.\n",
@@ -441,7 +515,7 @@ describe("stable candidate validation waiting", () => {
   it("throws the failed jobs and reasons when validation fails", async () => {
     const { run } = watched(new Error("exit status 1"), "completed", "failure");
     await expect(waitForStableValidation({ repository: "owner/app", runId: 51 }, { run }))
-      .rejects.toThrow(/Linux validation \(Node 24\) \[failure\]\n    expected 1 to be 2/);
+      .rejects.toThrow(/Linux validation \(Node 24\) \[failure\]\n  \* expected 1 to be 2/);
   });
 
   it("reports that validation keeps running when watching stops early", async () => {

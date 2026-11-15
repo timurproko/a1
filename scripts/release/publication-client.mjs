@@ -109,7 +109,8 @@ export function describePublicationFailure(runId, options = {}) {
   const failed = jobs.filter(job => FAILED_CONCLUSIONS.has(job.conclusion));
   const primary = failed.filter(job => !isAggregate(job));
   const selected = primary.length > 0 ? primary : failed;
-  const lines = [`Publication failed${options.version ? `: ${plainText(options.version, 80)}` : ""} (run ${runId})`];
+  const heading = `Publication failed${options.version ? `: ${plainText(options.version, 80)}` : ""} (run ${runId})`;
+  const lines = [];
   let remaining = MAX_FAILURE_LINES;
   for (const job of selected.slice(0, MAX_FAILURE_JOBS)) {
     let annotations;
@@ -121,18 +122,17 @@ export function describePublicationFailure(runId, options = {}) {
     } catch { annotations = []; }
     const messages = [...new Set((Array.isArray(annotations) ? annotations : []).map(message => plainText(message)))]
       .filter(text => text && !/^Process completed with exit code \d+\.?$/u.test(text));
-    lines.push(`  ${shortJobName(job.name)} [${plainText(job.conclusion, 40)}]`);
+    lines.push(`${shortJobName(job.name)} [${plainText(job.conclusion, 40)}]`);
     const visible = messages.slice(0, remaining);
-    lines.push(...(visible.length > 0 ? visible.map(text => `    ${text}`) : [messages.length > 0 ? "    Additional diagnostics in the full log." : "    Detailed failure evidence unavailable; see the full log."]));
+    lines.push(...(visible.length > 0 ? visible : [messages.length > 0 ? "Additional diagnostics in the full log." : "Detailed failure evidence unavailable; see the full log."]));
     remaining -= visible.length;
   }
-  if (selected.length > MAX_FAILURE_JOBS) lines.push(`  ${selected.length - MAX_FAILURE_JOBS} additional failed jobs in the full log.`);
-  if (selected.length === 0) lines.push("  Failed job details unavailable; see the full log.");
-  if (primary.length > 0 && failed.some(isAggregate)) lines.push("  Downstream lane/result checks also failed.");
-  lines.push(`  ${publicationState(jobs)}`);
-  lines.push(options.develop ? "  Next: fix the failure, then rerun npm run develop after checking the run above." : "  Next: inspect the full log and fix the failure before retrying.");
-  lines.push(`  Full log: ${url}`);
-  return lines.join("\n");
+  if (selected.length > MAX_FAILURE_JOBS) lines.push(`${selected.length - MAX_FAILURE_JOBS} additional failed jobs in the full log.`);
+  if (selected.length === 0) lines.push("Failed job details unavailable; see the full log.");
+  if (primary.length > 0 && failed.some(isAggregate)) lines.push("Downstream lane/result checks also failed.");
+  lines.push(publicationState(jobs));
+  lines.push(options.develop ? "Next: fix the failure, then rerun npm run develop after checking the run above." : "Next: inspect the full log and fix the failure before retrying.");
+  return [heading, `Full log: ${url}`, "", ...lines.map(line => `  * ${line}`)].join("\n");
 }
 
 function publicationColorEnabled(options) {
@@ -162,7 +162,7 @@ async function waitForDevelopmentPublication(runId, version, repository, options
   const interrupt = () => controller.abort();
   const states = new Map();
   const color = publicationColorEnabled(options);
-  const stopped = reason => new Error(`Stopped watching ${plainText(version, 80)} (run ${runId}): ${reason}. Remote outcome unknown; it may still be running. Check this run before starting another publication.\n  Full log: https://github.com/${repository}/actions/runs/${runId}`);
+  const stopped = reason => new Error(`Stopped watching ${plainText(version, 80)} (run ${runId}): ${reason}. Remote outcome unknown; it may still be running. Check this run before starting another publication.\nFull log: https://github.com/${repository}/actions/runs/${runId}`);
   process.once("SIGINT", interrupt);
   process.once("SIGTERM", interrupt);
   try {
@@ -188,7 +188,10 @@ async function waitForDevelopmentPublication(runId, version, repository, options
         write(formatPublicationProgress(label, shortJobName(job.name), color));
       }
       if (current.status === "completed") {
-        if (current.conclusion !== "success") throw new Error(describePublicationFailure(runId, { run: execute, repository, version, jobs, develop: true }));
+        if (current.conclusion !== "success") {
+          write("\n");
+          throw new Error(describePublicationFailure(runId, { run: execute, repository, version, jobs, develop: true }));
+        }
         write("  Workflow passed; verifying npm packages.\n");
         return;
       }
@@ -230,7 +233,7 @@ export async function dispatchPublication(channel, source, version, options = {}
   if (runId === undefined) throw new Error(`publication request ${requestId} did not appear in GitHub Actions within 5 minutes`);
 
   const url = `https://github.com/${repository}/actions/runs/${runId}`;
-  write(`[publication] ${plainText(version, 80)} — run ${runId}\n  Full log: ${url}\n\n`);
+  write(`\n[publication] ${plainText(version, 80)} — run ${runId}\nFull log: ${url}\n\n`);
   await waitForDevelopmentPublication(runId, version, repository, options);
   return runId;
 }
