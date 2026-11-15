@@ -10,6 +10,15 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Evidence
 
+### Repair evidence and pre-finalization observations
+
+- The repaired update CLI fixture asserts exit code 2, exact diagnostic, empty stdout, no npm calls, no runtime directory, and no forbidden imports. Its loader now rejects release, composition, Pi integration, and UI entry imports for every probed noninteractive command rather than only guarding version's release imports.
+- The bootstrap-boundary test follows both CLI naming entries into their shared handler, asserts the bootstrap import and call stay inside lazy launch wiring, and extends the existing runtime/process prohibition checks across that handler and both entries.
+- Regenerated the 646-export public API baseline with the pinned collector. Only eleven consumer lists changed; package versions, export names/kinds, and declaration hashes are unchanged.
+- The exact three-file reproduction command now passes all 14 tests. `npm run build`, `npm run typecheck`, and strict OpenSpec validation pass. The first typecheck attempt lacked generated dist declarations after an ignore-scripts installation; the ordinary build supplied them and the unchanged check then passed.
+- PR #937 is authored by the trusted `openspec-ci` App, retains its generated branch/change identity, and retains immutable failed-Full provenance for run 43670935944 at `74b2e6f6c0d2da9bc06f171a3b1a6b9cf966a09e`. At the pre-finalization observation, draft Development checks, including PR Full regression, correctly skipped product suites; no draft or standalone dispatch is claimed as complete regression evidence.
+- Known gaps: none in this scoped repair. Required exact-head PR Full regression across all four native lanes and Development validation required remain a post-finalization handoff gate. Numbered-package nightly publication recovery is independent and is not claimed by this repair. No product requirements change, so no canonical spec delta is needed.
+
 ### Focused reproduction
 
 - On the unchanged generated candidate `320321e`, `npx vitest run test/cli/update-cli.test.ts test/foundation/release/bootstrap-boundary.test.ts test/repository-governance/pinned-pi-public-api.test.ts` reproduced exactly three failed tests and eleven passing tests locally on Windows. The failures match all four original native lanes: macos-15-node24, ubuntu-24.04-node24, windows-2025-node22 core, and windows-2025-node24 core.

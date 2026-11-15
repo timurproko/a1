@@ -15,7 +15,7 @@ None.
 
 ### Modified Capabilities
 
-None identified yet. When the cause is known and the fix changes a requirement, add the delta under `specs/<capability>/spec.md` and remove `skip_specs: true` from `.openspec.yaml`; when the fix changes no requirement, leave both as scaffolded.
+None. This repair aligns tests and the generated consumer inventory with already delivered command and launch contracts; it changes no product requirement.
 
 ## Impact
 
