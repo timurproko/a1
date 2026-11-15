@@ -19,10 +19,11 @@ if (directory) {
   const spawn = childProcess.spawn;
   childProcess.spawn = function(command, args, options) {
     if (args?.[1] !== "--worker" || basename(args[0] ?? "") !== "recovery.js") return spawn(command, args, options);
-    const fd = openSync(resolve(directory, `worker-stderr-${process.pid}.log`), "a", 0o600);
+    const fd = process.env.PUBLISHED_PAIR_OBSERVER_MODE === "events" ? null
+      : openSync(resolve(directory, `worker-stderr-${process.pid}.log`), "a", 0o600);
     let child;
-    try { child = spawn(command, args, { ...options, stdio: ["ignore", fd, fd] }); }
-    finally { closeSync(fd); }
+    try { child = spawn(command, args, fd === null ? options : { ...options, stdio: ["ignore", fd, fd] }); }
+    finally { if (fd !== null) closeSync(fd); }
     child.once("error", error => log({ event: "worker-spawn-error", error: String(error).slice(-4_000) }));
     child.once("exit", (code, signal) => log({ event: "worker-exit", child: child.pid, code, signal }));
     return child;

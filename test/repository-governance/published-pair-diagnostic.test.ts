@@ -24,6 +24,9 @@ describe("read-only published-pair diagnosis", () => {
     const job = workflow.jobs["published-pair-diagnostic"];
     expect(job.if).toBe("github.event_name == 'workflow_dispatch' && inputs.published_pair_version != ''");
     expect(job["runs-on"]).toBe("windows-2025");
+    expect(job.strategy).toEqual({ "fail-fast": false, matrix: { observer: ["none", "events", "stderr"] } });
+    expect(job.steps[1].with["registry-url"]).toBe("https://registry.npmjs.org");
+    expect(job.steps[3].env.PUBLISHED_PAIR_OBSERVER_MODE).toBe("${{ matrix.observer }}");
     expect(workflow.permissions).toEqual({ contents: "read" });
     expect(job.environment).toBeUndefined();
     const commands = job.steps.filter((step: { run?: string }) => step.run).map((step: { run: string }) => step.run);
@@ -38,10 +41,10 @@ describe("read-only published-pair diagnosis", () => {
     await expect(diagnosePublishedPair({ PUBLISHED_PAIR_DIAGNOSTIC_VERSION: "latest; forged" })).rejects.toThrow("invalid published-pair diagnostic version");
   });
 
-  it("captures detached worker stderr, uncaught errors, and exit status without modifying worker bytes", async () => {
+  it.each(["events", "stderr"])("captures worker errors and exits without modifying package bytes (mode: %s)", async mode => {
     const root = await fixture();
     const worker = resolve(root, "recovery.js");
-    const source = "console.error('worker error: fixture-secret-token'); throw new Error('original worker exception');\n";
+    const source = "console.error('worker error: fixture-secret-token'); throw new Error('original worker exception: fixture-secret-token');\n";
     await writeFile(worker, source);
     const observer = pathToFileURL(resolve("scripts/release/published-pair-observer.mjs")).href;
     const result = spawnSync(process.execPath, ["-e", `
@@ -49,13 +52,14 @@ describe("read-only published-pair diagnosis", () => {
       const child = spawn(process.execPath, [${JSON.stringify(worker)}, '--worker'], { detached: true, windowsHide: true, stdio: 'ignore' });
       child.on('close', () => {});
     `], {
-      env: { ...process.env, NODE_OPTIONS: `--import=${observer}`, PUBLISHED_PAIR_OBSERVER_DIR: root },
+      env: { ...process.env, NODE_OPTIONS: `--import=${observer}`, PUBLISHED_PAIR_OBSERVER_DIR: root, PUBLISHED_PAIR_OBSERVER_MODE: mode },
       windowsHide: true, encoding: "utf8", timeout: 10_000,
     });
     expect(result.status, result.stderr).toBe(0);
     expect(createHash("sha256").update(await readFile(worker)).digest("hex")).toBe(createHash("sha256").update(source).digest("hex"));
     const records = await collectPublishedPairDiagnostics(root, { NODE_AUTH_TOKEN: "fixture-secret-token" });
     const text = JSON.stringify(records);
+    expect(Object.keys(records).some(name => name.startsWith("worker-stderr-"))).toBe(mode === "stderr");
     expect(text).toContain("original worker exception");
     expect(text).toContain("worker-exit");
     expect(text).toContain("uncaught");

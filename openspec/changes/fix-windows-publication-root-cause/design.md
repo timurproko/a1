@@ -18,6 +18,16 @@ The unchanged 1307-to-1320 pair passes locally in about seventy seconds. A fixtu
 
 Add an explicit workflow-dispatch diagnostic route to Development validation, selecting one existing version and a Windows runner. It reads exact npm metadata and runs the same published smoke, never stages, promotes, rebuilds, or republishes packages. Ordinary validation routing is unchanged when diagnostic input is absent. The diagnostic preload retains worker stderr and exit codes/uncaught exceptions; sanitized bounded evidence is uploaded even when the reproduction fails. Worker package bytes and capsule integrity checks remain unchanged. A native failure is required before selecting a root-cause repair; a local pass is not claimed as live recovery.
 
+## Hosted experiment and controlled comparison
+
+Diagnostic run 43760694837 succeeds with the exact staged 1307-to-1320 pair on hosted Windows/Node 24.22.2: fresh install 127863 ms, predecessor install 113483 ms, update 117991 ms. Observer records show npm, bridge, and guardian all exit zero. This is diagnostic success only, not a publication or finalized-head validation. Two differences remain from the failing publication: the diagnostic captures guardian stderr to a file instead of NUL, and its initial setup did not configure registry-url/user npmrc. The preload itself adds exception/exit observation. Therefore this single pass does not establish a repaired product or a root cause.
+
+The diagnostic route now uses the publication's registry-url setup and compares three modes concurrently: no preload (original behavior), exception/exit monitoring with unchanged worker stdio, and stderr capture. All modes install the same existing registry bytes and retain failures without npm writes.
+
+A local native Windows FileShare.ReadWrite handle (no delete sharing) on owner.json reproducibly terminates the unmodified 1307 worker with an uncaught EBUSY unlink and no result. An ordinary Node read handle does not. This proves an old sharing-lock defect but does not prove that the hosted run encountered such a lock; its cause must not be substituted for missing hosted evidence.
+
+The requested timeout change now bounds the predecessor-update command to five minutes on all platforms and prints phases before waiting. It preserves existing acquisition/install/launch budgets and process-tree settlement. Healthy hosted installation takes about two minutes per fresh prefix, so this is a five-minute update deadline, not a claim that the entire three-installation smoke finishes within five minutes.
+
 ## Known gaps
 
-The terminator and exact exception of the hosted predecessor worker remain unidentified. Native diagnostic evidence is required before declaring a root cause or publication recovery. Subsequent repair details will be reconciled here from captured evidence, not guessed from elapsed time.
+The terminator and exact exception of the failed publication's hosted predecessor worker remain unidentified. The successful instrumented hosted reproduction does not close that gap. Controlled native evidence is required before declaring a root cause or publication recovery. Subsequent repair details will be reconciled here from captured evidence, not guessed from elapsed time.

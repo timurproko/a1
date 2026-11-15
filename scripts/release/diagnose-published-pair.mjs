@@ -33,6 +33,8 @@ export async function collectPublishedPairDiagnostics(directory, environment = p
 export async function diagnosePublishedPair(environment = process.env) {
   const version = environment.PUBLISHED_PAIR_DIAGNOSTIC_VERSION;
   if (!/^\d+\.\d+\.\d+(?:-dev\.[1-9]\d*)?$/u.test(version ?? "")) throw new Error("invalid published-pair diagnostic version");
+  const observerMode = environment.PUBLISHED_PAIR_OBSERVER_MODE ?? "stderr";
+  if (!["none", "events", "stderr"].includes(observerMode)) throw new Error("invalid published-pair observer mode");
   const npmCli = resolveInstallerNpmCli(environment);
   const integrity = async name => {
     const { stdout } = await execFile(process.execPath, [npmCli, "view", `${name}@${version}`, "dist.integrity", "--json"], {
@@ -56,7 +58,8 @@ export async function diagnosePublishedPair(environment = process.env) {
     EXPECTED_APPLICATION_INTEGRITY: application, EXPECTED_INSTALLER_INTEGRITY: installer,
     PUBLISHED_INSTALLER_EVIDENCE: resolve(output, "smoke.json"),
     PUBLISHED_PAIR_OBSERVER_DIR: raw,
-    NODE_OPTIONS: `${environment.NODE_OPTIONS ?? ""} --import=${observer}`.trim(),
+    PUBLISHED_PAIR_OBSERVER_MODE: observerMode,
+    ...(observerMode === "none" ? {} : { NODE_OPTIONS: `${environment.NODE_OPTIONS ?? ""} --import=${observer}`.trim() }),
   };
   try {
     await smokePublishedInstaller({ environment: observed, createRunner: root => {
@@ -67,7 +70,9 @@ export async function diagnosePublishedPair(environment = process.env) {
       } };
     } });
   } finally {
-    await writeFile(resolve(output, "worker-diagnostics.json"), `${JSON.stringify(await collectPublishedPairDiagnostics(raw, environment), null, 2)}\n`);
+    await writeFile(resolve(output, "worker-diagnostics.json"), `${JSON.stringify({
+      version, observerMode, processes: await collectPublishedPairDiagnostics(raw, environment),
+    }, null, 2)}\n`);
   }
 }
 
