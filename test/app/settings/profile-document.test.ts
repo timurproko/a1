@@ -10,7 +10,7 @@ import {
   readProfileSettingsNamespace,
   repairProfileSettingsDocument,
   updateProfileSettingsNamespace,
-} from "../../../src/ui/settings/index.js";
+} from "../../../src/app/settings/index.js";
 
 const execFileAsync = promisify(execFile);
 let root: string;
@@ -114,7 +114,7 @@ describe("profile settings namespace document", () => {
   });
 
   it("coordinates overlapping writes from product and pinned Pi processes", async () => {
-    const moduleUrl = pathToFileURL(resolve("src/ui/settings/profile-document.ts")).href;
+    const moduleUrl = pathToFileURL(resolve("src/app/settings/profile-document.ts")).href;
     const productScript = `
       import { updateProfileSettingsNamespace } from ${JSON.stringify(moduleUrl)};
       const file = ${JSON.stringify(file)};

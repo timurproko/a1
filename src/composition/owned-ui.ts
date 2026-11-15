@@ -262,7 +262,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
 
 function createRuntimeApis(backend: ComposedSessionBackend, settings: OwnedSettingsManager | null, host: ComposedEngineHost, runtimeDir: string, context: OwnedRuntimeContext) {
   return settings === null ? null : new RuntimeApiLifecycle(backend, settings, color => host.setAccentColor(color),
-    () => import("./session-colors.js").then(module => module.startSessionColorControl(backend, settings, runtimeDir, context)));
+    () => import("./integration-api.js").then(module => module.startIntegrationControl(backend, settings, runtimeDir, context)));
 }
 
 async function compositionRuntimeContext(options: OwnedUiCompositionOptions, bare: boolean) {
