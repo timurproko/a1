@@ -14,11 +14,15 @@ const startedAfter = (child, parent) => /^\d+$/u.test(child) && /^\d+$/u.test(pa
 /** Own command deadlines and fixture descendants without killing only a Windows command shell. */
 export function createPublishedSmokeRunner(root, {
   spawn = crossSpawn, list = listSystemProcesses, terminate = terminateSystemProcess,
-  pause = sleep, self = process.pid,
+  pause = sleep, self = process.pid, now = Date.now,
+  sampleIntervalMs = 10_000, sampleThresholdMs = 5 * 60_000,
 } = {}) {
   const children = new Set();
   const known = new Map();
-  const selectedProcesses = async deadline => {
+  /** pid -> first/last sighting of every process sampled while a long command ran. */
+  const history = new Map();
+  const sampling = { samples: 0, errors: 0, lastError: null };
+  const selectedProcesses = async (deadline, { record = true } = {}) => {
     const rows = await list({ deadline });
     const byPid = new Map(rows.map(row => [row.pid, row]));
     if (!byPid.has(self)) throw new Error("smoke process inspection cannot identify its caller");
@@ -52,13 +56,35 @@ export function createPublishedSmokeRunner(root, {
       if (!Number.isSafeInteger(row.pid) || row.pid <= 0 || typeof row.start !== "string" || !row.start) {
         throw new Error("smoke process identity is unavailable");
       }
+      // Concurrency: observation never records identities; Windows reuses pids within minutes and a
+      // reused pid seen only by sampling must not make settlement's identity check fail cleanup.
+      if (!record) continue;
       const previous = known.get(row.pid);
       if (previous && previous.start !== row.start) throw new Error("smoke process identity changed");
       known.set(row.pid, row);
     }
     return [...selected.values()];
   };
+  const sample = async () => {
+    const seenAt = new Date(now()).toISOString();
+    try {
+      for (const row of await selectedProcesses(now() + Math.min(sampleIntervalMs, 10_000), { record: false })) {
+        const key = `${row.pid}:${row.start}`;
+        const previous = history.get(key);
+        if (previous) previous.lastSeen = seenAt;
+        else history.set(key, { pid: row.pid, parent: row.parent, start: row.start, executable: row.executable ?? "", argv: [...(row.argv ?? [])], firstSeen: seenAt, lastSeen: seenAt });
+      }
+      sampling.samples += 1;
+    } catch (error) {
+      sampling.errors += 1;
+      sampling.lastError = error instanceof Error ? error.message : String(error);
+    }
+  };
   return {
+    /** Every process sampled during long commands, with its first and last sighting. */
+    history() {
+      return { ...sampling, rows: [...history.values()].sort((left, right) => left.firstSeen.localeCompare(right.firstSeen) || left.pid - right.pid) };
+    },
     /** The fixture-owned processes settlement would stop, read without stopping anything. */
     async inventory() {
       return await selectedProcesses(Date.now() + 30_000);
@@ -68,6 +94,13 @@ export function createPublishedSmokeRunner(root, {
       // cmd.exe alone, stranding detached updater/npm owners and any inherited output handles.
       const child = spawn(command, args, { ...options, timeout: undefined, stdio: ["ignore", "pipe", "pipe"] });
       if (child.pid) children.add(child.pid);
+      // Rationale: a long command is where a detached updater tree can vanish; periodic sightings show
+      // which process went first. One sample at a time so a slow inspection never stacks up.
+      let inFlight = null;
+      const sampler = options.timeout >= sampleThresholdMs
+        ? setInterval(() => { inFlight ??= sample().finally(() => { inFlight = null; }); }, sampleIntervalMs)
+        : null;
+      sampler?.unref?.();
       let stdout = "", stderr = "", error;
       let overflow = false;
       const capture = (previous, chunk) => {
@@ -90,7 +123,11 @@ export function createPublishedSmokeRunner(root, {
             done({ status, signal, error: error ?? (overflow ? new Error("published smoke command exceeded output limit") : undefined), stdout, stderr });
           });
         });
-      } finally { clearTimeout(timer); }
+      } finally {
+        clearTimeout(timer);
+        if (sampler) clearInterval(sampler);
+        await inFlight;
+      }
     },
     async close() {
       const deadline = Date.now() + 30_000;

@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { smokePublishedInstaller as runSmoke, updateCommandBudgetMs, type SmokeChildOptions, type SmokeChildResult } from "../../scripts/release/smoke-published-installer.mjs";
+import { smokePublishedInstaller as runSmoke, readWindowsSystemEvents, updateCommandBudgetMs, type SmokeChildOptions, type SmokeChildResult } from "../../scripts/release/smoke-published-installer.mjs";
 import { describePublicationFailure } from "../../scripts/release/publication-client.mjs";
 
 function smokePublishedInstaller({ environment, spawnSync }: {
@@ -237,9 +237,21 @@ describe("published installer smoke evidence", () => {
     const { output, environment } = await fixture();
     const order: string[] = [];
     let root = "";
+    let sinceSeen = "";
+    const launcherName = "a1";
     const stalledArgv = [process.execPath, "npm-cli.js", "install", "--global", `--//registry/:_authToken=${environment.NODE_AUTH_TOKEN}`];
     await expect(runSmoke({
       environment: { ...environment, AUTH_WORD: "root" },
+      readSystemEvents: async since => {
+        sinceSeen = since;
+        return {
+          antimalware: { RealTimeProtectionEnabled: true, BehaviorMonitorEnabled: true },
+          events: Array.from({ length: 120 }, (_, index) => ({
+            log: "Microsoft-Windows-Windows Defender/Operational", id: index === 0 ? 1117 : 1150, time: "2026-11-15T19:20:39.500Z", provider: "Microsoft-Windows-Windows Defender",
+            message: index === 0 ? `Action: Remove node.exe ${environment.NODE_AUTH_TOKEN} ${"x".repeat(900)}` : "heartbeat",
+          })),
+        };
+      },
       createRunner: fixtureRoot => {
         root = fixtureRoot;
         roots.push(fixtureRoot);
@@ -251,6 +263,12 @@ describe("published installer smoke evidence", () => {
             writeFileSync(resolve(fixtureRoot, "update-data", "update-transaction.json"), JSON.stringify({ phase: "ownership-released", token: environment.NODE_AUTH_TOKEN }));
             writeFileSync(resolve(capsule, "owner.json"), JSON.stringify({ pid: 4321, heartbeatAt: "2026-11-15T17:31:51Z" }));
             writeFileSync(resolve(capsule, "capsule.json"), JSON.stringify({ npmCli: "ignored manifest" }));
+            const prefix = options.env.npm_config_prefix!;
+            const modules = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules");
+            mkdirSync(resolve(modules, ".a1-retired-1307"), { recursive: true });
+            writeFileSync(resolve(process.platform === "win32" ? prefix : resolve(prefix, "bin"), launcherName), `#!/bin/sh
+exec node "${modules}/@timurproko/a1/bin/cli.js" "$@" ${environment.NODE_AUTH_TOKEN}
+`);
             const logs = resolve(options.env.npm_config_cache!, "_logs");
             mkdirSync(logs, { recursive: true });
             writeFileSync(resolve(logs, "2026-11-15T17_21_52_159Z-debug-0.log"), `7 verbose argv "root" "--global"\n15 verbose exit 0\n`);
@@ -258,6 +276,10 @@ describe("published installer smoke evidence", () => {
             return { ...ok, status: null, error: new Error("published smoke command timed out after 1200000ms"), stdout: "a1 update: 0.2.7-dev.1307 → 0.2.7-dev.1316\nnpm root --global" };
           },
           inventory: async () => { order.push("inventory"); return [{ pid: 4321, parent: 1, start: "4321", executable: process.execPath, argv: stalledArgv }]; },
+          history: () => ({ samples: 90, errors: 1, lastError: `inspection busy ${environment.NODE_AUTH_TOKEN}`, rows: [
+            { pid: 9092, parent: 4321, start: "9092", executable: process.execPath, argv: [process.execPath, resolve(fixtureRoot, "update-data", "update-recovery", "tx", "recovery.js"), "--worker"], firstSeen: "2026-11-15T19:18:47.000Z", lastSeen: "2026-11-15T19:20:37.000Z" },
+            { pid: 4321, parent: 1, start: "4321", executable: process.execPath, argv: stalledArgv, firstSeen: "2026-11-15T19:18:37.000Z", lastSeen: "2026-11-15T19:33:37.000Z" },
+          ] }),
           close: async () => { order.push("close"); },
         };
       },
@@ -279,8 +301,26 @@ describe("published installer smoke evidence", () => {
         { name: "2026-11-15T17_21_52_159Z-debug-0.log", size: expect.any(Number), mtime: expect.any(String) },
       ],
       timings: { "install-application": expect.any(Number), "update-predecessor": expect.any(Number) },
+      processHistory: { samples: 90, errors: 1, lastError: expect.stringContaining("inspection busy"), rows: [
+        { pid: 9092, parent: 4321, firstSeen: "2026-11-15T19:18:47.000Z", lastSeen: "2026-11-15T19:20:37.000Z", argv: expect.stringContaining("recovery.js --worker") },
+        { pid: 4321, lastSeen: "2026-11-15T19:33:37.000Z", argv: expect.stringContaining("[redacted]") },
+      ] },
     });
     expect(Object.keys(evidence.updateRecords as object)).not.toContain("update-data/update-recovery/5f1c0e2a-tx/capsule.json");
+    expect(Date.parse(sinceSeen)).toBeLessThanOrEqual(Date.now());
+    const systemEvents = evidence.systemEvents as { events: Array<{ id: number; message: string }>; antimalware: Record<string, unknown> };
+    expect(systemEvents.antimalware).toEqual({ RealTimeProtectionEnabled: true, BehaviorMonitorEnabled: true });
+    expect(systemEvents.events).toHaveLength(100);
+    expect(systemEvents.events[0]).toMatchObject({ id: 1117, message: expect.stringContaining("Action: Remove node.exe [redacted]") });
+    expect(systemEvents.events[0]!.message.length).toBeLessThanOrEqual(600);
+    expect(evidence.replacementState).toMatchObject({
+      "update-application": { retired: [".a1-retired-1307"], scoped: true, installedVersion: "0.2.7-dev.1305", },
+      application: { retired: [], scoped: true, installedVersion: version },
+    });
+    const launchers = (evidence.replacementState as Record<string, { launchers: Record<string, { content: string }> }>)["update-application"]!.launchers;
+    expect(Object.keys(launchers)).toEqual([launcherName]);
+    expect(Object.values(launchers)[0]!.content).toContain("bin/cli.js");
+    expect(JSON.stringify(evidence.replacementState)).not.toContain(environment.NODE_AUTH_TOKEN);
     expect((evidence.processes as Array<{ argv: string }>)[0]!.argv).toContain("[redacted]");
     expect((evidence.npmDiagnostics as string[]).join("\n")).toContain('verbose argv "root" "--global"');
     expect(root).not.toBe("");
@@ -307,4 +347,39 @@ describe("published installer smoke evidence", () => {
     await smokePublishedInstaller({ environment: success.environment, spawnSync: successfulCommand });
     expect(JSON.parse(await readFile(success.output, "utf8"))).toMatchObject({ outcome: "success", timings: { "acquire-installer": expect.any(Number), "update-predecessor": expect.any(Number) } });
   });
+
+  it("keeps the primary failure when system records cannot be read", async () => {
+    const { output, environment } = await fixture();
+    await expect(runSmoke({
+      environment,
+      readSystemEvents: async () => { throw new Error(`Get-WinEvent refused ${environment.NODE_AUTH_TOKEN}`); },
+      createRunner: root => {
+        roots.push(root);
+        return { run: (command, args, options) => args[0] === "update" ? { ...ok, status: 1, stderr: "replacement failed" } : successfulCommand(command, args, options), close: async () => {} };
+      },
+    })).rejects.toThrow("replacement failed");
+    const text = await readFile(output, "utf8");
+    expect(text).not.toContain(environment.NODE_AUTH_TOKEN);
+    expect(JSON.parse(text)).toMatchObject({ outcome: "failure", stage: "update-predecessor", systemEvents: { error: expect.stringContaining("Get-WinEvent refused") } });
+  });
+
+  it("reads no system records outside Windows and refuses an unbounded window", async () => {
+    let executed = 0;
+    await expect(readWindowsSystemEvents("2026-11-15T19:18:37.000Z", { platform: "linux", execute: async () => { executed += 1; return { stdout: "" }; } })).resolves.toEqual({ events: [], antimalware: null });
+    expect(executed).toBe(0);
+    await expect(readWindowsSystemEvents("2026-11-15 19:18", { platform: "win32", execute: async () => ({ stdout: "" }) })).rejects.toThrow("invalid system event window");
+    const encoded = Buffer.from(JSON.stringify({ events: { log: "Application", id: 1000, time: "t", provider: "Application Error", message: "node.exe crashed" }, antimalware: { RealTimeProtectionEnabled: false } })).toString("base64");
+    const captured: unknown[] = [];
+    await expect(readWindowsSystemEvents("2026-11-15T19:18:37Z", { platform: "win32", execute: async (file, args, options) => { captured.push(file, args.at(-2), Buffer.from(args.at(-1)!, "base64").toString("utf16le").includes("Parse('2026-11-15T19:18:37Z')"), options.timeout); return { stdout: encoded }; } }))
+      .resolves.toEqual({ events: [{ log: "Application", id: 1000, time: "t", provider: "Application Error", message: "node.exe crashed" }], antimalware: { RealTimeProtectionEnabled: false } });
+    expect(captured).toEqual(["powershell.exe", "-EncodedCommand", true, 30_000]);
+  });
+
+  it.runIf(process.platform === "win32")("reads antimalware status and bounded events from the native Windows logs", async () => {
+    const records = await readWindowsSystemEvents(new Date(Date.now() - 60 * 60_000).toISOString());
+    expect(Array.isArray(records.events)).toBe(true);
+    expect(records.events.length).toBeLessThanOrEqual(100);
+    expect(records.antimalware).toEqual(expect.objectContaining({ RealTimeProtectionEnabled: expect.anything() }));
+    for (const event of records.events) expect(event).toEqual(expect.objectContaining({ log: expect.any(String), id: expect.any(Number), time: expect.any(String) }));
+  }, 60_000);
 });
