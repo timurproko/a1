@@ -13,13 +13,26 @@ export function resolveDevelopPreview(source: string, options?: {
   commitCount?: string;
 }): Promise<{ source: string; pullRequest: number; version: string; packageName: string }>;
 export function registryVersion(packageName: string, version: string, fetchImpl?: typeof fetch): Promise<Record<string, unknown> | null>;
-export function describePublicationFailure(runId: number | string, options?: { run?: PublicationRunner; repository?: string }): string;
+export interface PublicationJob {
+  id: number;
+  name: string;
+  status?: string;
+  conclusion: string | null;
+}
+export function describePublicationFailure(runId: number | string, options?: {
+  run?: PublicationRunner;
+  repository?: string;
+  version?: string;
+  jobs?: PublicationJob[];
+  develop?: boolean;
+}): string;
 export function dispatchPublication(channel: "develop", source: string, version: string, options?: {
   run?: PublicationRunner;
   repository?: string;
   requestId?: string;
   write?: (text: string) => void;
   sleep?: (ms: number) => Promise<unknown>;
+  signal?: AbortSignal;
 }): Promise<number>;
 export function dispatchStableValidation(candidate: {
   repository: string;

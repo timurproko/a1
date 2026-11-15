@@ -222,6 +222,19 @@ version without dispatching package work. If either immutable artifact is missin
 it dispatches GitHub Actions, waits, and verifies both published versions. It never
 builds or uploads npm bytes from the workstation.
 
+While waiting, the command prints the selected version and full Actions log link,
+then compact running/passed/failed job updates only when their state changes. It
+omits setup, teardown, repeated snapshots, and known derivative lane/result gates.
+A final failure names the primary lane or stage and bounded, deduplicated diagnostic
+messages; the full log retains the complete detail. If npm staging was skipped,
+it reports publication blocked before staging. Otherwise it warns that packages
+may already exist, or that publication state is unknown, so inspect the run and
+registry before retrying. Fix the cause before rerunning `npm run develop`.
+Interrupting the local wait does not cancel the remote run. Interrupted waiting or
+unavailable GitHub status reports an unknown remote outcome and keeps the log link;
+check that run before requesting another publication. Stable-candidate validation
+retains its existing live job-list presentation.
+
 Nightly resolves the same current `origin/develop` source. It runs one platform-independent full documentation review before the platform matrix, and the matrix records that prerequisite instead of repeating the scan four times. It always runs complete verification even if source has not changed. For a new number it packs once and
 runs the suite against that final-version tarball before publication. For an
 existing number it downloads both exact npm tarballs and runs package/update and
