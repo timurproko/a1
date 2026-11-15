@@ -15,7 +15,7 @@ async function fixture(history: boolean) {
     getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {},
     editorAtomicRanges: line => canonicalPromptChipMatches(line),
     editorHiddenRanges: attachmentPromptChipHiddenRanges,
-    editorDimRanges: line => canonicalPromptChipMatches(line).filter(match => match.text.includes("#def456")),
+    editorDimRanges: line => canonicalPromptChipMatches(line).filter(match => match.text.includes("def456")),
     expandCopiedEditorText: text => `resolved:${text}`,
     promptPresentation: promptInputPresentation(),
   });
@@ -73,6 +73,48 @@ describe.each([false, true])("attachment presentation with history=%s", history 
       test.editor.handlePointer?.({ kind: "release", button: 0, column, row: row + 1 });
       test.editor.handleInput?.("X");
       expect(test.editor.getText()).toBe(`${first} Xright`);
+    } finally { await test.dispose(); }
+  });
+
+  it.each(["screenshot-abc123", "screenshot-pending", "screenshot-abc123-resized", "failed-abc123"])(
+    "compacts screenshot %s while preserving source selection and atomic deletion",
+    async label => {
+      const test = await fixture(history);
+      try {
+        const chip = `[📷 ${label}]`, displayed = `[📷${label}]`;
+        const source = `left ${first}${chip} right`;
+        test.editor.setText(source);
+        const rows = test.editor.render(80).map(stripTerminalSequences);
+        const row = rows.findIndex(line => line.includes(displayed));
+        expect(row).toBeGreaterThanOrEqual(0);
+        expect(rows.join("\n")).not.toContain(chip);
+        expect(rows.every(line => visibleWidth(line) <= 80)).toBe(true);
+        expect(test.editor.getText()).toBe(source);
+        const column = visibleWidth(rows[row]!.slice(0, rows[row]!.indexOf(displayed))) + 3;
+        test.editor.handlePointer?.({ kind: "press", button: 0, column, row: row + 1 });
+        test.editor.handlePointer?.({ kind: "release", button: 0, column, row: row + 1 });
+        expect(test.editor.selectedText?.()).toBe(`resolved:${chip}`);
+        test.editor.handleInput?.("\x7f");
+        expect(test.editor.getText()).toBe(`left ${first} right`);
+        test.editor.handleInput?.("\x1a");
+        expect(test.editor.getText()).toBe(source);
+      } finally { await test.dispose(); }
+    },
+  );
+
+  it("dims only the rejected screenshot while hiding both icon separators", async () => {
+    const test = await fixture(history);
+    try {
+      const accepted = "[📷 screenshot-abc123]", rejected = "[📷 screenshot-def456]";
+      test.editor.setText(`${accepted}${rejected}`);
+      test.editor.setFocused?.(false);
+      const text = test.editor.render(80).join("\n");
+      const dimStart = text.indexOf("\x1b[2m"), dimEnd = text.indexOf("\x1b[22m", dimStart);
+      expect(dimStart).toBeGreaterThan(0);
+      expect(dimEnd).toBeGreaterThan(dimStart);
+      expect(stripTerminalSequences(text.slice(0, dimStart))).toContain("[📷screenshot-abc123]");
+      expect(stripTerminalSequences(text.slice(dimStart, dimEnd))).toBe("[📷screenshot-def456]");
+      expect(test.editor.getText()).toBe(`${accepted}${rejected}`);
     } finally { await test.dispose(); }
   });
 
