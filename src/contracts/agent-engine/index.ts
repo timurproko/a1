@@ -1,3 +1,4 @@
+export type { WorktreeControlRequest, WorktreeControlOutcome, WorktreeControlInventoryEntry } from "./worktree-control.js";
 export type { AgentSettingsPort } from "./capability-ports.js";
 export type {
   AgentDomainCapabilities,

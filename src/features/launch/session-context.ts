@@ -1,30 +1,12 @@
 import {
-  clearSessionRepositoryContext,
-  enterSessionRepositoryWorktree,
-  listSessionRepositoryWorktrees,
-  requestSessionWorktreeCompletion,
-  retrySessionCoordination,
-  setSessionRepositoryContext,
-  type ProcessIdentity,
-  type SessionRepositoryIdentity,
-  type SessionRepositoryContextOptions,
-  type SessionWorktreeInventoryEntry,
+  executeSessionWorktreeControl, requestSessionWorktreeControl, retrySessionCoordination,
+  type ProcessIdentity, type SessionRepositoryIdentity, type SessionRepositoryContextOptions,
+  type SessionWorktreeControlRequest, type SessionWorktreeControlOutcome,
 } from "../../foundation/lifecycle/index.js";
 
 export { PRIMARY_SESSION_AGENT_ID } from "../../foundation/lifecycle/index.js";
-
-export type SessionContextRequest =
-  | { readonly action: "link-worktree"; readonly path: string }
-  | { readonly action: "enter-worktree"; readonly branch: string; readonly base?: string }
-  | { readonly action: "unlink-worktree" }
-  | { readonly action: "complete-worktree"; readonly change?: string; readonly pr?: number }
-  | { readonly action: "worktrees" };
-
-export type SessionContextOutcome =
-  | { readonly kind: "linked"; readonly cwd: string; readonly branch: string }
-  | { readonly kind: "unlinked" }
-  | { readonly kind: "completing"; readonly cwd: string; readonly branch: string; readonly startupRoot: string }
-  | { readonly kind: "worktrees"; readonly entries: readonly SessionWorktreeInventoryEntry[] };
+export type SessionContextRequest = SessionWorktreeControlRequest;
+export type SessionContextOutcome = SessionWorktreeControlOutcome | { readonly kind: "queued" };
 
 export interface SessionContextRuntime {
   readonly runtimeId: string;
@@ -34,6 +16,7 @@ export interface SessionContextRuntime {
   readonly retryBudgetMs?: number;
 }
 
+/** Shell mutations finish through the runtime, after the issuing process releases its working directory. */
 export async function updateSessionRepositoryContext(
   identity: SessionRepositoryIdentity,
   request: SessionContextRequest,
@@ -45,22 +28,8 @@ export async function updateSessionRepositoryContext(
     ...(runtime.signal === undefined ? {} : { signal: runtime.signal }),
   };
   return await retrySessionCoordination(async () => {
-    if (request.action === "enter-worktree") {
-      return { kind: "linked", ...await enterSessionRepositoryWorktree(identity, request.branch, request.base, options) };
-    }
-    if (request.action === "unlink-worktree") {
-      await clearSessionRepositoryContext(identity, options);
-      return { kind: "unlinked" };
-    }
-    if (request.action === "complete-worktree") {
-      return { kind: "completing", ...await requestSessionWorktreeCompletion(identity, {
-        ...(request.change === undefined ? {} : { change: request.change }),
-        ...(request.pr === undefined ? {} : { pr: request.pr }),
-      }, options) };
-    }
-    if (request.action === "worktrees") {
-      return { kind: "worktrees", entries: await listSessionRepositoryWorktrees(identity, options) };
-    }
-    return { kind: "linked", ...await setSessionRepositoryContext(identity, request.path, options) };
+    if (request.action === "worktrees" || request.action === "worktree-status") return await executeSessionWorktreeControl(identity, request, options);
+    await requestSessionWorktreeControl(identity, request, options);
+    return { kind: "queued" };
   }, runtime.retryBudgetMs ?? 8_000, runtime.signal);
 }

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  readActiveSessionRepositoryContext, registerSessionRepositoryRuntime, setSessionRepositoryContext,
+  clearSessionRepositoryContext, readActiveSessionRepositoryContext, readSessionStartupRoot, registerSessionRepositoryRuntime, setSessionRepositoryContext,
 } from "../../../src/foundation/lifecycle/session-repository-context.js";
 import { enterSessionRepositoryWorktree } from "../../../src/foundation/lifecycle/session-worktree-entry.js";
 import { requestSessionWorktreeCompletion } from "../../../src/foundation/lifecycle/session-worktree-completion.js";
@@ -51,16 +51,18 @@ async function fixture(outsideGit = false) {
 }
 
 describe("explicit-root worktree Git environment", () => {
-  it("rejects non-repository startup under temporary task overrides without poisoning later context", async () => {
+  it("attaches from non-repository startup independently of temporary Git overrides", async () => {
     const f = await fixture(true);
     const header = await readFile(f.identity.sessionFile, "utf8");
     await f.redirect(f.task);
-    await expect(setSessionRepositoryContext(f.identity, f.task, f.options))
-      .rejects.toMatchObject({ code: "worktree-startup-not-repository" });
-    expect(await f.records("session-repositories")).toEqual([]);
-    expect(await f.records("session-worktree-claims/worktrees")).toEqual([]);
+    await expect(setSessionRepositoryContext(f.identity, f.task, f.options)).resolves.toMatchObject({ cwd: await realpath(f.task) });
+    expect(await f.records("session-repositories")).toHaveLength(1);
+    expect(await f.records("session-worktree-claims/worktrees")).toHaveLength(1);
     vi.unstubAllEnvs();
-    await expect(readActiveSessionRepositoryContext(f.identity, f.options)).resolves.toBeNull();
+    await expect(readActiveSessionRepositoryContext(f.identity, f.options)).resolves.toMatchObject({ cwd: await realpath(f.task) });
+    await clearSessionRepositoryContext(f.identity, f.options);
+    expect(await readSessionStartupRoot(f.identity)).toBe(await realpath(f.home));
+    expect(await f.records("session-worktree-claims/worktrees")).toEqual([]);
     expect(await readFile(f.identity.sessionFile, "utf8")).toBe(header);
     expect(await readFile(join(f.home, "../primary/README.md"), "utf8")).toBe("fixture\n");
   });
@@ -76,14 +78,14 @@ describe("explicit-root worktree Git environment", () => {
     await expect(readActiveSessionRepositoryContext(f.identity, f.options)).resolves.toMatchObject({ cwd: await realpath(f.task) });
   });
 
-  it("rejects a foreign target under matching overrides and preserves the prior context and claims byte-for-byte", async () => {
+  it("preserves prior context and claims byte-for-byte when cross-repository resource preparation fails", async () => {
     const f = await fixture(), foreign = await fixture();
     await setSessionRepositoryContext(f.identity, f.task, f.options);
     const beforeContext = await f.records("session-repositories");
     const beforeClaims = await f.records("session-worktree-claims/worktrees");
     await f.redirect(foreign.task);
-    await expect(setSessionRepositoryContext(f.identity, foreign.task, f.options))
-      .rejects.toMatchObject({ code: "worktree-foreign-repository" });
+    await expect(setSessionRepositoryContext(f.identity, foreign.task, { ...f.options, prepareContext: async () => { throw new Error("resource preparation failed"); } }))
+      .rejects.toThrow("resource preparation failed");
     expect(await f.records("session-repositories")).toEqual(beforeContext);
     expect(await f.records("session-worktree-claims/worktrees")).toEqual(beforeClaims);
     vi.unstubAllEnvs();
@@ -99,7 +101,7 @@ describe("explicit-root worktree Git environment", () => {
     expect(await foreign.git(foreign.primary, "worktree", "list", "--porcelain")).toBe(before);
   });
 
-  it("rejects entry outside Git without creating a branch or checkout in the redirected repository", async () => {
+  it("requires explicit repository selection outside Git and ignores redirected repository discovery", async () => {
     const f = await fixture(true);
     await f.redirect(f.task);
     const before = await f.git(f.primary, "worktree", "list", "--porcelain");
@@ -107,6 +109,9 @@ describe("explicit-root worktree Git environment", () => {
       .rejects.toMatchObject({ code: "worktree-startup-not-repository" });
     expect(await f.git(f.primary, "worktree", "list", "--porcelain")).toBe(before);
     expect(await f.git(f.primary, "branch", "--list", "fix/rejected")).toBe("");
+    const entered = await enterSessionRepositoryWorktree(f.identity, "fix/explicit", undefined, { ...f.options, repo: f.primary });
+    expect(entered.cwd).toBe(await realpath(join(f.primary, ".worktrees", "explicit")));
+    expect(await readSessionStartupRoot(f.identity)).toBe(await realpath(f.home));
   });
 
   it("keeps a dirty attached checkout attached even if overrides point at a clean checkout", async () => {

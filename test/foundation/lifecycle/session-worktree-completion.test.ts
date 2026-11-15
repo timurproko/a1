@@ -1,5 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import { access, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -36,7 +36,7 @@ execFileSync("git", ["-C", primary, "worktree", "remove", worktree], { stdio: "p
 console.log(JSON.stringify({ disposition: "removed", cwd: process.cwd(), rest }));
 `;
 
-async function attachedFixture(template?: string) {
+async function attachedFixture(template?: string, startup: "primary" | "home" | "task" = "primary") {
   const root = await mkdtemp(join(tmpdir(), "a1-worktree-completion-")); roots.push(root);
   const primary = join(root, "primary"), worktree = join(root, "task"), dataDir = join(root, "data"), script = join(root, "cleanup.cjs");
   await writeFile(script, CLEANUP);
@@ -53,9 +53,11 @@ async function attachedFixture(template?: string) {
     await execute("git", ["-C", primary, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "commit", "-m", "declare cleanup"]);
     await execute("git", ["-C", worktree, "merge", "--ff-only", "develop"]);
   }
+  const home = join(root, "home"); await mkdir(home);
+  const startupDirectory = startup === "home" ? home : startup === "task" ? worktree : primary;
   const session = async (id: string) => {
     const identity = { sessionId: id, sessionFile: join(root, `${id}.jsonl`) };
-    await writeFile(identity.sessionFile, `${JSON.stringify({ type: "session", version: 3, id, cwd: primary })}\n`);
+    await writeFile(identity.sessionFile, `${JSON.stringify({ type: "session", version: 3, id, cwd: startupDirectory })}\n`);
     return identity;
   };
   const inspectProcess = async (pid: number) => ({ pid, startIdentity: `fixture:${pid}` });
@@ -65,12 +67,32 @@ async function attachedFixture(template?: string) {
   await registerSessionRepositoryRuntime(identity, "runtime-one", { pid: 1001, startIdentity: "fixture:1001" }, { dataDir, inspectProcess });
   await registerSessionRepositoryRuntime(other, "runtime-two", { pid: 1002, startIdentity: "fixture:1002" }, { dataDir, inspectProcess });
   await setSessionRepositoryContext(identity, worktree, options);
-  return { root, primary, worktree, dataDir, identity, other, options, otherOptions };
+  return { root, primary, worktree, home, dataDir, identity, other, options, otherOptions };
 }
 
 const REMOVE = "node {script} {primary} {worktree}";
 
 describe("worktree completion", () => {
+  it("returns to non-repository startup while cleanup runs only in the selected primary checkout", async () => {
+    const f = await attachedFixture(REMOVE, "home");
+    const prepared: string[] = [];
+    const result = await requestSessionWorktreeCompletion(f.identity, {}, { ...f.options, prepareContext: async cwd => { prepared.push(cwd); } });
+    expect(result.startupRoot).toBe(await realpath(f.home));
+    expect(prepared).toEqual([await realpath(f.home)]);
+    const settled = await settleSessionWorktreeCompletion(f.identity, f.options);
+    expect(settled?.kind).toBe("cleanup-finished");
+    expect(JSON.parse(settled!.detail).cwd.toLowerCase()).toBe((await realpath(f.primary)).toLowerCase());
+    expect(await exists(f.home)).toBe(true);
+    expect(await exists(f.worktree)).toBe(false);
+  });
+
+  it("refuses cleanup when the immutable startup directory is inside the checkout being left", async () => {
+    const f = await attachedFixture(undefined, "task");
+    const prepareContext = vi.fn(async () => {});
+    await expect(requestSessionWorktreeCompletion(f.identity, {}, { ...f.options, prepareContext })).rejects.toMatchObject({ code: "worktree-completion-startup" });
+    expect(prepareContext).not.toHaveBeenCalled();
+    expect((await readActiveSessionRepositoryContext(f.identity, f.options))?.cwd).toBe(await realpath(f.worktree));
+  });
   it("ignores a declaration that exists only in the task checkout being left", async () => {
     const fixture = await attachedFixture();
     await mkdir(join(fixture.worktree, ".a1"));

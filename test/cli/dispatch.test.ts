@@ -50,6 +50,10 @@ describe("A1 CLI dispatch", () => {
     [["pi", "update", "--models"], { kind: "packages", request: { verb: "refresh-models", source: null } }],
     [["worktree", "enter", "fix/task"], { kind: "session-context", request: { action: "enter-worktree", branch: "fix/task" } }],
     [["worktree", "enter", "fix/task", "--base", "develop"], { kind: "session-context", request: { action: "enter-worktree", branch: "fix/task", base: "develop" } }],
+    [["worktree", "enter", "fix/task", "--repo", "D:/repo", "--base", "main"], { kind: "session-context", request: { action: "enter-worktree", branch: "fix/task", repo: "D:/repo", base: "main" } }],
+    [["worktree", "enter", "fix/task", "--base", "main", "--repo", "D:/repo"], { kind: "session-context", request: { action: "enter-worktree", branch: "fix/task", repo: "D:/repo", base: "main" } }],
+    [["worktree", "list", "--repo", "D:/repo"], { kind: "session-context", request: { action: "worktrees", repo: "D:/repo" } }],
+    [["worktree", "status"], { kind: "session-context", request: { action: "worktree-status" } }],
     [["worktree", "attach", "D:/worktree"], { kind: "session-context", request: { action: "link-worktree", path: "D:/worktree" } }],
     [["worktree", "detach"], { kind: "session-context", request: { action: "unlink-worktree" } }],
     [["worktree", "list"], { kind: "session-context", request: { action: "worktrees" } }],
@@ -68,8 +72,21 @@ describe("A1 CLI dispatch", () => {
     ["attach", "D:/task", "extra"], ["detach", "extra"], ["list", "extra"], ["remove", "D:/task"],
     ["complete", "D:/task"], ["complete", "--pr"], ["complete", "--pr", "0"], ["complete", "--pr", "1", "--pr", "2"],
     ["complete", "--change", "Not_A_Change"], ["complete", "--force", "yes"],
+    ["enter", "fix/task", "--repo"], ["enter", "fix/task", "--repo", "D:/repo", "--repo", "D:/other"],
+    ["enter", "fix/task", "--base", "main", "--base", "develop"], ["list", "--repo"], ["status", "D:/repo"],
   ])("rejects incomplete or unsupported worktree arguments %j", (...args) => {
     expect(parseCliCommand(["worktree", ...args], PRERELEASE)).toMatchObject({ kind: "error" });
+  });
+
+  it.each([PRERELEASE, RELEASE])("advertises worktree controls and the integration API without retired color syntax (%j)", capabilities => {
+    const usage = cliUsage(capabilities);
+    expect(usage).toContain("worktree enter <branch> [--repo <absolute-path>] [--base <branch>]");
+    expect(usage).toContain("worktree list [--repo <absolute-path>]");
+    expect(usage).toContain("worktree status");
+    expect(usage).toContain("api <request-json>");
+    expect(usage).not.toContain("session color");
+    expect(cliHelp(capabilities)).toContain("Integration API");
+    expect(cliHelp(capabilities)).not.toContain("session color");
   });
 
   it("dispatches session repository context without launching a nested UI", async () => {

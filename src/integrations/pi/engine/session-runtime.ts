@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
 import { observeCompactionProgress, type CompactionProgressObserver } from "./compaction-progress.js";
-import { createPiRuntimeIntegration, type PiStartupPhaseMarker } from "./runtime-integration.js";
+import { createPiRuntimeIntegration, settlePiWorktreeTransition, type PiStartupPhaseMarker } from "./runtime-integration.js";
 import { PiSessionCommandIntegration } from "./session-integration.js";
 import { DefaultPackageManager, VERSION, type AgentSession, type AgentSessionRuntime, type AgentSessionServices } from "../startup-public.js";
 import type { PiProjectTrustPreflightPrompt, PiProjectTrustUi } from "./project-trust-preflight.js";
@@ -329,6 +329,19 @@ export class PiEngineRuntime {
     this.#unsubscribe = session.subscribe(event => {
       if (generation !== this.#sessionGeneration || this.#ports.disposed()) return;
       this.#ports.event(event);
+      if (event.type === "agent_settled" && this.#runtime !== undefined) {
+        // Concurrency: leave the settled event's stack: Pi must finish persistence and idle publication before replacement.
+        setImmediate(() => {
+          if (generation !== this.#sessionGeneration || this.#disposed || this.#ports.disposed()) return;
+          const runtime = this.#runtime!;
+          void settlePiWorktreeTransition(runtime, this.#options.signal).then(async message => {
+            if (message === null || this.#disposed || this.#ports.disposed()) return;
+            await runtime.session.sendCustomMessage({ customType: "worktree-context", content: `${message}\nContinue the existing task using the resulting project context.`, display: true }, { triggerTurn: true });
+          }).catch(error => {
+            if (!this.#disposed) this.#ports.diagnostic("error", "worktree-context", error instanceof Error ? error.message : String(error), true);
+          });
+        });
+      }
     });
   }
 
