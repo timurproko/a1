@@ -37,7 +37,9 @@ const [, , mode, manifestPath, separator, ...forwarded] = process.argv;
 
 /** @type {string} */
 const capsuleManifestPath = manifestPath ?? "";
-if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+// Platform: Node canonicalizes entry aliases (including macOS /var); argv keeps the invoked spelling.
+const invokedEntry = process.argv[1] ? await realpath(resolve(process.argv[1])).catch(() => null) : null;
+if (invokedEntry !== null && invokedEntry === await realpath(fileURLToPath(import.meta.url))) {
   if (!["--worker", "--launch", "--restore"].includes(mode ?? "") || !manifestPath || (mode === "--launch" && separator !== "--")) {
     throw new Error("invalid A1 update recovery invocation");
   }

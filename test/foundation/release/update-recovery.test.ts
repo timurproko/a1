@@ -21,6 +21,24 @@ const roots: string[] = [];
 afterEach(async () => await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("cancellation-safe package replacement", () => {
+  it("imports recovery helpers without dispatching for unrelated or unavailable argv entries", async () => {
+    const entryUrl = pathToFileURL(resolve("bin/update-recovery.js")).href;
+    for (const invoked of [resolve("package.json"), resolve("missing-recovery-entry.js")]) {
+      const child = spawn(process.execPath, ["--input-type=module", "-e", `
+        process.argv[1] = ${JSON.stringify(invoked)};
+        process.argv[2] = "--worker";
+        const helpers = await import(${JSON.stringify(entryUrl)});
+        if (typeof helpers.writeJson !== "function") throw new Error("missing helper");
+      `], { stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
+      let stderr = "";
+      child.stderr!.on("data", chunk => { stderr += chunk.toString(); });
+      const code = await new Promise<number | null>((resolvePromise, rejectPromise) => {
+        child.once("error", rejectPromise);
+        child.once("close", resolvePromise);
+      });
+      expect(code, stderr).toBe(0);
+    }
+  });
   it("derives exact platform prefixes, launchers, and pinned npm arguments", () => {
     const windowsRoot = resolve("C:/npm/node_modules");
     const unixRoot = "/usr/local/lib/node_modules";
@@ -261,8 +279,8 @@ describe("cancellation-safe package replacement", () => {
     })).rejects.toThrow(/timed out/);
   });
 
-  it("retains npm target launchers after successful replacement", async () => {
-    const fixture = await recoveryFixture("success");
+  it.each([false, true])("retains npm target launchers after successful replacement (aliased entry: %s)", async aliased => {
+    const fixture = await recoveryFixture("success", 0, aliased);
     const result = await runProtectedPackageReplacement(fixture.options);
 
     expect(result, JSON.stringify(result)).toMatchObject({ outcome: "installed", npmExitCode: 0, cancelled: false, launcherDisposition: "target" });
@@ -336,8 +354,8 @@ describe("cancellation-safe package replacement", () => {
     }
   }, 30_000);
 
-  it("restores every launcher before acknowledging cancellation", async () => {
-    const fixture = await recoveryFixture("wait");
+  it.each([false, true])("restores every launcher before acknowledging cancellation (aliased entry: %s)", async aliased => {
+    const fixture = await recoveryFixture("wait", 0, aliased);
     const result = await runProtectedPackageReplacement({
       ...fixture.options,
       workerSpawner: async (entry, manifestPath, environment) => {
@@ -433,8 +451,8 @@ describe("cancellation-safe package replacement", () => {
     expect(observed.messages).toHaveLength(1);
   }, 40_000);
 
-  it("keeps the detached guardian alive after the invoking updater is terminated", async () => {
-    const fixture = await recoveryFixture("slow-success");
+  it.each([false, true])("keeps the detached guardian alive after the invoking updater is terminated (aliased entry: %s)", async aliased => {
+    const fixture = await recoveryFixture("slow-success", 0, aliased);
     const prepared = await prepareUpdateRecoveryCapsule(fixture.options);
     const moduleUrl = pathToFileURL(resolve("src/foundation/release/update-recovery.ts")).href;
     const serializable = {
@@ -450,11 +468,21 @@ describe("cancellation-safe package replacement", () => {
       const { runProtectedPackageReplacement } = await import(${JSON.stringify(moduleUrl)});
       await runProtectedPackageReplacement({ ...${JSON.stringify(serializable)}, output: { stderr() {} } });
     `;
-    const updater = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], { cwd: resolve("."), stdio: "ignore", windowsHide: true });
-    await waitForPath(prepared.capsule.ownerPath, 5_000);
-    updater.kill("SIGKILL");
-    await new Promise(resolvePromise => updater.once("close", resolvePromise));
-    await waitForPath(prepared.capsule.resultPath, 10_000);
+    const updater = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], { cwd: resolve("."), stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
+    let stderr = "";
+    updater.stderr!.on("data", chunk => { stderr += chunk.toString(); });
+    const closed = new Promise(resolvePromise => updater.once("close", resolvePromise));
+    try {
+      await waitForPath(prepared.capsule.ownerPath, 5_000);
+      updater.kill("SIGKILL");
+      await closed;
+      await waitForPath(prepared.capsule.resultPath, 10_000);
+    } catch (error) {
+      throw new Error(`${String(error)}\nUpdater diagnostics: ${stderr || "none"}`, { cause: error });
+    } finally {
+      if (updater.exitCode === null && updater.signalCode === null) updater.kill("SIGKILL");
+      await closed;
+    }
 
     const result = JSON.parse(await readFile(prepared.capsule.resultPath, "utf8")) as { launcherDisposition: string };
     expect(result.launcherDisposition).toBe("target");
@@ -481,9 +509,16 @@ describe("cancellation-safe package replacement", () => {
   }, 15_000);
 });
 
-async function recoveryFixture(mode: RecoveryNpmMode, cancelAfter = 0) {
-  const root = await mkdtemp(resolve(tmpdir(), "a1-update-recovery-"));
-  roots.push(root);
+async function recoveryFixture(mode: RecoveryNpmMode, cancelAfter = 0, aliased = false) {
+  const temporary = await mkdtemp(resolve(tmpdir(), "a1-update-recovery-"));
+  roots.push(temporary);
+  let root = temporary;
+  if (aliased) {
+    const canonical = resolve(await realpath(temporary), "canonical");
+    root = resolve(temporary, "alias");
+    await mkdir(canonical);
+    await symlink(canonical, root, process.platform === "win32" ? "junction" : "dir");
+  }
   const dataDir = resolve(root, "data");
   const globalRoot = process.platform === "win32" ? resolve(root, "npm", "node_modules") : resolve(root, "prefix", "lib", "node_modules");
   const packageRoot = resolve(globalRoot, "@timurproko", "a1");
