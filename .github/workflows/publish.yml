@@ -360,9 +360,8 @@ jobs:
 
           const exists = existing !== null;
           const installerExists = installerExisting !== null;
-          // Manual development requests stop before package work only when both immutable
-          // artifacts already exist. Nightly verifies both registry packages completely.
-          const work = process.env.MODE === "nightly" || !exists || !installerExists;
+          // Existing staged bytes still need native smoke and public-channel promotion.
+          const work = true;
           console.log(`channel=${channel}`);
           console.log(`version=${version}`);
           console.log(`pull_request=${pullRequest}`);
@@ -398,7 +397,7 @@ jobs:
           INSTALLER_EXISTS: ${{ steps.plan.outputs.installer_exists }}
         run: |
           if [ "$EXISTS" = "true" ] && [ "$INSTALLER_EXISTS" = "true" ] && [ "$MODE" = "develop" ]; then
-            echo "Development preview $VERSION already exists for both packages; this request is a successful no-op." >> "$GITHUB_STEP_SUMMARY"
+            echo "Development preview $VERSION already exists; verify and exercise those immutable bytes before reconciling public tags." >> "$GITHUB_STEP_SUMMARY"
           elif [ "$EXISTS" = "true" ] && [ "$INSTALLER_EXISTS" = "true" ]; then
             echo "Nightly will completely verify both registry packages at $VERSION; publication is a no-op." >> "$GITHUB_STEP_SUMMARY"
           else
@@ -1052,9 +1051,9 @@ jobs:
           fi
 
   publish:
-    name: Publish ${{ needs.plan.outputs.version }} to npm ${{ needs.plan.outputs.channel }}
+    name: Stage ${{ needs.plan.outputs.version }} on npm
     needs: [plan, package, documentation, validate]
-    if: always() && needs.plan.outputs.mode != 'candidate' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && (needs.validate.result == 'success' || (needs.plan.outputs.mode == 'stable' && needs.validate.result == 'skipped'))
+    if: always() && needs.plan.outputs.mode != 'candidate' && needs.plan.outputs.work == 'true' && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && (needs.validate.result == 'success' || (needs.plan.outputs.mode == 'stable' && needs.validate.result == 'skipped'))
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: npm-publish
@@ -1160,6 +1159,7 @@ jobs:
       - name: Verify the registry serves the validated bytes
         shell: bash
         env:
+          VERIFY_PUBLIC_TAG: 'false'
           RELEASE_CHANNEL: ${{ needs.plan.outputs.channel }}
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
           EXPECTED_INTEGRITY: ${{ needs.package.outputs.integrity }}
@@ -1171,12 +1171,12 @@ jobs:
   post_publish:
     name: Published pair
     needs: [plan, package, publish]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && needs.publish.result == 'success'
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && needs.package.result == 'success' && needs.publish.result == 'success'
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.plan.outputs.validate_matrix) }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - name: Check out the validated source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -1210,10 +1210,39 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  promote:
+    name: Promote exercised pair to npm ${{ needs.plan.outputs.channel }}
+    needs: [plan, package, publish, post_publish]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && needs.package.result == 'success' && needs.publish.result == 'success' && needs.post_publish.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.plan.outputs.source }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+      - name: Promote only the successfully exercised immutable pair
+        env:
+          PUBLISHED_PAIR_RESULT: ${{ needs.post_publish.result }}
+          RELEASE_CHANNEL: ${{ needs.plan.outputs.channel }}
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+          EXPECTED_INTEGRITY: ${{ needs.package.outputs.integrity }}
+          EXPECTED_SHASUM: ${{ needs.package.outputs.shasum }}
+          EXPECTED_INSTALLER_INTEGRITY: ${{ needs.package.outputs.installer_integrity }}
+          EXPECTED_INSTALLER_SHASUM: ${{ needs.package.outputs.installer_shasum }}
+        run: node scripts/release/npm-promote-pair.mjs
+
   complete:
     name: Complete stable release records
-    needs: [plan, package, publish, post_publish]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && needs.publish.result == 'success' && needs.post_publish.result == 'success'
+    needs: [plan, package, publish, post_publish, promote]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && needs.package.result == 'success' && needs.publish.result == 'success' && needs.post_publish.result == 'success' && needs.promote.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -1250,18 +1279,18 @@ jobs:
   result:
     name: Publication result
     if: always()
-    needs: [plan, package, validate, publish, post_publish, complete]
+    needs: [plan, package, validate, publish, post_publish, promote, complete]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Download validation evidence for the failure summary
-        if: always() && needs.plan.outputs.work == 'true' && (needs.package.result != 'success' || (needs.validate.result != 'success' && !(needs.plan.outputs.mode == 'stable' && needs.validate.result == 'skipped')) || (needs.plan.outputs.mode != 'candidate' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && (needs.publish.result != 'success' || needs.post_publish.result != 'success' || needs.complete.result != 'success')))
+        if: always() && needs.plan.outputs.work == 'true' && (needs.package.result != 'success' || (needs.validate.result != 'success' && !(needs.plan.outputs.mode == 'stable' && needs.validate.result == 'skipped')) || (needs.plan.outputs.mode != 'candidate' && (needs.publish.result != 'success' || needs.post_publish.result != 'success' || needs.promote.result != 'success' || needs.complete.result != 'success')))
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: release-validation-${{ needs.plan.outputs.version }}-*
           path: .artifacts/lanes
       - name: Summarize the failed outcome
-        if: always() && needs.plan.outputs.work == 'true' && (needs.package.result != 'success' || (needs.validate.result != 'success' && !(needs.plan.outputs.mode == 'stable' && needs.validate.result == 'skipped')) || (needs.plan.outputs.mode != 'candidate' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && (needs.publish.result != 'success' || needs.post_publish.result != 'success' || needs.complete.result != 'success')))
+        if: always() && needs.plan.outputs.work == 'true' && (needs.package.result != 'success' || (needs.validate.result != 'success' && !(needs.plan.outputs.mode == 'stable' && needs.validate.result == 'skipped')) || (needs.plan.outputs.mode != 'candidate' && (needs.publish.result != 'success' || needs.post_publish.result != 'success' || needs.promote.result != 'success' || needs.complete.result != 'success')))
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -1284,6 +1313,8 @@ jobs:
               for (const outcome of evidence.outcomes.filter(item => item.exitCode !== 0)) {
                 console.log(`- ${basename(path, ".json")}: \`${outcome.id}\` exited ${outcome.exitCode} after ${(outcome.durationMs / 1000).toFixed(1)}s (\`${outcome.command}\`)${outcome.preparation ? ` [${outcome.preparation}]` : ""}`);
               }
+            } else if (evidence.schema === "a1-published-installer-smoke-v1" && evidence.outcome === "failure") {
+              console.log(`- ${basename(path, ".json")}: ${evidence.stage}: ${evidence.error}`);
             } else if (evidence.schema === "a1-startup-performance-evidence-v1") {
               for (const violation of evidence.budgetViolations ?? []) console.log(`- ${basename(path, ".json")} (${evidence.enforcement}): ${violation.message}`);
             }
@@ -1300,6 +1331,7 @@ jobs:
           VALIDATE: ${{ needs.validate.result }}
           PUBLISH: ${{ needs.publish.result }}
           POST_PUBLISH: ${{ needs.post_publish.result }}
+          PROMOTE: ${{ needs.promote.result }}
           COMPLETE: ${{ needs.complete.result }}
           MODE: ${{ needs.plan.outputs.mode }}
           VERSION: ${{ needs.plan.outputs.version }}
@@ -1312,9 +1344,10 @@ jobs:
             test "$PACKAGE" = success
             # Invariant: only stable publication skips validation, because it adopts candidate-validated bytes.
             if [ "$MODE" = stable ]; then test "$VALIDATE" = skipped; else test "$VALIDATE" = success; fi
-            if [ "$MODE" != candidate ] && { [ "$BUILD" = true ] || [ "$INSTALLER_BUILD" = true ]; }; then
+            if [ "$MODE" != candidate ]; then
               test "$PUBLISH" = success
               test "$POST_PUBLISH" = success
+              test "$PROMOTE" = success
               test "$COMPLETE" = success
             fi
             if [ "$MODE" = candidate ]; then

@@ -14,7 +14,7 @@ import {
 import { writeResumeFixture } from "../../support/session-resume-fixture.js";
 import { extractValidationCandidate, loadValidationCandidate } from "./package-candidate-fixture.js";
 import { createValidationPhaseRecorder } from "../../../scripts/release/validation-phase.mjs";
-import { summarizeResumeTrace } from "../../support/session-resume-diagnostics.js";
+import { readResumeFatalDiagnostics, summarizeResumeTrace } from "../../support/session-resume-diagnostics.js";
 
 const phases = createValidationPhaseRecorder("session-resume");
 let extracted: Awaited<ReturnType<typeof extractValidationCandidate>>;
@@ -325,7 +325,19 @@ async function launch(args: string[], shell?: { command: string; args: string[] 
     async close() {
       await phases.run(`launch-${launchId}-close`, async () => {
         await closeLaunch(child);
-        expect(child.exitCode, output).toBe(0);
+        let failureDiagnostic = "";
+        if (child.exitCode !== 0) {
+          try {
+            const record = {
+              schema: "a1-resume-shutdown-diagnostic-v1", launchId, exitCode: child.exitCode, signalCode: child.signalCode,
+              fatal: await readResumeFatalDiagnostics(resolve(environment.A1_RUNTIME_DIR!, "crashes")),
+            };
+            failureDiagnostic = JSON.stringify(record);
+            await appendFile(phases.outputPath.replace(/\.jsonl$/u, ".failures.jsonl"), `${failureDiagnostic}\n`);
+            process.stdout.write(`[resume-shutdown] ${failureDiagnostic}\n`);
+          } catch { process.stderr.write("Resume shutdown diagnostic could not be retained.\n"); }
+        }
+        expect(child.exitCode, `${output}\n${failureDiagnostic}`).toBe(0);
       });
     },
   };

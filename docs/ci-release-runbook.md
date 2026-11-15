@@ -344,7 +344,22 @@ validation lanes, adopts that retained pair, publishes both to npm `latest` with
 provenance from the `npm-publish` environment, and exercises the exact published
 installer/application pair in isolated prefixes on every release lane. Only after
 those post-publication checks pass does it upload the Release asset and fast-forward
-`master`. A pushed tag does not publish npm packages; only native publication of the
+`master`. Uploads first use `a1-staging`, never `next` or `latest`. A separate trusted
+promotion job moves the public tags only after every native lane passes fresh install,
+predecessor update, and non-interactive launcher checks. The smoke fixture pins only
+A1 tag discovery through a fixture-local npm bridge; all package installations still
+use the real npm CLI and registry bytes. This lets stable smoke select the exact
+candidate while `latest` still names its predecessor, without changing installer grammar.
+Existing staged bytes repeat smoke and promotion rather than becoming an existence-only
+no-op. If the public tag already names the candidate after partial recovery, smoke selects
+the newest strictly older same-channel published predecessor.
+
+Both packages' trusted publisher entries for the calling workflow and `npm-publish`
+environment must enable **Allow npm dist-tag**. Promotion uses a fresh package-scoped
+OIDC exchange and keeps tokens only in memory; missing permission fails closed, without
+adding a long-lived npm secret or changing npm settings automatically. The installer tag
+moves first; partial promotion fails completion and is reconciled on retry without
+republishing bytes. A pushed tag does not publish npm packages; only native publication of the
 prepared draft does. The published Release and tag are visible for the few minutes
 publication takes.
 
@@ -387,12 +402,25 @@ Rules that do not bend:
 - **A Pi upgrade proposal needs a re-run:** the sync never force-pushes over `chore/pi-<version>` once it carries a commit the bot did not author; a scheduled re-run posts its fresh verdicts as another sync report comment headed with the version and date and never edits the description. The description is the ordinary delivery layout: check each generated implementation outcome as its work completes, including one the report shows nothing for, never rewrite the generated items, and let trusted readiness promote the all-checked draft like any other. To re-run the derived steps and gates on the reviewer's head, dispatch the workflow with `refresh` and the `version`; it checks out the proposal branch, skips bump, evaluation, install, and merge, and reports without pushing. A branch whose commits are all the bot's is recreated from `develop` as before.
 - **A Pi version should not be adopted:** close its proposal pull request with the `pi-upgrade-skipped` label (declared in `config/github-repository-governance.json`) and say why in the closing comment; the next run proposes the newest unskipped version newer than the pin, or nothing, and names the skipped versions in its log. A proposal closed without the label is proposed again the next night. Dispatching the workflow with a `version` ignores skips, which is how a skipped version is reconsidered. To silence the schedule through a release window, set the repository variable `PI_UPGRADE_FREEZE_UNTIL` to a date (`2026-10-01`); scheduled runs exit before proposing until it passes, manual dispatches still run.
 - **Nightly documentation review fails:** inspect the reported paths and rules, identify the introducing merge from the nightly interval, and repair the invariant before unrelated work proceeds.
-- **Development publication fails:** inspect both package versions and digests, fix the cause, and rerun `npm run develop`; an npm version that already exists is verified and never overwritten.
+- **Development publication fails:** inspect both package versions and digests, fix the cause, and rerun `npm run develop`; an npm version that already exists is verified and never overwritten. An uploaded candidate is not advertised by `next` until every published-pair check passes and promotion succeeds. A smoke failure writes sanitized stage, child outcome, and fixture-owned npm diagnostic tails to the usual published-installer artifact before removing its isolated prefixes.
+- **Registry bytes are not ready:** exact-version metadata is not sufficient. Verification downloads both advertised HTTPS registry tarballs without redirects, streams SHA-512 and SHA-1 hashes, and requires both to match the validated artifacts. Each request has a 30-second timeout and each tarball a 64 MiB limit. A missing download or mismatched bytes keeps the pair unverified within the existing 180-attempt, ten-second ingestion polling allowance; it never rebuilds or republishes a package.
 - **Registry verification times out:** a `has not propagated` failure after a successful `npm publish` means npm is still ingesting the upload; it warns that a provenance-signed package "may take a few minutes" and the publisher polls for ten minutes. Confirm the version and its shasum on `https://registry.npmjs.org/<name>/<version>`, then rerun the failed jobs: the final registry check finds the exact bytes, skips `npm publish`, and verification passes. A digest or tag mismatch is not a timeout and is never repaired by rerunning.
 - **Draft preparation stops:** inspect the reported draft Release. Preparation may safely reuse an exact source-bound draft without overwriting edits, and reuses a running or successful validation of the same source and version. If `develop` advanced, retire the stale draft explicitly and prepare a new one from synchronized `develop`.
 - **Candidate validation fails:** do not publish the draft. Fix the failure on `develop`, retire the draft, and prepare again; the new draft binds the new source. Publishing anyway fails before npm and returns the Release to draft.
 - **Publication fails before npm:** the rollback job returns the Release to draft and deletes the unconsumed tag, so no manual tag cleanup is needed. Read the failed `Publish stable release` run, fix the cause (for example, wait for validation, undo a body edit made after publishing, rerun candidate validation when its retained package is missing or older than 30 days, or register the trusted publisher the npm preflight names), and choose **Publish release** again. If the rollback job itself failed, rerun it; never delete or move a tag by hand.
 - **Publication fails after npm:** the Release and tag stay. Rerun the failed jobs of that same run: its retained candidate and digests make the final registry check an exact-byte no-op for any package already published. Any recovered reopening PR must contain only both next `-dev` version declarations and the exact approved `docs/releases/<released>.md`; it auto-merges after CI when it verifies, otherwise merge it by hand. Never republish immutable bytes. Never repeat stable publication for a published version.
+
+## Local updater failure recovery
+
+The updater retries atomic journal and recovery-launcher renames for up to two seconds
+on Windows sharing violations without deleting the prior destination first. A failed
+journal notification never abandons npm while it still owns launcher mutation. If npm
+fails or activation fails before committing, settled recovery restores the prior-release
+launcher set. A committed activation stays successful even if its journal write fails;
+that bookkeeping failure warns, retains recovery authority, and never rolls back the
+already active release. A guardian that has not settled retains ownership rather than
+racing a second rollback. Preserve transaction and capsule evidence when diagnosing a
+local failure; do not delete state as a launcher repair.
 
 ## Safe release-command validation
 
