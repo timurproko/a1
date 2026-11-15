@@ -8,10 +8,16 @@ import { processIsAlive } from "./process-liveness.js";
 import { PRIVATE_LAUNCH_CONTRACT, assertCurrentLaunchContract } from "../launch-context/index.js";
 import type { UpdateTransaction, UpdateRecoveryState } from "./update-transaction.js";
 import { isDirectChild, samePath } from "./managed-path.js";
+import { renameFileWithRetry } from "./atomic-replacement.js";
 
 export const UPDATE_RECOVERY_SCHEMA = "a1-update-recovery-v1" as const;
 const WORKER_TIMEOUT_MS = 15 * 60 * 1_000;
 const POLL_MS = 50;
+
+/** The detached guardian still owns launcher mutation; callers must not roll back concurrently. */
+export class UpdateRecoveryPendingError extends Error {
+  constructor() { super("A1 update recovery guardian timed out before establishing a callable launcher; recovery remains owned by the guardian"); }
+}
 
 export interface UpdateRecoveryCapsule {
   readonly schema: typeof UPDATE_RECOVERY_SCHEMA;
@@ -220,7 +226,23 @@ export async function prepareUpdateRecoveryCapsule(options: ProtectedPackageRepl
 export async function runProtectedPackageReplacement(options: ProtectedPackageReplacementOptions): Promise<ProtectedPackageReplacementResult> {
   const prepared = await prepareUpdateRecoveryCapsule(options);
   const capsule = prepared.capsule;
-  await options.onRecoveryState?.({
+  let owner = await readLiveRecoveryOwner(capsule.ownerPath, capsule.transactionId);
+  const ownerIsLive = owner !== null;
+  let guardianStarted = ownerIsLive;
+  let notificationFailureReported = false;
+  const notifyRecovery = async (state: UpdateRecoveryState): Promise<void> => {
+    try { await options.onRecoveryState?.(state); }
+    catch (error) {
+      if (!guardianStarted) throw error;
+      // Invariant: bookkeeping cannot release the caller while npm still owns launcher mutation.
+      if (!notificationFailureReported) {
+        notificationFailureReported = true;
+        const message = (error instanceof Error ? error.message : String(error)).replace(/[\r\n]+/gu, " ").slice(0, 400);
+        options.output.stderr(`${PRODUCT_TEXT.diagnostic(`warning: recovery journal write failed; waiting for launcher settlement: ${message}`)}\n`);
+      }
+    }
+  };
+  await notifyRecovery({
     capsulePath: prepared.manifestPath,
     status: "prepared",
     guardianPid: null,
@@ -228,8 +250,6 @@ export async function runProtectedPackageReplacement(options: ProtectedPackageRe
     cancellationRequested: false,
     launcherDisposition: "pending",
   });
-  let owner = await readLiveRecoveryOwner(capsule.ownerPath, capsule.transactionId);
-  const ownerIsLive = owner !== null;
   const priorResult = await readRecoveryResult(capsule.resultPath, capsule.transactionId).catch(() => null);
   if (!ownerIsLive && priorResult?.outcome !== "installed") {
     const startLease = resolve(dirname(prepared.manifestPath), "worker-starting.lock");
@@ -238,6 +258,7 @@ export async function runProtectedPackageReplacement(options: ProtectedPackageRe
       owner = null;
       try {
         await (options.workerSpawner ?? spawnRecoveryWorker)(capsule.recoveryEntry, prepared.manifestPath, options.environment ?? process.env);
+        guardianStarted = true;
       } catch (error) {
         await rm(startLease, { force: true });
         throw error;
@@ -273,14 +294,15 @@ export async function runProtectedPackageReplacement(options: ProtectedPackageRe
           launcherDisposition: result.launcherDisposition,
         };
         if (cancellationWrite) await cancellationWrite;
-        await options.onRecoveryState?.(recovery);
+        await notifyRecovery(recovery);
         return { ...result, recovery };
       }
       owner = await readLiveRecoveryOwner(capsule.ownerPath, capsule.transactionId) ?? owner;
+      if (owner) guardianStarted = true;
       if (!runningRecorded && owner?.transactionId === capsule.transactionId && typeof owner.pid === "number" && typeof owner.startIdentity === "string") {
         runningRecorded = true;
-        await rm(resolve(dirname(prepared.manifestPath), "worker-starting.lock"), { force: true });
-        await options.onRecoveryState?.({
+        await rm(resolve(dirname(prepared.manifestPath), "worker-starting.lock"), { force: true }).catch(() => {});
+        await notifyRecovery({
           capsulePath: prepared.manifestPath,
           status: "running",
           guardianPid: owner.pid,
@@ -293,12 +315,26 @@ export async function runProtectedPackageReplacement(options: ProtectedPackageRe
     }
     requestCancellation("SIGTERM");
     if (cancellationWrite) await cancellationWrite;
-    throw new Error("A1 update recovery guardian timed out before establishing a callable launcher");
+    throw new UpdateRecoveryPendingError();
   } finally {
     process.off("SIGINT", onSigint);
     process.off("SIGTERM", onSigterm);
     try { await cancellationWrite; } catch {}
   }
+}
+
+/** Restore prior-release launchers only after the detached npm owner has settled. */
+export async function restoreUpdateRecoveryLaunchers(manifestPath: string, environment: NodeJS.ProcessEnv = process.env): Promise<void> {
+  const capsule = await readUpdateRecoveryCapsule(manifestPath);
+  if (await readLiveRecoveryOwner(capsule.ownerPath, capsule.transactionId) && !await readRecoveryResult(capsule.resultPath, capsule.transactionId)) {
+    throw new Error("cannot restore launchers while the recovery guardian is still mutating them");
+  }
+  const child = await spawnReleaseEntry(capsule.recoveryEntry, ["--restore", manifestPath], { env: environment, stdio: "ignore", windowsHide: true, timeout: 10_000 });
+  const code = await new Promise<number | null>((resolvePromise, rejectPromise) => {
+    child.once("error", rejectPromise);
+    child.once("close", resolvePromise);
+  });
+  if (code !== 0 || await inspectUpdateLauncherSet(capsule) !== "recovery") throw new Error("could not restore callable prior-release launchers; recovery capsule retained");
 }
 
 export async function removeUpdateRecoveryCapsule(dataDir: string, transactionId: string): Promise<void> {
@@ -462,10 +498,12 @@ async function readRecoveryResult(path: string, transactionId: string): Promise<
 async function writeDurableJson(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
-  const file = await open(temporary, "wx", 0o600);
-  try { await file.writeFile(JSON.stringify(value, null, 2)); await file.sync(); }
-  finally { await file.close(); }
-  await rename(temporary, path);
+  try {
+    const file = await open(temporary, "wx", 0o600);
+    try { await file.writeFile(JSON.stringify(value, null, 2)); await file.sync(); }
+    finally { await file.close(); }
+    await renameFileWithRetry(temporary, path);
+  } finally { await rm(temporary, { force: true }).catch(() => {}); }
 }
 
 async function readJson<T>(path: string): Promise<T> { return JSON.parse(await readFile(path, "utf8")) as T; }

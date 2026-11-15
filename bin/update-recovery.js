@@ -35,17 +35,23 @@ const SCHEMA = "a1-update-recovery-v1";
 
 const [, , mode, manifestPath, separator, ...forwarded] = process.argv;
 
-if ((mode !== "--worker" && mode !== "--launch") || !manifestPath || (mode === "--launch" && separator !== "--")) {
-  throw new Error("invalid A1 update recovery invocation");
-}
-
 /** @type {string} */
-const capsuleManifestPath = manifestPath;
-const capsule = await readCapsule(capsuleManifestPath);
-if (mode === "--worker") {
-  await runWorker(capsule);
-} else {
-  process.exitCode = await runRecoveredCommand(capsule, forwarded);
+const capsuleManifestPath = manifestPath ?? "";
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  if (!["--worker", "--launch", "--restore"].includes(mode ?? "") || !manifestPath || (mode === "--launch" && separator !== "--")) {
+    throw new Error("invalid A1 update recovery invocation");
+  }
+  const capsule = await readCapsule(capsuleManifestPath);
+  if (mode === "--worker") await runWorker(capsule);
+  else if (mode === "--restore") {
+    await writeRecoveryLaunchers(capsule);
+    if (!await recoveryLaunchersAreCallable(capsule)) throw new Error("could not restore callable A1 recovery launchers");
+    await writeJson(capsule.resultPath, {
+      schema: SCHEMA, transactionId: capsule.transactionId, outcome: "recovery-launcher",
+      npmExitCode: null, cancelled: false, launcherDisposition: "recovery",
+      stdout: "", stderr: "activation failed; prior release recovery launcher restored", completedAt: new Date().toISOString(),
+    });
+  } else process.exitCode = await runRecoveredCommand(capsule, forwarded);
 }
 
 /** @param {Capsule} value */
@@ -58,6 +64,7 @@ async function runWorker(value) {
     startIdentity: `${process.pid}:${Math.floor(Date.now() - process.uptime() * 1000)}`,
     startedAt: new Date().toISOString(),
   });
+  let heartbeatFailure = "";
   const heartbeat = setInterval(() => {
     void writeJson(value.ownerPath, {
       schema: SCHEMA,
@@ -65,7 +72,7 @@ async function runWorker(value) {
       pid: process.pid,
       startIdentity: `${process.pid}:${Math.floor(Date.now() - process.uptime() * 1000)}`,
       heartbeatAt: new Date().toISOString(),
-    });
+    }).catch(error => { heartbeatFailure = String(error).slice(0, 1_000); });
   }, 500);
   heartbeat.unref?.();
   const child = spawn(process.execPath, [value.npmCli, ...value.npmArguments], {
@@ -107,7 +114,7 @@ async function runWorker(value) {
     if (forceTimer) clearTimeout(forceTimer);
   }
 
-  const targetReady = await installedTargetIsCallable(value);
+  const targetReady = npmExitCode === 0 && !spawnError && !cancelled && await installedTargetIsCallable(value);
   let launcherDisposition = "unavailable";
   let outcome = "failed";
   if (targetReady) {
@@ -128,7 +135,7 @@ async function runWorker(value) {
     cancelled,
     launcherDisposition,
     stdout: bounded(Buffer.concat(stdout).toString("utf8")),
-    stderr: bounded(`${Buffer.concat(stderr).toString("utf8")}${spawnError ? `\n${String(spawnError)}` : ""}${forced ? "\nforced npm termination after cancellation" : ""}`.trim()),
+    stderr: bounded(`${Buffer.concat(stderr).toString("utf8")}${spawnError ? `\n${String(spawnError)}` : ""}${forced ? "\nforced npm termination after cancellation" : ""}${heartbeatFailure ? `\nowner heartbeat failed: ${heartbeatFailure}` : ""}`.trim()),
     completedAt: new Date().toISOString(),
   });
   if (launcherDisposition === "unavailable") process.exitCode = 1;
@@ -140,7 +147,7 @@ async function runWorker(value) {
  * @returns {Promise<number>}
  */
 async function runRecoveredCommand(value, arguments_) {
-  let entry = await installedTargetEntry(value);
+  let entry = await recoveredTargetEntry(value);
   if (entry === null && arguments_[0] === "update") {
     await rm(value.cancellationPath, { force: true });
     await rm(value.resultPath, { force: true });
@@ -163,7 +170,7 @@ async function runRecoveredCommand(value, arguments_) {
       process.off("SIGINT", onSigint);
       process.off("SIGTERM", onSigterm);
     }
-    entry = await installedTargetEntry(value);
+    entry = await recoveredTargetEntry(value);
   }
   entry ??= resolve(value.priorReleaseRoot, "bin", "cli.js");
   const child = spawn(process.execPath, [entry, ...arguments_], { stdio: "inherit", windowsHide: false });
@@ -233,6 +240,17 @@ async function readCapsule(path) {
   return value;
 }
 
+/** A failed npm exit never authorizes a partially written target, even if its entry exists.
+ * @param {Capsule} value
+ */
+async function recoveredTargetEntry(value) {
+  try {
+    const result = JSON.parse(await readFile(value.resultPath, "utf8"));
+    if (result.schema !== SCHEMA || result.transactionId !== value.transactionId || result.outcome !== "installed" || result.npmExitCode !== 0 || result.cancelled) return null;
+    return await installedTargetEntry(value);
+  } catch { return null; }
+}
+
 /** @param {Capsule} value */
 async function installedTargetEntry(value) {
   try {
@@ -295,26 +313,47 @@ async function recoveryLaunchersAreCallable(value) {
  * @param {string} content
  * @param {number} mode
  */
-async function atomicWrite(path, content, mode) {
+export async function atomicWrite(path, content, mode, options = {}) {
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
-  await writeFile(temporary, content, { mode });
-  await chmod(temporary, mode);
-  await rm(path, { force: true });
-  await rename(temporary, path);
+  try {
+    await writeFile(temporary, content, { mode, flag: "wx" });
+    await chmod(temporary, mode);
+    await renameWithRetry(temporary, path, options);
+  } finally { await rm(temporary, { force: true }).catch(() => {}); }
 }
 
 /**
  * @param {string} path
  * @param {unknown} value
  */
-async function writeJson(path, value) {
+export async function writeJson(path, value, options = {}) {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
-  const file = await open(temporary, "wx", 0o600);
-  try { await file.writeFile(JSON.stringify(value, null, 2)); await file.sync(); }
-  finally { await file.close(); }
-  await rm(path, { force: true });
-  await rename(temporary, path);
+  try {
+    const file = await open(temporary, "wx", 0o600);
+    try { await file.writeFile(JSON.stringify(value, null, 2)); await file.sync(); }
+    finally { await file.close(); }
+    await renameWithRetry(temporary, path, options);
+  } finally { await rm(temporary, { force: true }).catch(() => {}); }
+}
+
+/**
+ * Kept inline because the copied recovery entry cannot import the package npm is replacing.
+ * @param {string} temporary
+ * @param {string} destination
+ * @param {{ platform?: NodeJS.Platform, rename?: (from: string, to: string) => Promise<void> }} options
+ */
+async function renameWithRetry(temporary, destination, options) {
+  const move = options.rename ?? rename;
+  const deadline = Date.now() + 2_000;
+  for (let delay = 10; ; delay = Math.min(delay * 2, 200)) {
+    try { await move(temporary, destination); return; }
+    catch (error) {
+      const code = error instanceof Error && "code" in error ? error.code : undefined;
+      if ((options.platform ?? process.platform) !== "win32" || !["EPERM", "EACCES", "EBUSY"].includes(String(code)) || Date.now() >= deadline) throw error;
+      await sleep(delay);
+    }
+  }
 }
 
 /** @param {string} globalRoot */
