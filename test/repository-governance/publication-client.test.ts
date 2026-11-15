@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { stripVTControlCharacters } from "node:util";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { describePublicationFailure, dispatchPublication, dispatchStableValidation, resolveDevelopPreview, waitForStableValidation } from "../../scripts/release/publication-client.mjs";
@@ -42,7 +43,7 @@ function developmentRunner(snapshots: Array<{ status: string; conclusion: string
   });
 }
 
-const developmentOptions = { repository: "owner/app", requestId: "fixture-request", sleep: async () => {} };
+const developmentOptions = { repository: "owner/app", requestId: "fixture-request", sleep: async () => {}, isTTY: false };
 
 describe("development preview version", () => {
   const source = "b".repeat(40);
@@ -198,7 +199,7 @@ describe("publication failure reporting", () => {
     await expect(dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.9", {
       ...developmentOptions, run, write: (text: string) => { output.push(text); },
     })).rejects.toThrow(/^Publication failed: 0.1.8-dev.9 \(run 42\)\n  Windows validation \(Node 24\) \[failure\]\n    startup budget failed/);
-    expect(output[0]).toBe("[publication] 0.1.8-dev.9 — run 42\n[publication] Full log: https://github.com/owner/app/actions/runs/42\n");
+    expect(output[0]).toBe("[publication] 0.1.8-dev.9 — run 42\n  Full log: https://github.com/owner/app/actions/runs/42\n\n");
     expect(calls.some(call => call.args[0] === "run" && call.args[1] === "watch")).toBe(false);
   });
 
@@ -283,13 +284,112 @@ describe("publication failure reporting", () => {
       ...developmentOptions, run, write: (text: string) => { output.push(text); },
     })).resolves.toBe(42);
     expect(output).toEqual([
-      "[publication] 0.1.8-dev.10 — run 42\n[publication] Full log: https://github.com/owner/app/actions/runs/42\n",
-      "[publication] Running: macOS validation (Node 24)\n",
-      "[publication] Passed: macOS validation (Node 24)\n",
-      "[publication] 0.1.8-dev.10: workflow passed; verifying npm packages.\n",
+      "[publication] 0.1.8-dev.10 — run 42\n  Full log: https://github.com/owner/app/actions/runs/42\n\n",
+      "  ● Running: macOS validation (Node 24)\n",
+      "  ● Passed:  macOS validation (Node 24)\n",
+      "  Workflow passed; verifying npm packages.\n",
     ]);
     expect(calls.some(call => call.args[1] === "watch")).toBe(false);
     expect(calls.filter(call => call.args[1]?.includes("/jobs?")).every(call => call.args.includes("--paginate"))).toBe(true);
+  });
+
+  it("keeps the publication header once and every changed job on its own aligned line", async () => {
+    const jobs = Array.from({ length: 6 }, (_unused, index) => ({ id: index + 1, name: `Build fixture ${index + 1}`, status: "in_progress", conclusion: null }));
+    const output: string[] = [];
+    const { run } = developmentRunner([
+      { status: "in_progress", conclusion: null, jobs },
+      { status: "completed", conclusion: "success", jobs: jobs.map(job => ({ ...job, status: "completed", conclusion: "success" })) },
+    ]);
+    await dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", { ...developmentOptions, run, write: text => { output.push(text); } });
+    const text = output.join("");
+    expect(text.match(/\[publication\]/gu)).toHaveLength(1);
+    expect(text.match(/0\.1\.8-dev\.10/gu)).toHaveLength(1);
+    expect(text).not.toContain("more)");
+    expect(text).not.toContain("\u001b");
+    const progress = text.split("\n").filter(line => line.includes("●"));
+    expect(progress).toHaveLength(12);
+    expect(progress.every(line => line.indexOf("Build fixture") === 13)).toBe(true);
+    expect(progress.filter(line => line.endsWith("Build fixture 6"))).toHaveLength(2);
+    expect(progress.every(line => !line.includes(","))).toBe(true);
+  });
+
+  it("colors only the single-column dot and leaves aligned labels and job names neutral", async () => {
+    const jobs = [
+      { id: 1, name: "Running job", status: "in_progress", conclusion: null },
+      { id: 2, name: "Passed job", status: "completed", conclusion: "success" },
+      { id: 3, name: "Failed job", status: "completed", conclusion: "failure" },
+      { id: 4, name: "Develop / Stage 0.1.8-dev.10 on npm", status: "completed", conclusion: "skipped" },
+    ];
+    const output: string[] = [];
+    const { run } = developmentRunner([
+      { status: "in_progress", conclusion: null, jobs },
+      { status: "completed", conclusion: "failure", jobs: jobs.map(job => job.id === 1 ? { ...job, status: "completed", conclusion: "failure" } : job) },
+    ]);
+    await expect(dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
+      ...developmentOptions, run, isTTY: true, environment: { TERM: "xterm-256color" }, write: text => { output.push(text); },
+    })).rejects.toThrow("Publication failed");
+    expect(output.slice(1, 5)).toEqual([
+      "  \u001b[33m●\u001b[39m Running: Running job\n",
+      "  \u001b[32m●\u001b[39m Passed:  Passed job\n",
+      "  \u001b[31m●\u001b[39m Failed:  Failed job\n",
+      "  \u001b[90m●\u001b[39m Skipped: npm staging\n",
+    ]);
+    const text = output.join("");
+    expect(text.replace(/\u001b\[(?:31|32|33|39|90)m/gu, "")).toBe(stripVTControlCharacters(text));
+    const progress = output.filter(line => line.includes("●")).map(line => stripVTControlCharacters(line));
+    expect(progress.every(line => /^  ● (?:Running: |Passed:  |Failed:  |Skipped: )/u.test(line))).toBe(true);
+    expect(text.match(/\[publication\]/gu)).toHaveLength(1);
+  });
+
+  it.each([
+    ["redirected output", false, { TERM: "xterm-256color", FORCE_COLOR: "1" }],
+    ["NO_COLOR", true, { TERM: "xterm-256color", NO_COLOR: "1" }],
+    ["empty NO_COLOR", true, { TERM: "xterm-256color", NO_COLOR: "" }],
+    ["dumb terminal", true, { TERM: "dumb" }],
+    ["FORCE_COLOR=0", true, { TERM: "xterm-256color", FORCE_COLOR: "0" }],
+  ] as const)("keeps %s readable without ANSI color", async (_name, isTTY, environment) => {
+    const output: string[] = [];
+    const { run } = developmentRunner([{ status: "completed", conclusion: "success", jobs: [
+      { id: 1, name: "Passed job", status: "completed", conclusion: "success" },
+    ] }]);
+    await dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", { ...developmentOptions, run, isTTY, environment, write: text => { output.push(text); } });
+    expect(output.join("")).not.toContain("\u001b");
+    expect(output).toContain("  ● Passed:  Passed job\n");
+  });
+
+  it.each(["failure", "timed_out", "cancelled", "action_required", "startup_failure", "stale"])("renders %s as a red failed dot without changing the failure outcome", async conclusion => {
+    const output: string[] = [];
+    const { run } = developmentRunner([{ status: "completed", conclusion: "failure", jobs: [
+      { id: 1, name: "Failed job", status: "completed", conclusion },
+    ] }]);
+    await expect(dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
+      ...developmentOptions, run, isTTY: true, environment: { TERM: "xterm" }, write: text => { output.push(text); },
+    })).rejects.toThrow(`Failed job [${conclusion}]`);
+    expect(output).toContain("  \u001b[31m●\u001b[39m Failed:  Failed job\n");
+  });
+
+  it("reports meaningful skips once while suppressing inactive optional jobs and derivative gates", async () => {
+    const inactive = ["Snapshot the stable Release note", "Full documentation review", "Validate Windows shard (win32-node24)", "Reconstruct Windows lane", "Complete stable release records"].map((name, index) => ({ id: index + 10, name, status: "completed", conclusion: "skipped" }));
+    const jobs = [
+      ...inactive,
+      { id: 1, name: "Full documentation review", status: "in_progress", conclusion: null },
+      { id: 2, name: "Develop / Stage 0.1.8-dev.10 on npm", status: "completed", conclusion: "skipped" },
+      { id: 3, name: "Develop / Publication result", status: "completed", conclusion: "failure" },
+    ];
+    const output: string[] = [];
+    const { run } = developmentRunner([
+      { status: "in_progress", conclusion: null, jobs },
+      { status: "in_progress", conclusion: null, jobs },
+      { status: "completed", conclusion: "failure", jobs: jobs.map(job => job.id === 1 ? { ...job, status: "completed", conclusion: "skipped" } : job) },
+    ]);
+    await expect(dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
+      ...developmentOptions, run, write: text => { output.push(text); },
+    })).rejects.toThrow("Publication blocked before npm staging.");
+    expect(output.filter(line => line.includes("●"))).toEqual([
+      "  ● Running: Full documentation review\n",
+      "  ● Skipped: npm staging\n",
+      "  ● Skipped: Full documentation review\n",
+    ]);
   });
 
   it("summarizes a failed publication in the result job before the unchanged outcome requirement", async () => {

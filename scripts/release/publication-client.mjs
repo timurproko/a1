@@ -135,6 +135,23 @@ export function describePublicationFailure(runId, options = {}) {
   return lines.join("\n");
 }
 
+function publicationColorEnabled(options) {
+  const environment = options.environment ?? process.env;
+  const terminal = options.isTTY ?? process.stdout.isTTY;
+  return Boolean(terminal) && environment.NO_COLOR === undefined
+    && environment.TERM !== "dumb" && environment.FORCE_COLOR !== "0";
+}
+
+function formatPublicationProgress(label, name, color) {
+  const codes = { Running: 33, Passed: 32, Failed: 31, Skipped: 90 };
+  const dot = color ? `\u001b[${codes[label]}m●\u001b[39m` : "●";
+  return `  ${dot} ${`${label}:`.padEnd(8)} ${name}\n`;
+}
+
+function isOptionalSkippedJob(job) {
+  return /^(?:Snapshot the stable Release note|Full documentation review|Validate Windows shard|Reconstruct Windows lane|Complete stable release records)(?: \(|$)/u.test(shortJobName(job.name));
+}
+
 /** Observe development publication without inheriting GitHub's repeated job/step screen dumps. */
 async function waitForDevelopmentPublication(runId, version, repository, options) {
   const execute = options.run ?? run;
@@ -144,6 +161,7 @@ async function waitForDevelopmentPublication(runId, version, repository, options
   const signal = options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal;
   const interrupt = () => controller.abort();
   const states = new Map();
+  const color = publicationColorEnabled(options);
   const stopped = reason => new Error(`Stopped watching ${plainText(version, 80)} (run ${runId}): ${reason}. Remote outcome unknown; it may still be running. Check this run before starting another publication.\n  Full log: https://github.com/${repository}/actions/runs/${runId}`);
   process.once("SIGINT", interrupt);
   process.once("SIGTERM", interrupt);
@@ -159,21 +177,19 @@ async function waitForDevelopmentPublication(runId, version, repository, options
         throw stopped(signal.aborted ? "interrupted" : "GitHub status unavailable");
       }
       if (signal.aborted) break;
-      const changes = new Map();
       for (const job of jobs) {
-        if (isAggregate(job) || job.conclusion === "skipped") continue;
+        if (isAggregate(job)) continue;
         const state = job.status === "completed" ? job.conclusion : job.status;
-        if (state !== "in_progress" && state !== "success" && !FAILED_CONCLUSIONS.has(state)) continue;
+        if (state !== "in_progress" && state !== "success" && state !== "skipped" && !FAILED_CONCLUSIONS.has(state)) continue;
+        if (state === "skipped" && !states.has(job.id) && isOptionalSkippedJob(job)) continue;
         if (states.get(job.id) === state) continue;
         states.set(job.id, state);
-        const label = state === "in_progress" ? "Running" : state === "success" ? "Passed" : "Failed";
-        if (!changes.has(label)) changes.set(label, []);
-        changes.get(label).push(shortJobName(job.name));
+        const label = state === "in_progress" ? "Running" : state === "success" ? "Passed" : state === "skipped" ? "Skipped" : "Failed";
+        write(formatPublicationProgress(label, shortJobName(job.name), color));
       }
-      for (const [label, names] of changes) write(`[publication] ${label}: ${names.slice(0, 4).join(", ")}${names.length > 4 ? ` (+${names.length - 4} more)` : ""}\n`);
       if (current.status === "completed") {
         if (current.conclusion !== "success") throw new Error(describePublicationFailure(runId, { run: execute, repository, version, jobs, develop: true }));
-        write(`[publication] ${plainText(version, 80)}: workflow passed; verifying npm packages.\n`);
+        write("  Workflow passed; verifying npm packages.\n");
         return;
       }
       try { await wait(POLL_INTERVAL_MS, undefined, { signal }); }
@@ -214,7 +230,7 @@ export async function dispatchPublication(channel, source, version, options = {}
   if (runId === undefined) throw new Error(`publication request ${requestId} did not appear in GitHub Actions within 5 minutes`);
 
   const url = `https://github.com/${repository}/actions/runs/${runId}`;
-  write(`[publication] ${plainText(version, 80)} — run ${runId}\n[publication] Full log: ${url}\n`);
+  write(`[publication] ${plainText(version, 80)} — run ${runId}\n  Full log: ${url}\n\n`);
   await waitForDevelopmentPublication(runId, version, repository, options);
   return runId;
 }
