@@ -12,6 +12,6 @@
 
 ## 3. Shared Herdr client and coordinated migration
 
-- [ ] 3.1 Package one supported shared A1 client through the plugin API/build boundary with literal process resolution and strict reply validation.
-- [ ] 3.2 Migrate startup/live matching to supported setting descriptors and exact native identity, retaining membership and argv safety checks.
-- [ ] 3.3 Add cross-project fixtures and rollout documentation identifying external source ownership, version control and pending deployment.
+- [x] 3.1 Package one supported shared A1 client through the plugin API/build boundary with literal process resolution and strict reply validation.
+- [x] 3.2 Migrate startup/live matching to supported setting descriptors and exact native identity, retaining membership and argv safety checks.
+- [x] 3.3 Add cross-project fixtures and rollout documentation identifying external source ownership, version control and pending deployment.
