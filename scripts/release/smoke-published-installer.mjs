@@ -68,9 +68,9 @@ export async function smokePublishedInstaller({ environment = process.env, spawn
     await writeFile(resolve(bridgeBin, "npm"), `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(bridge)} "$@"\n`);
     await chmod(resolve(bridgeBin, "npm"), 0o755);
     await writeFile(resolve(bridgeBin, "npm.cmd"), `@echo off\r\n"${process.execPath}" "${bridge}" %*\r\n`);
-    installedEnvironment.A1_SMOKE_NPM_CLI = resolveInstallerNpmCli(environment);
-    installedEnvironment.A1_SMOKE_VERSION = version;
-    installedEnvironment.A1_SMOKE_PACKAGE_NAME = applicationSource.name;
+    installedEnvironment.PUBLISHED_SMOKE_NPM_CLI = resolveInstallerNpmCli(environment);
+    installedEnvironment.PUBLISHED_SMOKE_VERSION = version;
+    installedEnvironment.PUBLISHED_SMOKE_PACKAGE_NAME = applicationSource.name;
     installedEnvironment.npm_execpath = bridge;
     installedEnvironment.PATH = [bridgeBin, installedEnvironment.PATH].join(delimiter);
     const args = channel === "next" ? ["--develop", version] : [];
@@ -114,7 +114,7 @@ export async function smokePublishedInstaller({ environment = process.env, spawn
     const updateEnvironment = {
       ...installedEnvironment, npm_config_prefix: updatePrefix,
       A1_CONFIG_DIR: resolve(root, "update-config"), A1_DATA_DIR: resolve(root, "update-data"), A1_RUNTIME_DIR: resolve(root, "update-runtime"),
-      A1_SMOKE_VERSION: predecessorVersion,
+      PUBLISHED_SMOKE_VERSION: predecessorVersion,
       PATH: [bridgeBin, updateBin, bootstrapBin, environment.PATH ?? ""].join(delimiter),
     };
     stage = "install-predecessor";
@@ -122,7 +122,7 @@ export async function smokePublishedInstaller({ environment = process.env, spawn
       cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: 10 * 60_000,
     });
     stage = "update-predecessor";
-    updateEnvironment.A1_SMOKE_VERSION = version;
+    updateEnvironment.PUBLISHED_SMOKE_VERSION = version;
     const updateLauncher = resolve(updateBin, process.platform === "win32" ? "a1.cmd" : "a1");
     execute(updateLauncher, ["update", ...(channel === "next" ? ["--develop", version] : ["--release"])], {
       cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: 10 * 60_000,

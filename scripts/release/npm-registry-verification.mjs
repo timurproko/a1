@@ -49,15 +49,15 @@ async function verifyTarball({ package_, manifest, fetch_, requestTimeoutMs, max
     if (!response.body) throw new Error(`${label} has no response body`);
     if (Number(response.headers.get("content-length")) > maxTarballBytes) throw new Error(`${label} exceeds the byte limit`);
     const sha512 = createHash("sha512");
-    const sha1 = createHash("sha1");
+    const shasumHash = createHash("sha1");
     let bytes = 0;
     for await (const chunk of response.body) {
       bytes += chunk.byteLength;
       if (bytes > maxTarballBytes) throw new Error(`${label} exceeds the byte limit`);
       sha512.update(chunk);
-      sha1.update(chunk);
+      shasumHash.update(chunk);
     }
-    if (`sha512-${sha512.digest("base64")}` !== package_.integrity || sha1.digest("hex") !== package_.shasum) {
+    if (`sha512-${sha512.digest("base64")}` !== package_.integrity || shasumHash.digest("hex") !== package_.shasum) {
       throw new Error(`${label} downloaded bytes differ from the validated package`);
     }
   } finally {

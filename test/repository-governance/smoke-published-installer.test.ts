@@ -108,7 +108,7 @@ describe("published installer smoke evidence", () => {
       [["view", "other-package@latest", "version"], ["view", "other-package@latest", "version"]],
     ]) {
       const result = spawnSync(process.execPath, ["scripts/release/published-candidate-npm-bridge.mjs", ...args!], {
-        env: { ...process.env, A1_SMOKE_NPM_CLI: cli, A1_SMOKE_VERSION: version, A1_SMOKE_PACKAGE_NAME: "@timurproko/a1" }, encoding: "utf8",
+        env: { ...process.env, PUBLISHED_SMOKE_NPM_CLI: cli, PUBLISHED_SMOKE_VERSION: version, PUBLISHED_SMOKE_PACKAGE_NAME: "@timurproko/a1" }, encoding: "utf8",
       });
       expect(result.status, result.stderr).toBe(0);
       expect(JSON.parse(result.stdout)).toEqual(expected);
