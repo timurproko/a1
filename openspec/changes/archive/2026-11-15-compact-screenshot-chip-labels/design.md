@@ -23,7 +23,8 @@ Focused owned-ui contract, editor presentation, and queued/submitted presentatio
 ## Implementation evidence
 
 - Shared hidden ranges remove only the camera-icon separator; canonical matching also recognizes compact display labels. Durable attachment identity parsing and stored tags are unchanged.
-- All 127 tests in the four focused files passed: owned-ui attachment presentation and image identity, editor attachment presentation, and Pi shell components. They cover pending/resized/failed labels, count-rejection dimming, adjacent chips, selection, deletion/undo, wrapping, original-source copy, and unchanged pinned presentation.
+- All 196 tests in eight focused files passed: owned-ui attachment presentation and image identity, editor attachment presentation, Pi shell components, session shell presentation, prompt history, prompt chips, and paste chip lifecycle. They cover pending/resized/failed labels, count-rejection dimming, adjacent chips, selection, deletion/undo, wrapping, original-source copy, and unchanged pinned presentation.
+- Fully hidden paste reservations suppress overlapping separator ranges. Repeated reservations beside a visible screenshot retain disjoint source ranges and do not erase neighboring prose. The controlled pending fixture settles during cleanup so an assertion cannot masquerade as a timeout.
 - Shared screenshot/file range matching keeps the startup-source byte limit unchanged; screenshot labels bypass filename/path metadata stripping. Architecture checks pass after repairing the CI startup-source overrun.
 - Product build, source/bin typechecks, and strict change validation passed. A fresh dependency installation and product build supplied the initially absent dependencies and generated bin imports; no product defect was hidden by a validation exception.
 

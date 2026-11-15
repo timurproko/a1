@@ -330,11 +330,10 @@ export class PromptChipStore {
     throw new Error("Path chip labels could not distinguish normalized paths");
   }
 
-  /** Hide provisional clipboard identities and attachment-only presentation metadata. */
+  /** Hide reservations and metadata without overlapping source ranges. */
   hiddenRanges(line: string): readonly OwnedUiShellEditorTextRange[] {
-    const ranges: OwnedUiShellEditorTextRange[] = [...attachmentPromptChipHiddenRanges(line)];
+    const ranges: OwnedUiShellEditorTextRange[] = [];
     for (const entry of this.#pending.values()) {
-      // Rationale: file-image reservations stay hidden rather than flashing a clipboard screenshot label.
       if (entry.kind === "image" && entry.fileName === undefined) continue;
       let from = 0;
       while ((from = line.indexOf(entry.marker, from)) >= 0) {
@@ -342,7 +341,9 @@ export class PromptChipStore {
         from += entry.marker.length;
       }
     }
-    return ranges.sort((left, right) => left.start - right.start);
+    return ranges.concat(attachmentPromptChipHiddenRanges(line).filter(part =>
+      ranges.every(range => part.end <= range.start || part.start >= range.end),
+    )).sort((left, right) => left.start - right.start);
   }
 
   atomicRanges(line: string): readonly OwnedUiShellEditorTextRange[] {
