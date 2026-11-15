@@ -28,7 +28,7 @@ The maintainer integration decision accepts these scenarios:
     "Windows replacement failures preserve committed files, and pre-commit update failures restore prior-release launchers without racing npm.",
     "A committed activation remains successful when journal bookkeeping fails, with recovery authority retained for retry."
   ],
-  "archiveDigest": "8c5a4004ed10075e51fa981ab2f556c3863260b01c847097621eef72ea819695",
+  "archiveDigest": "f4a140b73945336e154a8e5ac2854147d5fb55f90100b8c384c03e7fc0c006c4",
   "specDigest": "7d35e188149a0078d2dbdabfa3c21d4f047099a18cfcaf076bf537362f5b004d",
   "tasksDigest": "b4a498d0c4ff8c488fe2fc8a6cacec64dd80820394a636bcd8eec4d762084187",
   "evidenceDigest": "088282c8d8fc7b44a2d1b957710c8e1a0b2b3d8a8187260ab26fc8392e812195",
