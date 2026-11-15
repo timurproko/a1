@@ -14,6 +14,10 @@ Retain state-change deduplication and known aggregate suppression. Report meanin
 
 Cover one-header output, neutral aligned labels, dot-only SGR escapes, color-disabled/nonterminal output, one job per line when multiple jobs change, no discarded fifth job, deduplicated running/completed states, skipped npm staging, optional skipped-job suppression, failed/timed-out/cancelled states, and unchanged failure/cancellation behavior. Run the named publication-client tests, focused typechecking, strict OpenSpec validation, and delivery-body validation. Do not dispatch a publication merely to preview appearance.
 
+## Implementation Evidence
+
+The named publication-client file passed 43 focused tests, including exact ANSI sequences surrounding only each dot, identical visible job-name columns, six simultaneous jobs without truncation, one version/run header, disabled-color modes, meaningful skipped states, failed conclusion variants, and unchanged stable-candidate waiting. The source typecheck and strict OpenSpec change validation passed. No publication was dispatched to preview these changes.
+
 ## Known Gaps
 
 No unresolved implementation gap is identified. Terminal default text color is respected rather than forcing white; terminals using light themes therefore remain readable. No interactive animation or rewrite behavior is intended.
