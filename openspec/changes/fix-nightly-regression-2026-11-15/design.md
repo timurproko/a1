@@ -4,9 +4,17 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- The failure is deterministic contract/baseline drift, not an environmental timeout. Commit `e7de9aba` (#928) intentionally rejects reserved `update:develop` syntax and moves lazy bootstrap wiring into `bin/command-handlers.js`, but the update CLI and bootstrap-boundary tests still assert the previous layout/behavior.
+- Commit `e7de9aba` also changed nine Pi engine export consumer lists without regenerating the public API baseline. Commit `ad443f2` (#933) added row containment consumers of `truncateToWidth` and moved `visibleWidth` from the runtime adapter into that owner, accounting for the other two stale lists. Installed package versions, export kinds, and declaration hashes have not changed.
+- Repair the tests to assert the delivered rejection and shared lazy-handler boundary, retain isolation/no-side-effect assertions, and regenerate only the eleven stale consumer lists. No production behavior, dependency version, assertion budget, timeout, or coverage reduction is needed.
 
 ## Evidence
+
+### Focused reproduction
+
+- On the unchanged generated candidate `320321e`, `npx vitest run test/cli/update-cli.test.ts test/foundation/release/bootstrap-boundary.test.ts test/repository-governance/pinned-pi-public-api.test.ts` reproduced exactly three failed tests and eleven passing tests locally on Windows. The failures match all four original native lanes: macos-15-node24, ubuntu-24.04-node24, windows-2025-node22 core, and windows-2025-node24 core.
+- `update-cli.test.ts` exits with `a1 unsupported reserved command; use -- before a literal instruction.` instead of the obsolete silent success expectation. `bootstrap-boundary.test.ts` looks for the bootstrap import in the entry instead of the new shared handlers. The public API check identifies eleven consumer-list changes and no exported API declaration changes.
+- Inspected the introducing diffs in `e7de9aba` and `ad443f2` and compared a freshly collected API inventory against the committed baseline. The Complete regression required orchestration error is downstream of the failed core test command, not an independent evidence-policy defect; retain the existing fail-closed aggregate.
 
 - Run [Full regression #94](https://github.com/timurproko/a1/actions/runs/43670935944) (attempt 1, schedule) on `74b2e6f` at 2026-11-15T03:07:48Z:
   - `vitest-full-without-isolated` (`architecture`, `dependency-policy`, `dist-integration`, `documentation-full`, `fast-remainder`, `fast-resource-sensitive`, `history-compatibility`, `image-compatibility`, `launch-integration`, `naming-full`, `package-contracts`, `package-smoke`, `package-startup`, `pi-engine-conformance`, `release-update`, `rendering-stability`, `typecheck`, `unix-release`, `update-performance`, `update-predecessor`) failed on macos-15-node24, ubuntu-24.04-node24, windows-2025-node22 (core shard), windows-2025-node24 (core shard) with exit 1.
