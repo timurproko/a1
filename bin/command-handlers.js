@@ -49,10 +49,6 @@ export function createCommandHandlers(packageRoot) {
       const { runApiCommand } = await import("../dist/cli/api.js");
       return runApiCommand(arguments_);
     },
-    sessionColor: async arguments_ => {
-      const { runSessionColorCommand } = await import("../dist/cli/session-color.js");
-      return runSessionColorCommand(arguments_);
-    },
     sessionContext: async request => {
       const { runSessionContextCommand } = await import("../dist/cli/session-context.js");
       return runSessionContextCommand(request);

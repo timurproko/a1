@@ -23,7 +23,6 @@ export interface CliHandlers {
   readonly update: (channel: UpdateChannel, target?: string) => Promise<number>;
   readonly packages: (request: PackageCommandRequest) => Promise<number>;
   readonly sessionContext: (request: SessionContextRequest) => Promise<number>;
-  readonly sessionColor?: (arguments_: readonly string[]) => Promise<number>;
   readonly api?: (arguments_: readonly string[]) => Promise<number>;
   /** Removes A1 from the machine; absent in hosts that cannot uninstall. */
   readonly uninstall?: (request: { readonly yes: boolean; readonly purge: boolean }) => Promise<number>;
@@ -59,7 +58,6 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "worktree detach",
     "worktree complete [--change <id>] [--pr <number>]",
     "worktree list",
-    "session color capabilities | list | get [--session <id>] | set <color> [--session <id>]",
     "api <request-json>",
     "session worktrees",
     "session link-worktree <path>",
@@ -105,14 +103,6 @@ export function cliHelp(capabilities: CliCapabilities): string {
     `  ${command} worktree detach`,
     `  ${command} worktree complete [--change <id>] [--pr <number>]`,
     `  ${command} worktree list`,
-    "",
-    "Session colors (always JSON; explicit session id required outside the session shell):",
-    `  ${command} session color capabilities`,
-    `  ${command} session color list`,
-    `  ${command} session color get --session <id>`,
-    `  ${command} session color set <color> --session <id>`,
-    "  Capabilities: version 1, launchColor and terminalIdentity booleans; no interactive/Core startup.",
-    "  Core-hosted bare A1 reports a1.session, a1.runtime, a1.at automatically; comparison is unchanged.",
     "",
     'Integration API: a1 api \'{"version":1,"id":"discovery","type":"capabilities"}\'',
     "  Versioned JSON request/response; exact sessionId and runtimeId required for live operations.",
@@ -165,11 +155,6 @@ export async function dispatchCli(
     output.stdout(`${JSON.stringify({ version: 1, id: null, type: "response", command: null, success: false, error: { code: "control-unavailable", message: "Integration API is unavailable in this host." } })}\n`);
     return 1;
   }
-  if (command.kind === "session-color") {
-    if (handlers.sessionColor) return await handlers.sessionColor(command.arguments);
-    output.stdout(`${JSON.stringify({ error: { code: "control-unavailable", message: "Session color API is unavailable in this host." } })}\n`);
-    return 1;
-  }
   if (command.kind === "uninstall") return handlers.uninstall ? await handlers.uninstall(command.request) : 2;
   return await handlers.update(command.channel, command.target);
 }
@@ -185,7 +170,6 @@ export type CliCommand =
   | { readonly kind: "update"; readonly channel: UpdateChannel; readonly target?: string }
   | { readonly kind: "packages"; readonly request: PackageCommandRequest }
   | { readonly kind: "session-context"; readonly request: SessionContextRequest }
-  | { readonly kind: "session-color"; readonly arguments: readonly string[] }
   | { readonly kind: "api"; readonly arguments: readonly string[] }
   | { readonly kind: "uninstall"; readonly request: { readonly yes: boolean; readonly purge: boolean } }
   | { readonly kind: "error"; readonly message: string };
@@ -211,7 +195,6 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
   if (command === "api") return { kind: "api", arguments: rest };
   if (command === "update") return parseUpdate(rest, capabilities.runningChannel ?? "stable");
   if (command === "worktree") return parseWorktree(rest);
-  if (command === "session" && rest[0] === "color") return { kind: "session-color", arguments: rest.slice(1) };
   if (command === "session") return parseSessionContext(rest);
   if (command?.startsWith("update:") || ["agent", "solo", "ui", "tabs"].includes(command ?? "")) {
     return { kind: "error", message: PRODUCT_TEXT.diagnostic("unsupported reserved command; use -- before a literal instruction.") };

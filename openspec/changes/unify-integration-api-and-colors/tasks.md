@@ -6,9 +6,9 @@
 
 ## 2. Exact-session API and color semantics
 
-- [ ] 2.1 Wire the public CLI and existing private IPC to the shared application services with mandatory session/runtime targeting.
-- [ ] 2.2 Remove retired color commands and migrate existing runtime/CLI fixtures, help and integration documentation.
-- [ ] 2.3 Preserve startup override, session replacement, acknowledged application, expiry, disconnection and peer isolation behavior.
+- [x] 2.1 Wire the public CLI and existing private IPC to the shared application services with mandatory session/runtime targeting.
+- [x] 2.2 Remove retired color commands and migrate existing runtime/CLI fixtures, help and integration documentation.
+- [x] 2.3 Preserve startup override, session replacement, acknowledged application, expiry, disconnection and peer isolation behavior.
 
 ## 3. Shared Herdr client and coordinated migration
 
