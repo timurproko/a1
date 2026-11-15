@@ -108,6 +108,8 @@ export function cliHelp(capabilities: CliCapabilities): string {
     "",
     'Integration API: a1 api \'{"version":1,"id":"discovery","type":"capabilities"}\'',
     "  Versioned JSON request/response; exact sessionId and runtimeId required for live operations.",
+    "  Operations: capabilities, settings.list, settings.get, settings.update, session.get, session.lifecycle, session.exit.",
+    "  session.exit stops an idle session through the /quit path only when nothing would be lost; admitted is not exited.",
     "",
     "Session context (compatibility aliases):",
     `  ${command} session worktrees`,

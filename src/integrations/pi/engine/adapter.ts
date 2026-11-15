@@ -65,6 +65,13 @@ export class EngineDeliveryError extends Error {
 
 type PiSessionApi = AgentSession;
 
+// Rationale: exit readiness must not consume the queue; pinned Pi exposes a read-only pending count and lists.
+function pendingQueuedCount(session: Partial<Pick<PiSessionApi, "pendingMessageCount" | "getSteeringMessages" | "getFollowUpMessages">>): number | null {
+  if (typeof session.pendingMessageCount === "number" && Number.isSafeInteger(session.pendingMessageCount) && session.pendingMessageCount >= 0) return session.pendingMessageCount;
+  const steering = session.getSteeringMessages?.(), followUp = session.getFollowUpMessages?.();
+  return Array.isArray(steering) && Array.isArray(followUp) ? steering.length + followUp.length : null;
+}
+
 export interface PiEngineAdapterOptions {
   readonly cwd?: string;
   readonly agentDir?: string;
@@ -455,6 +462,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
       disposed: () => this.#disposed,
       executeWorkflow: request => this.executeWorkflow(request),
       clearQueuedWorkflows: () => this.clearQueuedWorkflows(),
+      queuedWorkflowCount: () => this.#disposed || !this.#engine.runtime || !this.#engine.session ? null : pendingQueuedCount(this.#engine.session),
       setWorkflowInteractionHost: interaction => { this.#workflowInteraction = interaction; },
       announceReleaseUpdate: release => { this.#announceReleaseUpdate(release); },
       resolveTranscriptImage: assetId => this.#projection.assets.resolve(assetId),

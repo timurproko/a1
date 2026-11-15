@@ -30,6 +30,7 @@ function harness() {
     disposed: () => disposed,
     executeWorkflow: vi.fn(),
     clearQueuedWorkflows: vi.fn(() => []),
+    queuedWorkflowCount: vi.fn(() => 0),
     setWorkflowInteractionHost: vi.fn(),
     announceReleaseUpdate: vi.fn(),
     resolveTranscriptImage: vi.fn(() => null),
