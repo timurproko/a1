@@ -32,9 +32,25 @@ export interface SmokeRunner {
   close(): Promise<void>;
 }
 export function updateCommandBudgetMs(platform?: NodeJS.Platform): number;
+export interface SmokeSystemEvent {
+  readonly log: string;
+  readonly id: number;
+  readonly time: string;
+  readonly provider: string;
+  readonly message: string;
+}
+export interface SmokeSystemEvents {
+  readonly events: readonly SmokeSystemEvent[];
+  readonly antimalware: Record<string, unknown> | null;
+}
+export function readWindowsSystemEvents(since: string, options?: {
+  platform?: NodeJS.Platform;
+  execute?: (file: string, args: string[], options: Record<string, unknown>) => Promise<{ stdout: string }>;
+}): Promise<SmokeSystemEvents>;
 export function smokePublishedInstaller(options?: {
   environment?: NodeJS.ProcessEnv;
   createRunner?: (root: string) => SmokeRunner;
   removeFixture?: (root: string) => Promise<void>;
   writeDiagnostic?: (text: string) => void;
+  readSystemEvents?: (since: string) => Promise<SmokeSystemEvents>;
 }): Promise<void>;

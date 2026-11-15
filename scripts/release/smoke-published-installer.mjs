@@ -1,10 +1,13 @@
-import { chmod, mkdtemp, mkdir, open, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { execFile as execFileCallback } from "node:child_process";
+import { chmod, lstat, mkdtemp, mkdir, open, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { promisify } from "node:util";
 import { createPublishedSmokeRunner } from "./published-smoke-processes.mjs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { compareVersions, resolveInstallerNpmCli, sanitizeDiagnostic } from "../../packages/a1-install/bin/a1-install.js";
 
+const execFile = promisify(execFileCallback);
 const COMMAND_BUDGET_MS = 10 * 60_000;
 /**
  * The published updater waits fifteen minutes for its protected-replacement worker before it cancels
@@ -23,16 +26,19 @@ export async function smokePublishedInstaller({
   environment = process.env, createRunner = createPublishedSmokeRunner,
   removeFixture = root => rm(root, { recursive: true, force: true, maxRetries: 4, retryDelay: 200 }),
   writeDiagnostic = text => process.stderr.write(text),
+  readSystemEvents = readWindowsSystemEvents,
 } = {}) {
   const version = environment.RELEASE_VERSION;
   const channel = environment.RELEASE_CHANNEL;
   const output = resolve(environment.PUBLISHED_INSTALLER_EVIDENCE ?? ".artifacts/validation/published-installer.json");
+  const startedAt = new Date().toISOString();
   let root;
   let runner;
   let stage = "prepare";
   let childOutcome;
   let evidence;
   let primaryError;
+  let applicationPackageName = "";
   /** Stage name to accumulated child-command milliseconds; dates each phase of a long Windows run. */
   const timings = {};
   const safe = value => {
@@ -62,6 +68,7 @@ export async function smokePublishedInstaller({
     }
     const installerSource = JSON.parse(await readFile(resolve("packages", "a1-install", "package.json"), "utf8"));
     const applicationSource = JSON.parse(await readFile(resolve("package.json"), "utf8"));
+    applicationPackageName = applicationSource.name;
     root = await realpath(await mkdtemp(resolve(tmpdir(), "a1-published-installer-")));
     runner = createRunner(root);
     const bootstrapPrefix = resolve(root, "bootstrap");
@@ -195,6 +202,11 @@ export async function smokePublishedInstaller({
       timings,
       processes,
       processHistory: runner?.history ? sanitizedHistory(runner.history(), safe) : null,
+      // Rationale: a detached tree that vanishes on the hosted runner but not locally is named by the
+      // machine's own records (antimalware remediation, application crash, shutdown), not by npm's.
+      systemEvents: await readSystemEvents(startedAt).then(events => sanitizedSystemEvents(events, safe))
+        .catch(error => ({ error: safe(error instanceof Error ? error.message : error) })),
+      replacementState: root ? await replacementState(root, applicationPackageName, safe).catch(error => ({ error: safe(error.message) })) : {},
       updateRecords: root ? await updateRecordTails(root, safe).catch(error => ({ error: safe(error.message) })) : {},
       npmLogs: root ? await npmLogIdentities(resolve(root, "npm-cache", "_logs")).catch(() => []) : [],
       npmDiagnostics: root ? await npmDiagnosticTails(resolve(root, "npm-cache", "_logs"), safe)
@@ -251,6 +263,73 @@ function sanitizedHistory(history, safe) {
       executable: safe(row.executable), argv: safe(row.argv.join(" ")),
     })),
   };
+}
+
+const WINDOWS_EVENT_QUERY = `
+$ErrorActionPreference = 'SilentlyContinue'
+$since = [datetime]::Parse('__SINCE__').ToUniversalTime()
+$rows = @()
+$rows += @(Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-Windows Defender/Operational'; StartTime=$since} -MaxEvents 40)
+$rows += @(Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName=@('Application Error','Windows Error Reporting','.NET Runtime'); StartTime=$since} -MaxEvents 40)
+$rows += @(Get-WinEvent -FilterHashtable @{LogName='System'; Id=@(7031,7034,1074,6008); StartTime=$since} -MaxEvents 20)
+$events = @($rows | Where-Object { $_ } | Select-Object @{n='log';e={$_.LogName}},@{n='id';e={$_.Id}},@{n='time';e={$_.TimeCreated.ToUniversalTime().ToString('o')}},@{n='provider';e={$_.ProviderName}},@{n='message';e={if ($_.Message) { $_.Message.Substring(0, [Math]::Min(600, $_.Message.Length)) } else { '' }}})
+$status = Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled, BehaviorMonitorEnabled, AntivirusEnabled, AntivirusSignatureVersion, AMEngineVersion
+$json = @{ events = $events; antimalware = $status } | ConvertTo-Json -Compress -Depth 4
+[Console]::Write([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json)))
+`;
+
+/**
+ * Windows records since the fixture began: antimalware detections and actions, application crashes and
+ * error reports, service failures and shutdowns, plus the antimalware status. Empty elsewhere.
+ */
+export async function readWindowsSystemEvents(since, { platform = process.platform, execute = execFile } = {}) {
+  if (platform !== "win32") return { events: [], antimalware: null };
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u.test(since)) throw new Error("invalid system event window");
+  // Security: the window is validated above, so substituting it is safe; the encoded form survives quoting and line breaks.
+  const script = Buffer.from(WINDOWS_EVENT_QUERY.replace("__SINCE__", since), "utf16le").toString("base64");
+  const { stdout } = await execute("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", script], {
+    encoding: "utf8", windowsHide: true, timeout: 30_000, maxBuffer: 8 * 1024 * 1024,
+  });
+  const parsed = JSON.parse(Buffer.from(stdout.trim(), "base64").toString("utf8") || "{}");
+  const events = Array.isArray(parsed.events) ? parsed.events : parsed.events ? [parsed.events] : [];
+  return { events, antimalware: parsed.antimalware ?? null };
+}
+
+function sanitizedSystemEvents(records, safe) {
+  const events = (records?.events ?? []).slice(0, 100).map(event => ({
+    log: safe(event.log), id: event.id, time: event.time, provider: safe(event.provider), message: safe(event.message).slice(0, 600),
+  }));
+  return { events, antimalware: records?.antimalware ?? null };
+}
+
+/** How far npm got in each prefix: retired trees, the installed manifest version, and what the launchers run. */
+async function replacementState(root, packageName, safe) {
+  const state = {};
+  const scope = packageName.split("/")[0];
+  for (const prefix of ["application", "update-application"]) {
+    const prefixRoot = resolve(root, prefix);
+    const modules = resolve(prefixRoot, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules");
+    const entries = await readdir(modules).catch(() => null);
+    if (entries === null) continue;
+    const manifest = await readFile(resolve(modules, ...packageName.split("/"), "package.json"), "utf8")
+      .then(text => JSON.parse(text).version ?? null).catch(() => null);
+    const launchers = {};
+    const launcherRoot = process.platform === "win32" ? prefixRoot : resolve(prefixRoot, "bin");
+    for (const name of process.platform === "win32" ? ["a1", "a1.cmd", "a1.ps1"] : ["a1"]) {
+      const metadata = await lstat(resolve(launcherRoot, name)).catch(() => null);
+      if (!metadata) continue;
+      launchers[name] = metadata.isSymbolicLink()
+        ? { link: safe(await realpath(resolve(launcherRoot, name)).catch(() => "unresolved")) }
+        : { content: safe((await readFile(resolve(launcherRoot, name), "utf8").catch(() => "")).slice(0, 600)) };
+    }
+    state[prefix] = {
+      retired: entries.filter(entry => entry.startsWith(".")).slice(0, 20),
+      scoped: entries.includes(scope),
+      installedVersion: manifest,
+      launchers,
+    };
+  }
+  return state;
 }
 
 async function npmDiagnosticTails(directory, safe) {

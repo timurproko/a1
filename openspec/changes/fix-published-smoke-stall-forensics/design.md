@@ -21,8 +21,16 @@ Windows inventory samples run PowerShell every ten seconds during a long command
 
 ## Implementation observations
 
-Not yet implemented.
+The runner samples while any command whose budget is at least five minutes runs, every ten seconds by default, one sample in flight at a time, and awaits the in-flight sample before the command result returns. Sampling calls the same selection as settlement with recording disabled, so a reused process identifier seen only by sampling never trips settlement's identity check; the focused test proves close succeeds after such a reuse. `history()` reports sample and error counts, the last error, and per-process first and last sightings keyed by pid and start identity; the smoke writes it as `processHistory` with sanitized executable and arguments, bounded to eighty rows.
+
+Windows records are read by one PowerShell invocation passed as an encoded command (a multi-line `-Command` fails to parse), with the validated ISO window substituted into the script, a thirty-second limit, and base64 output. It queries the Defender operational log, Application providers Application Error, Windows Error Reporting, and .NET Runtime, and System identifiers 7031, 7034, 1074, and 6008, each capped, and `Get-MpComputerStatus` real-time, behavior-monitoring, antivirus, signature, and engine fields. The smoke writes up to one hundred sanitized events with messages bounded to six hundred characters, or the reader error. On other platforms the reader returns no events without executing anything.
+
+Replacement state lists, per prefix, dot-prefixed retired entries under `node_modules`, whether the package scope directory exists, the installed manifest version, and the sanitized leading content or link target of each public launcher.
+
+The reader run on the developer machine reported Defender real-time protection and behavior monitoring disabled there, while the hosted runner image enables both. That is the first concrete environmental difference between the passing local runs and the failing hosted runs.
+
+Local targeted validation: core build, both typechecks, architecture boundaries, full code-documentation policy, strict OpenSpec validation, both focused test files including the native Windows settlement and event-log cases, and one complete local smoke of the staged 0.2.7-dev.1319 pair, which still passes in about seventy seconds.
 
 ## Known gaps
 
-The terminator of the detached tree is still unidentified; this change adds the records that name it.
+The terminator of the detached tree is still unidentified; this change adds the records that name it. The local observation that antimalware is disabled on the developer machine is a lead, not a confirmed cause.
