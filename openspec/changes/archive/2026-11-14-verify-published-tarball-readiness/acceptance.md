@@ -19,7 +19,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-14-verify-published-tarball-readiness/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-14-verify-published-tarball-readiness/acceptance.md",
   "finalizedDate": "2026-11-14",
-  "specBaseSha": "74b2e6f6c0d2da9bc06f171a3b1a6b9cf966a09e",
+  "specBaseSha": "18f387aa4ffe026b980cc65b2fd07644216950e7",
   "acceptanceScenarios": [
     "Registry readiness requires both downloadable tarballs to match their validated SHA-512 and SHA-1 digests.",
     "Failed native installation, predecessor update, or launcher checks leave user-facing npm tags unchanged.",
