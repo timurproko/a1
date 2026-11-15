@@ -51,7 +51,7 @@ describe("update CLI dispatch", () => {
     await writeFile(loader, `
 import { appendFileSync } from "node:fs";
 export async function resolve(specifier, context, nextResolve) {
-  if (((process.argv.includes("version") || process.argv.includes("--version")) && specifier.includes("/dist/foundation/release/"))) {
+  if (specifier.includes("/dist/foundation/release/") || specifier.includes("/dist/composition/") || specifier.includes("/dist/integrations/pi/") || specifier.endsWith("/bin/ui.js")) {
     appendFileSync(${JSON.stringify(forbiddenImportLog)}, specifier + "\\n");
     throw new Error("Update imported forbidden interactive runtime module: " + specifier);
   }
@@ -94,7 +94,7 @@ else process.exitCode = 64;
     expect(packageJson.bin).toEqual({ "a1": "bin/cli.js" });
 
     const cli = resolve(isolatedBuildRoot, packageJson.bin["a1"] ?? "missing");
-    const removed = await execFileAsync(process.execPath, [cli, "update:develop"], {
+    const removed = execFileAsync(process.execPath, [cli, "update:develop"], {
       cwd: temporaryRoot,
       env: {
         ...process.env,
@@ -108,8 +108,14 @@ else process.exitCode = 64;
       },
       timeout: 15_000,
     });
-    expect(removed).toMatchObject({ stdout: "", stderr: "" });
+    await expect(removed).rejects.toMatchObject({
+      code: 2,
+      stdout: "",
+      stderr: "a1 unsupported reserved command; use -- before a literal instruction.\n",
+    });
     await expect(access(npmLog)).rejects.toThrow();
+    await expect(access(forbiddenImportLog)).rejects.toThrow();
+    await expect(access(runtimeDirectory)).rejects.toThrow();
 
     const result = await execFileAsync(process.execPath, [cli, "version"], {
       cwd: temporaryRoot,
