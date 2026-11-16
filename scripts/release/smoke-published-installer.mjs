@@ -148,9 +148,10 @@ export async function smokePublishedInstaller({
     if (predecessorVersion === version) throw new Error("published candidate is already advertised; predecessor update smoke requires a distinct public predecessor");
     const updatePrefix = resolve(root, "update-application");
     const updateBin = process.platform === "win32" ? updatePrefix : resolve(updatePrefix, "bin");
+    const updateDataDir = resolve(root, "update-data");
     const updateEnvironment = {
       ...installedEnvironment, npm_config_prefix: updatePrefix,
-      A1_CONFIG_DIR: resolve(root, "update-config"), A1_DATA_DIR: resolve(root, "update-data"), A1_RUNTIME_DIR: resolve(root, "update-runtime"),
+      A1_CONFIG_DIR: resolve(root, "update-config"), A1_DATA_DIR: updateDataDir, A1_RUNTIME_DIR: resolve(root, "update-runtime"),
       PUBLISHED_SMOKE_VERSION: predecessorVersion,
       PATH: [bridgeBin, updateBin, bootstrapBin, environment.PATH ?? ""].join(delimiter),
     };
@@ -160,7 +161,7 @@ export async function smokePublishedInstaller({
     });
     const updatedRoot = resolve(updatePrefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", ...applicationSource.name.split("/"));
     updateEnvironment.PUBLISHED_SMOKE_VERSION = version;
-    const observation = await prepareRecoveryObservation({ root, packageRoot: updatedRoot, dataDir: updateEnvironment.A1_DATA_DIR, version, environment: updateEnvironment });
+    const observation = await prepareRecoveryObservation({ root, packageRoot: updatedRoot, dataDir: updateDataDir, version, environment: updateEnvironment });
     stage = "update-predecessor";
     const updateLauncher = resolve(updateBin, process.platform === "win32" ? "a1.cmd" : "a1");
     try {
@@ -193,7 +194,7 @@ export async function smokePublishedInstaller({
     const updatedManifest = JSON.parse(await readFile(resolve(updatedRoot, "package.json"), "utf8"));
     if (updatedManifest.name !== applicationSource.name || updatedManifest.version !== version) throw new Error("predecessor update selected the wrong application package");
     if (upgradeMethod === "installer-recovery") {
-      const state = JSON.parse(await readFile(resolve(updateEnvironment.A1_DATA_DIR, "release-state.json"), "utf8"));
+      const state = JSON.parse(await readFile(resolve(updateDataDir, "release-state.json"), "utf8"));
       if (state.releases?.[state.references?.active]?.packageVersion !== version) throw new Error("installer recovery did not activate the exact candidate");
       const launched = await execute(updateLauncher, ["version"], { cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: 30_000 });
       if (!launched.stdout.includes(version)) throw new Error("recovered launcher reported the wrong version");
