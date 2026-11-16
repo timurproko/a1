@@ -1,8 +1,9 @@
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPublishedSmokeRunner } from "../../scripts/release/published-smoke-processes.mjs";
+import { updateCommandBudgetMs } from "../../scripts/release/smoke-published-installer.mjs";
 import type { ProcessSnapshot } from "../../scripts/development/checkout-process-inspection.mjs";
 
 const roots: string[] = [];
@@ -29,6 +30,30 @@ describe("published smoke process ownership", () => {
       expect(overflow.stdout.length).toBeLessThanOrEqual(128_000);
     } finally { await runner.close(); }
   });
+
+  it("enforces the five-minute update boundary without stopping the child before settlement", async () => {
+    const root = await fixture();
+    const runner = createPublishedSmokeRunner(root);
+    try {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        let settled = false;
+        const run = Promise.resolve(runner.run(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+          cwd: root, env: process.env, timeout: updateCommandBudgetMs(),
+        }));
+        void run.then(() => { settled = true; });
+        await vi.advanceTimersByTimeAsync(299_999);
+        expect(settled).toBe(false);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(await run).toMatchObject({ status: null, signal: null, error: { code: "ETIMEDOUT", message: "published smoke command timed out after 300000ms" } });
+      } finally { vi.useRealTimers(); }
+      const owned = await runner.inventory!();
+      expect(owned.length).toBeGreaterThan(0);
+      expect(owned.every(record => alive(record.pid))).toBe(true);
+      await runner.close();
+      expect(owned.some(record => alive(record.pid))).toBe(false);
+    } finally { await runner.close(); }
+  }, 20_000);
 
   it("returns an observed owner failure promptly without killing the shell before fixture settlement", async () => {
     const root = await fixture();
@@ -115,7 +140,7 @@ describe("published smoke process ownership", () => {
     await expect(runner.close()).resolves.toBeUndefined();
   });
 
-  it.each([30_000, 119_999, 120_000])("samples commands only at or above the two-minute budget boundary: %sms", async timeout => {
+  it.each([30_000, 119_999, 120_000, 300_000])("samples commands only at or above the two-minute budget boundary: %sms", async timeout => {
     const root = await fixture();
     let lists = 0;
     const runner = createPublishedSmokeRunner(root, { self: 2, sampleIntervalMs: 5, list: async () => { lists += 1; return [row(2, 1, "2")]; } });

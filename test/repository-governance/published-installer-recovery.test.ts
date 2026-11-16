@@ -40,7 +40,7 @@ async function runFixture(fault = "") {
         run: async (_command, args, options): Promise<SmokeChildResult> => {
           if (args[0] === "view") return { ...ok, stdout: JSON.stringify(prior) };
           if (args[0] === "update") {
-            expect(options.timeout).toBe(120_000);
+            expect(options.timeout).toBe(300_000);
             calls.push("direct-update");
             return { ...ok, status: null, signal: fault === "cancelled" ? "SIGINT" : null, error: new Error("original direct-update timeout"), stdout: `update ${prior} to ${target}` };
           }
