@@ -82,7 +82,7 @@ function shortJobName(name) {
 function publicationStepCounter(job) {
   const steps = job.steps;
   if (job.conclusion === "skipped" || !Array.isArray(steps) || steps.length === 0
-    || steps.some(step => !step || !["queued", "in_progress", "completed"].includes(step.status))) return "";
+    || steps.some(step => !step || !["pending", "queued", "in_progress", "completed"].includes(step.status))) return "";
   const current = job.conclusion === "success" ? steps.length
     : steps.findLastIndex(step => step.status === "in_progress" || step.status === "completed") + 1;
   return ` (${current}/${steps.length})`;
