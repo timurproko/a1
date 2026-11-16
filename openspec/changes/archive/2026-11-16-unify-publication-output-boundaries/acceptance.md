@@ -24,7 +24,7 @@ The maintainer integration decision accepts these scenarios:
     "Empty progress reuses the header separator, and redraws or terminal fallbacks preserve follow-up alignment.",
     "Failure details retain bounded diagnostics with left-margin bullet markers, and workflow success still requires registry verification."
   ],
-  "archiveDigest": "240b8ed3fadc86bdb36f1a8358708caaf3075d669f4894ae5ffaaaadd478ad8a",
+  "archiveDigest": "9069f9e518bb822d0c365ac341fdf24fc4b8c1483d6a22035433ba8afec2b8e3",
   "specDigest": "330fda17393079a94b582482ef9366ea7e7df4aa532f9d2d477aa86af44fbe72",
   "tasksDigest": "326d50c9fb121969aa40b885860170d93ab66ef18afbe128b596c00722ef1855",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
