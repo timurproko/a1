@@ -35,22 +35,30 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await bare.shell.submit("/name Direct Name");
     expect(bare.engine.session.calls).toContain("name:Direct Name");
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
-    expect(stripTerminalSequences(bare.shell.root.render(100).join("\n"))).toContain("Session name set: direct name");
+    expect(stripTerminalSequences(bare.shell.root.render(100).join("\n"))).not.toContain("Session name set:");
 
     await bare.shell.submit("/name");
+    await vi.waitFor(() => {
+      const field = bare.shell.root.render(100).find(row => stripTerminalSequences(row).trimStart().startsWith(">"))!;
+      expect(cellStyle(field, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
+    });
     const inputRows = bare.shell.root.render(100);
     const inputFrame = inputRows.map(stripTerminalSequences).join("\n");
     const title = inputRows.find(row => stripTerminalSequences(row).includes("Session Name"))!;
     const hints = inputRows.find(row => stripTerminalSequences(row).includes("Enter submit"))!;
     expect(inputFrame).toContain("Session Name");
+    expect(inputFrame).toContain("> direct name");
     expect(inputFrame).toContain("Enter submit  Esc close");
     expect(inputFrame).not.toContain("Ctrl+C");
     expect(inputFrame).not.toContain("Usage: /name <name>");
     expect(firstVisibleTextColumn(hints)).toBe(firstVisibleTextColumn(title));
     expect(cellStyle(title, "S")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("S")), "S"));
-    expect(inputRows[inputRows.indexOf(title) + 2]?.trimStart()).toMatch(/^>/);
+    const fieldRow = inputRows[inputRows.indexOf(title) + 2]!;
+    expect(stripTerminalSequences(fieldRow).trimStart()).toMatch(/^>/);
+    expect(cellStyle(fieldRow, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(false);
 
+    for (const _ of "direct name") bare.terminal.input("\x7f");
     bare.terminal.input(" Renamed ");
     bare.terminal.input("\r");
     await nextImmediate();
@@ -58,11 +66,14 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(bare.engine.session.name).toBe("renamed");
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
     const namedFrame = stripTerminalSequences(bare.shell.root.render(100).join("\n"));
-    expect(namedFrame).toContain("Session name set: renamed");
+    expect(namedFrame).not.toContain("Session name set:");
+    expect(bare.shell.view().status.footer?.sessionName).toBe("renamed");
 
     const resultCount = bare.engine.session.calls.length;
     const namedResultCount = namedFrame.match(/Session name set:/g)?.length;
     await bare.shell.submit("/name");
+    expect(stripTerminalSequences(bare.shell.root.render(100).join("\n"))).toContain("> renamed");
+    for (const _ of "renamed") bare.terminal.input("\x7f");
     bare.terminal.input("   ");
     bare.terminal.input("\r");
     await nextImmediate();
@@ -87,7 +98,89 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await comparison.shell.submit("/name");
     expect(comparison.shell.root.usesDefaultInputSurface()).toBe(true);
     expect(stripTerminalSequences(comparison.shell.root.render(100).join("\n"))).toContain("Warning: Usage: /name <name>");
+    await comparison.shell.submit("/name Comparison");
+    expect(stripTerminalSequences(comparison.shell.root.render(100).join("\n"))).toContain("Session name set: comparison");
     await comparison.shell.dispose();
+  });
+
+  it("starts unnamed sessions empty and selects existing names for immediate replacement", async () => {
+    const bare = await fixture([], [], true);
+    await bare.shell.submit("/name");
+    const rows = bare.shell.root.render(100).map(stripTerminalSequences);
+    expect(rows.find(row => row.trimStart().startsWith(">"))?.trim()).toBe(">");
+    bare.terminal.input("Project");
+    bare.terminal.input("\r");
+    await nextImmediate();
+    await vi.waitFor(() => expect(bare.engine.session.name).toBe("project"));
+
+    await bare.shell.submit("/name");
+    expect(stripTerminalSequences(bare.shell.root.render(100).join("\n"))).toContain("> project");
+    bare.terminal.input("\x1b[F");
+    bare.terminal.input(" Alpha");
+    bare.terminal.input("\r");
+    await nextImmediate();
+    await vi.waitFor(() => expect(bare.engine.session.name).toBe("project alpha"));
+
+    await bare.shell.submit("/name");
+    bare.terminal.input("Replacement");
+    bare.terminal.input("\r");
+    await vi.waitFor(() => expect(bare.engine.session.name).toBe("replacement"));
+
+    await bare.shell.submit("/name");
+    bare.terminal.input(" unsaved");
+    bare.terminal.input("\x1b");
+    await nextImmediate();
+    expect(bare.engine.session.name).toBe("replacement");
+    expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
+    await bare.shell.dispose();
+  });
+
+  it("routes name-field mouse selection and editing shortcuts without touching the prompt draft", async () => {
+    const copied: string[] = [];
+    const bare = await fixture([], [], true, undefined, {
+      readText: async () => "Pasted",
+      writeText: async text => { copied.push(text); },
+    });
+    try {
+      bare.terminal.resize(80, 24);
+      await bare.shell.submit("/name Alpha Project");
+      bare.shell.root.editor.setText("retained prompt draft");
+      await bare.shell.runWorkflow({ command: "name", argument: "" });
+      bare.shell.runtime.renderNow();
+      const rows = bare.shell.root.render(80).map(stripTerminalSequences);
+      const row = rows.findIndex(line => line.includes("> alpha project")) + 1;
+      const column = rows[row - 1]!.indexOf("alpha") + 1;
+      bare.terminal.input(`\x1b[<0;${column};${row}M\x1b[<32;${column + 5};${row}M\x1b[<0;${column + 5};${row}m`);
+      expect(bare.shell.root.viewport.hasSelection).toBe(false);
+      bare.terminal.input("\x03");
+      await vi.waitFor(() => expect(copied).toEqual(["alpha"]));
+      expect(bare.shell.root.usesDefaultInputSurface()).toBe(false);
+      expect(bare.engine.session.name).toBe("alpha project");
+      expect(bare.shell.root.editor.getText()).toBe("retained prompt draft");
+      bare.terminal.input("\x01");
+      bare.terminal.input("\x18");
+      await vi.waitFor(() => expect(copied).toEqual(["alpha", "alpha project"]));
+      bare.terminal.input("\x1a");
+      expect(stripTerminalSequences(bare.shell.root.render(80).join("\n"))).toContain("> alpha project");
+      bare.terminal.input("\x16");
+      await vi.waitFor(() => expect(stripTerminalSequences(bare.shell.root.render(80).join("\n"))).toContain("> Pasted"));
+      bare.terminal.input("\x1a");
+      bare.terminal.input("\x01");
+      bare.terminal.input("Final Name");
+      bare.terminal.input("\r");
+      await nextImmediate();
+      expect(bare.engine.session.name).toBe("final name");
+      expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
+      expect(bare.shell.root.editor.getText()).toBe("retained prompt draft");
+
+      await bare.shell.runWorkflow({ command: "name", argument: "" });
+      bare.terminal.input("\x01");
+      bare.terminal.input("discarded");
+      bare.terminal.input("\x1b");
+      await nextImmediate();
+      expect(bare.engine.session.name).toBe("final name");
+      expect(bare.shell.root.editor.getText()).toBe("retained prompt draft");
+    } finally { await bare.shell.dispose(); }
   });
 
   it("persists thinking defaults immediately without changing the active level or comparison mode", async () => {
@@ -101,7 +194,8 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(plain).not.toContain("[default]");
     expect(plain).not.toContain("●");
     expect(plain.match(/Moderate reasoning/g)).toHaveLength(1);
-    expect(plain.match(/\bmedium\b/g)).toHaveLength(1);
+    expect(plain.match(/\bmedium\b/g)).toHaveLength(2);
+    expect(stripTerminalSequences(bare.shell.root.footer.render(100)[1]!)).toContain("gpt-5 [openai] • medium");
     expect(plain).toContain("Type search  Enter select  Space default  Esc close");
     expect(plain).not.toContain("Ctrl+S");
     expect(plain).not.toContain("Escape/Ctrl+C");
@@ -136,8 +230,99 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await comparison.shell.submit("/thinking");
     const comparisonFrame = comparison.shell.root.render(100).map(stripTerminalSequences).join("\n");
     expect(comparisonFrame).toContain("Shift+Tab cycles thinking levels in-session");
+    expect(stripTerminalSequences(comparison.shell.root.footer.render(100)[1]!)).not.toContain("medium");
+    comparison.terminal.input("\x1b");
+    expect(stripTerminalSequences(comparison.shell.root.footer.render(100)[1]!)).toContain("medium");
     expect(comparison.shell.root.editor.keybindingConfig()["app.thinking.cycle"]).toBe("shift+tab");
     await comparison.shell.dispose();
+  });
+
+  it.each(["command", "footer"] as const)("keeps the active footer level visible through thinking edits opened by %s", async via => {
+    const value = await fixture([], [], true);
+    Object.assign(value.engine.session, { getAvailableThinkingLevels: () => ["low", "medium", "high"] });
+    try {
+      value.shell.root.editor.setText("retained draft");
+      const footer = () => stripTerminalSequences(value.shell.root.footer.render(100)[1]!);
+      const open = async () => {
+        if (via === "command") await value.shell.runWorkflow({ command: "thinking", argument: "" });
+        else {
+          await vi.waitFor(() => expect(value.shell.root.chrome.footerName).toBeDefined());
+          value.shell.runtime.renderNow();
+          const region = value.shell.root.chrome.footerName?.region("thinking")!;
+          value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
+        }
+        await vi.waitFor(() => expect(value.shell.root.usesDefaultInputSurface()).toBe(false));
+      };
+      await open();
+      expect(footer()).toContain("gpt-5 [openai] • medium");
+      value.shell.root.handleInput("low");
+      value.shell.root.handleInput(" ");
+      await vi.waitFor(() => expect(value.engine.defaultThinkingLevel).toBe("low"));
+      expect(value.engine.session.thinkingLevel).toBe("medium");
+      expect(footer()).toContain("gpt-5 [openai] • medium");
+      value.shell.root.handleInput("\r");
+      await vi.waitFor(() => expect(value.engine.session.thinkingLevel).toBe("low"));
+      await vi.waitFor(() => expect(footer()).toContain("gpt-5 [openai] • low"));
+      await open();
+      expect(footer()).toContain("gpt-5 [openai] • low");
+      value.terminal.input("\x1b");
+      expect(footer()).toContain("gpt-5 [openai] • low");
+      expect(value.shell.root.editor.getText()).toBe("retained draft");
+    } finally { await value.shell.dispose(); }
+  });
+
+  it("holds a name-to-thinking replacement until the lazy dialog is ready", async () => {
+    const gate = Promise.withResolvers<void>();
+    const lazySelectors: PiShellLazySelectorLoader = {
+      prepare: async () => {},
+      createThinking: async options => { await gate.promise; return piShellLazySelectors.createThinking(options); },
+      createTree: options => piShellLazySelectors.createTree(options),
+    };
+    const value = await fixtureWithLazySelectors(lazySelectors);
+    try {
+      value.shell.root.editor.setText("retained draft during replacement");
+      await value.shell.runWorkflow({ command: "name", argument: "" });
+      await vi.waitFor(() => {
+        value.shell.runtime.renderNow();
+        expect(value.shell.root.chrome.footerName?.activeControl).toBe("name");
+      });
+      const region = value.shell.root.chrome.footerName?.region("thinking")!;
+      const writesBefore = value.terminal.writes.length;
+      value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
+      expect(value.shell.runtime.presentationHeld).toBe(true);
+      value.shell.runtime.renderNow(true);
+      expect(value.terminal.writes).toHaveLength(writesBefore);
+      expect(value.shell.root.editor.getText()).toBe("retained draft during replacement");
+      gate.resolve();
+      await vi.waitFor(() => expect(value.shell.runtime.presentationHeld).toBe(false));
+      value.shell.runtime.renderNow(true);
+      expect(value.shell.root.chrome.footerName?.activeControl).toBe("thinking");
+      expect(stripTerminalSequences(value.shell.root.render(100).join("\n"))).toContain("Thinking Level");
+      expect(stripTerminalSequences(value.terminal.writes.slice(writesBefore).join(""))).not.toContain("retained draft during replacement");
+    } finally { gate.resolve(); await value.shell.dispose(); }
+  });
+
+  it("restores the retained prompt and releases a failed lazy replacement", async () => {
+    const lazySelectors: PiShellLazySelectorLoader = {
+      prepare: async () => {},
+      createThinking: async () => { throw new Error("Thinking unavailable"); },
+      createTree: options => piShellLazySelectors.createTree(options),
+    };
+    const value = await fixtureWithLazySelectors(lazySelectors);
+    try {
+      value.shell.root.editor.setText("retained draft after failure");
+      await value.shell.runWorkflow({ command: "name", argument: "" });
+      await vi.waitFor(() => {
+        value.shell.runtime.renderNow();
+        expect(value.shell.root.chrome.footerName?.activeControl).toBe("name");
+      });
+      const region = value.shell.root.chrome.footerName?.region("thinking")!;
+      value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
+      await vi.waitFor(() => expect(stripTerminalSequences(value.shell.root.render(100).join("\n"))).toContain("Thinking unavailable"));
+      expect(value.shell.runtime.presentationHeld).toBe(false);
+      expect(value.shell.root.usesDefaultInputSurface()).toBe(true);
+      expect(value.shell.root.editor.getText()).toBe("retained draft after failure");
+    } finally { await value.shell.dispose(); }
   });
 
   it("presents thinking only after its pending lazy selector is ready", async () => {

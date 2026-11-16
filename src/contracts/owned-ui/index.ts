@@ -279,4 +279,6 @@ export type {
   OwnedUiShellTrustSelectorOptions,
   OwnedUiShellTrustUpdate,
   OwnedUiShellViewComponentPort,
+  OwnedUiShellFooterControl,
+  OwnedUiShellFooterControlSpan,
 } from "./shell-components.js";

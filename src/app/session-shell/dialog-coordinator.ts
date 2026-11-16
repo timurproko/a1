@@ -1,23 +1,42 @@
-import type { OwnedUiShellComponents, OwnedUiShellSelectorOption } from "../../contracts/owned-ui/index.js";
+import type { OwnedUiShellComponents, OwnedUiShellSelectorOption, OwnedUiShellFooterControl } from "../../contracts/owned-ui/index.js";
 import type { ShellPresentationPorts, TerminalComponentPort } from "../../contracts/presentation/index.js";
 import type { TerminalOverlayHandle } from "../../contracts/presentation/index.js";
 import type { OwnedUiCommandResult, OwnedUiDialog } from "../../contracts/owned-ui/index.js";
 import type { UiRouteHost, UiRouteInput } from "../../ui/apps/contracts.js";
 import { InputRoute } from "./input-route.js";
+import type { FooterNameInteraction } from "./footer-name-interaction.js";
 import type { OwnedUiPresenterTerminal } from "./shell-host.js";
 import type { OwnedUiSessionShellOptions, OwnedUiSessionShellRoot } from "./session-shell-root.js";
 
 type StartupRoute = NonNullable<OwnedUiSessionShellOptions["engine"]["startupRoute"]>;
 
+type NameEditing = Pick<FooterNameInteraction, "handleInput" | "onSessionReplaced" | "dispose">;
+
+function lazyFooterNameEditing(ports: ConstructorParameters<typeof FooterNameInteraction>[0]): NameEditing {
+  let delegate: FooterNameInteraction | undefined;
+  let disposed = false;
+  setImmediate(() => {
+    if (disposed) return;
+    void import("./footer-name-interaction.js").then(({ FooterNameInteraction }) => {
+      if (!disposed) { delegate = new FooterNameInteraction(ports); ports.terminal.requestRender(); }
+    }).catch(() => {});
+  });
+  return {
+    handleInput: data => delegate?.handleInput(data) ?? { data, consumed: false },
+    onSessionReplaced() { delegate?.onSessionReplaced(); },
+    dispose() { disposed = true; delegate?.dispose(); },
+  };
+}
+
 const OVERLAY_OPTIONS = { width: "70%", maxHeight: "80%", anchor: "center", inputCoordination: "owned" } as const;
 const STARTUP_ROUTE_RETRY_MS = 25;
 
 interface SessionDialogPorts {
-  readonly terminal: Pick<OwnedUiPresenterTerminal, "running" | "hasOverlay" | "showOverlay" | "openRoute" | "requestRender">;
+  readonly terminal: Pick<OwnedUiPresenterTerminal, "running" | "hasOverlay" | "showOverlay" | "openRoute" | "requestRender"> & { beginPresentationHold?(): () => void };
   readonly presentation?: Pick<ShellPresentationPorts, "theme" | "terminalRuntime">;
   readonly viewport?: () => { rows: number };
   readonly inPlaceSession?: boolean;
-  readonly root: Pick<OwnedUiSessionShellRoot, "chrome" | "setInputSurface" | "usesDefaultInputSurface">;
+  readonly root: Pick<OwnedUiSessionShellRoot, "chrome" | "setInputSurface" | "usesDefaultInputSurface" | "handleInput">;
   readonly routeHost: UiRouteHost | null;
   readonly dialogs: Pick<OwnedUiShellComponents["dialogs"], "dialog" | "selector">;
   readonly disposed: () => boolean;
@@ -26,10 +45,12 @@ interface SessionDialogPorts {
   /** A rendered route closed itself. */
   readonly routeClosed?: (route: string) => void;
   readonly startupRoute?: StartupRoute;
+  readonly editName?: (control: OwnedUiShellFooterControl) => void | Promise<unknown>;
 }
 
 /** Coordinates owned routes, dock dialogs, and backend overlays through one replacement/close lifecycle. */
 export class SessionDialogCoordinator {
+  readonly nameEditing: NameEditing | undefined;
   readonly #ports: SessionDialogPorts;
   #handle: { hide(): void; close?(): void } | undefined;
   #id: string | undefined;
@@ -43,6 +64,10 @@ export class SessionDialogCoordinator {
   constructor(ports: SessionDialogPorts) {
     this.#ports = ports;
     this.#startupRoute = ports.startupRoute;
+    this.nameEditing = ports.editName === undefined ? undefined : lazyFooterNameEditing({
+      root: ports.root, terminal: ports.terminal, edit: ports.editName,
+      disposed: ports.disposed,
+    });
   }
 
   /** Apps may cover a full-screen route, but never steal another dialog's local shortcuts. */
@@ -222,10 +247,12 @@ export class SessionDialogCoordinator {
 
   /** A replaced session takes its dialog with it; a retained startup route still opens. */
   onSessionReplaced(): void {
+    this.nameEditing?.onSessionReplaced();
     this.#close();
   }
 
   dispose(): void {
+    this.nameEditing?.dispose();
     if (this.#startupRouteTimer !== undefined) clearTimeout(this.#startupRouteTimer);
     this.#startupRouteTimer = undefined;
     this.#apps?.hide();
