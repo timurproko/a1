@@ -12,7 +12,7 @@
 
 ## 3. Open name editing from the footer without losing a prompt draft
 
-- [ ] 3.1 Expose the rendered footer-name span for bounded hover and right-click hit testing without changing adjacent footer text or comparison behavior.
-- [ ] 3.2 Add a compact borderless `Edit` context menu using the pre-pivot dark popup surface, one-cell side padding, normal labels, and accent-selected hover treatment.
-- [ ] 3.3 Route Edit directly to the prefilled name workflow while retaining prompt text and attachments through submission or cancellation.
-- [ ] 3.4 Add focused cases for hover bounds, right-click menu placement and dismissal, clipped/resized names, draft retention, and unchanged unnamed/comparison behavior.
+- [x] 3.1 Expose the rendered footer-name span for bounded hover and right-click hit testing without changing adjacent footer text or comparison behavior.
+- [x] 3.2 Add a compact borderless `Edit` context menu using the pre-pivot dark popup surface, one-cell side padding, normal labels, and accent-selected hover treatment.
+- [x] 3.3 Route Edit directly to the prefilled name workflow while retaining prompt text and attachments through submission or cancellation.
+- [x] 3.4 Add focused cases for hover bounds, right-click menu placement and dismissal, clipped/resized names, draft retention, and unchanged unnamed/comparison behavior.

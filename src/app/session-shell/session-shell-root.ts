@@ -758,7 +758,9 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     const footer = this.#extensions.footer ?? this.footer;
     if (!this.#customViewport) return footer.render(width);
     width = Math.max(0, width - 2);
-    return footer.render(width).map(row => ` ${this.#componentRuntime.components.text.truncateToWidth(row, width)}`);
+    const ownRows = this.chrome.footerName?.render(this.footer, width, this.#componentRuntime.getRows(), this.#extensions.footer === null) ?? footer.render(width);
+    const rows = this.#extensions.footer === null ? ownRows : footer.render(width);
+    return rows.map(row => ` ${this.#componentRuntime.components.text.truncateToWidth(row, width)}`);
   }
 
   #setToolsExpanded(expanded: boolean): void {

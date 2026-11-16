@@ -156,6 +156,7 @@ describe("pinned extension UI bridge", () => {
     const onCopyText = vi.fn();
     const value = fixture({ onCopyText, readClipboardContent: async () => ({ kind: "text", text: "Beta" }) });
     const result = value.bridge.input("Session Name", "", { initialValue: "Alpha", sessionNameEditing: true });
+    await value.inputSurface!.ready;
     const key = (data: string) => value.inputSurface!.handleInput!(data);
     const inputRow = () => value.inputSurface!.render(60).find(row => stripTerminalSequences(row).trimStart().startsWith(">"))!;
     key("\x01");
@@ -196,6 +197,7 @@ describe("pinned extension UI bridge", () => {
     const onCopyText = vi.fn();
     const value = fixture({ onCopyText });
     const result = value.bridge.input("Session Name", "", { initialValue: "A界e\u0301🙂Z", sessionNameEditing: true });
+    await value.inputSurface!.ready;
     const surface = value.inputSurface!;
     const rows = surface.render(60);
     const row = rows.findIndex(row => stripTerminalSequences(row).trimStart().startsWith(">")) + 1;
@@ -218,6 +220,7 @@ describe("pinned extension UI bridge", () => {
     const onCopyText = vi.fn();
     const value = fixture({ onCopyText });
     const result = value.bridge.input("Session Name", "", { initialValue: "0123456789界Z", sessionNameEditing: true });
+    await value.inputSurface!.ready;
     const surface = value.inputSurface!;
     const narrow = surface.render(15);
     const input = narrow.findIndex(row => stripTerminalSequences(row).trimStart().startsWith(">"));
@@ -241,6 +244,7 @@ describe("pinned extension UI bridge", () => {
   it("keeps pasted text single-line, bounded, and undoable without interpreting embedded shortcuts", async () => {
     const value = fixture();
     const result = value.bridge.input("Session Name", "", { initialValue: "Alpha", sessionNameEditing: true });
+    await value.inputSurface!.ready;
     const surface = value.inputSurface!;
     surface.handleInput!("\x01");
     surface.handleInput!("\x1b[200~New\r\n");
@@ -264,12 +268,14 @@ describe("pinned extension UI bridge", () => {
       return new Promise(resolve => { complete = resolve; });
     } });
     const first = value.bridge.input("Session Name", "", { initialValue: "First", sessionNameEditing: true });
+    await value.inputSurface!.ready;
     value.inputSurface!.handleInput!("\x16");
     await Promise.resolve();
     value.inputSurface!.handleInput!("\x1b");
     await expect(first).resolves.toBeUndefined();
     expect(signals[0]!.aborted).toBe(true);
     const second = value.bridge.input("Session Name", "", { initialValue: "Second", sessionNameEditing: true });
+    await value.inputSurface!.ready;
     complete({ kind: "text", text: "stale" });
     await new Promise(resolve => setImmediate(resolve));
     value.inputSurface!.handleInput!("\x16");
@@ -279,6 +285,25 @@ describe("pinned extension UI bridge", () => {
     await new Promise(resolve => setImmediate(resolve));
     value.inputSurface!.handleInput!("\r");
     await expect(second).resolves.toBe("Second edited");
+    value.bridge.dispose();
+  });
+
+  it("retains early pointer and keyboard input while name editing loads", async () => {
+    const onCopyText = vi.fn();
+    const value = fixture({ onCopyText });
+    const result = value.bridge.input("Session Name", "", { initialValue: "Alpha", sessionNameEditing: true });
+    const surface = value.inputSurface!;
+    const rows = surface.render(60);
+    const row = rows.findIndex(row => stripTerminalSequences(row).trimStart().startsWith(">")) + 1;
+    surface.handleLocalMouse!({ kind: "press", button: 0, column: 4, row });
+    surface.handleLocalMouse!({ kind: "motion", button: 0, column: 9, row });
+    surface.handleLocalMouse!({ kind: "release", button: 0, column: 9, row });
+    surface.handleInput!("\x03");
+    await surface.ready;
+    expect(onCopyText).toHaveBeenLastCalledWith("Alpha", false);
+    expect(value.inputSurface).toBe(surface);
+    surface.handleInput!("\x1b");
+    await expect(result).resolves.toBeUndefined();
     value.bridge.dispose();
   });
 

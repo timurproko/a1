@@ -10,6 +10,11 @@ import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortc
 type Mouse = Parameters<NonNullable<OwnedUiShellComponentPort["handleLocalMouse"]>>[0];
 type Clipboard = Pick<OwnedUiShellExtensionUiBridgeHost, "onCopyText" | "readClipboardContent">;
 interface Snapshot { readonly value: string; readonly caret: number; readonly anchor: number | undefined }
+interface NameDialogPorts extends Clipboard {
+  readonly submit: (value: string) => void;
+  readonly cancel: () => void;
+  readonly requestRender: () => void;
+}
 const MAX_LENGTH = 4_096;
 const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 const DELETE_ACTIONS = ["tui.editor.deleteCharBackward", "tui.editor.deleteCharForward", "tui.editor.deleteWordBackward", "tui.editor.deleteWordForward", "tui.editor.deleteToLineStart", "tui.editor.deleteToLineEnd"] as const;
@@ -20,10 +25,7 @@ function singleLine(text: string): string {
 
 /** Compact naming surface with prompt-consistent selection, isolated from public extension inputs. */
 export class SessionNameDialog implements OwnedUiShellComponentPort {
-  readonly #clipboard: Clipboard;
-  readonly #submit: (value: string) => void;
-  readonly #cancel: () => void;
-  readonly #requestRender: () => void;
+  readonly #ports: NameDialogPorts;
   readonly #paste = new BracketedPasteFramer(MAX_LENGTH * 4);
   readonly #undo: Snapshot[] = [];
   readonly #reads = new Set<AbortController>();
@@ -38,17 +40,14 @@ export class SessionNameDialog implements OwnedUiShellComponentPort {
   #disposed = false;
   #revision = 0;
 
-  constructor(initialValue: string, clipboard: Clipboard, submit: (value: string) => void, cancel: () => void, requestRender: () => void) {
+  constructor(initialValue: string, ports: NameDialogPorts) {
     this.#value = "";
     for (const { segment } of GRAPHEMES.segment(singleLine(initialValue))) {
       if (this.#value.length + segment.length > MAX_LENGTH) break;
       this.#value += segment;
     }
     this.#caret = this.#value.length;
-    this.#clipboard = clipboard;
-    this.#submit = submit;
-    this.#cancel = cancel;
-    this.#requestRender = requestRender;
+    this.#ports = ports;
   }
 
   invalidate(): void {}
@@ -86,10 +85,10 @@ export class SessionNameDialog implements OwnedUiShellComponentPort {
     } else if (matchesKey(data, "ctrl+c") && this.#selection() !== undefined) {
       this.#copy();
     } else if (keys.matches(data, "tui.select.cancel") || matchesKey(data, "ctrl+c")) {
-      this.#cancel();
+      this.#ports.cancel();
       return;
     } else if (keys.matches(data, "tui.select.confirm") || data === "\n") {
-      this.#submit(this.#value);
+      this.#ports.submit(this.#value);
       return;
     } else if (matchesKey(data, "ctrl+z")) {
       const previous = this.#undo.pop();
@@ -132,7 +131,7 @@ export class SessionNameDialog implements OwnedUiShellComponentPort {
       if (text.length > 0 && !/[\u0000-\u001f\u007f-\u009f]/u.test(text)) this.#replace(singleLine(text));
     }
     this.#revision++;
-    this.#requestRender();
+    this.#ports.requestRender();
   }
 
   handleLocalMouse(event: Mouse): void {
@@ -147,7 +146,7 @@ export class SessionNameDialog implements OwnedUiShellComponentPort {
       if (event.kind === "release") this.#dragging = false;
     } else return;
     this.#revision++;
-    this.#requestRender();
+    this.#ports.requestRender();
   }
 
   dispose(): void {
@@ -186,17 +185,17 @@ export class SessionNameDialog implements OwnedUiShellComponentPort {
 
   #copy(cut = false): void {
     const range = this.#selection();
-    if (range !== undefined) this.#clipboard.onCopyText?.(this.#value.slice(range.from, range.to), cut);
+    if (range !== undefined) this.#ports.onCopyText?.(this.#value.slice(range.from, range.to), cut);
   }
 
   #readClipboard(): void {
     const revision = this.#revision;
     const read = new AbortController();
     this.#reads.add(read);
-    void Promise.resolve().then(() => this.#clipboard.readClipboardContent?.(read.signal)).then(content => {
+    void Promise.resolve().then(() => this.#ports.readClipboardContent?.(read.signal)).then(content => {
       if (this.#disposed || read.signal.aborted || revision !== this.#revision || content?.kind !== "text") return;
       this.#replace(singleLine(content.text));
-      this.#requestRender();
+      this.#ports.requestRender();
     }).catch(() => {}).finally(() => this.#reads.delete(read));
   }
 

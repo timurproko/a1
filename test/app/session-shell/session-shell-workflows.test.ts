@@ -38,6 +38,10 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(stripTerminalSequences(bare.shell.root.render(100).join("\n"))).toContain("Session name set: direct name");
 
     await bare.shell.submit("/name");
+    await vi.waitFor(() => {
+      const field = bare.shell.root.render(100).find(row => stripTerminalSequences(row).trimStart().startsWith(">"))!;
+      expect(cellStyle(field, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
+    });
     const inputRows = bare.shell.root.render(100);
     const inputFrame = inputRows.map(stripTerminalSequences).join("\n");
     const title = inputRows.find(row => stripTerminalSequences(row).includes("Session Name"))!;
@@ -104,14 +108,14 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     bare.terminal.input("Project");
     bare.terminal.input("\r");
     await nextImmediate();
-    expect(bare.engine.session.name).toBe("project");
+    await vi.waitFor(() => expect(bare.engine.session.name).toBe("project"));
 
     await bare.shell.submit("/name");
     expect(stripTerminalSequences(bare.shell.root.render(100).join("\n"))).toContain("> project");
     bare.terminal.input(" Alpha");
     bare.terminal.input("\r");
     await nextImmediate();
-    expect(bare.engine.session.name).toBe("project alpha");
+    await vi.waitFor(() => expect(bare.engine.session.name).toBe("project alpha"));
 
     await bare.shell.submit("/name");
     bare.terminal.input(" unsaved");

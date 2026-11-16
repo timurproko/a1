@@ -2,9 +2,10 @@
  * Provenance: @earendil-works/pi-coding-agent 1.5.2 (MIT), commit b4afdddf44e059c67ccf5097e5317d913521b470,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
  * Modifications: A1 PR links, model/name priority over stats, level colors, secondary-accent name
- * reveals, dim name/row clipping; Pi intact.
+ * reveals, dim name/row clipping, and explicit visible-name geometry with accent-selected hover for
+ * context editing; Pi intact.
  * Deviations: owned-status-level-color, owned-pull-request-badge, owned-footer-ellipsis,
- * owned-footer-model-priority, owned-session-name-reveal.
+ * owned-footer-model-priority, owned-session-name-reveal, owned-footer-name-context-edit.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { hyperlink, stripTerminalSequences, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
@@ -15,6 +16,8 @@ import { sessionNameFrame } from "../../../../../ui/components/session-name-fram
 export class SessionFooter implements Component {
   #reveal: { readonly from: string; readonly elapsed: number } | null = null;
   #nameBudget = Number.MAX_SAFE_INTEGER;
+  #nameHovered = false;
+  #nameSpan: { readonly row: number; readonly column: number; readonly width: number } | undefined;
   private readonly getView;
   private readonly cwd;
   private readonly profile;
@@ -24,6 +27,9 @@ export class SessionFooter implements Component {
   }
   invalidate(): void {}
   dispose(): void { this.#reveal = null; }
+
+  footerNameSpan(): { readonly row: number; readonly column: number; readonly width: number } | undefined { return this.#nameSpan; }
+  setNameHovered(hovered: boolean): void { this.#nameHovered = hovered; }
 
   setNameReveal(frame: { readonly from: string; readonly elapsed: number } | null): boolean {
     this.#reveal = this.profile === "a1" ? frame : null;
@@ -54,6 +60,7 @@ export class SessionFooter implements Component {
   }
 
   render(width: number): string[] {
+    this.#nameSpan = undefined;
     const view = this.getView();
     const usage = view.status.usage;
     const theme = piTheme();
@@ -138,7 +145,10 @@ export class SessionFooter implements Component {
       const statsBudget = this.#nameBudget < visibleWidth(sessionName) ? 0
         : Math.max(0, width - rightWidth - 2 - this.#nameBudget - 3);
       left = statsBudget >= 4 ? truncateToWidth(left, statsBudget, dimEllipsis) : "";
-      left = (left ? left + theme.fg("dim", " • ") : "") + this.#nameFrame(sessionName, this.#nameBudget).text;
+      const prefix = left ? left + theme.fg("dim", " • ") : "";
+      const name = this.#nameFrame(sessionName, this.#nameBudget).text;
+      this.#nameSpan = { row: 1, column: visibleWidth(prefix), width: visibleWidth(name) };
+      left = prefix + (this.#nameHovered ? theme.bg("selectedBg", name) : name);
       leftWidth = visibleWidth(left);
     }
     let line: string;

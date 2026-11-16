@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-16T13:32:33.794Z",
+  "recordedAt": "2026-11-16T13:43:40.949Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "b4afdddf44e059c67ccf5097e5317d913521b470",
@@ -1905,9 +1905,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "A1 PR links, model/name priority over stats, level colors, secondary-accent name reveals, dim name/row clipping; Pi intact.",
+      "modifications": "A1 PR links, model/name priority over stats, level colors, secondary-accent name reveals, dim name/row clipping, and explicit visible-name geometry with accent-selected hover for context editing; Pi intact.",
       "upgradeStrategy": "three-way",
-      "localSha256": "47e00b13437d56b41b1857f1d49eb2a500a4f3e4076335773958a03d8ea93f31",
+      "localSha256": "64a26783a073cc6e06b7f4e5454f37bbf78f4b7e86673713ee32c473452a4635",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1938,6 +1938,12 @@
           "reason": "Approved context-aware-session-naming places bare-A1 session names after stats with secondary-accent reveals; contextual-session-names reserves the name ahead of detailed statistics and optional provider/route text.",
           "upstreamBehavior": "The comparison footer retains its path-row name. Bare A1 preserves path/PR and model identity, reduces detailed stats before clipping names, and never animates authoritative terminal-title text.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        },
+        {
+          "id": "owned-footer-name-context-edit",
+          "reason": "Approved improve-session-name-dialog exposes only visible bare-A1 name cells for accent-selected hover and a draft-preserving right-click Edit menu.",
+          "upstreamBehavior": "Comparison, unnamed, and extension-replaced footers retain their existing behavior; neighboring footer metadata remains outside the name target.",
+          "acceptanceTest": "test/app/session-shell/footer-name-menu.test.ts"
         }
       ],
       "behaviorCategories": [
