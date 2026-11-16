@@ -114,17 +114,71 @@ Close shortcut guidance SHALL keep Ctrl+C implicit. A close or cancel hint SHALL
 - **WHEN** no dismissible surface owns input and the active editor, terminal surface, comparison profile, or non-opted-in application host receives Ctrl+C
 - **THEN** that surface's existing interrupt, clear, copy, close-chord, or exit behavior SHALL remain unchanged
 
+### Requirement: The bare-A1 thinking selector uses the established selector treatment
+The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic accent color, matching the heading treatment used by the Models configuration surface. Its resolved cycle hint SHALL render in semantic muted grey on the immediately following row. Repeated available-level values SHALL collapse to one row. Every level row SHALL begin with a fixed-width exclusive-radio marker that differs from the Models dialog's multi-select state: the configured default SHALL use exactly one semantic accent-colored `◉`, and every non-default level SHALL use a semantic dim `○`. One space after that marker, every row SHALL render its unpadded level name. The active session level SHALL have exactly one semantic success-green checkmark one space immediately after the final visible cell of its level name, matching the item-adjacent active treatment used by other dialogs; the checkmark SHALL NOT be delayed to a shared marker column. Width-balancing padding SHALL follow the optional active marker so every description renders inline in semantic muted grey and begins at the same column regardless of active/default placement. The selector SHALL NOT render the textual `[default]` marker. Space SHALL immediately persist the highlighted level as the configured global default, move the single selected radio to that row, and replace the previous row's marker with an unselected radio without closing the selector, changing the active session level, or creating an unsaved state. Enter SHALL continue selecting the highlighted session level, and only Escape SHALL close the selector. Ctrl+C SHALL NOT close the selector or invoke cancellation. The shortcut footer SHALL use semantic hint styling and read `Type search  Enter select  Space default  Esc close`. While the bare-A1 selector is open, the shell footer SHALL keep its current thinking-level suffix visible with its normal foreground. Default-only changes SHALL NOT change that displayed active level; selecting a new session level SHALL update it through the existing workflow. The interaction change SHALL preserve the selector's borders, search input, navigation, filtering, focus, restoration behavior, narrow-width bounds, and comparison-profile isolation.
+
+#### Scenario: Render the thinking selector heading
+- **WHEN** the user opens the bare-A1 thinking selector
+- **THEN** the heading SHALL read `Thinking Level`
+- **AND** every heading cell SHALL use the active theme's accent color and bold emphasis
+- **AND** the resolved cycle hint SHALL use semantic muted grey on the row directly below the heading
+
+#### Scenario: Render level rows
+- **WHEN** the selector displays selected and unselected level rows
+- **THEN** repeated available-level values SHALL render exactly once
+- **AND** every row SHALL begin with a fixed exclusive-radio marker followed by one space and the unpadded level name
+- **AND** only the configured default level SHALL use a semantic accent-colored `◉`
+- **AND** every non-default level SHALL use a semantic dim `○`
+- **AND** no row SHALL render the Models multi-select `●` or the textual `[default]` marker
+- **AND** only the active session level SHALL place one semantic success-green checkmark one space immediately after its name
+- **AND** trailing width-balancing space SHALL follow the optional active checkmark rather than separate it from the name
+- **AND** every description SHALL use semantic muted grey and begin at the same column regardless of active/default placement
+- **AND** the shell footer SHALL retain its current thinking-level suffix while the selector is open
+- **AND** closing the selector SHALL leave the current suffix visible without a hide/restore transition
+
+#### Scenario: Interact with the styled selector
+- **WHEN** the user filters or navigates levels, selects a session level, changes the default level, or closes the selector
+- **THEN** the selector SHALL retain its specified interaction and restoration outcomes
+- **AND** heading and row styling SHALL NOT alter list geometry, narrow-width bounds, focus, or instruction placement
+
+#### Scenario: Stage and save a default level
+- **WHEN** the user highlights a level and presses Space
+- **THEN** the single selected radio `◉` SHALL move to that level immediately
+- **AND** the previous default row SHALL render `○`
+- **AND** that level SHALL be persisted as the global default immediately
+- **AND** the selector SHALL remain open
+- **AND** the active session level, its footer suffix, and its item-adjacent checkmark SHALL remain unchanged
+- **AND** no unsaved label or staged state SHALL appear
+
+#### Scenario: Select or close
+- **WHEN** the user presses Enter on a highlighted level
+- **THEN** that level SHALL be selected for the session through the existing selection workflow
+- **WHEN** the user presses Escape
+- **THEN** the selector SHALL close and restore its parent surface
+- **WHEN** the user presses Ctrl+C
+- **THEN** the selector SHALL remain open and SHALL NOT invoke cancellation
+
+#### Scenario: Render compact controls
+- **WHEN** the bare-A1 thinking selector is open
+- **THEN** its semantic shortcut footer SHALL read `Type search  Enter select  Space default  Esc close` in that order
+- **AND** `Type` SHALL use the quiet key role while `search` uses the action-text role
+- **AND** it SHALL NOT advertise Ctrl+S, `Escape/Ctrl+C`, or the verbose `to select`, `to set as default`, or `to cancel` wording
+
+#### Scenario: Preserve comparison behavior
+- **WHEN** the user opens the thinking selector through `a1 pi`
+- **THEN** the pinned comparison selector SHALL retain its existing interactions and presentation
+
 ## ADDED Requirements
 
 ### Requirement: Footer controls offer draft-preserving direct editing
 
-Bare A1's visible session name, active model name, and thinking level SHALL independently highlight on hover using the subtle live accent-selected background while retaining their ordinary foreground. Each control SHALL reserve exactly one blank cell on each side of its text, included in its hover and click target. Hover SHALL NOT shift layout or cover neighboring labels, separators, or provider metadata. A normal left-click SHALL directly open Session Name, Models, or Thinking Level respectively, without a context menu or prompt submission.
+Bare A1's visible session name, active model name, and thinking level SHALL independently highlight on hover using the subtle live accent-selected background while retaining their ordinary foreground. Each control's hover and click target SHALL fit its visible text only and SHALL NOT insert blank side characters. Hover SHALL NOT shift layout or cover neighboring labels, separators, or provider metadata. A normal left-click SHALL directly open Session Name, Models, or Thinking Level respectively, without a context menu or prompt submission.
 
-Opening, submitting, or cancelling these dialogs SHALL retain the ordinary prompt draft and its attachments. Hit testing SHALL follow explicit current painted spans, including clipping, gutters, suppressed fields, and resize. Invisible, unnamed, missing-model, suppressed-level, comparison-profile, and extension-replaced footer controls SHALL expose no fabricated target. The initiating pointer gesture SHALL NOT propagate to the opened dialog or underlying prompt.
+Opening, submitting, or cancelling these dialogs SHALL retain the ordinary prompt draft and its attachments. Footer hover SHALL remain active while a dock dialog is open; clicking a footer control in that state SHALL close the active dialog through its ordinary Escape/cancel path without saving edits or opening a nested dialog. Floating overlays SHALL continue blocking background footer controls. Hit testing SHALL follow explicit current painted spans, including clipping, gutters, suppressed fields, and resize. Invisible, unnamed, missing-model, suppressed-level, comparison-profile, and extension-replaced footer controls SHALL expose no fabricated target. The initiating pointer gesture SHALL NOT propagate to the opened dialog or underlying prompt.
 
 #### Scenario: Hover and directly edit a footer name
-- **WHEN** the pointer enters the footer-name target or its one-cell side padding
-- **THEN** the name and exactly one blank cell on each side SHALL receive subtle hover background without shifting text
+- **WHEN** the pointer enters the visible footer-name text
+- **THEN** only that text SHALL receive subtle hover background without extra spaces or layout shift
 - **WHEN** the user normally left-clicks the target
 - **THEN** the fully selected name dialog SHALL open directly without a context menu
 
@@ -136,11 +190,17 @@ Opening, submitting, or cancelling these dialogs SHALL retain the ordinary promp
 
 #### Scenario: Open model and thinking selectors consistently
 - **WHEN** the user hovers and left-clicks the visible model name
-- **THEN** it SHALL use the shared padded hover treatment and open Models
+- **THEN** it SHALL use the shared text-only hover treatment and open Models
 - **WHEN** the user hovers and left-clicks the visible thinking level
 - **THEN** it SHALL use the same treatment and open Thinking Level
 
+#### Scenario: Toggle an open dock dialog from the footer
+- **WHEN** Session Name, Models, or Thinking Level is open in the dock and the pointer enters a footer control
+- **THEN** its text SHALL still highlight on hover
+- **WHEN** the user clicks the control again
+- **THEN** the active dialog SHALL close through its Escape path without committing edits or losing the prompt draft and attachments
+
 #### Scenario: Bound footer interaction to painted geometry
 - **WHEN** footer controls are clipped, suppressed, absent, or resized
-- **THEN** only their currently visible padded spans SHALL be interactive
+- **THEN** only their currently visible text spans SHALL be interactive
 - **AND** neighboring metadata and comparison or extension-replaced footers SHALL NOT acquire those targets

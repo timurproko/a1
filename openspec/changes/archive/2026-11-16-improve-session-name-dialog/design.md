@@ -36,6 +36,12 @@ Bare-A1 successful naming must update persisted session state, footer, and termi
 
 Optional name-field code loads on demand behind the existing compact input placeholder with ordered bounded keyboard/pointer buffering. Footer interaction prepares after the first synchronous frame; ordinary input routing remains untouched until ready. Use owning controllers for state so the shell/root size ratchets and startup budget remain unchanged. Retain copied-source provenance and existing cancellation/disposal boundaries.
 
+### Latest footer refinements
+
+The user subsequently withdrew hover padding: name, model, and thinking controls must not insert blank side characters, and highlight/hit geometry fits visible text only. This supersedes the earlier padding decisions and preserves the compact layout. The bare-A1 thinking selector no longer hides the active footer level, including while changing only the configured default. Comparison suppression remains unchanged.
+
+Footer controls remain hoverable while a dock dialog owns input. A control click while a dock replacement is active sends Escape to that active surface through its existing input/cancellation path rather than applying its contents, opening a nested dialog, or modifying the prompt. A click with the ordinary prompt active opens the requested dialog as before. Floating overlays remain an interaction boundary; background controls do not activate through them. Consume the click's remaining gesture after opening or closing.
+
 ## Risks and delivery
 
-Cover complete shell pointer routing, not only direct component input. Check word selection on wide graphemes and scrolled names, selection retention on release, padded target exclusion of neighboring metadata, and prompt/attachment retention. Deliver the six ordered task groups in the PR; trusted automation owns refinalization and exact-head CI. No migration is required.
+Cover complete shell pointer routing, not only direct component input. Check word selection on wide graphemes and scrolled names, selection retention on release, padded target exclusion of neighboring metadata, and prompt/attachment retention. Deliver the nine ordered task groups in the PR; trusted automation owns refinalization and exact-head CI. No migration is required.

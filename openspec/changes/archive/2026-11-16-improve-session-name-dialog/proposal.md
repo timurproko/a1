@@ -7,9 +7,10 @@ Session renaming should edit the existing name with familiar selection and clipb
 - Prefill bare-A1 `/name` with the current name and select it fully so typing immediately replaces it; unnamed sessions start empty.
 - Support mouse drag selection, double-click word selection, triple-click full-name selection, Ctrl+A, Ctrl+Z, Ctrl+X, Ctrl+C, and Ctrl+V with prompt-matching selection colors and unchanged Enter/Escape hints.
 - Give selected-text copying precedence over Ctrl+C dismissal; retain silent cancellation when no text is selected.
-- Add one-cell left/right padding to the footer name's hover and click target. Normal left-click opens the name dialog directly, retaining the prompt draft and attachments.
+- Fit hover and click targets to footer text without added side spaces. Normal left-click opens the name dialog directly, retaining the prompt draft and attachments.
 - Remove the initially implemented right-click Edit menu as explicitly superseded by the direct-click refinement.
-- Give the footer's model name and thinking level matching padded hover and direct-click access to their existing selectors, preserving the prompt draft.
+- Give the footer's model name and thinking level matching text-only hover and direct-click access to their existing selectors, preserving the prompt draft.
+- Keep the active thinking level visible while its selector is open. Keep footer hover active over dock dialogs and make a repeated click cancel through the existing Escape path.
 - Suppress bare-A1's successful `Session name set:` message; preserve genuine errors, naming normalization/persistence, unrelated dialogs, and comparison behavior.
 
 ## Capabilities

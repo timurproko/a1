@@ -35,3 +35,19 @@
 - [x] 6.1 Expose separate padded hover/click geometry for the visible active model and thinking level, excluding separators and unrelated metadata.
 - [x] 6.2 Open the existing Models or Thinking Level modal on a normal left-click without submitting or clearing the retained prompt.
 - [x] 6.3 Add model/level hover, click, draft retention, clipping, resize, and comparison/absent-target cases.
+
+## 7. Keep the active thinking level visible during selection
+
+- [ ] 7.1 Stop suppressing the bare-A1 footer level while Thinking Level is open; preserve comparison behavior.
+- [ ] 7.2 Cover opening, default-only changes, session-level selection, and cancellation with the current footer level still visible.
+
+## 8. Restore text-only footer controls without added spaces
+
+- [ ] 8.1 Remove the previously requested side padding from name, model, and thinking text, fitting hover/click geometry to visible text only.
+- [ ] 8.2 Preserve compact spacing, foreground roles, clipping priorities, and adjacent metadata; update focused geometry and layout cases.
+
+## 9. Toggle dock dialogs from the still-hoverable footer
+
+- [ ] 9.1 Keep footer hover active while a dock dialog owns input and route a repeated control click through its normal Escape path.
+- [ ] 9.2 Preserve drafts, attachments, and cancellation effects without applying unsaved name, model, or thinking edits.
+- [ ] 9.3 Cover repeated clicks and slash-opened dialogs while keeping floating-overlay and comparison boundaries unchanged.
