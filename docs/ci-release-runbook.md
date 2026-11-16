@@ -266,20 +266,21 @@ log retains the complete detail. Every observer exit leaves exactly one blank li
 between the last status row and subsequent output, including success, failure,
 interruption, unavailable or malformed status, and local waiting errors. With no
 visible jobs, the header's existing blank separator is reused. This applies to
-live updates and append-only fallbacks alike; only job-status rows are indented.
+live updates and append-only fallbacks alike. Job-status dots and failure-detail
+asterisks share two leading spaces in every output mode.
 A failure's plain heading keeps the existing `[develop]` prefix without a dot;
-the unindented log link comes next, then a blank line and left-margin asterisk
+the unindented log link comes next, then a blank line and aligned asterisk
 bullets for every detail, including diagnostics:
 
 ```text
 [develop] Publication failed: 0.2.7-dev.1313 (run 43732033913)
 Full log: https://github.com/timurproko/a1/actions/runs/43732033913
 
-* Published pair (win32-node24, windows-2025, 24) [failure]
-* Detailed failure evidence unavailable; see the full log.
-* Downstream lane/result checks also failed.
-* npm staging: success. Packages may already exist; inspect the registry before retrying.
-* Next: fix the failure, then rerun npm run develop after checking the run above.
+  * Published pair (win32-node24, windows-2025, 24) [failure]
+  * Detailed failure evidence unavailable; see the full log.
+  * Downstream lane/result checks also failed.
+  * npm staging: success. Packages may already exist; inspect the registry before retrying.
+  * Next: fix the failure, then rerun npm run develop after checking the run above.
 ```
 
 If npm staging was skipped, it reports publication blocked before staging. Otherwise it warns that packages
