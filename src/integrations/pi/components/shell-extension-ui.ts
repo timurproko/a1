@@ -279,11 +279,11 @@ function internalInput(
   host: PiExtensionUiBridgeHost, tui: TUI, submit: (value: string | undefined) => void, cancel: () => void,
 ): PiShellComponentPort {
   return options?.sessionNameEditing === true
-    ? deferredSelector(() => import("./session-name-dialog.js").then(({ SessionNameDialog }) => {
+    ? { footerControl: "name", ...deferredSelector(() => import("./session-name-dialog.js").then(({ SessionNameDialog }) => {
       const dialog = new SessionNameDialog(options.initialValue ?? "", { ...host, submit, cancel, requestRender: host.runtime.requestRender });
       host.runtime.requestRender();
       return dialog;
-    }), cancel, { placeholder: componentPort(new ExtensionInputComponent(title, placeholder, submit, cancel, { initialValue: options.initialValue ?? "" })), deferInterrupt: true })
+    }), cancel, { placeholder: componentPort(new ExtensionInputComponent(title, placeholder, submit, cancel, { initialValue: options.initialValue ?? "" })), deferInterrupt: true }) }
     : componentPort(new ExtensionInputComponent(title, placeholder, submit, cancel, {
       tui, ...(options?.initialValue === undefined ? {} : { initialValue: options.initialValue }),
     }));

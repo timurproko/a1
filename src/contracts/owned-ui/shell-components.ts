@@ -20,6 +20,8 @@ export interface OwnedUiShellKeybindingsHost {
 
 export interface OwnedUiShellComponentPort {
   readonly ready?: Promise<void>;
+  /** The footer control represented by this dock dialog, independent of how it was opened. */
+  readonly footerControl?: OwnedUiShellFooterControl;
   render(width: number): readonly string[];
   /** Bounds scrollable replacement inputs within the dock. */
   renderInDock?(width: number, maxHeight: number): readonly string[];

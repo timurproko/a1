@@ -60,6 +60,6 @@
 
 ## 11. Replace footer dialogs when choosing another control
 
-- [ ] 11.1 Declare the active name/model/thinking surface semantically so same-control toggles and different-control replacements do not inspect rendered titles.
-- [ ] 11.2 Cancel the active dialog through Escape, then open a different requested dialog without exposing or submitting the retained prompt.
-- [ ] 11.3 Cover all cross-control transitions, same-control cancellation, slash-opened dialogs, unsaved edits, attachments, and lazy preparation boundaries.
+- [x] 11.1 Declare the active name/model/thinking surface semantically so same-control toggles and different-control replacements do not inspect rendered titles.
+- [x] 11.2 Cancel the active dialog through Escape, then open a different requested dialog without exposing or submitting the retained prompt.
+- [x] 11.3 Cover all cross-control transitions, same-control cancellation, slash-opened dialogs, unsaved edits, attachments, and lazy preparation boundaries.

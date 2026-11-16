@@ -540,6 +540,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     // Invariant: reserve transcript context above scrollable routes.
     const available = Math.max(1, this.#componentRuntime.getRows() - transientRows.length - aboveWidgets.length - belowWidgets.length - footer.length - 3);
     const surface = this.#input.surface;
+    if (this.chrome.footerName !== undefined) this.chrome.footerName.activeControl = surface.footerControl;
     const input = this.#customViewport && surface.renderInDock !== undefined
       ? surface.renderInDock(width, available) : surface.render(width);
     const body = this.usesDefaultInputSurface() ? this.editor.bodyGeometry?.() : undefined;

@@ -76,7 +76,15 @@ describe("direct footer name editing", () => {
       expect(value.shell.root.usesDefaultInputSurface()).toBe(false);
       value.terminal.input("Updated");
       if (save) value.terminal.input("\r");
-      else clickName(value);
+      else {
+        for (const command of ["models", "thinking", "name"] as const) {
+          value.shell.runtime.renderNow();
+          const region = value.shell.root.chrome.footerName?.region(command)!;
+          value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
+          await vi.waitFor(() => expect(value.shell.root.chrome.footerName?.activeControl).toBe(command));
+        }
+        clickName(value);
+      }
       await vi.waitFor(() => expect(value.shell.root.usesDefaultInputSurface()).toBe(true));
       expect(value.engine.session.name).toBe(save ? "updated" : "attached draft");
       expect(value.shell.root.editor.getText()).toBe(draft);
@@ -210,6 +218,39 @@ describe("direct footer name editing", () => {
         expect(value.shell.root.editor.hasSelection()).toBe(true);
         expect(value.engine.session.promptOptions).toHaveLength(0);
       }
+    } finally { await value.shell.dispose(); }
+  });
+
+  it.each([
+    ["name", "models"], ["name", "thinking"], ["models", "name"],
+    ["models", "thinking"], ["thinking", "name"], ["thinking", "models"],
+  ] as const)("replaces a slash-opened %s dialog with %s without applying unsaved edits", async (from, to) => {
+    const value = await namedFixture();
+    const title = (command: string) => command === "name" ? "Session Name" : command === "models" ? "Models" : "Thinking Level";
+    try {
+      value.shell.root.editor.setText("retained selected draft");
+      value.terminal.input("\x01");
+      const initialName = value.engine.session.name, initialModel = value.engine.session.model, initialLevel = value.engine.session.thinkingLevel;
+      await value.shell.runWorkflow({ command: from, argument: "" });
+      await vi.waitFor(() => expect(stripTerminalSequences(value.shell.root.render(80).join("\n"))).toContain(title(from)));
+      expect(value.shell.root.chrome.footerName?.activeControl).toBe(from);
+      value.shell.root.handleInput(from === "name" ? "unsaved name" : from === "models" ? "gpt" : "low");
+      value.shell.runtime.renderNow();
+      const region = value.shell.root.chrome.footerName?.region(to)!;
+      value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
+      await vi.waitFor(() => expect(stripTerminalSequences(value.shell.root.render(80).join("\n"))).toContain(title(to)));
+      expect(value.shell.root.usesDefaultInputSurface()).toBe(false);
+      expect(value.shell.root.chrome.footerName?.activeControl).toBe(to);
+      expect(value.engine.session.name).toBe(initialName);
+      expect(value.engine.session.model).toBe(initialModel);
+      expect(value.engine.session.thinkingLevel).toBe(initialLevel);
+      expect(value.shell.root.editor.getText()).toBe("retained selected draft");
+      expect(value.shell.root.editor.hasSelection()).toBe(true);
+      value.terminal.input("\x1b");
+      await vi.waitFor(() => expect(value.shell.root.usesDefaultInputSurface()).toBe(true));
+      value.shell.runtime.renderNow();
+      expect(value.shell.root.chrome.footerName?.activeControl).toBeUndefined();
+      expect(value.engine.session.promptOptions).toHaveLength(0);
     } finally { await value.shell.dispose(); }
   });
 

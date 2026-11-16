@@ -4,12 +4,14 @@ import { routeMouseInput, type RoutedMouseInput } from "../../ui/components/inde
 import { withinTailControl, type TailControlRegion } from "./viewport-pointer.js";
 
 export interface FooterNameTargetPort {
+  activeControl: OwnedUiShellFooterControl | undefined;
   region(control?: OwnedUiShellFooterControl): TailControlRegion | undefined;
   setPointer(pointer: { readonly column: number; readonly row: number } | undefined): void;
   render(footer: OwnedUiShellViewComponentPort, width: number, height: number, enabled: boolean): readonly string[];
 }
 
 class FooterNameTarget {
+  activeControl: OwnedUiShellFooterControl | undefined;
   #regions: Array<TailControlRegion & { readonly command: OwnedUiShellFooterControl }> = [];
   #pointer: { readonly column: number; readonly row: number } | undefined;
   #hovered: OwnedUiShellFooterControl | undefined;
@@ -44,9 +46,10 @@ class FooterNameTarget {
 }
 
 interface FooterNamePorts {
-  readonly root: { readonly chrome: { footerName: FooterNameTargetPort | undefined }; usesDefaultInputSurface(): boolean; handleInput(data: string): void };
-  readonly terminal: Pick<TerminalRuntimePort, "hasOverlay" | "requestRender">;
-  readonly edit: (control: OwnedUiShellFooterControl) => void;
+  readonly root: { readonly chrome: { footerName: FooterNameTargetPort | undefined; setNotice(notice: { readonly kind: "error"; readonly message: string }): void }; usesDefaultInputSurface(): boolean; handleInput(data: string): void };
+  readonly terminal: Pick<TerminalRuntimePort, "hasOverlay" | "requestRender"> & { beginPresentationHold?(): () => void };
+  readonly edit: (control: OwnedUiShellFooterControl) => void | Promise<unknown>;
+  readonly disposed: () => boolean;
 }
 
 /** Routes footer control hover and direct editing without submitting or altering the prompt draft. */
@@ -74,10 +77,26 @@ export class FooterNameInteraction {
       }) : undefined;
       if (command === undefined || event.kind !== "press" || event.button !== 0) return false;
       this.#draining = true;
-      if (root.usesDefaultInputSurface()) this.#ports.edit(command);
-      else root.handleInput("\x1b");
+      void this.#activate(command).catch(error => {
+        if (!this.#ports.disposed()) {
+          root.chrome.setNotice({ kind: "error", message: error instanceof Error ? error.message : String(error) });
+          terminal.requestRender();
+        }
+      });
       return true;
     });
+  }
+
+  async #activate(command: OwnedUiShellFooterControl): Promise<void> {
+    const { root, terminal } = this.#ports;
+    if (root.usesDefaultInputSurface()) { await this.#ports.edit(command); return; }
+    const active = root.chrome.footerName?.activeControl;
+    const replace = active !== command;
+    const release = replace ? terminal.beginPresentationHold?.() : undefined;
+    try {
+      root.handleInput("\x1b");
+      if (replace && root.usesDefaultInputSurface()) await this.#ports.edit(command);
+    } finally { release?.(); terminal.requestRender(); }
   }
 
   onSessionReplaced(): void { this.#draining = false; this.#ports.root.chrome.footerName?.setPointer(undefined); }

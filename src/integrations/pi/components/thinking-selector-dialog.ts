@@ -37,7 +37,7 @@ export function createPiShellThinkingSelector(
       onSelectAsDefault,
       defaultLevel,
     );
-    return componentPort(selector, data => selector.handleInput(data));
+    return { ...componentPort(selector, data => selector.handleInput(data)), footerControl: "thinking" };
   }
   const selector = new ThinkingSelectorComponent(currentLevel, [...availableLevels], onSelect, onCancel, onSelectAsDefault, defaultLevel);
   const list = selector.getSelectList();

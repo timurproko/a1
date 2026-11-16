@@ -247,7 +247,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
         disposed: () => this.#disposed,
         exit: () => { void this.shutdown(); },
         ...(startupRoute === undefined ? {} : { startupRoute }),
-        ...(this.#customViewport ? { editName: command => { void this.runWorkflow({ command, argument: "" }); } } : {}),
+        ...(this.#customViewport ? { editName: command => this.runWorkflow({ command, argument: "" }) } : {}),
       });
       constructed.push(() => this.#dialogs.dispose());
       this.selectors = this.#createSelectors(options.presenters);

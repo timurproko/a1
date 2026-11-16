@@ -32,7 +32,7 @@ const OVERLAY_OPTIONS = { width: "70%", maxHeight: "80%", anchor: "center", inpu
 const STARTUP_ROUTE_RETRY_MS = 25;
 
 interface SessionDialogPorts {
-  readonly terminal: Pick<OwnedUiPresenterTerminal, "running" | "hasOverlay" | "showOverlay" | "openRoute" | "requestRender"> & { renderNow?: () => void };
+  readonly terminal: Pick<OwnedUiPresenterTerminal, "running" | "hasOverlay" | "showOverlay" | "openRoute" | "requestRender"> & { beginPresentationHold?(): () => void };
   readonly presentation?: Pick<ShellPresentationPorts, "theme" | "terminalRuntime">;
   readonly viewport?: () => { rows: number };
   readonly inPlaceSession?: boolean;
@@ -45,7 +45,7 @@ interface SessionDialogPorts {
   /** A rendered route closed itself. */
   readonly routeClosed?: (route: string) => void;
   readonly startupRoute?: StartupRoute;
-  readonly editName?: (control: OwnedUiShellFooterControl) => void;
+  readonly editName?: (control: OwnedUiShellFooterControl) => void | Promise<unknown>;
 }
 
 /** Coordinates owned routes, dock dialogs, and backend overlays through one replacement/close lifecycle. */
@@ -66,6 +66,7 @@ export class SessionDialogCoordinator {
     this.#startupRoute = ports.startupRoute;
     this.nameEditing = ports.editName === undefined ? undefined : lazyFooterNameEditing({
       root: ports.root, terminal: ports.terminal, edit: ports.editName,
+      disposed: ports.disposed,
     });
   }
 

@@ -271,6 +271,60 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     } finally { await value.shell.dispose(); }
   });
 
+  it("holds a name-to-thinking replacement until the lazy dialog is ready", async () => {
+    const gate = Promise.withResolvers<void>();
+    const lazySelectors: PiShellLazySelectorLoader = {
+      prepare: async () => {},
+      createThinking: async options => { await gate.promise; return piShellLazySelectors.createThinking(options); },
+      createTree: options => piShellLazySelectors.createTree(options),
+    };
+    const value = await fixtureWithLazySelectors(lazySelectors);
+    try {
+      value.shell.root.editor.setText("retained draft during replacement");
+      await value.shell.runWorkflow({ command: "name", argument: "" });
+      await vi.waitFor(() => {
+        value.shell.runtime.renderNow();
+        expect(value.shell.root.chrome.footerName?.activeControl).toBe("name");
+      });
+      const region = value.shell.root.chrome.footerName?.region("thinking")!;
+      const writesBefore = value.terminal.writes.length;
+      value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
+      expect(value.shell.runtime.presentationHeld).toBe(true);
+      value.shell.runtime.renderNow(true);
+      expect(value.terminal.writes).toHaveLength(writesBefore);
+      expect(value.shell.root.editor.getText()).toBe("retained draft during replacement");
+      gate.resolve();
+      await vi.waitFor(() => expect(value.shell.runtime.presentationHeld).toBe(false));
+      value.shell.runtime.renderNow(true);
+      expect(value.shell.root.chrome.footerName?.activeControl).toBe("thinking");
+      expect(stripTerminalSequences(value.shell.root.render(100).join("\n"))).toContain("Thinking Level");
+      expect(stripTerminalSequences(value.terminal.writes.slice(writesBefore).join(""))).not.toContain("retained draft during replacement");
+    } finally { gate.resolve(); await value.shell.dispose(); }
+  });
+
+  it("restores the retained prompt and releases a failed lazy replacement", async () => {
+    const lazySelectors: PiShellLazySelectorLoader = {
+      prepare: async () => {},
+      createThinking: async () => { throw new Error("Thinking unavailable"); },
+      createTree: options => piShellLazySelectors.createTree(options),
+    };
+    const value = await fixtureWithLazySelectors(lazySelectors);
+    try {
+      value.shell.root.editor.setText("retained draft after failure");
+      await value.shell.runWorkflow({ command: "name", argument: "" });
+      await vi.waitFor(() => {
+        value.shell.runtime.renderNow();
+        expect(value.shell.root.chrome.footerName?.activeControl).toBe("name");
+      });
+      const region = value.shell.root.chrome.footerName?.region("thinking")!;
+      value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
+      await vi.waitFor(() => expect(stripTerminalSequences(value.shell.root.render(100).join("\n"))).toContain("Thinking unavailable"));
+      expect(value.shell.runtime.presentationHeld).toBe(false);
+      expect(value.shell.root.usesDefaultInputSurface()).toBe(true);
+      expect(value.shell.root.editor.getText()).toBe("retained draft after failure");
+    } finally { await value.shell.dispose(); }
+  });
+
   it("presents thinking only after its pending lazy selector is ready", async () => {
     const gate = Promise.withResolvers<void>();
     const lazySelectors: PiShellLazySelectorLoader = {
