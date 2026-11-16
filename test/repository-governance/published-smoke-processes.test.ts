@@ -30,6 +30,22 @@ describe("published smoke process ownership", () => {
     } finally { await runner.close(); }
   });
 
+  it("returns an observed owner failure promptly without killing the shell before fixture settlement", async () => {
+    const root = await fixture();
+    const runner = createPublishedSmokeRunner(root);
+    try {
+      const result = await runner.run(process.execPath, ["-e", "console.log(process.pid); setInterval(() => {}, 1000)"], {
+        cwd: root, env: process.env, timeout: 60_000, failureProbe: async () => new Error("authenticated owner failure"),
+      });
+      expect(result.error?.message).toBe("authenticated owner failure");
+      const pid = Number(result.stdout.trim());
+      expect(pid).toBeGreaterThan(0);
+      expect(alive(pid), "failure detection must leave process-tree settlement in control").toBe(true);
+      await runner.close();
+      expect(alive(pid)).toBe(false);
+    } finally { await runner.close(); }
+  }, 20_000);
+
   it("stops detached recovery owners and relative descendants but protects caller ancestry, unrelated paths, and stale parent IDs", async () => {
     const root = await fixture();
     let rows = [

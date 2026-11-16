@@ -11,11 +11,14 @@ import {
   prepareUpdateRecoveryCapsule,
   readUpdateRecoveryCapsule,
   runProtectedPackageReplacement,
+  runSelfUpdate,
+  UpdateTransactionStore,
   updateLauncherPaths,
   updateNpmInstallArguments,
   type UpdateTransaction,
 } from "../../../src/foundation/release/index.js";
-import { resolveNpmCli, restoreUpdateRecoveryLaunchers } from "../../../src/foundation/release/update-recovery.js";
+import { installedRecoveryIsSettled, resolveNpmCli, restoreUpdateRecoveryLaunchers } from "../../../src/foundation/release/update-recovery.js";
+import { fakeUpdateInstaller } from "../../support/update-installer-fake.js";
 
 const roots: string[] = [];
 afterEach(async () => await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -269,6 +272,70 @@ describe("cancellation-safe package replacement", () => {
     const capsule = await readUpdateRecoveryCapsule(result.recovery.capsulePath);
     expect(JSON.parse(await readFile(capsule.resultPath, "utf8"))).toMatchObject({ outcome: "installed" });
   }, 15_000);
+
+  it.runIf(process.platform === "win32")("keeps the worker alive when a native Windows lock rejects heartbeat replacement", async () => {
+    const fixture = await recoveryFixture("heartbeat-wait");
+    const result = await runProtectedPackageReplacement({ ...fixture.options, timeoutMs: 20_000,
+      workerSpawner: async (entry, manifestPath, environment) => {
+        const child = spawn(process.execPath, [entry, "--worker", manifestPath], { detached: true, stdio: "ignore", windowsHide: true, env: environment });
+        await new Promise<void>((done, reject) => { child.once("spawn", done); child.once("error", reject); });
+        child.unref();
+        const capsule = await readUpdateRecoveryCapsule(manifestPath);
+        await waitForPath(capsule.ownerPath, 5_000);
+        const script = `$ErrorActionPreference='Stop'; $file=[System.IO.File]::Open('${capsule.ownerPath.replaceAll("'", "''")}', [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite); try { [Console]::WriteLine('locked'); Start-Sleep -Milliseconds 3500 } finally { $file.Close() }`;
+        const locker = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+        let diagnostics = "";
+        locker.stderr.on("data", chunk => { diagnostics += String(chunk); });
+        const closed = new Promise<number | null>((done, reject) => { locker.once("close", done); locker.once("error", reject); });
+        try {
+          await new Promise<void>((done, reject) => {
+            locker.stdout.once("data", () => done());
+            locker.once("error", reject);
+            void closed.then(code => { if (code !== 0) reject(new Error(`native lock failed: ${diagnostics}`)); });
+          });
+          expect(await closed, diagnostics).toBe(0);
+          expect(child.exitCode, "heartbeat I/O must not terminate the recovery owner").toBeNull();
+          await expect(readFile(capsule.resultPath)).rejects.toMatchObject({ code: "ENOENT" });
+        } finally {
+          if (locker.exitCode === null) locker.kill();
+          await closed;
+          await writeFile(resolve(fixture.root, "heartbeat-released.marker"), "released");
+        }
+      },
+    });
+    expect(result).toMatchObject({ outcome: "installed", npmExitCode: 0, launcherDisposition: "target" });
+    expect(result.stderr).toContain("owner heartbeat failed:");
+  }, 30_000);
+
+  it("settles an abandoned journal after installer activation instead of restarting its old capsule", async () => {
+    const fixture = await installedRecoveryFixture();
+    const stdout: string[] = [], stderr: string[] = [];
+    expect(await installedRecoveryIsSettled((await fixture.store.read())!, "1.1.0", fixture.options.packageRoot)).toBe(true);
+    const runner = async () => ({ code: 0, stdout: `${fixture.options.globalRoot}\n` });
+    const result = await runSelfUpdate({
+      packageRoot: fixture.options.packageRoot, resolvedTarget: "1.1.0", transactionStore: fixture.store,
+      environment: { ...fixture.options.environment, A1_DATA_DIR: fixture.options.dataDir, A1_CONFIG_DIR: resolve(fixture.root, "config"), A1_RUNTIME_DIR: resolve(fixture.root, "runtime") },
+      runner, output: { stdout: text => { stdout.push(text); }, stderr: text => { stderr.push(text); } },
+      installer: fakeUpdateInstaller(() => runner, { preflight: async () => fixture.capsule.npmCli, replacePackage: async () => { throw new Error("must not restart npm"); }, maintenance: async () => {} }),
+      lifecycle: { targetIsActive: async () => true, verifyPackageUnlocked: async () => { throw new Error("must not replace package"); }, activateInstalled: async () => { throw new Error("already activated"); } },
+    });
+    expect(result, stderr.join("")).toBe(0);
+    expect(stdout.join("")).toContain("is up to date");
+    expect(await fixture.store.read()).toBeNull();
+  });
+
+  it.each(["live-journal-owner", "live-capsule-owner", "wrong-target", "wrong-package", "missing-launcher", "malformed-owner"])("does not settle externally installed recovery with %s", async fault => {
+    const fixture = await installedRecoveryFixture();
+    let transaction = (await fixture.store.read())!;
+    if (fault === "live-journal-owner") transaction = { ...transaction, recovery: { ...transaction.recovery!, guardianPid: process.pid } };
+    if (fault === "live-capsule-owner") await writeFile(fixture.capsule.ownerPath, JSON.stringify({ transactionId: transaction.transactionId, pid: process.pid }));
+    if (fault === "malformed-owner") await writeFile(fixture.capsule.ownerPath, "not-json");
+    if (fault === "wrong-target") transaction = { ...transaction, targetVersion: "9.9.9" };
+    if (fault === "wrong-package") transaction = { ...transaction, packageRoot: resolve(fixture.root, "other-package") };
+    if (fault === "missing-launcher") await rm(fixture.launchers[0]!);
+    await expect(installedRecoveryIsSettled(transaction, "1.1.0", fixture.options.packageRoot)).resolves.toBe(false);
+    expect((await fixture.store.read())!.status).toBe("active");
+  });
 
   it("bounds a guardian that never publishes ownership or a result", async () => {
     const fixture = await recoveryFixture("success");
@@ -573,7 +640,20 @@ async function recoveryFixture(mode: RecoveryNpmMode, cancelAfter = 0, aliased =
   };
 }
 
-type RecoveryNpmMode = "success" | "slow-success" | "wait" | "staged-wait" | "fail" | "fail-partial" | "link-success" | "link-foreign";
+async function installedRecoveryFixture() {
+  const fixture = await recoveryFixture("success");
+  const store = new UpdateTransactionStore(fixture.options.dataDir);
+  await store.begin({ channel: "stable", targetVersion: "1.1.0", packageRoot: fixture.options.packageRoot, priorActiveReleaseId: fixture.options.transaction.priorActiveReleaseId });
+  const transaction = await store.advance("ownership-released");
+  const prepared = await prepareUpdateRecoveryCapsule({ ...fixture.options, transaction });
+  await store.setRecovery({ capsulePath: prepared.manifestPath, status: "running", guardianPid: 2147483647, guardianStartIdentity: "dead-owner", cancellationRequested: false, launcherDisposition: "pending" });
+  await writeFile(prepared.capsule.ownerPath, JSON.stringify({ transactionId: transaction.transactionId, pid: 2147483647 }));
+  await writeFile(resolve(fixture.options.packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", version: "1.1.0" }));
+  for (const launcher of fixture.launchers) { await writeFile(launcher, "node_modules/@timurproko/a1/bin/cli.js"); await chmod(launcher, 0o755); }
+  return { ...fixture, store, capsule: prepared.capsule };
+}
+
+type RecoveryNpmMode = "success" | "slow-success" | "heartbeat-wait" | "wait" | "staged-wait" | "fail" | "fail-partial" | "link-success" | "link-foreign";
 
 function fakeNpmSource(mode: RecoveryNpmMode, packageRoot: string, launchers: readonly string[]): string {
   if (mode === "link-success" || mode === "link-foreign") {
@@ -609,7 +689,14 @@ function fakeNpmSource(mode: RecoveryNpmMode, packageRoot: string, launchers: re
         }
       }
       ${mode === "wait" ? "await new Promise(resolvePromise => setTimeout(resolvePromise, 10000));" : mode === "fail" ? "console.error('injected npm failure'); process.exitCode = 7;" : mode === "staged-wait" ? "" : `
-      ${mode === "slow-success" ? "await new Promise(resolvePromise => setTimeout(resolvePromise, 1000));" : ""}
+      ${mode === "slow-success" ? "await new Promise(resolvePromise => setTimeout(resolvePromise, 1000));" : mode === "heartbeat-wait" ? `
+      const marker = resolve(process.env.RECOVERY_TEST_REMOVAL_MARKER, "..", "heartbeat-released.marker");
+      const deadline = Date.now() + 15000;
+      while (!await require("node:fs/promises").stat(marker).catch(() => null)) {
+        if (Date.now() >= deadline) throw new Error("native heartbeat lock was not released");
+        await new Promise(done => setTimeout(done, 25));
+      }
+      ` : ""}
       await mkdir(resolve(packageRoot, "bin"), { recursive: true });
       await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", privateLaunchContract: "neutral-launch-v1", version: "1.1.0" }));
       await writeFile(resolve(packageRoot, "bin", "cli.js"), ${JSON.stringify(mode === "fail-partial" ? "process.exitCode = 42;" : "// target")});

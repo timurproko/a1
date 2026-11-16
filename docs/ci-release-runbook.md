@@ -407,7 +407,9 @@ installer/application pair in isolated prefixes on every release lane. Only afte
 those post-publication checks pass does it upload the Release asset and fast-forward
 `master`. Uploads first use `a1-staging`, never `next` or `latest`. A separate trusted
 promotion job moves the public tags only after every native lane passes fresh install,
-predecessor update, and non-interactive launcher checks. The smoke fixture pins only
+predecessor upgrade, and non-interactive launcher checks. The real predecessor updater
+is always attempted. One explicitly declared compatibility path handles the known
+immutable Windows worker whose heartbeat sharing error terminates it before a result. The smoke fixture pins only
 A1 tag discovery through a fixture-local npm bridge; all package installations still
 use the real npm CLI and registry bytes. This lets stable smoke select the exact
 candidate while `latest` still names its predecessor, without changing installer grammar.
@@ -482,6 +484,50 @@ that bookkeeping failure warns, retains recovery authority, and never rolls back
 already active release. A guardian that has not settled retains ownership rather than
 racing a second rollback. Preserve transaction and capsule evidence when diagnosing a
 local failure; do not delete state as a launcher repair.
+
+### Immutable Windows heartbeat failure
+
+Published `0.2.7-dev.1307` contains the older recovery writer introduced by #265. A
+transient `EPERM` while renaming `owner.json` rejects its unhandled heartbeat promise,
+kills the detached worker, and leaves its parent waiting for a result that never arrives.
+Hosted run `43761732019` captured that exact exception and exit 1 twice. The package
+already staged as the candidate has the corrected atomic writer and caught heartbeat;
+changing that candidate cannot retrofit the worker copied by an installed predecessor.
+
+The published-pair smoke observes, without patching, only the legacy recovery entry
+with SHA-256 `1afca5ea1e2b81c77367fb842e37e78ed35d3bd06b69ec8cd7421ffb7259b13d`.
+Recovery requires a recorded failed worker exit, an owner-file sharing error, matching
+transaction/capsule/package/target authority, matching copied worker bytes, and no
+completed result. A timeout, different error, unknown worker, or unavailable authority
+never enables this path. A recognized crash ends the wait promptly; the general update
+deadline is five minutes. Each smoke phase is printed before waiting.
+
+The harness retains the failed direct attempt, inventories and settles every fixture
+writer, then invokes the exact published installer with `--repair` and the authenticated
+capsule path on the same prefix, settings, and data. It does not delete user state or alter the predecessor package to force a pass.
+The recovery installer must have the exact successful transcript; its manifest, active
+release, reported version, and callable launcher must all identify the candidate.
+Evidence reports `upgradeMethod: installer-recovery`, `installerRecoveryVerified: true`,
+and `updateVerified: false`, retaining the failed direct attempt separately. Any failure
+in settlement or recovery keeps promotion blocked. Native Windows regression coverage
+holds an actual non-delete-sharing handle over a current worker heartbeat and requires
+that worker to survive and publish its successful npm result.
+
+For a real affected installation, let the failed updater exit, then use the new official
+installer with `--repair` naming its absolute capsule path and the same channel/selector.
+The capsule is in the transaction's `update-recovery` directory; preserve it. This explicit
+mode independently validates ownership even when npm left the package manifest or CLI
+incomplete, refuses recorded live owners and any native package/recovery writer, installs
+with the capsule's explicit prefix, and activates in the authenticated data directory.
+It never delegates back into the immutable or partial predecessor. Do not delete configuration,
+sessions, history, or transaction files, and do not run a second package writer while
+the first is active. The smoke's process stopping is limited to its disposable fixture;
+it is not permission to terminate arbitrary installed sessions. On the next update,
+the repaired updater can settle the abandoned ownership-released journal when the
+requested target is already active, the installed package and full launcher set match,
+the capsule authority validates, and both recorded recovery owners are dead. It then
+reports up to date rather than restarting the old capsule. Live owners and unavailable
+or mismatched authority retain the normal recovery path; state is never simply erased.
 
 ## Safe release-command validation
 

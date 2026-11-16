@@ -1,9 +1,11 @@
 import type { ProcessSnapshot } from "../development/checkout-process-inspection.mjs";
+import type { LegacyRecoveryContext, LegacyRecoveryObservation } from "./published-predecessor-recovery.mjs";
 
 export interface SmokeChildOptions {
   readonly cwd: string;
   readonly env: NodeJS.ProcessEnv;
   readonly timeout: number;
+  readonly failureProbe?: () => Promise<Error | null>;
 }
 export interface SmokeChildResult {
   readonly status: number | null;
@@ -31,7 +33,7 @@ export interface SmokeRunner {
   history?(): SmokeProcessHistory;
   close(): Promise<void>;
 }
-export function updateCommandBudgetMs(platform?: NodeJS.Platform): number;
+export function updateCommandBudgetMs(): number;
 export interface SmokeSystemEvent {
   readonly log: string;
   readonly id: number;
@@ -52,5 +54,7 @@ export function smokePublishedInstaller(options?: {
   createRunner?: (root: string) => SmokeRunner;
   removeFixture?: (root: string) => Promise<void>;
   writeDiagnostic?: (text: string) => void;
+  writeProgress?: (text: string) => void;
   readSystemEvents?: (since: string) => Promise<SmokeSystemEvents>;
+  prepareRecoveryObservation?: (context: LegacyRecoveryContext) => Promise<LegacyRecoveryObservation | null>;
 }): Promise<void>;

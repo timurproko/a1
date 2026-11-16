@@ -323,6 +323,27 @@ export async function runProtectedPackageReplacement(options: ProtectedPackageRe
   }
 }
 
+/** Allow an already activated installer target to settle an abandoned pre-install journal, never a live owner. */
+export async function installedRecoveryIsSettled(transaction: UpdateTransaction, targetVersion: string, packageRoot: string): Promise<boolean> {
+  const recovery = transaction.recovery;
+  if (transaction.status !== "active" || transaction.phase !== "ownership-released" || transaction.targetVersion !== targetVersion
+    || recovery?.status !== "running"
+    || !Number.isSafeInteger(recovery.guardianPid) || (recovery.guardianPid ?? 0) <= 0 || processIsAlive(recovery.guardianPid!)) return false;
+  try {
+    const canonicalPackage = await realpath(packageRoot);
+    if (!samePath(await realpath(transaction.packageRoot), canonicalPackage)) return false;
+    const capsule = await readUpdateRecoveryCapsule(recovery.capsulePath);
+    if (capsule.transactionId !== transaction.transactionId || capsule.targetVersion !== targetVersion || !samePath(await realpath(capsule.packageRoot), canonicalPackage)) return false;
+    const owner = await readJson<{ transactionId?: unknown; pid?: unknown }>(capsule.ownerPath).catch(error => {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") return null;
+      throw error;
+    });
+    if (owner && (owner.transactionId !== transaction.transactionId || typeof owner.pid !== "number" || !Number.isSafeInteger(owner.pid) || owner.pid <= 0 || processIsAlive(owner.pid))) return false;
+    const manifest = JSON.parse(await readFile(resolve(packageRoot, "package.json"), "utf8")) as { name?: string; version?: string };
+    return manifest.name === capsule.packageName && manifest.version === targetVersion && await inspectUpdateLauncherSet(capsule) === "target";
+  } catch { return false; }
+}
+
 /** Restore prior-release launchers only after the detached npm owner has settled. */
 export async function restoreUpdateRecoveryLaunchers(manifestPath: string, environment: NodeJS.ProcessEnv = process.env): Promise<void> {
   const capsule = await readUpdateRecoveryCapsule(manifestPath);
