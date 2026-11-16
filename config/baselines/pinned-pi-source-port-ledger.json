@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-16T14:33:04.697Z",
+  "recordedAt": "2026-11-16T14:43:39.574Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "b4afdddf44e059c67ccf5097e5317d913521b470",
@@ -1911,8 +1911,8 @@
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
-          "reason": "Accepted unify-prompt-input-ux moves the existing thinking-level border color to the bare-A1 footer level-name span, including a visible off label for a selected model; a thinking selector suppresses that duplicate span until close.",
-          "upstreamBehavior": "The comparison footer presentation is unchanged outside the same temporary selector suppression. Owned provider omission, width fitting, usage, and extension rows preserve existing behavior; a missing model has no fabricated level.",
+          "reason": "Accepted unify-prompt-input-ux moves the existing thinking-level border color to the bare-A1 footer level-name span, including a visible off label for a selected model; bare A1 retains that span while its thinking selector is open.",
+          "upstreamBehavior": "The comparison footer retains its existing temporary selector suppression. Owned provider omission, width fitting, usage, and extension rows preserve existing behavior; a missing model has no fabricated level.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         },
         {

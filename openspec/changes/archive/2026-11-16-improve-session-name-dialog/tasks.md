@@ -38,8 +38,8 @@
 
 ## 7. Keep the active thinking level visible during selection
 
-- [ ] 7.1 Stop suppressing the bare-A1 footer level while Thinking Level is open; preserve comparison behavior.
-- [ ] 7.2 Cover opening, default-only changes, session-level selection, and cancellation with the current footer level still visible.
+- [x] 7.1 Stop suppressing the bare-A1 footer level while Thinking Level is open; preserve comparison behavior.
+- [x] 7.2 Cover opening, default-only changes, session-level selection, and cancellation with the current footer level still visible.
 
 ## 8. Restore text-only footer controls without added spaces
 

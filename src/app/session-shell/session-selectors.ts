@@ -74,7 +74,7 @@ export class SessionSelectors implements WorkflowSelectors {
   async showThinkingSelector(): Promise<void> {
     const snapshot = this.#backend.settings.snapshot();
     const close = () => {
-      this.#root.setFooterLevel(true);
+      if (!this.#customViewport) this.#root.setFooterLevel(true);
       this.#root.setInputSurface(null);
       this.#terminal.requestRender();
     };
@@ -100,7 +100,7 @@ export class SessionSelectors implements WorkflowSelectors {
         } : {}),
       });
       if (this.#ports.disposed()) return;
-      this.#root.setFooterLevel(false);
+      if (!this.#customViewport) this.#root.setFooterLevel(false);
       this.#present(component);
     } finally {
       releasePresentation?.();

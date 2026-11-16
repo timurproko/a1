@@ -194,7 +194,8 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(plain).not.toContain("[default]");
     expect(plain).not.toContain("●");
     expect(plain.match(/Moderate reasoning/g)).toHaveLength(1);
-    expect(plain.match(/\bmedium\b/g)).toHaveLength(1);
+    expect(plain.match(/\bmedium\b/g)).toHaveLength(2);
+    expect(stripTerminalSequences(bare.shell.root.footer.render(100)[1]!)).toContain("gpt-5 • medium");
     expect(plain).toContain("Type search  Enter select  Space default  Esc close");
     expect(plain).not.toContain("Ctrl+S");
     expect(plain).not.toContain("Escape/Ctrl+C");
@@ -229,8 +230,45 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await comparison.shell.submit("/thinking");
     const comparisonFrame = comparison.shell.root.render(100).map(stripTerminalSequences).join("\n");
     expect(comparisonFrame).toContain("Shift+Tab cycles thinking levels in-session");
+    expect(stripTerminalSequences(comparison.shell.root.footer.render(100)[1]!)).not.toContain("medium");
+    comparison.terminal.input("\x1b");
+    expect(stripTerminalSequences(comparison.shell.root.footer.render(100)[1]!)).toContain("medium");
     expect(comparison.shell.root.editor.keybindingConfig()["app.thinking.cycle"]).toBe("shift+tab");
     await comparison.shell.dispose();
+  });
+
+  it.each(["command", "footer"] as const)("keeps the active footer level visible through thinking edits opened by %s", async via => {
+    const value = await fixture([], [], true);
+    Object.assign(value.engine.session, { getAvailableThinkingLevels: () => ["low", "medium", "high"] });
+    try {
+      value.shell.root.editor.setText("retained draft");
+      const footer = () => stripTerminalSequences(value.shell.root.footer.render(100)[1]!);
+      const open = async () => {
+        if (via === "command") await value.shell.runWorkflow({ command: "thinking", argument: "" });
+        else {
+          await vi.waitFor(() => expect(value.shell.root.chrome.footerName).toBeDefined());
+          value.shell.runtime.renderNow();
+          const region = value.shell.root.chrome.footerName?.region("thinking")!;
+          value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
+        }
+        await vi.waitFor(() => expect(value.shell.root.usesDefaultInputSurface()).toBe(false));
+      };
+      await open();
+      expect(footer()).toContain("gpt-5 • medium");
+      value.shell.root.handleInput("low");
+      value.shell.root.handleInput(" ");
+      await vi.waitFor(() => expect(value.engine.defaultThinkingLevel).toBe("low"));
+      expect(value.engine.session.thinkingLevel).toBe("medium");
+      expect(footer()).toContain("gpt-5 • medium");
+      value.shell.root.handleInput("\r");
+      await vi.waitFor(() => expect(value.engine.session.thinkingLevel).toBe("low"));
+      await vi.waitFor(() => expect(footer()).toContain("gpt-5 • low"));
+      await open();
+      expect(footer()).toContain("gpt-5 • low");
+      value.terminal.input("\x1b");
+      expect(footer()).toContain("gpt-5 • low");
+      expect(value.shell.root.editor.getText()).toBe("retained draft");
+    } finally { await value.shell.dispose(); }
   });
 
   it("presents thinking only after its pending lazy selector is ready", async () => {
