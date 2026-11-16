@@ -135,6 +135,20 @@ describe("pinned extension UI bridge", () => {
     value.bridge.dispose();
   });
 
+  it("prefills internal inputs without changing public extension inputs", async () => {
+    const value = fixture();
+    const input = value.bridge.input("Name", "", { initialValue: "Project" });
+    expect(stripTerminalSequences(value.inputSurface!.render(60).join("\n"))).toContain("> Project");
+    value.inputSurface!.handleInput?.(" Alpha");
+    value.inputSurface!.handleInput?.("\r");
+    await expect(input).resolves.toBe("Project Alpha");
+    const extensionInput = value.bridge.context.input("Name", "");
+    expect(stripTerminalSequences(value.inputSurface!.render(60).join("\n"))).not.toContain("Project");
+    value.inputSurface!.handleInput?.("\x1b");
+    await expect(extensionInput).resolves.toBeUndefined();
+    value.bridge.dispose();
+  });
+
   it("stacks extension dialogs like pinned Pi so covered dialogs stay answerable and reappear", async () => {
     const value = fixture();
     const visible = () => stripTerminalSequences(value.inputSurface!.render(60).join("\n"));

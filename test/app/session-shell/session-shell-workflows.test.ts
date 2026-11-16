@@ -43,6 +43,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     const title = inputRows.find(row => stripTerminalSequences(row).includes("Session Name"))!;
     const hints = inputRows.find(row => stripTerminalSequences(row).includes("Enter submit"))!;
     expect(inputFrame).toContain("Session Name");
+    expect(inputFrame).toContain("> direct name");
     expect(inputFrame).toContain("Enter submit  Esc close");
     expect(inputFrame).not.toContain("Ctrl+C");
     expect(inputFrame).not.toContain("Usage: /name <name>");
@@ -51,6 +52,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(inputRows[inputRows.indexOf(title) + 2]?.trimStart()).toMatch(/^>/);
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(false);
 
+    for (const _ of "direct name") bare.terminal.input("\x7f");
     bare.terminal.input(" Renamed ");
     bare.terminal.input("\r");
     await nextImmediate();
@@ -63,6 +65,8 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     const resultCount = bare.engine.session.calls.length;
     const namedResultCount = namedFrame.match(/Session name set:/g)?.length;
     await bare.shell.submit("/name");
+    expect(stripTerminalSequences(bare.shell.root.render(100).join("\n"))).toContain("> renamed");
+    for (const _ of "renamed") bare.terminal.input("\x7f");
     bare.terminal.input("   ");
     bare.terminal.input("\r");
     await nextImmediate();
@@ -88,6 +92,32 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(comparison.shell.root.usesDefaultInputSurface()).toBe(true);
     expect(stripTerminalSequences(comparison.shell.root.render(100).join("\n"))).toContain("Warning: Usage: /name <name>");
     await comparison.shell.dispose();
+  });
+
+  it("starts unnamed sessions empty and appends at the end of a prefilled name", async () => {
+    const bare = await fixture([], [], true);
+    await bare.shell.submit("/name");
+    const rows = bare.shell.root.render(100).map(stripTerminalSequences);
+    expect(rows.find(row => row.trimStart().startsWith(">"))?.trim()).toBe(">");
+    bare.terminal.input("Project");
+    bare.terminal.input("\r");
+    await nextImmediate();
+    expect(bare.engine.session.name).toBe("project");
+
+    await bare.shell.submit("/name");
+    expect(stripTerminalSequences(bare.shell.root.render(100).join("\n"))).toContain("> project");
+    bare.terminal.input(" Alpha");
+    bare.terminal.input("\r");
+    await nextImmediate();
+    expect(bare.engine.session.name).toBe("project alpha");
+
+    await bare.shell.submit("/name");
+    bare.terminal.input(" unsaved");
+    bare.terminal.input("\x1b");
+    await nextImmediate();
+    expect(bare.engine.session.name).toBe("project alpha");
+    expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
+    await bare.shell.dispose();
   });
 
   it("persists thinking defaults immediately without changing the active level or comparison mode", async () => {

@@ -1,7 +1,7 @@
 ## 1. Prefill the session-name dialog from the current name
 
-- [ ] 1.1 Carry an initial value through the internal input bridge and pass the current name when bare-A1 opens `/name`.
-- [ ] 1.2 Add focused cases for named and unnamed sessions, reopening after rename, initial caret placement, silent cancellation, and unchanged direct/comparison workflows.
+- [x] 1.1 Carry an initial value through the internal input bridge and pass the current name when bare-A1 opens `/name`.
+- [x] 1.2 Add focused cases for named and unnamed sessions, reopening after rename, initial caret placement, silent cancellation, and unchanged direct/comparison workflows.
 
 ## 2. Add prompt-consistent selection and editing to the name field
 

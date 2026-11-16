@@ -637,7 +637,9 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
   async runWorkflow(request: OwnedUiWorkflowRequest): Promise<OwnedUiCommandResult> {
     if (request.command === "quit") return this.shutdown();
     if (this.#customViewport && request.command === "name" && request.argument.trim().length === 0) {
-      void this.#extensionBridge.input("Session Name", "Enter name").then(value => {
+      void this.#extensionBridge.input("Session Name", "Enter name", {
+        initialValue: this.view().status.footer?.sessionName ?? "",
+      }).then(value => {
         if (this.#disposed || value === undefined || value.trim().length === 0) return;
         return this.runWorkflow({ ...request, argument: value });
       }).catch(error => {

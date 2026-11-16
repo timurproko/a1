@@ -65,7 +65,7 @@ export interface PiExtensionUiBridgeHost {
 export interface PiExtensionUiBridge {
   /** The extension UI context the engine binds to a session, typed by the neutral contract it satisfies. */
   readonly context: OwnedUiExtensionUiPort;
-  input(title: string, placeholder: string, options?: { readonly retainSurfaceOnSettle?: boolean }): Promise<string | undefined>;
+  input(title: string, placeholder: string, options?: { readonly retainSurfaceOnSettle?: boolean; readonly initialValue?: string }): Promise<string | undefined>;
   reset(): void;
   dispose(): void;
 }
@@ -290,7 +290,10 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
   return {
     context,
     input: (title, placeholder, options) => showInput<string | undefined>((resolve, cancel) => componentPort(
-      new ExtensionInputComponent(title, placeholder, resolve, cancel, { tui }),
+      new ExtensionInputComponent(title, placeholder, resolve, cancel, {
+        tui,
+        ...(options?.initialValue === undefined ? {} : { initialValue: options.initialValue }),
+      }),
     ), undefined, options?.retainSurfaceOnSettle === true, { kind: "question", message: title }),
     reset,
     dispose() {

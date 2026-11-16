@@ -448,7 +448,7 @@ export interface OwnedUiShellExtensionUiBridgeHost {
 export interface OwnedUiShellExtensionUiBridge {
   /** The extension UI context the engine binds to a session. */
   readonly context: OwnedUiExtensionUiPort;
-  input(title: string, placeholder: string, options?: { readonly retainSurfaceOnSettle?: boolean }): Promise<string | undefined>;
+  input(title: string, placeholder: string, options?: { readonly retainSurfaceOnSettle?: boolean; readonly initialValue?: string }): Promise<string | undefined>;
   reset(): void;
   dispose(): void;
 }
