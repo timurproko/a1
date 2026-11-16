@@ -18,3 +18,13 @@ No new retry policy, remote cancellation, workflow edits, stable watcher replace
 ## Risks
 
 A newline moved into cleanup can duplicate existing separators or shift terminal cursor assertions. Exact transcript assertions and terminal replay must cover both zero-job and nonempty-progress exits. Diagnostic formatting is shared with stable release failures, so retain those consumers' content and evidence limits while updating bullet alignment.
+
+## Implementation and focused validation
+
+The maintainer approved this plan and requested implementation in PR 962. Progress completion now owns the separator through the observer's shared finally path. Successful workflow output is emitted only after that boundary; every error reaches its caller after the same cleanup. Empty progress reuses the header separator. Stopped-watching errors use separate heading, guidance, and log-link lines. Failure details retain their content and bounds with left-margin bullet markers.
+
+The publication-client and develop-publication suites passed all 211 tests, including the exit matrix and headless terminal replay. The smoke-published-installer consumer suite passed all 31 tests. Core build, both typechecks, strict OpenSpec validation, and whitespace checks passed. Initial raw-transcript assertions for redraw cases were corrected to inspect terminal replay, because stripping ANSI does not apply cursor movement. Typechecking required the fresh worktree's generated dist prerequisites, then passed after the core build. No real workflow or npm publication was dispatched.
+
+## Known gaps
+
+No unresolved implementation gaps are identified. Hosted exact-head CI remains separate validation; local fixtures and terminal replay do not claim live publication acceptance. Stable validation retains its GitHub-owned watcher. Workflow dispatch, polling, registry verification, cancellation semantics, and publication authority remain unchanged.

@@ -90,10 +90,10 @@ describe("publication failure reporting", () => {
       "Publication failed (run 42)",
       "Full log: https://github.com/owner/app/actions/runs/42",
       "",
-      "  * Windows validation (Node 24) [failure]",
-      "  * startup budget failed for pi warm: 2438ms exceeds 2000ms; dominant phases: ui-entry 741ms",
-      "  * Publication blocked before npm staging.",
-      "  * Next: inspect the full log and fix the failure before retrying.",
+      "* Windows validation (Node 24) [failure]",
+      "* startup budget failed for pi warm: 2438ms exceeds 2000ms; dominant phases: ui-entry 741ms",
+      "* Publication blocked before npm staging.",
+      "* Next: inspect the full log and fix the failure before retrying.",
     ].join("\n"));
     expect(calls[0]!.args).toContain("--paginate");
     expect(calls[1]!.args).toContain("--paginate");
@@ -113,7 +113,7 @@ describe("publication failure reporting", () => {
     expect(message.split("\n").filter(line => line.includes("assertion"))).toHaveLength(10);
     expect(message).toContain("PR core [failure]");
     expect(message).toContain("Rendering [failure]");
-    expect(message.split("\n").slice(3).every(line => line.startsWith("  * "))).toBe(true);
+    expect(message.split("\n").slice(3).every(line => line.startsWith("* "))).toBe(true);
     expect(message).toContain("Detailed failure evidence unavailable");
     expect(message).toContain("npm publication state is unknown");
   });
@@ -130,7 +130,7 @@ describe("publication failure reporting", () => {
       queried.push(args[1]!);
       return args[1]!.includes("/1/") ? annotationPages("Error: recovery guardian timed out", "Process completed with exit code 1.") : "[]";
     } });
-    expect(message).toContain("macOS validation (Node 24) [failure]\n  * Error: recovery guardian timed out");
+    expect(message).toContain("macOS validation (Node 24) [failure]\n* Error: recovery guardian timed out");
     expect(message).toContain("Unexpected producer [timed_out]");
     expect(message).toContain("Downstream lane/result checks also failed.");
     expect(message).toContain("Publication blocked before npm staging.");
@@ -172,7 +172,7 @@ describe("publication failure reporting", () => {
     const message = describePublicationFailure(42, { repository: "owner/app", run: () => { throw new Error("offline"); } });
     expect(message).toContain("Failed job details unavailable");
     expect(message.split("\n").slice(0, 3)).toEqual(["Publication failed (run 42)", "Full log: https://github.com/owner/app/actions/runs/42", ""]);
-    expect(message.split("\n").slice(3).every(line => line.startsWith("  * "))).toBe(true);
+    expect(message.split("\n").slice(3).every(line => line.startsWith("* "))).toBe(true);
     expect(message).toContain("npm publication state is unknown");
     expect(message).toContain("Full log: https://github.com/owner/app/actions/runs/42");
   });
@@ -188,7 +188,7 @@ describe("publication failure reporting", () => {
     };
     await expect(dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.9", {
       ...developmentOptions, run, write: () => {},
-    })).rejects.toThrow(/Stopped watching.*GitHub status unavailable.*Remote outcome unknown/);
+    })).rejects.toThrow(/Stopped watching.*GitHub status unavailable\.\nRemote outcome unknown/u);
   });
 
   it("interrupts compact watching without cancelling or misreporting the remote run", async () => {
@@ -197,12 +197,12 @@ describe("publication failure reporting", () => {
     const { run, calls } = developmentRunner([{ status: "in_progress", conclusion: null, jobs: [] }]);
     await expect(dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.9", {
       ...developmentOptions, run, signal: controller.signal, write: () => {}, sleep: async () => { controller.abort(); },
-    })).rejects.toThrow(/Stopped watching.*interrupted.*Remote outcome unknown/);
+    })).rejects.toThrow(/Stopped watching.*interrupted\.\nRemote outcome unknown/u);
     expect(calls.some(call => call.args.includes("cancel"))).toBe(false);
     expect([process.listenerCount("SIGINT"), process.listenerCount("SIGTERM")]).toEqual(before);
   });
 
-  it("renders the approved development transcript with log-first equally indented failure bullets", async () => {
+  it("renders the development transcript with log-first left-margin failure bullets", async () => {
     const windows = { id: 1, name: "Develop / Published pair (win32-node24, windows-2025, 24)", status: "in_progress", conclusion: null };
     const linux = { id: 2, name: "Develop / Published pair (linux-node24, ubuntu-24.04, 24)", status: "in_progress", conclusion: null };
     const staging = { id: 3, name: "Develop / Stage 0.1.8-dev.9 on npm", status: "completed", conclusion: "success" };
@@ -236,11 +236,11 @@ describe("publication failure reporting", () => {
       "[develop] Publication failed: 0.1.8-dev.9 (run 42)",
       "Full log: https://github.com/owner/app/actions/runs/42",
       "",
-      "  * Published pair (win32-node24, windows-2025, 24) [failure]",
-      "  * Detailed failure evidence unavailable; see the full log.",
-      "  * Downstream lane/result checks also failed.",
-      "  * npm staging: success. Packages may already exist; inspect the registry before retrying.",
-      "  * Next: fix the failure, then rerun npm run develop after checking the run above.",
+      "* Published pair (win32-node24, windows-2025, 24) [failure]",
+      "* Detailed failure evidence unavailable; see the full log.",
+      "* Downstream lane/result checks also failed.",
+      "* npm staging: success. Packages may already exist; inspect the registry before retrying.",
+      "* Next: fix the failure, then rerun npm run develop after checking the run above.",
       "",
     ].join("\n"));
     expect(transcript.match(/\[publication\]/gu)).toHaveLength(1);
@@ -253,10 +253,10 @@ describe("publication failure reporting", () => {
     const message = describePublicationFailure(42, { repository: "owner/app", jobs: Array.from({ length: 6 }, (_unused, index) => ({
       id: index + 1, name: `Failed owner ${index + 1}`, conclusion: "failure",
     })), run: () => annotationPages(...Array.from({ length: 12 }, (_unused, index) => `Error ${index + 1}`)) });
-    expect(message.split("\n").slice(3).every(line => line.startsWith("  * "))).toBe(true);
-    expect(message.match(/^  \* Error /gmu)).toHaveLength(10);
-    expect(message).toContain("  * Additional diagnostics in the full log.");
-    expect(message).toContain("  * 2 additional failed jobs in the full log.");
+    expect(message.split("\n").slice(3).every(line => line.startsWith("* "))).toBe(true);
+    expect(message.match(/^\* Error /gmu)).toHaveLength(10);
+    expect(message).toContain("* Additional diagnostics in the full log.");
+    expect(message).toContain("* 2 additional failed jobs in the full log.");
     expect(message.match(/^Full log:/gmu)).toHaveLength(1);
     expect(message).not.toContain("●");
   });
@@ -277,7 +277,7 @@ describe("publication failure reporting", () => {
     const { run, calls } = developmentRunner([{ status: "completed", conclusion: "failure", jobs: fixtureJobs }]);
     await expect(dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.9", {
       ...developmentOptions, run, write: (text: string) => { output.push(text); },
-    })).rejects.toThrow(/^Publication failed: 0.1.8-dev.9 \(run 42\)\nFull log: https:\/\/github.com\/owner\/app\/actions\/runs\/42\n\n  \* Windows validation \(Node 24\) \[failure\]\n  \* startup budget failed/);
+    })).rejects.toThrow(/^Publication failed: 0.1.8-dev.9 \(run 42\)\nFull log: https:\/\/github.com\/owner\/app\/actions\/runs\/42\n\n\* Windows validation \(Node 24\) \[failure\]\n\* startup budget failed/);
     expect(output[0]).toBe("\n[publication] 0.1.8-dev.9 — run 42\nFull log: https://github.com/owner/app/actions/runs/42\n\n");
     expect(calls.some(call => call.args[0] === "run" && call.args[1] === "watch")).toBe(false);
   });
@@ -366,7 +366,8 @@ describe("publication failure reporting", () => {
       "\n[publication] 0.1.8-dev.10 — run 42\nFull log: https://github.com/owner/app/actions/runs/42\n\n",
       "  ● Running: macOS validation (Node 24)\n",
       "  ● Passed:  macOS validation (Node 24)\n",
-      "\n[workflow] passed; verifying npm packages.\n",
+      "\n",
+      "[workflow] passed; verifying npm packages.\n",
     ]);
     expect(calls.some(call => call.args[1] === "watch")).toBe(false);
     expect(calls.filter(call => call.args[1]?.includes("/jobs?")).every(call => call.args.includes("--paginate"))).toBe(true);
@@ -761,7 +762,8 @@ describe("interactive development publication rows", () => {
     const final = await replay(output);
     const row = final.final.rows.findIndex(line => line === "  ● Passed:  Build");
     expect(row).toBeGreaterThan(0);
-    expect(final.final.rows[row + 1]).toMatch(/^Stopped watching/u);
+    expect(final.final.rows[row + 1]).toBe("");
+    expect(final.final.rows[row + 2]).toMatch(/^Stopped watching/u);
     expect(final.final.rows.some(line => line.startsWith("[publication]"))).toBe(true);
     expect(final.final.rows.some(line => line.startsWith("Full log:"))).toBe(true);
     expect(final.final.rows.some(line => line.includes("Publication failed"))).toBe(false);
@@ -804,9 +806,164 @@ describe("interactive development publication rows", () => {
       ...interactiveOptions, isTTY, environment, terminalSize: () => geometry, run, write: text => { output.push(text); },
     });
     expect(output.join("")).not.toContain("\u001b");
-    expect(output.slice(1, -1)).toEqual([
+    expect(output.slice(1, -2)).toEqual([
       "  ● Running: Build\n", "  ● Running: Validate\n", "  ● Passed:  Build\n", "  ● Passed:  Validate\n",
     ]);
+    expect(output.slice(-2)).toEqual(["\n", "[workflow] passed; verifying npm packages.\n"]);
+  });
+});
+
+describe("publication progress exit boundary", () => {
+  const source = "a".repeat(40);
+  const version = "0.1.8-dev.10";
+  const size = { columns: 200, rows: 100 };
+  const reasonHeading = `[develop] Stopped watching ${version} (run 42): `;
+  const guidance = "Remote outcome unknown; it may still be running. Check this run before starting another publication.";
+  const url = "Full log: https://github.com/owner/app/actions/runs/42";
+  const conclusions = ["success", "failure", "timed_out", "cancelled", "action_required", "startup_failure", "stale", "skipped", "neutral"];
+  const observationStops = ["offline run", "malformed run", "offline jobs", "malformed jobs", "wait failure", "aborted wait", "SIGINT", "SIGTERM"];
+  const exits = [...conclusions, ...observationStops];
+
+  async function observe(exit: string, visibleJobs: boolean, mode: string) {
+    const output: string[] = [];
+    const controller = new AbortController();
+    const before = [process.listenerCount("SIGINT"), process.listenerCount("SIGTERM"), process.stdout.listenerCount("resize")];
+    const build = { id: 1, name: "Build", status: "in_progress", conclusion: null, steps: publicationSteps("in_progress", "pending") };
+    const staging = { ...build, id: 2, name: `Develop / Stage ${version} on npm` };
+    const jobs = visibleJobs ? [build, staging] : [];
+    const runner = developmentRunner([
+      { status: "in_progress", conclusion: null, jobs },
+      { status: "in_progress", conclusion: null, jobs: jobs.map(job => job.id === 1 ? { ...job, status: "completed", conclusion: "success" } : job) },
+      { status: "completed", conclusion: exit, jobs: jobs.map(job => ({ ...job, status: "completed", conclusion: job.id === 1 ? "success" : exit })) },
+    ], "[]");
+    let reads = 0;
+    let waits = 0;
+    const run = (executable: string, args: string[]) => {
+      if (args[1] === "repos/owner/app/actions/runs/42") {
+        reads++;
+        if (reads === 3 && exit === "offline run") throw new Error("offline");
+        if (reads === 3 && exit === "malformed run") return "{}";
+      }
+      if (reads === 3 && args[1]?.includes("/jobs?")) {
+        if (exit === "offline jobs") throw new Error("offline");
+        if (exit === "malformed jobs") return "[{}]";
+      }
+      return runner.run(executable, args);
+    };
+    let geometry = size;
+    const result = await dispatchPublication("develop", source, version, {
+      ...developmentOptions, run, signal: controller.signal, write: (text: string) => { output.push(text); },
+      isTTY: mode !== "redirected", terminalSize: () => geometry,
+      environment: { TERM: mode === "dumb" ? "dumb" : "xterm", ...(mode === "neutral" ? { NO_COLOR: "1" } : {}) },
+      sleep: async () => {
+        if (++waits !== 2) return;
+        if (mode === "resized") {
+          geometry = { ...size, rows: 80 };
+          process.stdout.emit("resize");
+        }
+        if (exit === "wait failure") throw new Error("waiting unavailable");
+        if (exit === "aborted wait") {
+          controller.abort();
+          throw new Error("aborted");
+        }
+        if (exit === "SIGINT" || exit === "SIGTERM") process.emit(exit);
+      },
+    }).catch((error: unknown) => error);
+    expect([process.listenerCount("SIGINT"), process.listenerCount("SIGTERM"), process.stdout.listenerCount("resize")]).toEqual(before);
+    expect(runner.calls.some(call => call.args.includes("cancel"))).toBe(false);
+    if (exit === "success") expect(result).toBe(42);
+    else {
+      expect(result).toBeInstanceOf(Error);
+      output.push(`[develop] ${(result as Error).message}\n`);
+    }
+    return output;
+  }
+
+  it.each(exits.flatMap(exit => [true, false].flatMap(visibleJobs => ["interactive", "redirected"].map(mode => ({ exit, visibleJobs, mode })))))
+  ("separates $exit output (jobs $visibleJobs, $mode)", async ({ exit, visibleJobs, mode }) => {
+    const output = await observe(exit, visibleJobs, mode);
+    const transcript = output.join("");
+    if (mode === "redirected") expect(transcript).not.toContain("\u001b");
+    if (!visibleJobs) {
+      // Invariant: the header already ends in one blank separator; empty observers add none.
+      expect(output[0]).toBe(`\n[publication] ${version} — run 42\n${url}\n\n`);
+      expect(output).toHaveLength(2);
+    }
+    const final = await replayTerminalPaint(output.map((data, atMs) => ({ data: data.replace(/\n/gu, "\r\n"), atMs })), {
+      ...size, synchronizedUpdates: "honor", captureStyles: true,
+    });
+    const rows = final.final.rows;
+    const lastJob = rows.findLastIndex(line => line.includes("●"));
+    const boundary = visibleJobs ? lastJob : rows.findIndex(line => line === url);
+    expect(boundary).toBeGreaterThan(0);
+    expect(rows[boundary + 1]).toBe("");
+    const following = rows.slice(boundary + 2).filter(Boolean);
+    expect(following.length).toBeGreaterThan(0);
+    expect(following.every(line => /^\S/u.test(line))).toBe(true);
+    if (exit === "success") expect(following).toEqual(["[workflow] passed; verifying npm packages."]);
+    else if (conclusions.includes(exit)) {
+      expect(following[0]).toBe(`[develop] Publication failed: ${version} (run 42)`);
+      expect(following[1]).toBe(url);
+      expect(following.slice(2).every(line => line.startsWith("* "))).toBe(true);
+    } else {
+      const reason = exit === "wait failure" ? "status waiting unavailable"
+        : ["aborted wait", "SIGINT", "SIGTERM"].includes(exit) ? "interrupted" : "GitHub status unavailable";
+      expect(following).toEqual([`${reasonHeading}${reason}.`, guidance, url]);
+    }
+    if (visibleJobs && mode === "interactive" && observationStops.includes(exit)) {
+      // The earlier Build row was redrawn, but the final visible row is still running.
+      expect(rows.filter(line => line.includes("●"))).toEqual(["  ● Passed:  Build (2/2)", "  ● Running: npm staging (1/2)"]);
+    }
+  });
+
+  it.each(["neutral", "dumb", "resized"].flatMap(mode => ["success", "failure", "offline run", "wait failure", "SIGTERM"].map(exit => ({ mode, exit }))))
+  ("retains the boundary for $mode output after $exit", async ({ mode, exit }) => {
+    const output = await observe(exit, true, mode);
+    const final = await replayTerminalPaint(output.map((data, atMs) => ({ data: data.replace(/\n/gu, "\r\n"), atMs })), {
+      ...size, synchronizedUpdates: "honor", captureStyles: true,
+    });
+    const rows = final.final.rows;
+    const lastJob = rows.findLastIndex(line => line.includes("●"));
+    expect(rows[lastJob + 1]).toBe("");
+    expect(rows[lastJob + 2]).toMatch(/^(?:\[workflow\]|\[develop\])/u);
+    expect(rows.slice(lastJob + 2).filter(Boolean).every(line => /^\S/u.test(line))).toBe(true);
+    if (mode === "neutral") {
+      expect(output.join("")).not.toMatch(/\u001b\[\d+m/u);
+      expect(final.finalStyles).toEqual([]);
+    }
+    if (mode === "dumb") expect(output.join("")).not.toContain("\u001b");
+  });
+
+  it.each([
+    { columns: 12, rows: 40 }, { columns: NaN, rows: NaN }, { columns: 200, rows: 2 },
+  ])("separates stopped observation after geometry fallback %j", async geometry => {
+    const output: string[] = [];
+    const runner = developmentRunner([{ status: "in_progress", conclusion: null, jobs: [
+      { id: 1, name: "Build", status: "in_progress", conclusion: null },
+      { id: 2, name: `Develop / Stage ${version} on npm`, status: "in_progress", conclusion: null },
+    ] }]);
+    const error = await dispatchPublication("develop", source, version, {
+      ...developmentOptions, run: runner.run, isTTY: true, environment: { TERM: "xterm", NO_COLOR: "1" },
+      terminalSize: () => geometry, write: (text: string) => { output.push(text); },
+      sleep: async () => { throw new Error("wait failure"); },
+    }).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(Error);
+    output.push(`[develop] ${(error as Error).message}\n`);
+    expect(output.join("")).toBe(`\n[publication] ${version} — run 42\n${url}\n\n  ● Running: Build\n  ● Running: npm staging\n\n${reasonHeading}status waiting unavailable.\n${guidance}\n${url}\n`);
+  });
+
+  it("keeps a pre-aborted observer at the header separator without status reads", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const output: string[] = [];
+    const runner = developmentRunner([]);
+    const error = await dispatchPublication("develop", source, version, {
+      ...developmentOptions, run: runner.run, signal: controller.signal, write: (text: string) => { output.push(text); },
+    }).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(Error);
+    output.push(`[develop] ${(error as Error).message}\n`);
+    expect(output.join("")).toBe(`\n[publication] ${version} — run 42\n${url}\n\n${reasonHeading}interrupted.\n${guidance}\n${url}\n`);
+    expect(runner.calls.some(call => call.args[1]?.includes("/actions/runs/"))).toBe(false);
   });
 });
 
@@ -831,7 +988,7 @@ describe("stable candidate validation waiting", () => {
   it("throws the failed jobs and reasons when validation fails", async () => {
     const { run } = watched(new Error("exit status 1"), "completed", "failure");
     await expect(waitForStableValidation({ repository: "owner/app", runId: 51 }, { run }))
-      .rejects.toThrow(/Linux validation \(Node 24\) \[failure\]\n  \* expected 1 to be 2/);
+      .rejects.toThrow(/Linux validation \(Node 24\) \[failure\]\n\* expected 1 to be 2/);
   });
 
   it("reports that validation keeps running when watching stops early", async () => {
