@@ -55,7 +55,14 @@ export class ExtensionInputComponent extends Container {
         this.#titleText.setText(current.fg("accent", current.bold(`${this.#baseTitle} (${seconds}s)`)));
       }, () => this.#onCancel())
       : undefined;
-    if (opts?.initialValue !== undefined) this.#input.setValue(opts.initialValue);
+    if (opts?.initialValue !== undefined) {
+      this.#input.setValue(opts.initialValue);
+      // Pi's setter preserves the old cursor; a public end-of-input click establishes the baseline caret.
+      this.#input.handleMouse({
+        type: "press", button: "left", x: Number.MAX_SAFE_INTEGER, y: 0,
+        screenX: 0, screenY: 0, width: 0, height: 1, shift: false, alt: false, ctrl: false,
+      });
+    }
     this.addChild(this.#input);
     this.addChild(new Spacer(1));
     const keys = getKeybindings();
