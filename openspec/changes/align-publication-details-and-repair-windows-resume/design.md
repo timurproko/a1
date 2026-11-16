@@ -4,7 +4,7 @@ The reported publication is 0.2.7-dev.1334, Actions run 43934989358, source 7c14
 
 The log includes a disposable crash-file path but not its contents. The current fixture retains sanitized fatal records for failed shutdown assertions, not failed readiness. Cleanup deleted the runtime, and the uploaded validation artifact does not provide the crash record. The exact underlying exception is therefore not established.
 
-A focused native Windows reproduction using the exact failed package (SHA-256 909716508b8143b8299c7b6c7ca163bdecd789b8f53d801c96a4886d1bea2378) passed on Node 24.21.0; the failed hosted run used Node 24.22.2. A passing attempt does not establish recovery or rule out startup contention.
+Native Windows reproduction using the exact failed package (SHA-256 909716508b8143b8299c7b6c7ca163bdecd789b8f53d801c96a4886d1bea2378) passed on Node 24.21.0; the failed hosted run used Node 24.22.2. After implementation approval, the full 12-test packaged resume file passed, eight additional isolated simultaneous-resume attempts passed, and a temporary 20-round version of the simultaneous-resume case passed against one reused profile. A further 20-round run also passed under the hosted runner's exact Node 24.22.2 version. The original single-round test has been restored. These passing attempts do not establish recovery or rule out startup contention.
 
 ## Decisions
 
@@ -28,4 +28,4 @@ Use the focused publication-client suite, diagnostic-helper suite, tests for the
 
 ## Known gaps
 
-The precise Windows startup exception is not available from the failed run, and a single exact-package reproduction passed. Implementation must resolve the cause with retained sanitized evidence or a deterministic reproduction; the draft does not claim a confirmed cause or a fixed publication.
+The precise Windows startup exception is not available from the failed run and has not reproduced in the bounded exact-package attempts above. Pre-readiness failures now retain sanitized fatal records in readiness evidence before runtime cleanup. The concurrency repair remains incomplete: no speculative production change was made, tasks 2.2–2.4 remain unchecked, and the PR must remain draft until a deterministic reproduction or new retained failure identifies the responsible owner. Neither the passing attempts nor the diagnostics change claims a repaired publication.

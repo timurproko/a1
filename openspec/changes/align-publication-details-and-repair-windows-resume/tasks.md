@@ -6,7 +6,7 @@
 
 ## 2. Repair concurrent Windows packaged resume startup
 
-- [ ] 2.1 Retain bounded sanitized fatal diagnostics on pre-readiness failure without replacing the original failure or exposing private data.
+- [x] 2.1 Retain bounded sanitized fatal diagnostics on pre-readiness failure without replacing the original failure or exposing private data.
 - [ ] 2.2 Identify the early Windows startup exception using retained evidence or a deterministic concurrent reproduction and document the confirmed cause.
 - [ ] 2.3 Repair the responsible startup owner while preserving independent concurrent launches, writer fencing, and genuine failure behavior.
 - [ ] 2.4 Add focused diagnostic and contention regressions and retain packaged concurrent-resume marker isolation and independent cleanup assertions.
