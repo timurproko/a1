@@ -1909,9 +1909,20 @@ Development validation SHALL provide an explicitly selected diagnostic route tha
 
 ### Requirement: Development publication shows per-job workflow-step progress
 
-The development-publication observer SHALL append a compact `(current/total)` workflow-step counter to each visible non-skipped job when GitHub supplies a usable nonempty step list. Total SHALL count the returned steps, including setup and teardown, rather than using potentially noncontiguous step numbers. Current SHALL identify the last returned step position reported in progress or completed, including skipped steps, or zero before any step starts; a successful job SHALL show total/total. Counters SHALL NOT represent passed tests or elapsed-time estimates. Missing, empty, or malformed step metadata and wholly skipped jobs SHALL retain status-only presentation without invented counts.
+The development-publication observer SHALL append a compact `(current/total)` workflow-step counter to each visible non-skipped job when GitHub supplies a usable nonempty step list. Total SHALL count the returned steps, including setup and teardown, rather than using potentially noncontiguous step numbers. Pending and queued step statuses SHALL both be recognized as not started and SHALL NOT suppress counters for an otherwise usable list. Current SHALL identify the last returned step position reported in progress or completed, including skipped steps, or zero before any step starts; a successful job SHALL show total/total. Counters SHALL NOT represent passed tests or elapsed-time estimates. Missing, empty, or malformed step metadata and wholly skipped jobs SHALL retain status-only presentation without invented counts.
 
 A change to a displayed counter SHALL refresh that job even while its state remains running, and unchanged state/counter snapshots SHALL remain silent. Capable interactive terminals SHALL retain one row per job and preserve the counter when enough width is available by shortening long job names. Narrow-terminal safety, dot-only color, aligned labels, readable append-only fallback, failure reporting, and publication gates SHALL remain intact.
+
+#### Scenario: Pending future steps do not hide running progress
+
+- **WHEN** GitHub returns completed, in-progress, and pending steps for a running job
+- **THEN** its current/total counter SHALL be displayed before the job completes
+- **AND** advancing into a pending step SHALL refresh the counter while repeated identical snapshots remain silent
+
+#### Scenario: All steps are pending
+
+- **WHEN** a visible running job has a nonempty list of pending steps
+- **THEN** its counter SHALL show zero over the number of returned steps
 
 #### Scenario: Concurrent lanes advance independently
 
