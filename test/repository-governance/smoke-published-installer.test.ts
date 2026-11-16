@@ -266,7 +266,9 @@ describe("published installer smoke evidence", () => {
             const prefix = options.env.npm_config_prefix!;
             const modules = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules");
             mkdirSync(resolve(modules, ".a1-retired-1307"), { recursive: true });
-            writeFileSync(resolve(process.platform === "win32" ? prefix : resolve(prefix, "bin"), launcherName), `#!/bin/sh
+            const launcherRoot = process.platform === "win32" ? prefix : resolve(prefix, "bin");
+            mkdirSync(launcherRoot, { recursive: true });
+            writeFileSync(resolve(launcherRoot, launcherName), `#!/bin/sh
 exec node "${modules}/@timurproko/a1/bin/cli.js" "$@" ${environment.NODE_AUTH_TOKEN}
 `);
             const logs = resolve(options.env.npm_config_cache!, "_logs");
