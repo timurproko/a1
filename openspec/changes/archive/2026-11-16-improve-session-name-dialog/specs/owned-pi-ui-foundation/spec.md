@@ -176,7 +176,7 @@ Bare A1's visible session name, active model name, and thinking level SHALL inde
 
 When the existing provider-count and width rules show a provider qualifier, bare A1 SHALL render it in square brackets immediately after the active model name and before the thinking-level separator, as `model [provider] • level`, matching the Models dialog. Provider metadata SHALL remain outside the model and thinking hover/click targets. Existing qualifier visibility, omission before clipping higher-priority content, routed-model meaning, foreground roles, and comparison-profile formatting SHALL remain unchanged.
 
-Opening, submitting, or cancelling these dialogs SHALL retain the ordinary prompt draft and its attachments. Footer hover SHALL remain active while a dock dialog is open; clicking a footer control in that state SHALL close the active dialog through its ordinary Escape/cancel path without saving edits or opening a nested dialog. Floating overlays SHALL continue blocking background footer controls. Hit testing SHALL follow explicit current painted spans, including clipping, gutters, suppressed fields, and resize. Invisible, unnamed, missing-model, suppressed-level, comparison-profile, and extension-replaced footer controls SHALL expose no fabricated target. The initiating pointer gesture SHALL NOT propagate to the opened dialog or underlying prompt.
+Opening, submitting, or cancelling these dialogs SHALL retain the ordinary prompt draft and its attachments. Footer hover SHALL remain active while a dock dialog is open; clicking the same active footer control in that state SHALL close the dialog through its ordinary Escape/cancel path without saving edits. Clicking a different control SHALL cancel the active dialog through Escape and replace it with the requested dialog without exposing or submitting the retained prompt, including when optional components require preparation. Active control identity SHALL come from semantic metadata, not rendered titles, and SHALL work for footer-opened and slash-opened dialogs. Floating overlays SHALL continue blocking background footer controls. Hit testing SHALL follow explicit current painted spans, including clipping, gutters, suppressed fields, and resize. Invisible, unnamed, missing-model, suppressed-level, comparison-profile, and extension-replaced footer controls SHALL expose no fabricated target. The initiating pointer gesture SHALL NOT propagate to the opened dialog or underlying prompt.
 
 #### Scenario: Hover and directly edit a footer name
 - **WHEN** the pointer enters the visible footer-name text
@@ -209,6 +209,13 @@ Opening, submitting, or cancelling these dialogs SHALL retain the ordinary promp
 - **WHEN** the qualifier no longer fits or the existing provider-count rule omits it
 - **THEN** the model and level targets SHALL remain aligned with their visible text
 - **AND** the comparison profile SHALL retain its established qualifier format
+
+#### Scenario: Replace the dialog from a different footer control
+- **WHEN** Session Name, Models, or Thinking Level is open and the user clicks a different footer control
+- **THEN** the active dialog SHALL cancel through Escape and its requested replacement SHALL open without an intermediate ordinary prompt frame
+- **AND** unsaved edits SHALL NOT apply and prompt text, selection, and attachments SHALL remain retained
+- **WHEN** the user clicks the same control as the active dialog
+- **THEN** it SHALL close like Escape rather than reopen
 
 #### Scenario: Bound footer interaction to painted geometry
 - **WHEN** footer controls are clipped, suppressed, absent, or resized

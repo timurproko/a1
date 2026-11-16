@@ -46,6 +46,10 @@ Footer controls remain hoverable while a dock dialog owns input. A control click
 
 When the existing multi-provider visibility and width rules show a qualifier, bare A1 renders `model [provider] • thinking level`, placing the qualifier immediately after the active model rather than before it in parentheses. Construct the model, qualifier, active-level, and optional route suffix semantically so control geometry never depends on searching painted text. The model target covers only the model name; the level target starts after the optional bracketed qualifier and separator. Omit the optional qualifier before clipping higher-priority model/name content as before. Do not change single-provider visibility, routed-model meaning, foreground roles, or pinned comparison formatting.
 
+### Replace a different footer dialog
+
+The user refined toggling: clicking the same active footer control cancels it, while clicking a different control first cancels the current dock dialog through Escape and then opens the requested replacement. Identify active name/model/thinking surfaces through explicit semantic metadata rather than title inspection or assumptions about how they opened. Apply the same rule to slash-opened dialogs. Preserve unsaved-edit cancellation, prompt text/selection/attachments, gesture draining, and floating-overlay boundaries. Keep transitions coordinated so lazy preparation never exposes or submits the prompt in between.
+
 ## Risks and delivery
 
-Cover complete shell pointer routing, not only direct component input. Check word selection on wide graphemes and scrolled names, selection retention on release, padded target exclusion of neighboring metadata, and prompt/attachment retention. Deliver the ten ordered task groups in the PR; trusted automation owns refinalization and exact-head CI. No migration is required.
+Cover complete shell pointer routing, not only direct component input. Check word selection on wide graphemes and scrolled names, selection retention on release, padded target exclusion of neighboring metadata, and prompt/attachment retention. Deliver the eleven ordered task groups in the PR; trusted automation owns refinalization and exact-head CI. No migration is required.
