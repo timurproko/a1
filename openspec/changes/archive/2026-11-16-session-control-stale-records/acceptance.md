@@ -18,7 +18,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-16-session-control-stale-records/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-16-session-control-stale-records/acceptance.md",
   "finalizedDate": "2026-11-16",
-  "specBaseSha": "1b04aa608175af6539087074bdd8868a8670e30b",
+  "specBaseSha": "8dc9767e3eed31c4c59defef473613a506a5db47",
   "acceptanceScenarios": [
     "A starting session removes discovery records whose owner pid no longer exists and leaves records of live processes and unparseable records in place.",
     "A lookup resolves a live session when the directory also holds hundreds of dead-owner records, and removes the dead records it examined.",
