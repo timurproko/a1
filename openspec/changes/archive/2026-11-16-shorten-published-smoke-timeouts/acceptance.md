@@ -26,7 +26,7 @@ The maintainer integration decision accepts these scenarios:
     "Two-minute commands retain process sampling, and sanitized failure evidence is checkpointed before cleanup and updated with secondary cleanup failures.",
     "Only authenticated known legacy crashes permit installer recovery, and every failed smoke lane continues to block promotion."
   ],
-  "archiveDigest": "d52911b99fff947fbea57cbae7577e999c6188ade921de762ff286cf5e8b70eb",
+  "archiveDigest": "7a28a880c283408a45e4b2bbd69d066ac31efa4f06ebc1767f7970fcee9868b0",
   "specDigest": "d94385c0a7da775fcd2579c0cf5cb79d474696b0b76e84e28d6ef328f74df051",
   "tasksDigest": "842af69991faa5eaa17952c405514b2326589833e66e8fc621c0b0fb701e5be6",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
