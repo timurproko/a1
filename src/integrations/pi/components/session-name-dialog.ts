@@ -47,6 +47,7 @@ export class SessionNameDialog implements OwnedUiShellComponentPort {
       this.#value += segment;
     }
     this.#caret = this.#value.length;
+    this.#anchor = this.#value.length > 0 ? 0 : undefined;
     this.#ports = ports;
   }
 
@@ -200,7 +201,7 @@ export class SessionNameDialog implements OwnedUiShellComponentPort {
   }
 
   #position(column: number): number {
-    // Component-local column includes the frame's one-cell inset and the two-cell prompt marker.
+    // Protocol: component-local columns include the frame inset and two-cell prompt marker.
     if (this.#dragging && column < 4 && this.#start > 0) {
       this.#start = [...GRAPHEMES.segment(this.#value.slice(0, this.#start))].at(-1)?.index ?? 0;
     }

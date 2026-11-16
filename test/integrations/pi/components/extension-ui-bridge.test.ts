@@ -284,7 +284,24 @@ describe("pinned extension UI bridge", () => {
     complete({ kind: "text", text: "stale" });
     await new Promise(resolve => setImmediate(resolve));
     value.inputSurface!.handleInput!("\r");
-    await expect(second).resolves.toBe("Second edited");
+    await expect(second).resolves.toBe(" edited");
+    value.bridge.dispose();
+  });
+
+  it("selects the initial name for immediate replacement and undo", async () => {
+    const value = fixture();
+    const result = value.bridge.input("Session Name", "", { initialValue: "Existing", sessionNameEditing: true });
+    const surface = value.inputSurface!;
+    await surface.ready;
+    const field = surface.render(60).find(row => stripTerminalSequences(row).includes("> Existing"))!;
+    const painted = field.replace(/\x1b_[^\x07]*\x07/gu, "");
+    const from = stripTerminalSequences(painted).indexOf("Existing");
+    expect(cellBackgroundAt(painted, from)).toBe(cellBackgroundAt(paintTextSelection("x", 0, 1, visibleWidth), 0));
+    surface.handleInput!("Replacement");
+    surface.handleInput!("\x1a");
+    surface.handleInput!("New name");
+    surface.handleInput!("\r");
+    await expect(result).resolves.toBe("New name");
     value.bridge.dispose();
   });
 
@@ -310,6 +327,7 @@ describe("pinned extension UI bridge", () => {
   it("cancels an unselected name field and leaves public extension-input cancellation unchanged", async () => {
     const value = fixture();
     const named = value.bridge.input("Session Name", "", { initialValue: "Alpha", sessionNameEditing: true });
+    value.inputSurface!.handleInput!("\x1b[C");
     value.inputSurface!.handleInput!("\x03");
     await expect(named).resolves.toBeUndefined();
     const extension = value.bridge.context.input("Session Name", "");

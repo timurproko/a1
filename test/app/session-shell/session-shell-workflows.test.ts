@@ -100,7 +100,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await comparison.shell.dispose();
   });
 
-  it("starts unnamed sessions empty and appends at the end of a prefilled name", async () => {
+  it("starts unnamed sessions empty and selects existing names for immediate replacement", async () => {
     const bare = await fixture([], [], true);
     await bare.shell.submit("/name");
     const rows = bare.shell.root.render(100).map(stripTerminalSequences);
@@ -112,16 +112,22 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
 
     await bare.shell.submit("/name");
     expect(stripTerminalSequences(bare.shell.root.render(100).join("\n"))).toContain("> project");
+    bare.terminal.input("\x1b[F");
     bare.terminal.input(" Alpha");
     bare.terminal.input("\r");
     await nextImmediate();
     await vi.waitFor(() => expect(bare.engine.session.name).toBe("project alpha"));
 
     await bare.shell.submit("/name");
+    bare.terminal.input("Replacement");
+    bare.terminal.input("\r");
+    await vi.waitFor(() => expect(bare.engine.session.name).toBe("replacement"));
+
+    await bare.shell.submit("/name");
     bare.terminal.input(" unsaved");
     bare.terminal.input("\x1b");
     await nextImmediate();
-    expect(bare.engine.session.name).toBe("project alpha");
+    expect(bare.engine.session.name).toBe("replacement");
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
     await bare.shell.dispose();
   });

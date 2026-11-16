@@ -1,8 +1,8 @@
 ## 1. Prefill and select the current session name
 
 - [x] 1.1 Carry the current name through the internal input bridge while keeping unnamed sessions empty.
-- [ ] 1.2 Select a nonempty current name on opening so typing replaces it immediately; retain explicit caret movement for appending.
-- [ ] 1.3 Add named/unnamed, reopening, initial selection, immediate replacement, and cancellation cases.
+- [x] 1.2 Select a nonempty current name on opening so typing replaces it immediately; retain explicit caret movement for appending.
+- [x] 1.3 Add named/unnamed, reopening, initial selection, immediate replacement, and cancellation cases.
 
 ## 2. Add prompt-consistent selection and editing to the name field
 
