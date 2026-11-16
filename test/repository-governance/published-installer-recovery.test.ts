@@ -45,7 +45,7 @@ async function runFixture(fault = "") {
             return { ...ok, status: null, signal: fault === "cancelled" ? "SIGINT" : null, error: new Error("original direct-update timeout"), stdout: `update ${prior} to ${target}` };
           }
           if (args[0] === "--develop") {
-            expect(options.timeout).toBe(120_000);
+            expect(options.timeout).toBe(300_000);
             if (id === 2) {
               calls.push("installer-recovery"); recoveryCalls++;
               expect(calls.indexOf("settle-1")).toBeLessThan(calls.indexOf("installer-recovery"));

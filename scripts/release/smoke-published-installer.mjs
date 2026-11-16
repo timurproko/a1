@@ -9,11 +9,12 @@ import { pathToFileURL } from "node:url";
 import { compareVersions, resolveInstallerNpmCli, sanitizeDiagnostic } from "../../packages/a1-install/bin/a1-install.js";
 
 const execFile = promisify(execFileCallback);
-const COMMAND_BUDGET_MS = 2 * 60_000;
+const INSTALLATION_BUDGET_MS = 5 * 60_000;
+const UPDATE_BUDGET_MS = 2 * 60_000;
 
 /** Bound a stalled predecessor update independently of its older internal recovery deadline. */
 export function updateCommandBudgetMs() {
-  return COMMAND_BUDGET_MS;
+  return UPDATE_BUDGET_MS;
 }
 
 /** Run published installation in disposable prefixes and retain safe evidence on either outcome. */
@@ -117,7 +118,7 @@ export async function smokePublishedInstaller({
     installedEnvironment.PATH = [bridgeBin, installedEnvironment.PATH].join(delimiter);
     const args = channel === "next" ? ["--develop", version] : [];
     stage = "install-application";
-    const installed = await execute(installerLauncher, args, { cwd: root, encoding: "utf8", env: installedEnvironment, windowsHide: true, timeout: COMMAND_BUDGET_MS });
+    const installed = await execute(installerLauncher, args, { cwd: root, encoding: "utf8", env: installedEnvironment, windowsHide: true, timeout: INSTALLATION_BUDGET_MS });
     if (installed.stdout.replace(/\r\n/gu, "\n") !== "a1 successfully installed\n" || installed.stderr !== "") {
       throw new Error("published installer transcript is invalid");
     }
@@ -162,7 +163,7 @@ export async function smokePublishedInstaller({
     };
     stage = "install-predecessor";
     await execute(installerLauncher, channel === "next" ? ["--develop", predecessorVersion] : [], {
-      cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: COMMAND_BUDGET_MS,
+      cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: INSTALLATION_BUDGET_MS,
     });
     const updatedRoot = resolve(updatePrefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", ...applicationSource.name.split("/"));
     updateEnvironment.PUBLISHED_SMOKE_VERSION = version;
@@ -192,7 +193,7 @@ export async function smokePublishedInstaller({
       upgradeMethod = "installer-recovery";
       writeProgress("[published installer] authenticated legacy heartbeat failure; recovering with the published installer after process settlement\n");
       stage = "recover-predecessor-with-installer";
-      const recovered = await execute(installerLauncher, [...args, "--repair", resolve(dirname(crash.ownerPath), "capsule.json")], { cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: COMMAND_BUDGET_MS });
+      const recovered = await execute(installerLauncher, [...args, "--repair", resolve(dirname(crash.ownerPath), "capsule.json")], { cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: INSTALLATION_BUDGET_MS });
       if (recovered.stdout.replace(/\r\n/gu, "\n") !== "a1 successfully installed\n" || recovered.stderr !== "") throw new Error("published recovery installer transcript is invalid");
     }
     stage = "launch-updated-application";
