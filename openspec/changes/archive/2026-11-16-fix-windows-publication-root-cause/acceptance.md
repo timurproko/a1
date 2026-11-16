@@ -32,7 +32,7 @@ The maintainer integration decision accepts these scenarios:
     "Predecessor update waits end within five minutes and display their phase before waiting.",
     "Existing published pairs can be diagnosed without publishing packages or moving public tags."
   ],
-  "archiveDigest": "e66b479d53befa01fef9aeb8910d68313a90bf7fda298b96bcd53cd987725e65",
+  "archiveDigest": "c769c8de9b8a4d79f93e8afb90fe4df1e474239b96ad707068a7b7dd3d38558f",
   "specDigest": "08b4df6d83868aa1fd7f70b34ec9aaa238f6b05385c680347d0d209c23feb537",
   "tasksDigest": "b69c74dbb3a2d56bf3e8b39c85dade780b7c540f9847adad1a14bac04ffb3106",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
