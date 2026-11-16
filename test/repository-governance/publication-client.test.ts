@@ -644,7 +644,7 @@ describe("interactive development publication rows", () => {
     if (columns === 40) expect(rows.every(line => line.includes("…"))).toBe(true);
     expect(final.finalStyles?.map(cell => [cell.column, cell.colors[1]])).toEqual([[3, 2], [3, 2]]);
     const lastJob = final.final.rows.findLastIndex(line => line.includes("●"));
-    // The success line itself is wider than tiny terminals; inspect the rows before it is written.
+    // Platform: the success line wraps in tiny terminals; inspect the rows before it is written.
     const beforeFooter = await replay(output.slice(0, -1), geometry);
     expect(beforeFooter.final.rows[lastJob + 1]).toBe("");
   });
