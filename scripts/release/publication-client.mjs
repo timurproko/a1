@@ -300,7 +300,7 @@ async function waitForDevelopmentPublication(runId, version, repository, options
           write("\n");
           throw new Error(describePublicationFailure(runId, { run: execute, repository, version, jobs, develop: true }));
         }
-        write("  Workflow passed; verifying npm packages.\n");
+        write("\n[workflow] passed; verifying npm packages.\n");
         return;
       }
       try { await wait(POLL_INTERVAL_MS, undefined, { signal }); }

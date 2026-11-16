@@ -366,7 +366,7 @@ describe("publication failure reporting", () => {
       "\n[publication] 0.1.8-dev.10 — run 42\nFull log: https://github.com/owner/app/actions/runs/42\n\n",
       "  ● Running: macOS validation (Node 24)\n",
       "  ● Passed:  macOS validation (Node 24)\n",
-      "  Workflow passed; verifying npm packages.\n",
+      "\n[workflow] passed; verifying npm packages.\n",
     ]);
     expect(calls.some(call => call.args[1] === "watch")).toBe(false);
     expect(calls.filter(call => call.args[1]?.includes("/jobs?")).every(call => call.args.includes("--paginate"))).toBe(true);
@@ -620,8 +620,9 @@ describe("interactive development publication rows", () => {
     expect(final.final.rows.filter(line => line.startsWith("[publication]"))).toHaveLength(1);
     expect(final.final.rows.filter(line => line.startsWith("Full log:"))).toHaveLength(1);
     const lastJob = final.final.rows.findIndex(line => line.includes("Windows validation"));
-    expect(final.final.rows[lastJob + 1]).toBe("  Workflow passed; verifying npm packages.");
-    expect(final.final.cursor).toEqual({ row: lastJob + 3, column: 1 });
+    expect(final.final.rows[lastJob + 1]).toBe("");
+    expect(final.final.rows[lastJob + 2]).toBe("[workflow] passed; verifying npm packages.");
+    expect(final.final.cursor).toEqual({ row: lastJob + 4, column: 1 });
   });
 
   it.each([16, 40, 120].flatMap(columns => ["queued", "pending"].map(futureStatus => ({ columns, futureStatus }))))("updates counters in place at $columns columns with $futureStatus future steps", async ({ columns, futureStatus }) => {

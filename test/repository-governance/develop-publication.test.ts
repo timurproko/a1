@@ -84,7 +84,7 @@ describe("development publication completion and recovery", () => {
     expect(output).toContain("https://github.com/owner/app/actions/runs/42");
     expect(output).toContain("● Running: Promote exercised pair to npm next (1/1)");
     expect(output).toContain("● Passed:  Promote exercised pair to npm next (1/1)");
-    expect(output).toContain(`published ${version} on npm next (#955)`);
+    expect(output).toContain(`  ● Passed:  Promote exercised pair to npm next (1/1)\n\n[workflow] passed; verifying npm packages.\n[develop] published ${version} on npm next (#955)\n`);
     expect(f.fetch).toHaveBeenCalledTimes(initial.versions.every(Boolean) ? 8 : 6);
   });
 
@@ -93,7 +93,7 @@ describe("development publication completion and recovery", () => {
     await f.execute();
     expect(f.output.join("")).toContain(`requesting ${version} for ${preview.source}`);
     expect(f.output.join("")).not.toContain("recovering");
-    expect(f.output.join("")).toContain(`published ${version} on npm next (#955)`);
+    expect(f.output.join("")).toContain(`\n\n[workflow] passed; verifying npm packages.\n[develop] published ${version} on npm next (#955)\n`);
     expect(f.fetch).toHaveBeenCalledTimes(6);
   });
 
