@@ -20,4 +20,6 @@ No unresolved implementation gap is identified. The reported run has completed, 
 
 The parser now accepts pending as a not-started status. Focused regressions cover pending and queued future steps, independent lane updates, silent unchanged snapshots, final totals, and interactive replay at 16, 40, and 120 columns. Additional cases cover all-pending lists, mixed queued/pending lists, failure before pending steps, and strict rejection of unknown statuses beside active steps.
 
+Local validation passed: all 93 publication-client tests, the core build, typecheck, strict OpenSpec change validation, delivery-body validation, and diff checks. Hosted finalization initially rejected missing numeric task identifiers; the task ledger now supplies 1.1 and 1.2 without changing completion or scope.
+
 Before the parser fix, the focused suite reproduced nine pending-step failures while 84 other cases passed. The initial attempt could not initialize because the fresh checkout lacked local dependencies; installing the locked dependencies without scripts resolved that setup issue.
