@@ -24,7 +24,7 @@ The maintainer integration decision accepts these scenarios:
     "Unavailable step metadata leaves readable status-only output, and unchanged snapshots emit no duplicate progress.",
     "Interactive rows retain counters when space permits without wrapping, while redirected output remains readable and append-only."
   ],
-  "archiveDigest": "d0ead5c07c9e73e4e07b4b6d9630a7f5fae353a3d4dfb1e5280b888fa1c7033d",
+  "archiveDigest": "346f1cc17c0da52b1d4af23dd1031519798f7721e314d6d438818ce789066091",
   "specDigest": "6bb23155b2fe8367440396ecb7443df67d3ced363935c79abe23d793cbcc4ef9",
   "tasksDigest": "dfaa51e1b38b28f8776683937cf71b6261eab14bd0346d314add6cdcb5ff9da0",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
