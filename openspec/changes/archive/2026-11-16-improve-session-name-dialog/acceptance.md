@@ -9,7 +9,8 @@ The maintainer integration decision accepts these scenarios:
 - Footer-opened dialogs preserve unsent prompt text and attachments through submission or cancellation without sending a model prompt.
 - Successful bare-A1 renaming updates the footer and terminal title without an extra success message; genuine errors remain visible.
 - The thinking level remains visible in the footer while its dialog is open; saving a default alone does not change the active level.
-- Footer controls remain hoverable over dock dialogs, and another click cancels the dialog like Escape without saving unsent edits.
+- Footer controls remain hoverable over dock dialogs; the same control cancels like Escape, while a different control replaces the dialog without saving unsent edits.
+- When shown, the provider follows the model as model [provider] before the thinking level, matching the Models dialog.
 - Comparison-profile behavior and unrelated workflow feedback remain unchanged.
 
 ```openspec-delivery
@@ -29,12 +30,13 @@ The maintainer integration decision accepts these scenarios:
     "Footer-opened dialogs preserve unsent prompt text and attachments through submission or cancellation without sending a model prompt.",
     "Successful bare-A1 renaming updates the footer and terminal title without an extra success message; genuine errors remain visible.",
     "The thinking level remains visible in the footer while its dialog is open; saving a default alone does not change the active level.",
-    "Footer controls remain hoverable over dock dialogs, and another click cancels the dialog like Escape without saving unsent edits.",
+    "Footer controls remain hoverable over dock dialogs; the same control cancels like Escape, while a different control replaces the dialog without saving unsent edits.",
+    "When shown, the provider follows the model as model [provider] before the thinking level, matching the Models dialog.",
     "Comparison-profile behavior and unrelated workflow feedback remain unchanged."
   ],
-  "archiveDigest": "8426b389b959d99e562e9645c3411947b41c727440cbec1e71f9d09a23900673",
-  "specDigest": "2ad8138461b92f6a3fd030c95d52e69e6a1b642773f62b21b0664848bdf8a9c9",
-  "tasksDigest": "5fe4d73372a1d02c26c8bd1ef5ee8c2149bfb008c0efc7d313159088989f8946",
+  "archiveDigest": "5c73bcb3cffff3280f470d90976be45fd3e26787218716b811cce806c1d1d480",
+  "specDigest": "01fb07458696beea5bb1bc4606184cb3746079cad5abe1e0e3ac1df50171fe88",
+  "tasksDigest": "26f1a06a1c4a57309b8e7679939b6749de8b026c6b9f14775d3e84ef4b5a6a55",
   "evidenceDigest": "3c2272e6820cac238017b529dc50bc6aab40cb0e7fb2cd3dc60c6e954b1ff3ff",
   "knownGaps": []
 }
