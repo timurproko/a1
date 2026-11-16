@@ -1,10 +1,10 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.5.2 (MIT), commit b4afdddf44e059c67ccf5097e5317d913521b470,
  * packages/coding-agent/src/modes/interactive/components/extension-input.ts.
- * Modifications: Mechanical port: remap public imports, use ECMAScript private fields, and route the
- * bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded
- * modal-frame components while preserving input, timeout, focus, submission, cancellation, and
- * disposal behavior.
+ * Modifications: Mechanical port: remap public imports, use ECMAScript private fields, route bare-A1
+ * chrome through the shared shortcut and compact modal-frame components, and place an explicitly
+ * prefilled input's caret at the end through the public pointer API; preserve timeout, focus,
+ * submission, cancellation, and disposal behavior.
  * Deviations: owned-modal-shortcut-hints.
  */
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";

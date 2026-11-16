@@ -424,6 +424,8 @@ export interface OwnedUiShellProgramStatusReporter {
 export interface OwnedUiShellExtensionUiBridgeHost {
   readonly runtime: OwnedUiShellRuntime;
   readonly agentDir?: string;
+  readonly onCopyText?: (text: string, cut: boolean) => void;
+  readonly readClipboardContent?: (signal?: AbortSignal) => Promise<OwnedUiShellClipboardContent | null>;
   setInputSurface(component: OwnedUiShellComponentPort | null): void;
   setProgramStatusBlocked(status: OwnedUiShellProgramStatusBlocked | undefined): void;
   showOverlay(component: OwnedUiShellComponentPort, options?: OwnedUiExtensionOverlayOptions): OwnedUiExtensionOverlayHandle;
@@ -448,7 +450,7 @@ export interface OwnedUiShellExtensionUiBridgeHost {
 export interface OwnedUiShellExtensionUiBridge {
   /** The extension UI context the engine binds to a session. */
   readonly context: OwnedUiExtensionUiPort;
-  input(title: string, placeholder: string, options?: { readonly retainSurfaceOnSettle?: boolean; readonly initialValue?: string }): Promise<string | undefined>;
+  input(title: string, placeholder: string, options?: { readonly retainSurfaceOnSettle?: boolean; readonly initialValue?: string; readonly sessionNameEditing?: boolean }): Promise<string | undefined>;
   reset(): void;
   dispose(): void;
 }

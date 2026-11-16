@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-14T08:26:03.667Z",
+  "recordedAt": "2026-11-16T13:32:33.794Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "b4afdddf44e059c67ccf5097e5317d913521b470",
@@ -1765,9 +1765,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/extension-input.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded modal-frame components while preserving input, timeout, focus, submission, cancellation, and disposal behavior.",
+      "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, route bare-A1 chrome through the shared shortcut and compact modal-frame components, and place an explicitly prefilled input's caret at the end through the public pointer API; preserve timeout, focus, submission, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "c53ccb8475fbdfedf69ba409b4a032c3aa7269946367f393bdf40925d374303d",
+      "localSha256": "214d5ff5bcbd75a6e4ad4e3f803036f619343a291822c5569ad6dc27556d966d",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",

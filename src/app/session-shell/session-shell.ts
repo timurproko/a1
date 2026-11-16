@@ -639,6 +639,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
     if (this.#customViewport && request.command === "name" && request.argument.trim().length === 0) {
       void this.#extensionBridge.input("Session Name", "Enter name", {
         initialValue: this.view().status.footer?.sessionName ?? "",
+        sessionNameEditing: true,
       }).then(value => {
         if (this.#disposed || value === undefined || value.trim().length === 0) return;
         return this.runWorkflow({ ...request, argument: value });
@@ -830,6 +831,11 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
     return this.#presenters.components.dialogs.extensionUiBridge({
       runtime: componentRuntime(this.#terminal),
       agentDir: this.backend.identity.agentDir,
+      onCopyText: (text, cut) => {
+        const delivery = this.#clipboard.copyText(text);
+        if (delivery !== undefined) this.#trackCopy(delivery, cut ? undefined : text.length);
+      },
+      readClipboardContent: signal => this.#clipboard.readContent(signal),
       setInputSurface: component => this.root.setInputSurface(component, true, "opaque"),
       setProgramStatusBlocked: status => this.#programStatus.setBlocked("extension-dialog", status),
       showOverlay: (component, overlayOptions) => this.#terminal.showOverlay(component, overlayOptions),

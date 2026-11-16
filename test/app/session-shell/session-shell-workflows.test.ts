@@ -49,7 +49,9 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(inputFrame).not.toContain("Usage: /name <name>");
     expect(firstVisibleTextColumn(hints)).toBe(firstVisibleTextColumn(title));
     expect(cellStyle(title, "S")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("S")), "S"));
-    expect(inputRows[inputRows.indexOf(title) + 2]?.trimStart()).toMatch(/^>/);
+    const fieldRow = inputRows[inputRows.indexOf(title) + 2]!;
+    expect(stripTerminalSequences(fieldRow).trimStart()).toMatch(/^>/);
+    expect(cellStyle(fieldRow, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(false);
 
     for (const _ of "direct name") bare.terminal.input("\x7f");
@@ -118,6 +120,54 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(bare.engine.session.name).toBe("project alpha");
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
     await bare.shell.dispose();
+  });
+
+  it("routes name-field mouse selection and editing shortcuts without touching the prompt draft", async () => {
+    const copied: string[] = [];
+    const bare = await fixture([], [], true, undefined, {
+      readText: async () => "Pasted",
+      writeText: async text => { copied.push(text); },
+    });
+    try {
+      bare.terminal.resize(80, 24);
+      await bare.shell.submit("/name Alpha Project");
+      bare.shell.root.editor.setText("retained prompt draft");
+      await bare.shell.runWorkflow({ command: "name", argument: "" });
+      bare.shell.runtime.renderNow();
+      const rows = bare.shell.root.render(80).map(stripTerminalSequences);
+      const row = rows.findIndex(line => line.includes("> alpha project")) + 1;
+      const column = rows[row - 1]!.indexOf("alpha") + 1;
+      bare.terminal.input(`\x1b[<0;${column};${row}M\x1b[<32;${column + 5};${row}M\x1b[<0;${column + 5};${row}m`);
+      expect(bare.shell.root.viewport.hasSelection).toBe(false);
+      bare.terminal.input("\x03");
+      await vi.waitFor(() => expect(copied).toEqual(["alpha"]));
+      expect(bare.shell.root.usesDefaultInputSurface()).toBe(false);
+      expect(bare.engine.session.name).toBe("alpha project");
+      expect(bare.shell.root.editor.getText()).toBe("retained prompt draft");
+      bare.terminal.input("\x01");
+      bare.terminal.input("\x18");
+      await vi.waitFor(() => expect(copied).toEqual(["alpha", "alpha project"]));
+      bare.terminal.input("\x1a");
+      expect(stripTerminalSequences(bare.shell.root.render(80).join("\n"))).toContain("> alpha project");
+      bare.terminal.input("\x16");
+      await vi.waitFor(() => expect(stripTerminalSequences(bare.shell.root.render(80).join("\n"))).toContain("> Pasted"));
+      bare.terminal.input("\x1a");
+      bare.terminal.input("\x01");
+      bare.terminal.input("Final Name");
+      bare.terminal.input("\r");
+      await nextImmediate();
+      expect(bare.engine.session.name).toBe("final name");
+      expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
+      expect(bare.shell.root.editor.getText()).toBe("retained prompt draft");
+
+      await bare.shell.runWorkflow({ command: "name", argument: "" });
+      bare.terminal.input("\x01");
+      bare.terminal.input("discarded");
+      bare.terminal.input("\x1b");
+      await nextImmediate();
+      expect(bare.engine.session.name).toBe("final name");
+      expect(bare.shell.root.editor.getText()).toBe("retained prompt draft");
+    } finally { await bare.shell.dispose(); }
   });
 
   it("persists thinking defaults immediately without changing the active level or comparison mode", async () => {

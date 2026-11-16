@@ -1,6 +1,7 @@
 import { type ExtensionUIContext } from "../startup-public.js";
 import { ExtensionEditorComponent } from "./upstream/components/extension-editor.js";
 import { ExtensionInputComponent } from "./upstream/components/extension-input.js";
+import { SessionNameDialog } from "./session-name-dialog.js";
 import { ExtensionSelectorComponent } from "./upstream/components/extension-selector.js";
 import type { ProgramStatusBlocked } from "./upstream/program-status-reporter.js";
 import {
@@ -13,6 +14,7 @@ import {
   type OwnedUiExtensionOverlayHandle,
   type OwnedUiExtensionOverlayOptions,
   type OwnedUiExtensionUiPort,
+  type OwnedUiShellClipboardContent,
 } from "../../../contracts/owned-ui/index.js";
 import {
   KeybindingsManager,
@@ -41,6 +43,8 @@ type PiEditorFactory = NonNullable<Parameters<ExtensionUIContext["setEditorCompo
 export interface PiExtensionUiBridgeHost {
   readonly runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">;
   readonly agentDir?: string;
+  readonly onCopyText?: (text: string, cut: boolean) => void;
+  readonly readClipboardContent?: (signal?: AbortSignal) => Promise<OwnedUiShellClipboardContent | null>;
   setInputSurface(component: PiShellComponentPort | null): void;
   setProgramStatusBlocked(status: ProgramStatusBlocked | undefined): void;
   showOverlay(component: PiShellComponentPort, options?: OwnedUiExtensionOverlayOptions): OwnedUiExtensionOverlayHandle;
@@ -65,7 +69,7 @@ export interface PiExtensionUiBridgeHost {
 export interface PiExtensionUiBridge {
   /** The extension UI context the engine binds to a session, typed by the neutral contract it satisfies. */
   readonly context: OwnedUiExtensionUiPort;
-  input(title: string, placeholder: string, options?: { readonly retainSurfaceOnSettle?: boolean; readonly initialValue?: string }): Promise<string | undefined>;
+  input(title: string, placeholder: string, options?: { readonly retainSurfaceOnSettle?: boolean; readonly initialValue?: string; readonly sessionNameEditing?: boolean }): Promise<string | undefined>;
   reset(): void;
   dispose(): void;
 }
@@ -289,12 +293,12 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
   assertOwnedUiExtensionUiPort(context);
   return {
     context,
-    input: (title, placeholder, options) => showInput<string | undefined>((resolve, cancel) => componentPort(
-      new ExtensionInputComponent(title, placeholder, resolve, cancel, {
+    input: (title, placeholder, options) => showInput<string | undefined>((resolve, cancel) => options?.sessionNameEditing === true
+      ? new SessionNameDialog(options.initialValue ?? "", host, resolve, cancel, host.runtime.requestRender)
+      : componentPort(new ExtensionInputComponent(title, placeholder, resolve, cancel, {
         tui,
         ...(options?.initialValue === undefined ? {} : { initialValue: options.initialValue }),
-      }),
-    ), undefined, options?.retainSurfaceOnSettle === true, { kind: "question", message: title }),
+      })), undefined, options?.retainSurfaceOnSettle === true, { kind: "question", message: title }),
     reset,
     dispose() {
       reset();
