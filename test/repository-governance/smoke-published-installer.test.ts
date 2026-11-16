@@ -116,8 +116,8 @@ describe("published installer smoke evidence", () => {
     expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({ outcome: "failure", stage: "update-predecessor" });
   });
 
-  it("allows five-minute installations while retaining two-minute acquisition and updates and short query and launch deadlines", async () => {
-    expect(updateCommandBudgetMs()).toBe(2 * 60_000);
+  it("allows five-minute installations and updates while retaining two-minute acquisition and short query and launch deadlines", async () => {
+    expect(updateCommandBudgetMs()).toBe(5 * 60_000);
     const { environment } = await fixture();
     const budgets = new Map<string, number>();
     await smokePublishedInstaller({ environment, spawnSync: (command, args, options) => {
@@ -125,7 +125,7 @@ describe("published installer smoke evidence", () => {
       return successfulCommand(command, args, options);
     } });
     expect(budgets.get("install")).toBe(2 * 60_000);
-    expect(budgets.get("update")).toBe(2 * 60_000);
+    expect(budgets.get("update")).toBe(5 * 60_000);
     expect(budgets.get("--develop")).toBe(5 * 60_000);
     expect(budgets.get("install-predecessor")).toBe(5 * 60_000);
     expect(budgets.get("view")).toBe(30_000);
@@ -165,6 +165,64 @@ describe("published installer smoke evidence", () => {
     } finally { vi.useRealTimers(); }
   });
 
+  it.each(["success", "wrong-manifest", "failed-launcher", "timeout"])("keeps real completion and exact-candidate checks after a slow update: %s", async fault => {
+    const { output, environment } = await fixture();
+    const progress: string[] = [];
+    const order: string[] = [];
+    let updated = false;
+    let recoveryReads = 0;
+    const elapsed = fault === "timeout" ? 300_000 : 153_000;
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    try {
+      const run = runSmoke({
+        environment, writeProgress: text => { progress.push(text); }, writeDiagnostic: () => {},
+        readSystemEvents: async () => ({ events: [], antimalware: null }),
+        prepareRecoveryObservation: async context => ({ environment: context.environment, readFailure: async () => { recoveryReads++; return null; } }),
+        createRunner: () => ({
+          run: async (command, args, options) => {
+            if (args[0] === "update") {
+              expect(options.timeout).toBe(300_000);
+              await vi.advanceTimersByTimeAsync(elapsed);
+              // Partial target files never substitute for successful command completion.
+              writeManifest(options, fault === "wrong-manifest" ? "wrong" : version);
+              updated = true;
+              return fault === "timeout"
+                ? { ...ok, status: null, error: new Error(`published smoke command timed out after ${options.timeout}ms`) }
+                : ok;
+            }
+            if (updated) {
+              order.push("launch-updated");
+              expect(args).toEqual(["--help"]);
+              if (fault === "failed-launcher") return { ...ok, status: 1, stderr: "updated launcher failed" };
+            }
+            return successfulCommand(command, args, options);
+          },
+          inventory: async () => { order.push("inventory"); return []; },
+          close: async () => { order.push("settle"); },
+        }),
+        removeFixture: async root => { order.push("remove"); await rm(root, { recursive: true, force: true }); },
+      });
+      if (fault === "success") await run;
+      else await expect(run).rejects.toThrow(fault === "timeout" ? "timed out after 300000ms" : fault === "wrong-manifest" ? "wrong application package" : "updated launcher failed");
+      expect(progress).toContain("[published installer] update-predecessor running (120000ms elapsed; timeout=300000ms)\n");
+      expect(progress).toContain(`[published installer] update-predecessor ${fault === "timeout" ? "failed" : "passed"} (${elapsed}ms)\n`);
+      const evidence = JSON.parse(await readFile(output, "utf8"));
+      expect(evidence).toMatchObject({ outcome: fault === "success" ? "success" : "failure", timings: { "update-predecessor": elapsed } });
+      if (fault === "success") {
+        expect(evidence).toMatchObject({ installedVersion: version, predecessorVersion: "0.2.7-dev.1305", updateVerified: true, launcherVerified: true, upgradeMethod: "predecessor-update" });
+        expect(order).toEqual(["launch-updated", "settle", "remove"]);
+      } else {
+        expect(evidence).toMatchObject({ stage: fault === "timeout" ? "update-predecessor" : "launch-updated-application", launcherVerified: false, activationVerified: false });
+        expect(order).toEqual([...(fault === "failed-launcher" ? ["launch-updated"] : []), "inventory", "settle", "remove"]);
+      }
+      if (fault === "timeout") {
+        expect(recoveryReads).toBe(1);
+        expect(evidence).toMatchObject({ upgradeMethod: "predecessor-update", predecessorUpdate: { outcome: "failure", crash: null } });
+      }
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
   it("prints each phase before waiting and reports failed commands without a success message", async () => {
     const { environment } = await fixture();
     const progress: string[] = [];
@@ -184,7 +242,7 @@ describe("published installer smoke evidence", () => {
     expect(progress[0]).toBe("[published installer] acquire-installer started (timeout=120000ms)\n");
     expect(progress).toContain("[published installer] install-application started (timeout=300000ms)\n");
     expect(progress).toContain("[published installer] install-predecessor started (timeout=300000ms)\n");
-    expect(progress).toContain("[published installer] update-predecessor started (timeout=120000ms)\n");
+    expect(progress).toContain("[published installer] update-predecessor started (timeout=300000ms)\n");
     expect(progress.at(-1)).toMatch(/^\[published installer\] update-predecessor failed \(\d+ms\)\n$/u);
     expect(progress.join("")).not.toContain("update-predecessor passed");
   });

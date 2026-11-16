@@ -10,9 +10,9 @@ import { compareVersions, resolveInstallerNpmCli, sanitizeDiagnostic } from "../
 
 const execFile = promisify(execFileCallback);
 const INSTALLATION_BUDGET_MS = 5 * 60_000;
-const UPDATE_BUDGET_MS = 2 * 60_000;
+const UPDATE_BUDGET_MS = 5 * 60_000;
 
-/** Bound a stalled predecessor update independently of its older internal recovery deadline. */
+/** Allow real npm replacement the installation budget, independently of older recovery deadlines. */
 export function updateCommandBudgetMs() {
   return UPDATE_BUDGET_MS;
 }

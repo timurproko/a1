@@ -20,6 +20,12 @@ Update the stage budget and progress contracts, including recovery tests that di
 
 A real stall can now take five minutes to report. This proposal does not identify why npm spent time extracting/replacing files, nor prove the interrupted attempt would finish. Hosted native publication remains separate evidence after approved implementation and integration. Do not publish, promote, retry the failed workflow, alter predecessor bytes, bypass the updater, or treat a generic timeout as permission for repair.
 
-## Approval and known gaps
+## Implementation and focused validation
 
-Planning only; implementation has not been authorized. The deadline change explicitly revises the previously approved two-minute update policy. A live successful replacement on the new allowance is not yet established.
+The maintainer approved this plan and requested implementation in the same task. The update budget accessor now returns 300000 ms; no other production behavior or deadline changed. Smoke and recovery contracts use the new allowance. A simulated 153-second direct update must still pass manifest and launcher checks; wrong manifests and failing launchers remain failures. A five-minute simulated timeout retains failure evidence, settles before removal, and never authorizes installer recovery even when target files exist. The real asynchronous smoke runner is also exercised at 299999 ms and 300000 ms using a controlled deadline clock with a real child process, followed by identity-checked settlement. Process sampling retains its two-minute eligibility boundary and now explicitly covers a five-minute command.
+
+Focused local validation passed: 66 tests in smoke evidence, explicit installer recovery, process ownership, and npm promotion/workflow contracts, including native Windows detached-tree settlement. Core build, both typechecks, strict OpenSpec validation, and diff whitespace checks passed. The initial typecheck caught a test promise-union typing issue, corrected with Promise.resolve; the fresh checkout also required the core build before the bin typecheck could resolve dist modules.
+
+## Known gaps
+
+No unresolved implementation gap is identified. This deadline change explicitly revises the previously approved two-minute update policy. A live successful replacement on the new allowance remains external publication evidence, not something local tests establish. No publication, tag mutation, retry, or merge was performed.
