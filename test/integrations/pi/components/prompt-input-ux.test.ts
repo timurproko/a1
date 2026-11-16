@@ -260,6 +260,43 @@ describe("owned shared input and status presentation", () => {
     expect(input.getText()).toBe("");
   });
 
+  it("exports separate padded model and thinking spans with foreground-preserving hover", () => {
+    const base = view();
+    const footer = createPiShellFooter(base, "/WORK", "a1");
+    const original = footer.render(80)[1]!;
+    const spans = footer.footerControlSpans!();
+    expect(spans.map(span => span.command)).toEqual(["models", "thinking"]);
+    for (const span of spans) {
+      const label = span.command === "models" ? " MODEL " : " medium ";
+      expect(stripTerminalSequences(original).slice(span.column, span.column + span.width)).toBe(label);
+      footer.setFooterHovered!(span.command);
+      const hovered = footer.render(80)[1]!;
+      expect(stripTerminalSequences(hovered)).toBe(stripTerminalSequences(original));
+      expect(cellStyle(hovered, span.command === "models" ? "M" : "m")).toEqual(cellStyle(original, span.command === "models" ? "M" : "m"));
+      for (let column = span.column; column < span.column + span.width; column++) {
+        expect(cellBackgroundAt(hovered, column)).toBe(cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0));
+      }
+    }
+    for (let width = 1; width <= 80; width++) {
+      footer.render(width);
+      const visible = footer.footerControlSpans!();
+      for (const span of visible) {
+        expect(span.column).toBeGreaterThanOrEqual(0);
+        expect(span.column + span.width).toBeLessThanOrEqual(width);
+      }
+      if (visible.length === 2) expect(visible[0]!.column + visible[0]!.width).toBeLessThan(visible[1]!.column);
+    }
+    const absent = createPiShellFooter({ ...base, activeModel: null }, "/WORK", "a1");
+    absent.render(80);
+    expect(absent.footerControlSpans!()).toEqual([]);
+    const hidden = createPiShellFooter(base, "/WORK", "a1", () => false);
+    hidden.render(80);
+    expect(hidden.footerControlSpans!().map(span => span.command)).toEqual(["models"]);
+    const comparison = createPiShellFooter(base, "/WORK", "pi");
+    comparison.render(80);
+    expect(comparison.footerControlSpans!()).toEqual([]);
+  });
+
   it("links only the PR number in the owned footer and leaves the pinned profile unchanged", () => {
     applyPiTheme("dark", false, "truecolor");
     const state = view();
@@ -282,7 +319,7 @@ describe("owned shared input and status presentation", () => {
     expect(hyperlinkTargetAtColumn(ownedRow, plain.indexOf(" • ") + 1)).toBeUndefined();
     expect(cellStyle(ownedRow, "•")).toEqual(cellStyle(piTheme().fg("dim", "•"), "•"));
     const statsRow = stripTerminalSequences(createPiShellFooter(footerState, "/WORK", "a1").render(120)[1]!);
-    expect(statsRow).toMatch(/0\.0%\/0 •  footer-test\s+\(PROVIDER\) MODEL • medium$/);
+    expect(statsRow).toMatch(/0\.0%\/0 •  footer-test\s+\(PROVIDER\) MODEL • medium $/);
     const linkColumn = plain.indexOf("#540");
     expect(hyperlinkTargetAtColumn(ownedRow, linkColumn - 1)).toBeUndefined();
     expect(hyperlinkTargetAtColumn(ownedRow, linkColumn)).toBe("https://github.com/timurproko/a1/pull/540");
@@ -389,9 +426,9 @@ describe("owned shared input and status presentation", () => {
       const unnamed = createPiShellFooter(base, "/WORK", "a1").render(width);
       expect(named.every(row => visibleWidth(row) <= width)).toBe(true);
       if (width === 1) expect(named).toEqual(unnamed);
-      if (width >= "MODEL • medium".length + 7) expect(stripTerminalSequences(named[1]!)).toContain("new");
-      if (width === 20) expect(stripTerminalSequences(named[1]!)).toContain(" n… ");
-      if (width === 12) expect(stripTerminalSequences(named[1]!)).toContain(" ne… ");
+      if (width >= "MODEL • medium".length + 9) expect(stripTerminalSequences(named[1]!)).toContain("new");
+      if (width === 20) expect(footer.footerControlSpans!().some(span => span.command === "name")).toBe(false);
+      if (width === 12) expect(stripTerminalSequences(named[1]!)).toContain(" … ");
     }
     footer.dispose?.();
   });
@@ -415,14 +452,14 @@ describe("owned shared input and status presentation", () => {
       expect(rows).toHaveLength(2);
       expect(rows.every(row => visibleWidth(row) <= width)).toBe(true);
       expect(line).not.toMatch(/^\s*•|•\s*$/u);
-      if (width >= name.length + "MODEL • medium".length + 4) expect(line).toContain(name);
+      if (width >= name.length + "MODEL • medium".length + 6) expect(line).toContain(name);
     }
     const constrained = stripTerminalSequences(footer.render(60)[1]!);
     expect(constrained).toContain(name);
     expect(constrained).toContain("…");
     expect(constrained).not.toContain("$3.019");
-    const minimal = stripTerminalSequences(footer.render(40)[1]!);
-    expect(minimal).toBe(` ${name}   MODEL • medium`);
+    const minimal = stripTerminalSequences(footer.render(42)[1]!);
+    expect(minimal).toBe(` ${name}    MODEL • medium `);
     expect(minimal).not.toContain("(PROVIDER)");
     const modelColumn = constrained.indexOf("MODEL");
     footer.setNameReveal?.({ from: "Previous task name", elapsed: 700 });
@@ -457,7 +494,7 @@ describe("owned shared input and status presentation", () => {
         usage: { ...base.status.usage!, input: 120000, output: 120000, cost: 10, contextWindow: 272000 },
       },
     };
-    for (const width of [1, 8, 22]) {
+    for (const width of [1, 10, 22]) {
       const owned = createPiShellFooter(state, "/WORK", "a1").render(width)[1]!;
       const comparison = createPiShellFooter(state, "/WORK", "pi").render(width)[1]!;
       expect(visibleWidth(owned)).toBeLessThanOrEqual(width);
@@ -487,11 +524,12 @@ describe("owned shared input and status presentation", () => {
     expect(usage).toContain("…");
     expect(cellStyle(rows[1]!, "…")).toEqual(cellStyle(piTheme().fg("dim", "…"), "…"));
     expect(cellStyle(rows[1]!, "h")).toEqual(cellStyle(piTheme().getThinkingBorderColor("high")("h"), "h"));
-    for (const width of [1, 2, 8, 11, 12, 40]) {
+    for (const width of [1, 2, 8, 11, 12, 13, 40]) {
       const [path, line] = createPiShellFooter(state, "/WORK", "a1").render(width);
       expect(visibleWidth(path!)).toBeLessThanOrEqual(width);
       expect(visibleWidth(line!)).toBeLessThanOrEqual(width);
-      if (width >= 11) expect(stripTerminalSequences(line!)).toContain("gpt-5.6-sol");
+      if (width >= 13) expect(stripTerminalSequences(line!)).toContain("gpt-5.6-sol");
+      if (width === 11) expect(stripTerminalSequences(line!)).toBe(" gpt-5.6-… ");
       if (width < 4) expect(hyperlinkTargetAtColumn(path!, 0)).toBeUndefined();
     }
     const path = rows[0]!;

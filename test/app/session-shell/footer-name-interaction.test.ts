@@ -144,6 +144,31 @@ describe("direct footer name editing", () => {
     } finally { await value.shell.dispose(); }
   });
 
+  it.each(["models", "thinking"] as const)("opens %s from its padded footer control without losing the draft", async command => {
+    const value = await namedFixture();
+    try {
+      value.shell.root.editor.setText("unsent selected prompt");
+      value.terminal.input("\x01");
+      expect(value.shell.root.editor.hasSelection()).toBe(true);
+      value.shell.runtime.renderNow();
+      const region = value.shell.root.chrome.footerName?.region(command)!;
+      expect(region).toBeDefined();
+      value.terminal.input(`\x1b[<35;${region.columnStart};${region.rowStart}M`);
+      const row = value.shell.root.render(80)[region.rowStart - 1]!;
+      const expected = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
+      for (let column = region.columnStart; column <= region.columnEnd; column++) expect(cellBackgroundAt(row, column - 1)).toBe(expected);
+      value.terminal.input(`\x1b[<0;${region.columnEnd};${region.rowStart}M\x1b[<0;${region.columnEnd};${region.rowStart}m`);
+      await vi.waitFor(() => expect(value.shell.root.usesDefaultInputSurface()).toBe(false));
+      await vi.waitFor(() => expect(stripTerminalSequences(value.shell.root.render(80).join("\n"))).toContain(command === "models" ? "Models" : "Thinking Level"));
+      expect(value.shell.root.editor.getText()).toBe("unsent selected prompt");
+      value.terminal.input("\x1b");
+      await vi.waitFor(() => expect(value.shell.root.usesDefaultInputSurface()).toBe(true));
+      expect(value.shell.root.editor.getText()).toBe("unsent selected prompt");
+      expect(value.shell.root.editor.hasSelection()).toBe(true);
+      expect(value.engine.session.promptOptions).toHaveLength(0);
+    } finally { await value.shell.dispose(); }
+  });
+
   it("has no name target for unnamed, comparison, or extension-replaced footers", async () => {
     for (const [name, bare] of [["", true], ["named", false]] as const) {
       const value = await namedFixture(name, bare);

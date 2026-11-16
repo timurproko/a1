@@ -1,21 +1,23 @@
 ## Delivered behavior
 
-- Bare-A1 `/name` reads the current session name on each invocation; unnamed sessions start empty and the initial caret is at the end. Direct naming and comparison-profile behavior remain unchanged.
-- The opt-in name field supports grapheme-aware mouse drag selection, Ctrl+A, Ctrl+Z, Ctrl+X, Ctrl+C, and Ctrl+V. Selection uses the same `paintTextSelection` helper as the ordinary prompt. Selected Ctrl+C copies without dismissal; unselected Ctrl+C and Escape cancel silently. Paste remains bounded single-line text, cut/replacement/paste are undoable, and stale clipboard reads cannot mutate a dismissed or edited field.
-- Footer name hit testing uses explicit painted geometry, including clipping, outer gutters, extension-status rows, and resize. Only visible name cells acquire hover and right-click editing. Unnamed, comparison, and extension-replaced footers expose no target.
-- The Edit menu reproduces the pre-pivot popup's dark grey borderless surface, one-cell side padding, white normal-weight labels, no initial selection, and live accent-selected hover. The historical reference is the parent of pivot commit `9f0307c0`, specifically the native attach popup painter/model. No retired native code or accent lookup table was restored.
-- Edit invokes the naming workflow directly rather than submitting `/name`. Focused shell cases preserve an unsent prompt and attached image through both name submission and cancellation, with no model prompt sent.
-- Optional name-field code loads on first use with an existing compact input placeholder and bounded ordered keyboard/pointer buffering. A queued copy is not intercepted as cancellation. Footer context routing loads after the first synchronous frame; until prepared, ordinary pointer and keyboard routing remains untouched. Shared extension bridge types reuse the neutral contract rather than duplicating it.
-- Copied-source provenance and hashes describe initial caret placement and footer-name geometry/hover. The size ratchet was lowered for the smaller bridge function; no architecture, cycle, or startup budget was relaxed.
+- Bare-A1 `/name` reads the current name on each invocation and fully selects nonempty initial text. Typing or pasting immediately replaces it; explicit caret movement permits appending. Unnamed sessions start empty, and public extension inputs retain their established behavior.
+- The bounded single-line name field supports grapheme-aware drag selection, double-click word selection, triple-click whole-name selection, Ctrl+A/Z/X/C/V, and undoable replacements. Repeated-click timing matches the prompt's 500 ms interval, selections survive release, and the entire hidden name participates in triple-click selection. The same prompt selection painter supplies the colors without extra shortcut hints.
+- Selected Ctrl+C copies without dismissal. Escape and unselected Ctrl+C cancel silently. Stale clipboard reads cannot alter a dismissed or subsequently edited field. Optional loading retains an existing compact input placeholder and ordered bounded keyboard/pointer input until the actual field is ready.
+- The footer's name, active model, and thinking level expose explicit independent rendered spans including exactly one blank cell on either side. Hover preserves semantic foreground over the subtle live accent-selected background, without layout shift or covering separators/provider metadata. Normal left-click directly opens Session Name, Models, or Thinking Level. The superseded right-click Edit menu and its factory were removed as requested.
+- Footer-opened dialogs retain the prompt draft, prompt selection where supported, and attachments without sending a model prompt. Real shell-route tests preserve image attachments through naming submission/cancellation and selected prompt text through model/thinking cancellation. Initiating gesture release cannot act on the new dialog.
+- Successful bare-A1 naming updates persisted state, footer, and terminal title without a redundant Session name set message. Genuine diagnostics, comparison naming messages, and unrelated workflow feedback remain visible; suppression uses typed command/outcome state, not message-text matching.
+- Footer interaction handles current clipping, gutters, extension-status rows, and resize. Absent names/models, suppressed levels, comparison footers, and extension-replaced footers acquire no fabricated targets. Optional routing prepares after the first synchronous frame without altering ordinary input until ready.
+- Copied-source provenance and hashes describe the intentional padded interactive footer. The bridge reuses neutral contracts, its function size ratchet was lowered, and no architecture, cycle, documentation, or startup limit was relaxed. The earlier CI documentation failure was fixed by categorizing the two implementation comments.
 
 ## Focused validation
 
-- Five targeted files passed, 93 tests: `session-shell-workflows.test.ts`, `footer-name-menu.test.ts`, `extension-ui-bridge.test.ts`, `session-name-menu.test.ts`, and `prompt-input-ux.test.ts` under their owning test directories.
-- `npm run typecheck`: passed after the required checkout build supplied launcher declarations.
-- `npm run check:architecture`: passed, including the unchanged startup limits, owner/import/cycle rules, writer guard, product identity, and pinned-source ledger.
+- Five targeted files passed, 108 tests: `session-shell-workflows.test.ts`, `footer-name-interaction.test.ts`, `workflow-output.test.ts`, `extension-ui-bridge.test.ts`, and `prompt-input-ux.test.ts` under their owning test directories.
+- `npm run typecheck`: passed, including launcher declarations supplied by the checkout build.
+- `npm run check:architecture`: passed, including startup limits, owner/import/cycle rules, writer guard, product identity, and pinned-source ledger.
+- `npm run check:code-documentation`: passed, with no violations.
 - `npm run build`: passed.
-- Strict OpenSpec validation and `git diff --check`: passed.
+- Strict delivery finalization inspection and `git diff --check`: passed.
 
 ## Known gaps
 
-No known implementation gaps. A physical interactive terminal has not been manually exercised; pointer and clipboard behavior is covered through the real owned-shell route and focused component fixtures. Maintainer manual acceptance and exact-head CI remain separate from implementation completion.
+No known implementation gaps. The user supplied interactive screenshots of the earlier candidate; the final refinements are covered by component and real shell-route fixtures but have not been manually exercised in a physical terminal. Exact-head CI and optional maintainer manual acceptance remain separate from implementation completion.

@@ -101,13 +101,21 @@ export interface OwnedUiShellAutocompleteCommand {
   readonly source?: "builtin" | "prompt" | "skill" | "extension";
 }
 
+export type OwnedUiShellFooterControl = "name" | "models" | "thinking";
+export interface OwnedUiShellFooterControlSpan {
+  readonly command: OwnedUiShellFooterControl;
+  readonly row: number;
+  readonly column: number;
+  readonly width: number;
+}
+
 export interface OwnedUiShellViewComponentPort extends OwnedUiShellComponentPort {
   update(view: OwnedUiSessionViewModel): void;
   /** Footer-only ephemeral frame; returns whether its clipped name still needs animation. */
   setNameReveal?(frame: { readonly from: string; readonly elapsed: number } | null): boolean;
-  /** Zero-based name geometry including one-cell side padding, excluding outer footer gutters. */
-  footerNameSpan?(): { readonly row: number; readonly column: number; readonly width: number } | undefined;
-  setNameHovered?(hovered: boolean): void;
+  /** Zero-based visible controls including one-cell side padding, excluding outer footer gutters. */
+  footerControlSpans?(): readonly OwnedUiShellFooterControlSpan[];
+  setFooterHovered?(control: OwnedUiShellFooterControl | undefined): void;
 }
 
 export type OwnedUiShellStatusPlacement = "live" | "dock" | "hidden";

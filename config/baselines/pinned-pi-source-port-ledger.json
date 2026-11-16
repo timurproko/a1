@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-16T14:20:31.307Z",
+  "recordedAt": "2026-11-16T14:33:04.697Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "b4afdddf44e059c67ccf5097e5317d913521b470",
@@ -1905,9 +1905,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "A1 PR links, model/name priority over stats, level colors, secondary-accent name reveals, dim name/row clipping, and explicit visible-name geometry with accent-selected hover for context editing; Pi intact.",
+      "modifications": "A1 PR links, model/name priority over stats, level colors, secondary-accent name reveals, dim clipping, and explicit padded name/model/level spans for foreground-preserving hover and direct dialog access; Pi intact.",
       "upgradeStrategy": "three-way",
-      "localSha256": "6ef6c602d9369a931df6b1bf18401dcc025e9282e3a2c5afce2960910a4dd4b5",
+      "localSha256": "c6268cda04d482ab4c8c4f9280b3039f058a5b08714a445c3da514e24ab78b17",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1940,9 +1940,9 @@
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         },
         {
-          "id": "owned-footer-name-context-edit",
-          "reason": "Approved improve-session-name-dialog gives the visible bare-A1 name one-cell side padding, accent-selected hover, and draft-preserving direct left-click editing.",
-          "upstreamBehavior": "Comparison, unnamed, and extension-replaced footers retain their existing behavior; neighboring footer metadata remains outside the name target.",
+          "id": "owned-footer-direct-controls",
+          "reason": "Approved improve-session-name-dialog gives visible bare-A1 name, model, and thinking-level controls one-cell side padding, accent-selected hover, and draft-preserving direct left-click dialog access.",
+          "upstreamBehavior": "Comparison and extension-replaced footers remain noninteractive. Absent names/models, suppressed levels, separators, and neighboring metadata acquire no fabricated target.",
           "acceptanceTest": "test/app/session-shell/footer-name-interaction.test.ts"
         }
       ],

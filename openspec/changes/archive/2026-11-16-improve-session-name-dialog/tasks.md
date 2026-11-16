@@ -32,6 +32,6 @@
 
 ## 6. Open model and thinking selectors from matching footer controls
 
-- [ ] 6.1 Expose separate padded hover/click geometry for the visible active model and thinking level, excluding separators and unrelated metadata.
-- [ ] 6.2 Open the existing Models or Thinking Level modal on a normal left-click without submitting or clearing the retained prompt.
-- [ ] 6.3 Add model/level hover, click, draft retention, clipping, resize, and comparison/absent-target cases.
+- [x] 6.1 Expose separate padded hover/click geometry for the visible active model and thinking level, excluding separators and unrelated metadata.
+- [x] 6.2 Open the existing Models or Thinking Level modal on a normal left-click without submitting or clearing the retained prompt.
+- [x] 6.3 Add model/level hover, click, draft retention, clipping, resize, and comparison/absent-target cases.

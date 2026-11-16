@@ -1,42 +1,42 @@
-import type { OwnedUiShellViewComponentPort } from "../../contracts/owned-ui/index.js";
+import type { OwnedUiShellViewComponentPort, OwnedUiShellFooterControl } from "../../contracts/owned-ui/index.js";
 import type { TerminalRuntimePort } from "../../contracts/presentation/index.js";
 import { routeMouseInput, type RoutedMouseInput } from "../../ui/components/index.js";
 import { withinTailControl, type TailControlRegion } from "./viewport-pointer.js";
 
 export interface FooterNameTargetPort {
-  region(): TailControlRegion | undefined;
+  region(control?: OwnedUiShellFooterControl): TailControlRegion | undefined;
   setPointer(pointer: { readonly column: number; readonly row: number } | undefined): void;
   render(footer: OwnedUiShellViewComponentPort, width: number, height: number, enabled: boolean): readonly string[];
 }
 
 class FooterNameTarget {
-  #region: TailControlRegion | undefined;
+  #regions: Array<TailControlRegion & { readonly command: OwnedUiShellFooterControl }> = [];
   #pointer: { readonly column: number; readonly row: number } | undefined;
-  #hovered = false;
+  #hovered: OwnedUiShellFooterControl | undefined;
 
-  region(): TailControlRegion | undefined { return this.#region; }
+  region(control: OwnedUiShellFooterControl = "name"): TailControlRegion | undefined { return this.#regions.find(region => region.command === control); }
   setPointer(pointer: { readonly column: number; readonly row: number } | undefined): void { this.#pointer = pointer; }
 
   render(footer: OwnedUiShellViewComponentPort, width: number, height: number, enabled: boolean): readonly string[] {
-    this.#region = undefined;
+    this.#regions = [];
     if (!enabled) {
-      this.#hovered = false;
-      footer.setNameHovered?.(false);
+      this.#hovered = undefined;
+      footer.setFooterHovered?.(undefined);
       return [];
     }
     let rows = footer.render(width);
-    const span = footer.footerNameSpan?.();
-    if (span !== undefined && span.width > 0) {
+    for (const span of footer.footerControlSpans?.() ?? []) {
       const row = height - rows.length + span.row + 1;
-      if (row > 0) this.#region = {
+      if (row > 0 && span.width > 0) this.#regions.push({ command: span.command,
         rowStart: row, rowEnd: row, columnStart: span.column + 2, columnEnd: span.column + span.width + 1,
-      };
+      });
     }
-    const hovered = this.#region !== undefined && this.#pointer !== undefined
-      && withinTailControl(this.#region, this.#pointer.column, this.#pointer.row);
+    const pointer = this.#pointer;
+    const hovered = pointer === undefined ? undefined
+      : this.#regions.find(region => withinTailControl(region, pointer.column, pointer.row))?.command;
     if (hovered !== this.#hovered) {
       this.#hovered = hovered;
-      footer.setNameHovered?.(hovered);
+      footer.setFooterHovered?.(hovered);
       rows = footer.render(width);
     }
     return rows;
@@ -46,10 +46,10 @@ class FooterNameTarget {
 interface FooterNamePorts {
   readonly root: { readonly chrome: { footerName: FooterNameTargetPort | undefined }; usesDefaultInputSurface(): boolean };
   readonly terminal: Pick<TerminalRuntimePort, "hasOverlay" | "requestRender">;
-  readonly edit: () => void;
+  readonly edit: (control: OwnedUiShellFooterControl) => void;
 }
 
-/** Routes footer-name hover and direct editing without submitting or altering the prompt draft. */
+/** Routes footer control hover and direct editing without submitting or altering the prompt draft. */
 export class FooterNameInteraction {
   readonly #ports: FooterNamePorts;
   #draining = false;
@@ -68,12 +68,14 @@ export class FooterNameInteraction {
       const eligible = root.usesDefaultInputSurface() && !terminal.hasOverlay();
       root.chrome.footerName?.setPointer(eligible ? event : undefined);
       terminal.requestRender();
-      const region = eligible ? root.chrome.footerName?.region() : undefined;
-      if (region === undefined || !withinTailControl(region, event.column, event.row)
-        || event.kind !== "press" || event.button !== 0) return false;
+      const command = eligible ? (["name", "models", "thinking"] as const).find(control => {
+        const region = root.chrome.footerName?.region(control);
+        return region !== undefined && withinTailControl(region, event.column, event.row);
+      }) : undefined;
+      if (command === undefined || event.kind !== "press" || event.button !== 0) return false;
       this.#draining = true;
       root.chrome.footerName?.setPointer(undefined);
-      this.#ports.edit();
+      this.#ports.edit(command);
       return true;
     });
   }

@@ -6,6 +6,14 @@ The request does not add a conversation turn or delay the main response. It make
 
 **Automatic session name** in the Agent settings group is enabled by default. Turning it off cancels pending naming without deleting the current name. The `a1 pi` comparison profile does not receive automatic naming or the A1 footer layout/reveal.
 
+## Editing names and footer controls
+
+Click the session name in the footer, or invoke `/name`, to open **Session Name**. An existing name starts fully selected so typing immediately replaces it. Drag to select text, double-click for a word, or triple-click for the whole name. Ctrl+A selects all, Ctrl+Z undoes, Ctrl+X cuts, Ctrl+C copies selected text, and Ctrl+V pastes. Selection uses the prompt's colors; these shortcuts do not add dialog hints.
+
+Enter saves and Escape cancels. Ctrl+C cancels only when no text is selected. Successful renaming updates the footer and terminal title without an extra success message.
+
+The footer name, model name, and thinking level highlight with one blank cell on either side. A normal click opens Session Name, Models, or Thinking Level directly, without a context menu or submitting the prompt. Your unfinished prompt and attachments remain available after closing the dialog. The `a1 pi` comparison profile keeps its existing behavior.
+
 ## Name format
 
 Choose **Session name format** in Agent settings:

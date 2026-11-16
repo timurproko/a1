@@ -1,4 +1,4 @@
-import type { OwnedUiShellComponents, OwnedUiShellSelectorOption } from "../../contracts/owned-ui/index.js";
+import type { OwnedUiShellComponents, OwnedUiShellSelectorOption, OwnedUiShellFooterControl } from "../../contracts/owned-ui/index.js";
 import type { ShellPresentationPorts, TerminalComponentPort } from "../../contracts/presentation/index.js";
 import type { TerminalOverlayHandle } from "../../contracts/presentation/index.js";
 import type { OwnedUiCommandResult, OwnedUiDialog } from "../../contracts/owned-ui/index.js";
@@ -45,7 +45,7 @@ interface SessionDialogPorts {
   /** A rendered route closed itself. */
   readonly routeClosed?: (route: string) => void;
   readonly startupRoute?: StartupRoute;
-  readonly editName?: () => void;
+  readonly editName?: (control: OwnedUiShellFooterControl) => void;
 }
 
 /** Coordinates owned routes, dock dialogs, and backend overlays through one replacement/close lifecycle. */
