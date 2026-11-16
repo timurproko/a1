@@ -18,6 +18,9 @@ const nextImmediate = () => new Promise(resolve => setImmediate(resolve));
 function frame(shell: OwnedUiSessionShell, width = 100): string {
   return stripTerminalSequences(shell.root.render(width).join("\n"));
 }
+function modelRows(shell: OwnedUiSessionShell): string[] {
+  return frame(shell).split("\n").map(row => row.trim()).filter(row => /^(?:→ )?[○●] /u.test(row));
+}
 function input(shell: OwnedUiSessionShell, data: string): void {
   shell.root.handleInput(data);
 }
@@ -101,8 +104,8 @@ describe("bare-A1 unified Models dialog", () => {
       expect(shell.root.usesDefaultInputSurface()).toBe(false);
       expect(shell.runtime.hasOverlay()).toBe(false);
       expect(frame(shell)).toContain("Filter: all | scoped");
-      expect(frame(shell)).toContain("→ ○ claude [anthropic]");
-      expect(frame(shell)).not.toContain("gpt-5 [openai]");
+      expect(modelRows(shell)).toEqual(["→ ○ claude [anthropic]"]);
+      expect(stripTerminalSequences(shell.root.footer.render(100)[1]!)).toContain("gpt-5 [openai]");
       expect(engine.session.calls).not.toContain("setModel");
       input(shell, ESCAPE);
       expect(defaultSurface(shell)).toBe(true);
@@ -265,8 +268,8 @@ describe("bare-A1 unified Models dialog", () => {
       expect(frame(shell)).toContain("  ● claude [anthropic]");
       expect(frame(shell)).toContain("→ ○ gpt-5 [openai] ✓");
       input(shell, "\t");
-      expect(frame(shell)).toContain("→ ● claude [anthropic]");
-      expect(frame(shell)).not.toContain("gpt-5 [openai]");
+      expect(modelRows(shell)).toEqual(["→ ● claude [anthropic]"]);
+      expect(stripTerminalSequences(shell.root.footer.render(100)[1]!)).toContain("gpt-5 [openai]");
       input(shell, " ");
       expect(engine.session.calls).toContain("scoped:0");
       expect(frame(shell)).toContain("→ ○ claude [anthropic]");

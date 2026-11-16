@@ -12,6 +12,7 @@
 
 ## Focused validation
 
+- CI repair: all 13 `session-shell-models.test.ts` tests pass. Argument-seeded and scoped filtering now assert the complete rendered model-list rows separately from the footer, explicitly retaining the active `gpt-5 [openai]` footer label.
 - Latest provider-hover refinement: 73 tests passed in `prompt-input-ux.test.ts` and `footer-name-interaction.test.ts` under their owning test directories.
 - The preceding broader candidate passed 124 tests across those two files plus `session-shell-workflows.test.ts`, `workflow-output.test.ts`, and `extension-ui-bridge.test.ts`.
 - `npm run typecheck`: passed, including launcher declarations supplied by the checkout build.
