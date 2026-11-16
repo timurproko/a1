@@ -17,7 +17,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-16-fix-installer-repair-capsule-payload/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-16-fix-installer-repair-capsule-payload/acceptance.md",
   "finalizedDate": "2026-11-16",
-  "specBaseSha": "26618ed2c5b21c7d48173022136eabc084dc94ba",
+  "specBaseSha": "7a79a7537ed8399ac67bec6505f37835c2fbeac0",
   "acceptanceScenarios": [
     "The exact installer tarball includes its repair helper and starts from an isolated global installation without missing imports.",
     "Installed installer help lists the existing repair option while removed options remain rejected.",
