@@ -14,6 +14,14 @@ The maintainer approved separating five-minute installation deadlines from the e
 
 A genuinely stalled installation can take five minutes to fail. The two-minute update deadline still fails promptly, and authenticated legacy crashes still use their existing early probe. Five minutes is a bounded allowance, not proof of hosted publication recovery.
 
+## Implementation observations
+
+The smoke now uses independent five-minute installation and two-minute update constants. Acquisition remains explicitly bounded to two minutes. Fresh, predecessor, and authenticated repair installs use the installation constant. The native Published pair exercise and job backstops are twenty-five and thirty minutes respectively; other jobs remain unchanged.
+
+Focused contracts cover stage-specific budgets, fresh and predecessor installs completing at a simulated 128 seconds with exact-package and launcher assertions still applied, recovery installation versus direct-update budgets, progress messages, and outer backstops with unchanged unconditional evidence upload and promotion prerequisites.
+
+Focused local validation passed: 60 tests across smoke evidence, explicit installer recovery, promotion/workflow policy, and process ownership, including native Windows detached-process settlement. Strict OpenSpec validation, the final delivery-body check, and diff whitespace checks passed. Core build and both typechecks passed; the initial bin typecheck required the fresh worktree's missing build output, then passed after the core build. The branch includes current origin/develop.
+
 ## Known gaps
 
-Implementation pending. Exact hosted publication recovery must be established by a separately requested publication; local tests do not establish that result. This change does not promote or republish the already staged pair.
+No unresolved implementation gap is identified. Exact hosted publication recovery must be established by a separately requested publication; local tests do not establish that result. This change does not promote or republish the already staged pair.

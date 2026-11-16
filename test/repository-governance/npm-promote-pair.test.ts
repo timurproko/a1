@@ -70,9 +70,12 @@ describe("exercised npm channel promotion", () => {
   it("bounds published-pair jobs and smoke steps while retaining unconditional evidence upload", async () => {
     const workflow = parse(await readFile(".github/workflows/publish.yml", "utf8"));
     const smoke = workflow.jobs.post_publish;
-    expect(smoke["timeout-minutes"]).toBe(10);
+    expect(smoke["timeout-minutes"]).toBe(30);
     const exercise = smoke.steps.find((step: { run?: string }) => step.run === "node scripts/release/smoke-published-installer.mjs");
-    expect(exercise["timeout-minutes"]).toBe(8);
+    expect(exercise["timeout-minutes"]).toBe(25);
+    // Acquisition + fresh install + predecessor install + update + repair take at most 19 minutes.
+    expect(exercise["timeout-minutes"]).toBeGreaterThan(2 + 5 + 5 + 2 + 5);
+    expect(smoke["timeout-minutes"]).toBeGreaterThan(exercise["timeout-minutes"]);
     expect(exercise["continue-on-error"]).toBeUndefined();
     const upload = smoke.steps.find((step: { name?: string }) => step.name === "Upload published-pair evidence");
     expect(smoke.steps.indexOf(upload)).toBeGreaterThan(smoke.steps.indexOf(exercise));

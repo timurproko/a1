@@ -116,7 +116,7 @@ describe("published installer smoke evidence", () => {
     expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({ outcome: "failure", stage: "update-predecessor" });
   });
 
-  it("bounds acquisition, installation, and updates to two minutes while retaining short query and launch deadlines", async () => {
+  it("allows five-minute installations while retaining two-minute acquisition and updates and short query and launch deadlines", async () => {
     expect(updateCommandBudgetMs()).toBe(2 * 60_000);
     const { environment } = await fixture();
     const budgets = new Map<string, number>();
@@ -126,11 +126,43 @@ describe("published installer smoke evidence", () => {
     } });
     expect(budgets.get("install")).toBe(2 * 60_000);
     expect(budgets.get("update")).toBe(2 * 60_000);
-    expect(budgets.get("--develop")).toBe(2 * 60_000);
-    expect(budgets.get("install-predecessor")).toBe(2 * 60_000);
+    expect(budgets.get("--develop")).toBe(5 * 60_000);
+    expect(budgets.get("install-predecessor")).toBe(5 * 60_000);
     expect(budgets.get("view")).toBe(30_000);
     expect(budgets.get("version")).toBe(30_000);
     expect(budgets.get("--help")).toBe(30_000);
+  });
+
+  it.each([version, "0.2.7-dev.1305"])("continues exact package and launch checks after a slow installation of %s", async installedVersion => {
+    const { output, environment } = await fixture();
+    const progress: string[] = [];
+    const launches: string[][] = [];
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    try {
+      await runSmoke({
+        environment, writeProgress: text => { progress.push(text); },
+        readSystemEvents: async () => ({ events: [], antimalware: null }),
+        createRunner: () => ({
+          run: async (command, args, options) => {
+            if (args[0] === "--develop" && args[1] === installedVersion) {
+              await vi.advanceTimersByTimeAsync(128_000);
+              if (options.timeout < 128_000) return { ...ok, status: null, error: new Error("installation deadline exceeded") };
+            }
+            if (["version", "--help"].includes(args[0]!)) launches.push(args);
+            return successfulCommand(command, args, options);
+          },
+          close: async () => {},
+        }),
+      });
+      const stage = installedVersion === version ? "install-application" : "install-predecessor";
+      expect(progress).toContain(`[published installer] ${stage} running (120000ms elapsed; timeout=300000ms)\n`);
+      expect(launches).toEqual([["version"], ["--help"], ["--help"]]);
+      expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({
+        outcome: "success", installedVersion: version, launcherVerified: true, updateVerified: true,
+        timings: { [stage]: 128_000 },
+      });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
   });
 
   it("prints each phase before waiting and reports failed commands without a success message", async () => {
@@ -150,6 +182,8 @@ describe("published installer smoke evidence", () => {
       }),
     })).rejects.toThrow("replacement failed");
     expect(progress[0]).toBe("[published installer] acquire-installer started (timeout=120000ms)\n");
+    expect(progress).toContain("[published installer] install-application started (timeout=300000ms)\n");
+    expect(progress).toContain("[published installer] install-predecessor started (timeout=300000ms)\n");
     expect(progress).toContain("[published installer] update-predecessor started (timeout=120000ms)\n");
     expect(progress.at(-1)).toMatch(/^\[published installer\] update-predecessor failed \(\d+ms\)\n$/u);
     expect(progress.join("")).not.toContain("update-predecessor passed");

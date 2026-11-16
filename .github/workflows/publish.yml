@@ -1176,7 +1176,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.plan.outputs.validate_matrix) }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - name: Check out the validated source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -1193,7 +1193,7 @@ jobs:
         shell: bash
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Exercise the exact published pair
-        timeout-minutes: 8
+        timeout-minutes: 25
         shell: bash
         env:
           RELEASE_CHANNEL: ${{ needs.plan.outputs.channel }}
