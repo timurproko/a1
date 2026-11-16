@@ -21,7 +21,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-16-fix-windows-publication-root-cause/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-16-fix-windows-publication-root-cause/acceptance.md",
   "finalizedDate": "2026-11-16",
-  "specBaseSha": "58018652bf9de05fa1afcc1cffaf42ccc9e55f2b",
+  "specBaseSha": "cf8884d7901842e5085f8c762720d3d258ad581d",
   "acceptanceScenarios": [
     "Authenticated legacy heartbeat crashes recover through the exact published installer only after fixture writers settle.",
     "Failed direct updates remain explicit in evidence and are never reported as successful direct replacements.",
@@ -32,9 +32,9 @@ The maintainer integration decision accepts these scenarios:
     "Predecessor update waits end within five minutes and display their phase before waiting.",
     "Existing published pairs can be diagnosed without publishing packages or moving public tags."
   ],
-  "archiveDigest": "ad29d140c2f75357c43e33d050bd84400d88654221a8248c614791c694c73aac",
-  "specDigest": "5154e770ae345a92ac5e093e9e20b9e092d0c3e5ada7a3b219467d37e4c3b4cb",
-  "tasksDigest": "9307c0032cb33053d0bbf2d87dd04f7527ba22a659085cff95bd5446721a46fb",
+  "archiveDigest": "e66b479d53befa01fef9aeb8910d68313a90bf7fda298b96bcd53cd987725e65",
+  "specDigest": "08b4df6d83868aa1fd7f70b34ec9aaa238f6b05385c680347d0d209c23feb537",
+  "tasksDigest": "b69c74dbb3a2d56bf3e8b39c85dade780b7c540f9847adad1a14bac04ffb3106",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
