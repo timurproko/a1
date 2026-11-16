@@ -75,7 +75,8 @@ describe("direct footer name editing", () => {
       clickName(value);
       expect(value.shell.root.usesDefaultInputSurface()).toBe(false);
       value.terminal.input("Updated");
-      value.terminal.input(save ? "\r" : "\x1b");
+      if (save) value.terminal.input("\r");
+      else clickName(value);
       await vi.waitFor(() => expect(value.shell.root.usesDefaultInputSurface()).toBe(true));
       expect(value.engine.session.name).toBe(save ? "updated" : "attached draft");
       expect(value.shell.root.editor.getText()).toBe(draft);
@@ -166,6 +167,64 @@ describe("direct footer name editing", () => {
       expect(value.shell.root.editor.getText()).toBe("unsent selected prompt");
       expect(value.shell.root.editor.hasSelection()).toBe(true);
       expect(value.engine.session.promptOptions).toHaveLength(0);
+    } finally { await value.shell.dispose(); }
+  });
+
+  it.each(["name", "models", "thinking"] as const)("keeps %s hover active and toggles its dialog through Escape", async command => {
+    const value = await namedFixture();
+    try {
+      value.shell.root.editor.setText("retained selected draft");
+      value.terminal.input("\x01");
+      const initialName = value.engine.session.name;
+      const initialModel = value.engine.session.model;
+      const initialLevel = value.engine.session.thinkingLevel;
+      const click = () => {
+        value.shell.runtime.renderNow();
+        const region = value.shell.root.chrome.footerName?.region(command)!;
+        expect(region).toBeDefined();
+        value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
+      };
+      for (const via of ["footer", "command"]) {
+        if (via === "footer") click();
+        else await value.shell.runWorkflow({ command, argument: "" });
+        await vi.waitFor(() => expect(value.shell.root.usesDefaultInputSurface()).toBe(false));
+        await vi.waitFor(() => expect(stripTerminalSequences(value.shell.root.render(80).join("\n")))
+          .toContain(command === "name" ? "Session Name" : command === "models" ? "Models" : "Thinking Level"));
+        if (via === "footer") {
+          const opened = value.shell.root.chrome.footerName?.region(command)!;
+          expect(cellBackgroundAt(value.shell.root.render(80)[opened.rowStart - 1]!, opened.columnStart - 1))
+            .toBe(cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0));
+        }
+        value.shell.root.handleInput(command === "name" ? "unsaved name" : command === "models" ? "gpt" : "low");
+        value.shell.runtime.renderNow();
+        const region = value.shell.root.chrome.footerName?.region(command)!;
+        value.terminal.input(`\x1b[<35;${region.columnStart};${region.rowStart}M`);
+        const row = value.shell.root.render(80)[region.rowStart - 1]!;
+        expect(cellBackgroundAt(row, region.columnStart - 1)).toBe(cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0));
+        click();
+        await vi.waitFor(() => expect(value.shell.root.usesDefaultInputSurface()).toBe(true));
+        expect(value.engine.session.name).toBe(initialName);
+        expect(value.engine.session.model).toBe(initialModel);
+        expect(value.engine.session.thinkingLevel).toBe(initialLevel);
+        expect(value.shell.root.editor.getText()).toBe("retained selected draft");
+        expect(value.shell.root.editor.hasSelection()).toBe(true);
+        expect(value.engine.session.promptOptions).toHaveLength(0);
+      }
+    } finally { await value.shell.dispose(); }
+  });
+
+  it("blocks background footer actions through a floating overlay", async () => {
+    const value = await namedFixture();
+    try {
+      value.shell.root.editor.setText("retained draft");
+      value.shell.runtime.renderNow();
+      const region = value.shell.root.chrome.footerName?.region("name")!;
+      value.shell.showSelector("Overlay", [{ id: "one", label: "One" }], () => {});
+      value.shell.runtime.renderNow();
+      value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
+      expect(value.shell.readiness().overlayOpen).toBe(true);
+      expect(value.shell.root.usesDefaultInputSurface()).toBe(true);
+      expect(value.shell.root.editor.getText()).toBe("retained draft");
     } finally { await value.shell.dispose(); }
   });
 

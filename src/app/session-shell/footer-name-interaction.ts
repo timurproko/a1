@@ -44,7 +44,7 @@ class FooterNameTarget {
 }
 
 interface FooterNamePorts {
-  readonly root: { readonly chrome: { footerName: FooterNameTargetPort | undefined }; usesDefaultInputSurface(): boolean };
+  readonly root: { readonly chrome: { footerName: FooterNameTargetPort | undefined }; usesDefaultInputSurface(): boolean; handleInput(data: string): void };
   readonly terminal: Pick<TerminalRuntimePort, "hasOverlay" | "requestRender">;
   readonly edit: (control: OwnedUiShellFooterControl) => void;
 }
@@ -65,7 +65,7 @@ export class FooterNameInteraction {
         return true;
       }
       const { root, terminal } = this.#ports;
-      const eligible = root.usesDefaultInputSurface() && !terminal.hasOverlay();
+      const eligible = !terminal.hasOverlay();
       root.chrome.footerName?.setPointer(eligible ? event : undefined);
       terminal.requestRender();
       const command = eligible ? (["name", "models", "thinking"] as const).find(control => {
@@ -74,8 +74,8 @@ export class FooterNameInteraction {
       }) : undefined;
       if (command === undefined || event.kind !== "press" || event.button !== 0) return false;
       this.#draining = true;
-      root.chrome.footerName?.setPointer(undefined);
-      this.#ports.edit(command);
+      if (root.usesDefaultInputSurface()) this.#ports.edit(command);
+      else root.handleInput("\x1b");
       return true;
     });
   }

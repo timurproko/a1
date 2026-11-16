@@ -48,6 +48,6 @@
 
 ## 9. Toggle dock dialogs from the still-hoverable footer
 
-- [ ] 9.1 Keep footer hover active while a dock dialog owns input and route a repeated control click through its normal Escape path.
-- [ ] 9.2 Preserve drafts, attachments, and cancellation effects without applying unsaved name, model, or thinking edits.
-- [ ] 9.3 Cover repeated clicks and slash-opened dialogs while keeping floating-overlay and comparison boundaries unchanged.
+- [x] 9.1 Keep footer hover active while a dock dialog owns input and route a repeated control click through its normal Escape path.
+- [x] 9.2 Preserve drafts, attachments, and cancellation effects without applying unsaved name, model, or thinking edits.
+- [x] 9.3 Cover repeated clicks and slash-opened dialogs while keeping floating-overlay and comparison boundaries unchanged.

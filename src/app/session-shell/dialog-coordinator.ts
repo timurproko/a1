@@ -36,7 +36,7 @@ interface SessionDialogPorts {
   readonly presentation?: Pick<ShellPresentationPorts, "theme" | "terminalRuntime">;
   readonly viewport?: () => { rows: number };
   readonly inPlaceSession?: boolean;
-  readonly root: Pick<OwnedUiSessionShellRoot, "chrome" | "setInputSurface" | "usesDefaultInputSurface">;
+  readonly root: Pick<OwnedUiSessionShellRoot, "chrome" | "setInputSurface" | "usesDefaultInputSurface" | "handleInput">;
   readonly routeHost: UiRouteHost | null;
   readonly dialogs: Pick<OwnedUiShellComponents["dialogs"], "dialog" | "selector">;
   readonly disposed: () => boolean;

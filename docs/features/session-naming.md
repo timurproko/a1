@@ -12,7 +12,7 @@ Click the session name in the footer, or invoke `/name`, to open **Session Name*
 
 Enter saves and Escape cancels. Ctrl+C cancels only when no text is selected. Successful renaming updates the footer and terminal title without an extra success message.
 
-The footer name, model name, and thinking level highlight with one blank cell on either side. A normal click opens Session Name, Models, or Thinking Level directly, without a context menu or submitting the prompt. Your unfinished prompt and attachments remain available after closing the dialog. The `a1 pi` comparison profile keeps its existing behavior.
+The footer name, model name, and thinking level highlight only their visible text, without added side spaces. A normal click opens Session Name, Models, or Thinking Level directly, without a context menu or submitting the prompt. The thinking level stays visible while its dialog is open. Footer hover remains available over dock dialogs; clicking a control again cancels the active dialog like Escape, without saving edits. Your unfinished prompt and attachments remain available after closing the dialog. Floating overlays still block background footer actions. The `a1 pi` comparison profile keeps its existing behavior.
 
 ## Name format
 
