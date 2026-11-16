@@ -13,6 +13,12 @@ All three native validation jobs in publication run 43835245506 failed in Valida
 
 The exact artifact test invokes local npm and needs a supported npm 11 or newer, as production packing already requires. Use bounded child processes and isolated output/prefix roots so tests do not mutate developer installations or collide with other tests. Native hosted lanes remain necessary cross-platform evidence.
 
+## Implementation observations
+
+The explicit manifest, staging copies, and packed-entry allowlist now include repair-capsule.js. Installed-launcher validation expects the existing repair help line without changing runtime behavior. The isolated artifact tests use the real preparation script, compare the helper's packed bytes to source, and run offline global installation plus public-launcher validation. A manifest omitting the helper produces a real incomplete tarball that validation rejects.
+
+Focused local validation on Windows / Node 24 passed: 54 tests across installer packaging, bootstrap, and capsule repair, with 5 Unix-only tests skipped. Core build, both typechecks, strict OpenSpec validation, delivery-body validation, and whitespace checks passed. The fresh worktree initially lacked dist for the bin typecheck; building core resolved that prerequisite. An initial test assertion used the wrong tar-entry property; it was corrected to content before the successful run.
+
 ## Known gaps
 
-No implementation gaps are planned. This repair addresses the deterministic pre-staging installer failure, not any later publication or predecessor-update failure. Local packaging evidence does not establish successful numbered publication.
+None in the approved implementation. This repair addresses the deterministic pre-staging installer failure, not any later publication or predecessor-update failure. Native hosted validation and a new numbered publication remain external evidence; local packaging tests do not establish publication recovery.
