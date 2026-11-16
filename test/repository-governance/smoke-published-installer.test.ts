@@ -116,18 +116,21 @@ describe("published installer smoke evidence", () => {
     expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({ outcome: "failure", stage: "update-predecessor" });
   });
 
-  it("bounds every predecessor update to five minutes without extending installation or launch budgets", async () => {
-    expect(updateCommandBudgetMs()).toBe(5 * 60_000);
+  it("bounds acquisition, installation, and updates to two minutes while retaining short query and launch deadlines", async () => {
+    expect(updateCommandBudgetMs()).toBe(2 * 60_000);
     const { environment } = await fixture();
     const budgets = new Map<string, number>();
     await smokePublishedInstaller({ environment, spawnSync: (command, args, options) => {
       budgets.set(args[0] === "--develop" && budgets.has("--develop") ? "install-predecessor" : args[0] ?? command, options.timeout);
       return successfulCommand(command, args, options);
     } });
-    expect(budgets.get("update")).toBe(5 * 60_000);
-    expect(budgets.get("--develop")).toBe(10 * 60_000);
-    expect(budgets.get("install-predecessor")).toBe(10 * 60_000);
+    expect(budgets.get("install")).toBe(2 * 60_000);
+    expect(budgets.get("update")).toBe(2 * 60_000);
+    expect(budgets.get("--develop")).toBe(2 * 60_000);
+    expect(budgets.get("install-predecessor")).toBe(2 * 60_000);
+    expect(budgets.get("view")).toBe(30_000);
     expect(budgets.get("version")).toBe(30_000);
+    expect(budgets.get("--help")).toBe(30_000);
   });
 
   it("prints each phase before waiting and reports failed commands without a success message", async () => {
@@ -139,16 +142,72 @@ describe("published installer smoke evidence", () => {
       writeProgress: text => { progress.push(text); },
       createRunner: () => ({
         run: (command, args, options) => {
-          expect(progress.at(-1)).toMatch(/ started\n$/u);
+          expect(progress.at(-1)).toMatch(/ started \(timeout=\d+ms\)\n$/u);
+          expect(progress.at(-1)).toContain(`timeout=${options.timeout}ms`);
           return args[0] === "update" ? { ...ok, status: 1, stderr: "replacement failed" } : successfulCommand(command, args, options);
         },
         close: async () => {},
       }),
     })).rejects.toThrow("replacement failed");
-    expect(progress[0]).toBe("[published installer] acquire-installer started\n");
-    expect(progress).toContain("[published installer] update-predecessor started\n");
+    expect(progress[0]).toBe("[published installer] acquire-installer started (timeout=120000ms)\n");
+    expect(progress).toContain("[published installer] update-predecessor started (timeout=120000ms)\n");
     expect(progress.at(-1)).toMatch(/^\[published installer\] update-predecessor failed \(\d+ms\)\n$/u);
     expect(progress.join("")).not.toContain("update-predecessor passed");
+  });
+
+  it.each([false, true])("prints elapsed progress while a silent command runs and clears its timer after thrown=%s", async thrown => {
+    const { output, environment } = await fixture();
+    const progress: string[] = [];
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    try {
+      const run = runSmoke({
+        environment, writeProgress: text => { progress.push(text); }, writeDiagnostic: () => {},
+        readSystemEvents: async () => ({ events: [], antimalware: null }),
+        createRunner: () => ({
+          run: async () => {
+            await vi.advanceTimersByTimeAsync(30_000);
+            expect(progress.at(-1)).toBe("[published installer] acquire-installer running (30000ms elapsed; timeout=120000ms)\n");
+            if (thrown) throw new Error("runner failed");
+            return { ...ok, status: null, error: new Error("command timed out") };
+          },
+          close: async () => {},
+        }),
+      });
+      await expect(run).rejects.toThrow(thrown ? "runner failed" : "command timed out");
+      const messages = progress.length;
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(progress).toHaveLength(messages);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({ outcome: "failure", stage: "acquire-installer" });
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("checkpoints sanitized failure evidence before settlement and updates it after secondary cleanup failure", async () => {
+    const { output, environment } = await fixture();
+    let checkpointRead = false;
+    await expect(runSmoke({
+      environment, writeProgress: () => {}, writeDiagnostic: () => {},
+      readSystemEvents: async () => ({ events: [], antimalware: null }),
+      createRunner: root => {
+        roots.push(root);
+        return {
+          run: () => ({ ...ok, status: 1, stderr: `acquisition failed ${environment.NODE_AUTH_TOKEN}` }),
+          close: async () => {
+            const text = await readFile(output, "utf8");
+            expect(text).not.toContain(environment.NODE_AUTH_TOKEN);
+            expect(JSON.parse(text)).toMatchObject({ outcome: "failure", stage: "acquire-installer", error: "acquisition failed [redacted]" });
+            expect(JSON.parse(text).cleanup).toBeUndefined();
+            expect((await stat(root)).isDirectory()).toBe(true);
+            checkpointRead = true;
+            throw new Error("settlement failed");
+          },
+        };
+      },
+    })).rejects.toThrow("acquisition failed [redacted]");
+    expect(checkpointRead).toBe(true);
+    expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({
+      outcome: "failure", stage: "acquire-installer", error: "acquisition failed [redacted]", cleanup: { error: "settlement failed" },
+    });
   });
 
   it("pins only A1 tag discovery while forwarding actual npm installs unchanged", async () => {
