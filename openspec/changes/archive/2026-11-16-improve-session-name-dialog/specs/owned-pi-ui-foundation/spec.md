@@ -2,11 +2,11 @@
 
 ### Requirement: Bare-A1 session naming supports direct and prompted entry
 
-Bare A1 SHALL accept `/name <name>` as an immediate session-name update. When the user invokes `/name` without an argument, bare A1 SHALL present a compact single-line input instead of appending the usage warning or only reporting the current name. The input SHALL use the accent title `Session Name`, the standard focused text-entry row, and the shared `Enter submit` and `Esc close` shortcut hints. It SHALL initially contain the current session name with its caret at the end, or an empty value when the session has no name. Each invocation SHALL read the current name anew.
+Bare A1 SHALL accept `/name <name>` as an immediate session-name update. When the user invokes `/name` without an argument, bare A1 SHALL present a compact single-line input instead of appending the usage warning or only reporting the current name. The input SHALL use the accent title `Session Name`, the standard focused text-entry row, and the shared `Enter submit` and `Esc close` shortcut hints. It SHALL initially contain the current session name fully selected with its caret at the end so typing immediately replaces it, or an empty value when the session has no name. Each invocation SHALL read the current name anew.
 
-The name field SHALL support mouse text selection, Ctrl+A to select all, Ctrl+Z to undo user edits, Ctrl+X to cut selected text, Ctrl+C to copy selected text, and Ctrl+V to paste clipboard text. Typing or pasting over a selection SHALL replace that selection; cut and paste SHALL be undoable. Editing SHALL remain single-line and use the existing text-input sanitation and length bounds. Selection SHALL use the same foreground and background treatment as selected text in the ordinary prompt input, including the active theme. Pointer mapping and selection rendering SHALL remain correct for the modal inset, wide graphemes, horizontal scrolling, clipping, and resize. These editing shortcuts SHALL NOT be added to the dialog's visible shortcut footer.
+The name field SHALL support mouse drag selection, double-click word selection, triple-click selection of the entire name including horizontally hidden text, Ctrl+A to select all, Ctrl+Z to undo user edits, Ctrl+X to cut selected text, Ctrl+C to copy selected text, and Ctrl+V to paste clipboard text. Typing or pasting over a selection SHALL replace that selection; cut and paste SHALL be undoable. Editing SHALL remain single-line and use the existing text-input sanitation and length bounds. Selection SHALL use the same foreground and background treatment as selected text in the ordinary prompt input, including the active theme. Pointer mapping and selection rendering SHALL remain correct for the modal inset, wide graphemes, horizontal scrolling, clipping, and resize. These editing shortcuts SHALL NOT be added to the dialog's visible shortcut footer.
 
-Ctrl+C with selected name text SHALL copy without closing, submitting, or mutating the name. Ctrl+C without selected text SHALL retain silent dismissal. Escape SHALL always cancel. Submitting a non-empty value SHALL apply it through the same session-name workflow as the direct command and SHALL report the resulting normalized name. Cancelling, or submitting only whitespace, SHALL restore the ordinary prompt and its retained draft and attachments without changing the session name or appending a warning, error, or completion message. Clipboard completion after dismissal SHALL NOT mutate another input surface. The explicit `a1 pi` comparison profile and unrelated input dialogs SHALL retain their established behavior.
+Ctrl+C with selected name text SHALL copy without closing, submitting, or mutating the name. Ctrl+C without selected text SHALL retain silent dismissal. Escape SHALL always cancel. Submitting a non-empty value SHALL apply it through the same session-name workflow as the direct command. Successful direct or prompted bare-A1 naming SHALL update the footer and terminal title without appending `Session name set:` or another redundant success message; genuine errors SHALL remain visible. Cancelling, or submitting only whitespace, SHALL restore the ordinary prompt and its retained draft and attachments without changing the session name or appending a warning, error, or completion message. Clipboard completion after dismissal SHALL NOT mutate another input surface. The explicit `a1 pi` comparison profile and unrelated input dialogs SHALL retain their established behavior.
 
 #### Scenario: Name a session directly
 - **WHEN** the user invokes `/name Project Alpha` in bare A1
@@ -21,7 +21,8 @@ Ctrl+C with selected name text SHALL copy without closing, submitting, or mutati
 
 #### Scenario: Edit the current name
 - **WHEN** a session named `Project Alpha` opens `/name`
-- **THEN** the field SHALL contain `Project Alpha` with its caret at the end
+- **THEN** the field SHALL contain fully selected `Project Alpha` with its caret at the end
+- **AND** immediate typing SHALL replace it while explicit caret movement SHALL allow appending
 - **AND** reopening after a successful rename SHALL show the new current name
 
 #### Scenario: Name an unnamed session
@@ -32,6 +33,13 @@ Ctrl+C with selected name text SHALL copy without closing, submitting, or mutati
 - **WHEN** the user drags over name text with the mouse or presses Ctrl+A
 - **THEN** the selected text SHALL use the ordinary prompt input's selection colors
 - **AND** typing SHALL replace the selection while Ctrl+Z SHALL restore the prior field value
+
+#### Scenario: Select a word or the entire name by repeated clicks
+- **WHEN** the user double-clicks a word in the name field
+- **THEN** that word SHALL be selected through button release using grapheme-aware boundaries
+- **WHEN** the user triple-clicks in the field
+- **THEN** the entire name SHALL be selected, including horizontally hidden text
+- **AND** copy, cut, replacement, and undo SHALL operate on that selection
 
 #### Scenario: Cut, copy, paste, and undo
 - **WHEN** the user selects name text and presses Ctrl+C
@@ -50,7 +58,7 @@ Ctrl+C with selected name text SHALL copy without closing, submitting, or mutati
 #### Scenario: Submit a prompted name
 - **WHEN** the user enters a non-empty name and presses Enter
 - **THEN** the input SHALL close and the session SHALL use that name
-- **AND** the ordinary normalized-name result SHALL be reported
+- **AND** the footer and terminal title SHALL show the resulting name without a redundant success message
 
 #### Scenario: Cancel prompted naming
 - **WHEN** the user presses Escape, presses Ctrl+C without selected text, or submits only whitespace in the name input
@@ -108,30 +116,31 @@ Close shortcut guidance SHALL keep Ctrl+C implicit. A close or cancel hint SHALL
 
 ## ADDED Requirements
 
-### Requirement: Footer session names offer draft-preserving context editing
+### Requirement: Footer controls offer draft-preserving direct editing
 
-The visible session-name span in bare A1's status footer SHALL highlight on mouse hover while retaining its ordinary foreground. Right-clicking that span SHALL open a compact context menu containing `Edit`. The menu SHALL use the pre-pivot popup treatment: a borderless dark grey surface, one-cell horizontal padding, normal-weight white actionable text, no initial highlighted item, and the live accent-selected background on hover. It SHALL appear above its bottom-bar anchor and remain clamped within terminal bounds. Clicking outside or pressing Escape or Ctrl+C SHALL dismiss it without changing the session or prompt.
+Bare A1's visible session name, active model name, and thinking level SHALL independently highlight on hover using the subtle live accent-selected background while retaining their ordinary foreground. Each control SHALL reserve exactly one blank cell on each side of its text, included in its hover and click target. Hover SHALL NOT shift layout or cover neighboring labels, separators, or provider metadata. A normal left-click SHALL directly open Session Name, Models, or Thinking Level respectively, without a context menu or prompt submission.
 
-Choosing `Edit` by mouse or keyboard SHALL open the same prefilled Session Name dialog as argument-free `/name`, without submitting, clearing, or replacing the ordinary prompt draft or its attachments. Submitting or cancelling the dialog SHALL restore that retained draft and attachments. Hit testing SHALL cover only visible name cells, account for clipping and resize, and exclude adjacent footer metadata. An unnamed session SHALL expose no invisible name target. The comparison profile SHALL retain its established footer behavior.
+Opening, submitting, or cancelling these dialogs SHALL retain the ordinary prompt draft and its attachments. Hit testing SHALL follow explicit current painted spans, including clipping, gutters, suppressed fields, and resize. Invisible, unnamed, missing-model, suppressed-level, comparison-profile, and extension-replaced footer controls SHALL expose no fabricated target. The initiating pointer gesture SHALL NOT propagate to the opened dialog or underlying prompt.
 
-#### Scenario: Hover and edit a footer name
-- **WHEN** the pointer enters the visible session-name span in the bare-A1 footer
-- **THEN** that span SHALL receive subtle accent-selected hover background without changing neighboring footer cells
-- **WHEN** the user right-clicks that span
-- **THEN** a borderless dark popup containing `Edit` SHALL open above the footer without an initially highlighted item
-- **AND** hovering Edit SHALL change only its background to the live selected-background role
+#### Scenario: Hover and directly edit a footer name
+- **WHEN** the pointer enters the footer-name target or its one-cell side padding
+- **THEN** the name and exactly one blank cell on each side SHALL receive subtle hover background without shifting text
+- **WHEN** the user normally left-clicks the target
+- **THEN** the fully selected name dialog SHALL open directly without a context menu
 
-#### Scenario: Keep an entered prompt through name editing
-- **WHEN** the user has an ordinary prompt draft with attachments and chooses Edit from the footer-name context menu
-- **THEN** the prefilled name dialog SHALL open without sending or clearing that draft
-- **WHEN** the user submits a new name or cancels the dialog
+#### Scenario: Keep an entered prompt through footer editing
+- **WHEN** the user has an ordinary prompt draft with attachments and clicks a footer control
+- **THEN** its corresponding dialog SHALL open without sending or clearing that draft
+- **WHEN** the user submits or cancels the dialog
 - **THEN** the prompt draft and attachments SHALL remain available for continued editing
 
-#### Scenario: Dismiss the context menu
-- **WHEN** the user clicks outside the open name menu or presses Escape or Ctrl+C
-- **THEN** the menu SHALL close without changing the name, submitting the prompt, or losing the prompt draft
+#### Scenario: Open model and thinking selectors consistently
+- **WHEN** the user hovers and left-clicks the visible model name
+- **THEN** it SHALL use the shared padded hover treatment and open Models
+- **WHEN** the user hovers and left-clicks the visible thinking level
+- **THEN** it SHALL use the same treatment and open Thinking Level
 
-#### Scenario: Bound name interaction to its painted geometry
-- **WHEN** the footer name is clipped or the terminal resizes
-- **THEN** hover and right-click hit testing SHALL follow only its current visible cells and the menu SHALL stay inside terminal bounds
-- **AND** adjacent footer metadata and unnamed or comparison sessions SHALL NOT acquire a name-edit target
+#### Scenario: Bound footer interaction to painted geometry
+- **WHEN** footer controls are clipped, suppressed, absent, or resized
+- **THEN** only their currently visible padded spans SHALL be interactive
+- **AND** neighboring metadata and comparison or extension-replaced footers SHALL NOT acquire those targets

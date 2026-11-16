@@ -1,53 +1,41 @@
-## Context
+## Context and approved refinements
 
-The bare-A1 argument-free name route in `src/app/session-shell/session-shell.ts` calls the internal extension input bridge without an initial value. The adapted `ExtensionInputComponent` already accepts `initialValue`, but the internal bridge contract does not expose it. Its pinned single-line `Input` does not provide the owned prompt editor's complete mouse-selection and clipboard experience. Dialog and component wrappers also enforce an implicit Ctrl+C cancel alias before field handling.
+The initial implementation added current-name prefill, prompt-colored selection and clipboard editing, and a footer-name right-click Edit menu. Follow-up user instructions explicitly replace that menu with direct left-click editing, add one cell of hover padding on each side, select the current name on opening, add double/triple-click selection, and suppress the redundant successful-name message. Continue the same branch and PR; retained checked outcomes describe unchanged delivered work, and affected/new outcomes remain unchecked until their updated code and tests are written.
 
 ## Goals / Non-Goals
 
-Goals:
-- Edit a snapshot of the actual current session name with the caret initially at the end.
-- Provide mouse drag selection and the requested editing shortcuts in the compact single-line field.
-- Use the ordinary prompt's actual selection paint, including active theme changes.
-- Keep the footer limited to its existing Enter and Escape guidance.
+Goals: a name editor immediately ready for replacement; familiar drag, repeated-click, clipboard, and undo behavior; direct footer access without losing prompt text or attachments; footer-only successful rename confirmation.
 
-Non-goals:
-- Change direct naming, generated naming, normalization, persistence, or the comparison profile.
-- Enable these behaviors for every extension input or searchable dialog.
-- Add multiline input, prompt history, autocomplete, image paste, or new shortcut settings.
+Non-goals: change persistence or normalization, alter the comparison profile, add history/autocomplete/images to the name field, or add new visible shortcut guidance.
 
 ## Decisions
 
-### Prefill through explicit internal options
+### Selected prefill
 
-Extend the neutral internal input bridge options to carry an initial value and an explicit name-editing mode. Pass the current session name from the shell at dialog invocation, without detecting a title string or duplicating naming policy in the component. Keep public extension inputs on their existing behavior. Initial text is a baseline, not an undoable user edit.
+Read the actual current name on each invocation. Initialize the name field with the entire nonempty value selected and the caret at its end. Unnamed sessions remain empty. Initial text/selection is the undo baseline, not an editable user action. Explicit caret movement collapses selection for appending; immediate typing or paste replaces it. Public extension inputs retain their existing behavior.
 
-### Keep a compact single-line field with reusable editing behavior
+### Single-line editing and repeated clicks
 
-Retain the existing modal frame, title, input marker, and submit/close footer. Reuse the owned prompt's existing clipboard services and selection paint where practical; extract a narrowly scoped shared helper only if both production consumers need it. Do not expose the ordinary multiline prompt's history, autocomplete, attachment, or submit machinery in the dialog.
+Retain the compact shared modal frame and Enter/Escape hints. Reuse the prompt's selection painter and existing clipboard boundary. Keep input single-line, sanitized, grapheme-aware, horizontally scrollable, and bounded. Double-click selects the contiguous word/whitespace/punctuation class under the pointer using the prompt's 500 ms repeat interval; triple-click selects the entire field, including horizontally hidden text. Button release must not collapse these selections. Ordinary drag and intervening edits reset repeat tracking. Clipboard completion cannot modify a stale or dismissed field.
 
-Selection, replacement, deletion, cut, paste, and undo must operate on text boundaries rather than terminal byte offsets. Pointer mapping must account for the modal inset, input marker, wide graphemes, horizontal scrolling, clipping, and resize. Keep drag/release ownership in the field without selecting the underlying transcript. Replacing selected text or pasting should be undoable back to the previous field value. Clipboard text stays single-line and follows existing text-input sanitation and bounds.
+### Padded footer direct click
 
-### Scope Ctrl+C precedence to selected name text
+Reserve one blank cell before and after the painted footer name without moving text on hover. The same padded span is both the highlight and left-click target. Preserve normal foreground over the current subtle accent-selected background. Derive hit geometry from the current footer render, including clipping, gutters, extension status rows, and resize; neighboring labels, unnamed/comparison sessions, and extension-replaced footers have no name target. A normal left press opens the existing naming workflow directly and consumes its remaining gesture so release cannot act on the new dialog. Prompt text, attachments, and selection state stay owned by the retained prompt editor. Remove the superseded menu component and its factory contract rather than leaving a hidden right-click route.
 
-When a nonempty name-field selection exists, consume Ctrl+C as copy without submission, mutation, cancellation, or propagation. When no selection exists, retain the dialog's silent Ctrl+C cancellation. Carry this capability explicitly through any cancel wrappers that otherwise intercept the chord. All unrelated dialogs retain their existing unconditional Ctrl+C close behavior. Escape always closes without saving.
+The pre-pivot reference (parent of `9f0307c0`, native attach popup/strip painter) established the subtle accent-selected hover background and normal foreground. Retain that hover treatment, but no context menu remains after the explicit user refinement.
 
-### Preserve workflow and prompt lifecycle
+### Consistent model and thinking controls
 
-Accepted non-whitespace text continues through the existing direct naming workflow. Escape, unselected Ctrl+C, and whitespace-only submission preserve the stored name and restore the ordinary prompt and its draft/attachments. Resolve clipboard operations against the owning live field so delayed reads cannot edit a disposed dialog or its replacement.
+The visible active model name and thinking level use the same padded hover/left-click convention. Explicit footer spans distinguish model, level, and name from provider metadata, separators, and clipping markers. Clicking invokes the existing Models or Thinking Level workflow without prompt submission. Missing or suppressed spans, comparison and extension-replaced footers remain noninteractive. Preserve each span's semantic foreground and retained prompt/attachment lifecycle.
 
-## Risks / Trade-offs
+### Footer-only successful-name feedback
 
-- Multiple cancel wrappers can intercept copy: cover the complete shell input route, not just a direct component call.
-- Pointer offsets differ from the main prompt: cover framed geometry and scrolled/wide input explicitly.
-- Shared selection helpers can affect prompt painting: retain prompt regression assertions and keep behavior opt-in.
-- Clipboard availability differs by terminal: reuse existing clipboard adapters and bracketed-paste handling rather than introducing a new backend.
+Bare-A1 successful naming must update persisted session state, footer, and terminal title without appending `Session name set:` to transcript or notices. Suppress only the successful name result at the owned presentation boundary. Preserve genuine errors, other workflow output, and comparison naming messages; do not hide results by matching message text.
 
-### Open naming from the footer without submitting the prompt
+### Lifecycle and startup
 
-The user-requested refinement adds a third outcome: the bare-A1 status/footer session-name span highlights on hover and a right-click opens a context menu containing `Edit`. Choosing `Edit` invokes the same name workflow directly rather than submitting `/name` through the prompt. Retain the current draft, cursor/selection where supported, and attachment state while the menu and dialog own input; cancelling either surface restores ordinary prompt focus without sending or clearing it. Bound hit testing to the rendered name span, including clipping and resize; do not treat the whole footer or adjacent model/status text as the name. Unnamed sessions have no name target, and comparison behavior remains unchanged. Keep the menu inside terminal bounds and use established context-menu presentation and pointer ownership.
+Optional name-field code loads on demand behind the existing compact input placeholder with ordered bounded keyboard/pointer buffering. Footer interaction prepares after the first synchronous frame; ordinary input routing remains untouched until ready. Use owning controllers for state so the shell/root size ratchets and startup budget remain unchanged. Retain copied-source provenance and existing cancellation/disposal boundaries.
 
-Historical style reference: the parent of pivot commit `9f0307c0` retained popup painting in `native/terminal-host/src/roles/attach.rs` and geometry/state in `native/terminal-host/src/core/attach/mod.rs`. Its popup is borderless, has one-cell horizontal padding, a solid dark grey resting background (RGB 38/38/38), normal white actionable labels, and an accent-selected hover background without label recoloring or bolding. It opens with no row highlighted, anchors next to its control (above a bottom bar), clamps horizontally, consumes menu input, and dismisses on outside click or Escape. Reproduce this visual treatment in the present TypeScript owned UI; do not restore the retired native host or its hard-coded accent table. Use the current live `selectedBg` role for hover. The footer-name hover uses that same subtle background, preserving its ordinary foreground.
+## Risks and delivery
 
-## Delivery
-
-Three implementation outcomes, in order: current-name prefill; name-field editing and selection; footer-name hover and right-click Edit. Focused tests accompany each outcome. The third outcome is the explicit user-requested scope refinement after implementation began. No migration is required.
+Cover complete shell pointer routing, not only direct component input. Check word selection on wide graphemes and scrolled names, selection retention on release, padded target exclusion of neighboring metadata, and prompt/attachment retention. Deliver the six ordered task groups in the PR; trusted automation owns refinalization and exact-head CI. No migration is required.

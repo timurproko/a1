@@ -1,15 +1,16 @@
 ## Why
 
-Renaming a session starts from an empty field even when a name already exists, and the name dialog lacks the prompt editor's familiar selection and clipboard controls. Users should be able to edit the current name rather than reconstruct it.
+Session renaming should edit the existing name with familiar selection and clipboard controls. Users should be able to open it directly from the status footer without losing an unfinished prompt, and the footer already provides sufficient confirmation of a successful rename.
 
 ## What Changes
 
-- Prefill bare-A1's argument-free `/name` dialog with the current session name, or an empty value for an unnamed session.
-- Support mouse text selection, Ctrl+A select all, Ctrl+Z undo, Ctrl+X cut, Ctrl+C copy, and Ctrl+V paste in the name field.
-- Match the ordinary prompt editor's selection colors without adding shortcut hints to the dialog footer.
-- Give selected-text copying precedence over Ctrl+C dismissal only in the name dialog; retain silent Ctrl+C dismissal when no text is selected.
-- Preserve Enter submission, Escape cancellation, whitespace-only dismissal, naming normalization, retained prompt drafts, unrelated dialogs, and the comparison profile.
-- Make the bare-A1 footer session-name span hoverable and expose a right-click `Edit` context menu that opens the same prefilled dialog without submitting or clearing a retained prompt draft or attachments.
+- Prefill bare-A1 `/name` with the current name and select it fully so typing immediately replaces it; unnamed sessions start empty.
+- Support mouse drag selection, double-click word selection, triple-click full-name selection, Ctrl+A, Ctrl+Z, Ctrl+X, Ctrl+C, and Ctrl+V with prompt-matching selection colors and unchanged Enter/Escape hints.
+- Give selected-text copying precedence over Ctrl+C dismissal; retain silent cancellation when no text is selected.
+- Add one-cell left/right padding to the footer name's hover and click target. Normal left-click opens the name dialog directly, retaining the prompt draft and attachments.
+- Remove the initially implemented right-click Edit menu as explicitly superseded by the direct-click refinement.
+- Give the footer's model name and thinking level matching padded hover and direct-click access to their existing selectors, preserving the prompt draft.
+- Suppress bare-A1's successful `Session name set:` message; preserve genuine errors, naming normalization/persistence, unrelated dialogs, and comparison behavior.
 
 ## Capabilities
 
@@ -19,10 +20,8 @@ None.
 
 ### Modified Capabilities
 
-- `owned-pi-ui-foundation`: prompted session naming becomes prefilled and editable with prompt-consistent selection and clipboard behavior, with a scoped exception to the implicit Ctrl+C close alias.
+- `owned-pi-ui-foundation`: selected prefill, mouse/clipboard naming, padded direct footer editing, and footer-only successful-name feedback.
 
 ## Impact
 
-- Session shell naming route, neutral input options, and footer-name pointer/context-menu routing.
-- Pi component adapter for the compact name input, pointer routing, clipboard services, and shared prompt selection styling.
-- Focused shell and component tests; no naming persistence, data migration, or upstream dependency changes.
+Session shell naming/feedback and footer pointer routing, neutral component contracts, Pi input/footer adapters, and focused tests. No data migration or upstream dependency changes.
