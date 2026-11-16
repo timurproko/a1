@@ -94,7 +94,8 @@
             "src/integrations/pi/engine/view-state.ts",
             "src/integrations/pi/engine/workflow-contexts.ts",
             "src/integrations/pi/engine/workflow-runner.ts",
-            "src/integrations/pi/engine/workflow-share.ts"
+            "src/integrations/pi/engine/workflow-share.ts",
+            "src/integrations/pi/engine/worktree-transitions.ts"
           ]
         },
         {
@@ -109,10 +110,11 @@
           "hash": "2410a1e2a200e2814ffbc37251bd7d357c93d1bf5e90db98eb8e6f2d36641aff",
           "consumers": [
             "src/integrations/pi/engine/launch-options.ts",
-            "src/integrations/pi/engine/runtime-integration.ts",
+            "src/integrations/pi/engine/runtime-services.ts",
             "src/integrations/pi/engine/session-runtime.ts",
             "src/integrations/pi/engine/workflow-support.ts",
-            "src/integrations/pi/engine/worktree-tools.ts"
+            "src/integrations/pi/engine/worktree-tools.ts",
+            "src/integrations/pi/engine/worktree-transitions.ts"
           ]
         },
         {
@@ -546,7 +548,7 @@
           "hash": "98893b93bfa06c555c603825cfd382d7ca8037d11a2095ef9812d109e629f593",
           "consumers": [
             "src/integrations/pi/engine/conformance.ts",
-            "src/integrations/pi/engine/runtime-integration.ts",
+            "src/integrations/pi/engine/runtime-factory.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -583,7 +585,7 @@
           "kind": "type",
           "hash": "a0eab6eecdb93d317c6961b0f3c1730264f87bf6dfdc6d44fe21deafe6e5b8d2",
           "consumers": [
-            "src/integrations/pi/engine/runtime-integration.ts"
+            "src/integrations/pi/engine/runtime-factory.ts"
           ]
         },
         {
@@ -598,7 +600,8 @@
           "hash": "9591ad1fdcadb39ca95fda6f0515515a242dfd277ed0311ea2197c549fbabcae",
           "consumers": [
             "src/integrations/pi/engine/conformance.ts",
-            "src/integrations/pi/engine/runtime-integration.ts",
+            "src/integrations/pi/engine/runtime-options.ts",
+            "src/integrations/pi/engine/runtime-services.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -1111,7 +1114,10 @@
           "name": "ExtensionFactory",
           "kind": "type",
           "hash": "494a061a0029313fd305ac1752eb42440a193bbb424f2ec01a5a6ad65909f816",
-          "consumers": []
+          "consumers": [
+            "src/integrations/pi/engine/runtime-services.ts",
+            "src/integrations/pi/engine/worktree-transitions.ts"
+          ]
         },
         {
           "name": "ExtensionFlag",
@@ -2534,6 +2540,7 @@
             "src/integrations/pi/engine/session-writers.ts",
             "src/integrations/pi/engine/workflow-contexts.ts",
             "src/integrations/pi/engine/worktree-tools.ts",
+            "src/integrations/pi/engine/worktree-transitions.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -2613,7 +2620,8 @@
             "src/integrations/pi/engine/default-model-setting.ts",
             "src/integrations/pi/engine/package-integration.ts",
             "src/integrations/pi/engine/project-trust-preflight.ts",
-            "src/integrations/pi/engine/runtime-integration.ts",
+            "src/integrations/pi/engine/runtime-options.ts",
+            "src/integrations/pi/engine/runtime-services.ts",
             "src/integrations/pi/engine/settings-bridge.ts",
             "src/integrations/pi/startup-public.ts"
           ]

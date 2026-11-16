@@ -10,6 +10,15 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Evidence
 
+### Focused implementation results
+
+- Regenerated `config/baselines/pinned-pi-public-api.json` with the maintained updater; only eight consumer lists changed. The direct collection test now compares the entire surface, including consumers, rather than a declaration-only delta. The CLI drift assertion remains unchanged.
+- The stalled-update fixture explicitly creates its native launcher root before writing; all process, redaction, replacement-state, timing, timeout, and cleanup assertions remain intact.
+- `npx vitest run test/repository-governance/pinned-pi-public-api.test.ts test/repository-governance/smoke-published-installer.test.ts`: 26 tests passed on Windows, including the native Windows system-log check. Linux/macOS execution is reserved for the selected PR Full regression, not claimed from this local result.
+- `npm run build` and `npm run typecheck` passed. The initial typecheck before building reported missing generated `dist` imports from `bin`; building the clean checkout resolved them without source changes. Strict OpenSpec validation and `git diff --check` passed.
+- Reconciled against current `origin/develop` (`58018652`); already up to date. No test assertions, budgets, timeouts, or coverage were weakened, and no production or requirement behavior changes are needed.
+- Known gaps: none in the implementation. Native exact-head Full regression remains pending until trusted finalization and is required before validated handoff. Numbered-package nightly publication recovery is separate and is not established by this repair.
+
 ### Focused diagnosis
 
 - On the unchanged proposed head `093b56c4`, `node scripts/pi/update-pinned-pi-public-api.mjs --check` exits 1 with eight consumer-drift diagnostics. `npx vitest run test/repository-governance/pinned-pi-public-api.test.ts` reproduces exactly one failure and four passes on Windows; the failed assertion is the strict CLI check.

@@ -37,10 +37,10 @@ describe("pinned Pi public API baseline", () => {
     expect(result.stdout).toContain("Pinned Pi public API is current");
   }, 30_000);
 
-  it("collects the same surface again from the declaration entries", async () => {
+  it("collects the same declarations and consumers again from the installed packages and source tree", async () => {
     const value = await baseline();
     const collected = await collectPiPublicApi({ packagesRoot: resolve("node_modules"), sourceRoot: resolve("src") }) as Surface;
-    expect(diffPublicApi(value, collected)).toEqual({ added: [], removed: [], changed: [] });
+    expect(collected).toEqual(value);
   }, 30_000);
 });
 

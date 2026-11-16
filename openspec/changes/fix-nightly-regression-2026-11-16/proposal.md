@@ -15,7 +15,7 @@ None.
 
 ### Modified Capabilities
 
-None identified yet. When the cause is known and the fix changes a requirement, add the delta under `specs/<capability>/spec.md` and remove `skip_specs: true` from `.openspec.yaml`; when the fix changes no requirement, leave both as scaffolded.
+None. The repair refreshes generated API consumer metadata and corrects Unix smoke-fixture setup, without changing production behavior or requirements. Keep `skip_specs: true` and no specification delta.
 
 ## Impact
 
