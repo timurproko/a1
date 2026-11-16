@@ -79,6 +79,15 @@ function shortJobName(name) {
   return text;
 }
 
+function publicationStepCounter(job) {
+  const steps = job.steps;
+  if (job.conclusion === "skipped" || !Array.isArray(steps) || steps.length === 0
+    || steps.some(step => !step || !["queued", "in_progress", "completed"].includes(step.status))) return "";
+  const current = job.conclusion === "success" ? steps.length
+    : steps.findLastIndex(step => step.status === "in_progress" || step.status === "completed") + 1;
+  return ` (${current}/${steps.length})`;
+}
+
 function isAggregate(job) {
   return /^(?:Validate publication lanes|Publication result)$/u.test(shortJobName(job.name));
 }
@@ -172,7 +181,7 @@ function createPublicationProgress(options) {
   let geometry;
   const stopUpdating = () => { interactive = false; };
   if (interactive) process.stdout.on("resize", stopUpdating);
-  const update = (id, label, name) => {
+  const update = (id, label, name, counter = "") => {
     const size = options.terminalSize?.() ?? { columns: process.stdout.columns, rows: process.stdout.rows };
     const index = rows.get(id);
     const count = rows.size + (index === undefined ? 1 : 0);
@@ -181,12 +190,16 @@ function createPublicationProgress(options) {
     if (!Number.isInteger(size.columns) || size.columns < 16 || !Number.isInteger(size.rows) || count >= size.rows
       || (geometry && (geometry.columns !== size.columns || geometry.rows !== size.rows))) interactive = false;
     if (!interactive) {
-      write(formatPublicationProgress(label, name, color));
+      write(formatPublicationProgress(label, `${name}${counter}`, color));
       return;
     }
     geometry = { ...size };
     // Invariant: the fixed prefix occupies 13 cells; leave the last column unused to avoid wrapping.
-    const line = formatPublicationProgress(label, fitPublicationName(name, size.columns - 14), color);
+    const width = size.columns - 14;
+    const fitted = counter && width > counter.length + 1
+      ? `${fitPublicationName(name, width - counter.length)}${counter}`
+      : fitPublicationName(`${name}${counter}`, width);
+    const line = formatPublicationProgress(label, fitted, color);
     if (index === undefined) {
       rows.set(id, rows.size);
       write(line);
@@ -232,10 +245,12 @@ async function waitForDevelopmentPublication(runId, version, repository, options
         const state = job.status === "completed" ? job.conclusion : job.status;
         if (state !== "in_progress" && state !== "success" && state !== "skipped" && !FAILED_CONCLUSIONS.has(state)) continue;
         if (state === "skipped" && !states.has(job.id) && isOptionalSkippedJob(job)) continue;
-        if (states.get(job.id) === state) continue;
-        states.set(job.id, state);
+        const counter = publicationStepCounter(job);
+        const signature = `${state}${counter}`;
+        if (states.get(job.id) === signature) continue;
+        states.set(job.id, signature);
         const label = state === "in_progress" ? "Running" : state === "success" ? "Passed" : state === "skipped" ? "Skipped" : "Failed";
-        progress.update(job.id, label, shortJobName(job.name));
+        progress.update(job.id, label, shortJobName(job.name), counter);
       }
       if (current.status === "completed") {
         if (current.conclusion !== "success") {
