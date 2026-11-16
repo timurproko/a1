@@ -34,10 +34,10 @@ The maintainer integration decision accepts these scenarios:
     "When shown, the provider follows the model as model [provider] before the thinking level, matching the Models dialog.",
     "Comparison-profile behavior and unrelated workflow feedback remain unchanged."
   ],
-  "archiveDigest": "5c73bcb3cffff3280f470d90976be45fd3e26787218716b811cce806c1d1d480",
+  "archiveDigest": "15833a707697738578e6a04e8bc2269f2c76924faa245277a8fc742af5c60bf6",
   "specDigest": "01fb07458696beea5bb1bc4606184cb3746079cad5abe1e0e3ac1df50171fe88",
   "tasksDigest": "26f1a06a1c4a57309b8e7679939b6749de8b026c6b9f14775d3e84ef4b5a6a55",
-  "evidenceDigest": "3c2272e6820cac238017b529dc50bc6aab40cb0e7fb2cd3dc60c6e954b1ff3ff",
+  "evidenceDigest": "c37fb10f581e9f42a87d88bc0a9b3637c7ca153a9f1534d469056c6378da74c1",
   "knownGaps": []
 }
 ```
