@@ -151,6 +151,8 @@ Stuck on `0.2.2` and `a1 update` fails? Run the installer once, then use `a1 upd
 npm x -y -- @timurproko/a1-install
 ```
 
+On Windows, older builds can lose their recovery worker on a heartbeat-file sharing error and eventually report a recovery-guardian timeout. Let the failed update command finish before running the new official installer with `--repair`, its absolute recovery capsule path, and the same channel/version selector from [Install](#install). The capsule is kept in the transaction's `update-recovery` directory; repair verifies its ownership and refuses running package writers. Do not run concurrent installers or delete settings, sessions, history, or update-state files to repair the launcher. New builds tolerate heartbeat sharing failures; reinstalling once replaces the old updater too.
+
 The **Update** setting controls release discovery:
 
 - **Auto** (default) checks the running release's stable or development channel at startup and every 15 minutes while open. It silently installs a verified update, then shows `Update installed, restart to update` above the editor; existing sessions keep running on their release, and the next `a1` starts the new one.

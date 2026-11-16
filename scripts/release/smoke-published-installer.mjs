@@ -2,6 +2,7 @@ import { execFile as execFileCallback } from "node:child_process";
 import { chmod, lstat, mkdtemp, mkdir, open, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { createPublishedSmokeRunner } from "./published-smoke-processes.mjs";
+import { prepareLegacyRecoveryObservation } from "./published-predecessor-recovery.mjs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -9,16 +10,11 @@ import { compareVersions, resolveInstallerNpmCli, sanitizeDiagnostic } from "../
 
 const execFile = promisify(execFileCallback);
 const COMMAND_BUDGET_MS = 10 * 60_000;
-/**
- * The published updater waits fifteen minutes for its protected-replacement worker before it cancels
- * and reports. On the hosted Windows runner the replacement alone needs several minutes, so the smoke
- * must outlast that deadline or it kills the updater before the updater can say what happened.
- */
-const WINDOWS_UPDATE_BUDGET_MS = 20 * 60_000;
+const UPDATE_BUDGET_MS = 5 * 60_000;
 
-/** The deadline the predecessor update command receives on a platform. */
-export function updateCommandBudgetMs(platform = process.platform) {
-  return platform === "win32" ? WINDOWS_UPDATE_BUDGET_MS : COMMAND_BUDGET_MS;
+/** Bound a stalled predecessor update independently of its older internal recovery deadline. */
+export function updateCommandBudgetMs() {
+  return UPDATE_BUDGET_MS;
 }
 
 /** Run published installation in disposable prefixes and retain safe evidence on either outcome. */
@@ -26,7 +22,9 @@ export async function smokePublishedInstaller({
   environment = process.env, createRunner = createPublishedSmokeRunner,
   removeFixture = root => rm(root, { recursive: true, force: true, maxRetries: 4, retryDelay: 200 }),
   writeDiagnostic = text => process.stderr.write(text),
+  writeProgress = text => process.stdout.write(text),
   readSystemEvents = readWindowsSystemEvents,
+  prepareRecoveryObservation = prepareLegacyRecoveryObservation,
 } = {}) {
   const version = environment.RELEASE_VERSION;
   const channel = environment.RELEASE_CHANNEL;
@@ -39,6 +37,8 @@ export async function smokePublishedInstaller({
   let evidence;
   let primaryError;
   let applicationPackageName = "";
+  let predecessorUpdate = null;
+  let upgradeMethod = "predecessor-update";
   /** Stage name to accumulated child-command milliseconds; dates each phase of a long Windows run. */
   const timings = {};
   const safe = value => {
@@ -52,8 +52,11 @@ export async function smokePublishedInstaller({
   };
   const execute = async (command, args, options) => {
     const startedAt = Date.now();
+    writeProgress(`[published installer] ${stage} started\n`);
     const result = await runner.run(command, args, options);
-    timings[stage] = (timings[stage] ?? 0) + (Date.now() - startedAt);
+    const durationMs = Date.now() - startedAt;
+    timings[stage] = (timings[stage] ?? 0) + durationMs;
+    writeProgress(`[published installer] ${stage} ${result.status === 0 && !result.error ? "passed" : "failed"} (${durationMs}ms)\n`);
     childOutcome = {
       status: result.status, signal: result.signal ?? null,
       error: safe(result.error?.message), stdout: safe(result.stdout), stderr: safe(result.stderr),
@@ -145,9 +148,10 @@ export async function smokePublishedInstaller({
     if (predecessorVersion === version) throw new Error("published candidate is already advertised; predecessor update smoke requires a distinct public predecessor");
     const updatePrefix = resolve(root, "update-application");
     const updateBin = process.platform === "win32" ? updatePrefix : resolve(updatePrefix, "bin");
+    const updateDataDir = resolve(root, "update-data");
     const updateEnvironment = {
       ...installedEnvironment, npm_config_prefix: updatePrefix,
-      A1_CONFIG_DIR: resolve(root, "update-config"), A1_DATA_DIR: resolve(root, "update-data"), A1_RUNTIME_DIR: resolve(root, "update-runtime"),
+      A1_CONFIG_DIR: resolve(root, "update-config"), A1_DATA_DIR: updateDataDir, A1_RUNTIME_DIR: resolve(root, "update-runtime"),
       PUBLISHED_SMOKE_VERSION: predecessorVersion,
       PATH: [bridgeBin, updateBin, bootstrapBin, environment.PATH ?? ""].join(delimiter),
     };
@@ -155,23 +159,57 @@ export async function smokePublishedInstaller({
     await execute(installerLauncher, channel === "next" ? ["--develop", predecessorVersion] : [], {
       cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: COMMAND_BUDGET_MS,
     });
-    stage = "update-predecessor";
-    updateEnvironment.PUBLISHED_SMOKE_VERSION = version;
-    const updateLauncher = resolve(updateBin, process.platform === "win32" ? "a1.cmd" : "a1");
-    await execute(updateLauncher, ["update", ...(channel === "next" ? ["--develop", version] : ["--release"])], {
-      cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: updateCommandBudgetMs(),
-    });
-    stage = "launch-updated-application";
     const updatedRoot = resolve(updatePrefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", ...applicationSource.name.split("/"));
+    updateEnvironment.PUBLISHED_SMOKE_VERSION = version;
+    const observation = await prepareRecoveryObservation({ root, packageRoot: updatedRoot, dataDir: updateDataDir, version, environment: updateEnvironment });
+    stage = "update-predecessor";
+    const updateLauncher = resolve(updateBin, process.platform === "win32" ? "a1.cmd" : "a1");
+    try {
+      await execute(updateLauncher, ["update", ...(channel === "next" ? ["--develop", version] : ["--release"])], {
+        cwd: root, encoding: "utf8", env: observation?.environment ?? updateEnvironment, windowsHide: true, timeout: updateCommandBudgetMs(),
+        ...(observation ? { failureProbe: async () => {
+          const crash = await observation.readFailure();
+          return crash ? new Error(`legacy recovery owner exited after ${crash.code} ${crash.syscall} owner.json`) : null;
+        } } : {}),
+      });
+    } catch (error) {
+      const crash = await observation?.readFailure().catch(() => null);
+      predecessorUpdate = { outcome: "failure", error: safe(error instanceof Error ? error.message : error), child: childOutcome, crash: crash ?? null };
+      if (!crash || childOutcome.signal || !runner.inventory) throw error;
+      // Invariant: preserve the failed attempt, then stop every writer before the installer touches its prefix.
+      predecessorUpdate.processes = (await runner.inventory()).slice(0, 40).map(row => ({
+        pid: row.pid, parent: row.parent, start: row.start, executable: safe(row.executable), argv: safe(row.argv?.join(" ")),
+      }));
+      predecessorUpdate.updateRecords = await updateRecordTails(root, safe);
+      stage = "settle-legacy-predecessor";
+      await runner.close();
+      runner = createRunner(root);
+      upgradeMethod = "installer-recovery";
+      writeProgress("[published installer] authenticated legacy heartbeat failure; recovering with the published installer after process settlement\n");
+      stage = "recover-predecessor-with-installer";
+      const recovered = await execute(installerLauncher, [...args, "--repair", resolve(dirname(crash.ownerPath), "capsule.json")], { cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: COMMAND_BUDGET_MS });
+      if (recovered.stdout.replace(/\r\n/gu, "\n") !== "a1 successfully installed\n" || recovered.stderr !== "") throw new Error("published recovery installer transcript is invalid");
+    }
+    stage = "launch-updated-application";
     const updatedManifest = JSON.parse(await readFile(resolve(updatedRoot, "package.json"), "utf8"));
     if (updatedManifest.name !== applicationSource.name || updatedManifest.version !== version) throw new Error("predecessor update selected the wrong application package");
+    if (upgradeMethod === "installer-recovery") {
+      const state = JSON.parse(await readFile(resolve(updateDataDir, "release-state.json"), "utf8"));
+      if (state.releases?.[state.references?.active]?.packageVersion !== version) throw new Error("installer recovery did not activate the exact candidate");
+      const launched = await execute(updateLauncher, ["version"], { cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: 30_000 });
+      if (!launched.stdout.includes(version)) throw new Error("recovered launcher reported the wrong version");
+    }
     await execute(updateLauncher, ["--help"], { cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: 30_000 });
 
     evidence = {
       schema: "a1-published-installer-smoke-v1",
       outcome: "success",
       predecessorVersion,
-      updateVerified: true,
+      upgradeMethod,
+      predecessorUpdate,
+      updateVerified: upgradeMethod === "predecessor-update",
+      installerRecoveryVerified: upgradeMethod === "installer-recovery",
+      upgradeVerified: true,
       platform: process.platform,
       architecture: process.arch,
       nodeVersion: process.version,
@@ -198,6 +236,7 @@ export async function smokePublishedInstaller({
       schema: "a1-published-installer-smoke-v1", outcome: "failure", stage,
       platform: process.platform, architecture: process.arch, nodeVersion: process.version,
       version, channel, error: primaryError.message,
+      upgradeMethod, predecessorUpdate,
       child: childOutcome,
       timings,
       processes,
@@ -251,7 +290,7 @@ export async function smokePublishedInstaller({
     throw primaryError;
   }
   if (primaryError) throw primaryError;
-  process.stdout.write(`Published installer smoke passed on ${process.platform}/${process.arch}.\n`);
+  process.stdout.write(`Published installer smoke passed on ${process.platform}/${process.arch}${upgradeMethod === "installer-recovery" ? " via explicit installer recovery (legacy direct update failed)" : ""}.\n`);
 }
 
 /** Sampled sightings with arguments reduced to safe text; the last sighting dates each disappearance. */

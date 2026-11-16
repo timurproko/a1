@@ -1,0 +1,35 @@
+// Rationale: a published predecessor cannot be patched after staging a candidate. This observation-only
+// preload retains its failure without suppressing it; events mode preserves the original worker stdio.
+import childProcess from "node:child_process";
+import { appendFileSync, closeSync, mkdirSync, openSync } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import { basename, resolve } from "node:path";
+
+const directory = process.env.PUBLISHED_PAIR_OBSERVER_DIR;
+if (directory) {
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const log = value => {
+    // Invariant: observation cannot change worker settlement when a diagnostic write fails.
+    try { appendFileSync(resolve(directory, `${process.pid}.jsonl`), `${JSON.stringify({ time: new Date().toISOString(), pid: process.pid, parent: process.ppid, ...value })}\n`, { mode: 0o600 }); } catch {}
+  };
+  const worker = process.argv[2] === "--worker";
+  log({ event: "start", entry: basename(process.argv[1] ?? ""), worker });
+  process.on("uncaughtExceptionMonitor", error => log({
+    event: "uncaught", error: String(error?.stack ?? error).slice(-16_000),
+    errorDetails: { code: error?.code, syscall: error?.syscall, path: error?.path, dest: error?.dest },
+  }));
+  process.on("exit", code => log({ event: "exit", code }));
+  const spawn = childProcess.spawn;
+  childProcess.spawn = function(command, args, options) {
+    if (args?.[1] !== "--worker" || basename(args[0] ?? "") !== "recovery.js") return spawn(command, args, options);
+    const fd = process.env.PUBLISHED_PAIR_OBSERVER_MODE === "events" ? null
+      : openSync(resolve(directory, `worker-stderr-${process.pid}.log`), "a", 0o600);
+    let child;
+    try { child = spawn(command, args, fd === null ? options : { ...options, stdio: ["ignore", fd, fd] }); }
+    finally { if (fd !== null) closeSync(fd); }
+    child.once("error", error => log({ event: "worker-spawn-error", error: String(error).slice(-4_000) }));
+    child.once("exit", (code, signal) => log({ event: "worker-exit", child: child.pid, code, signal }));
+    return child;
+  };
+  syncBuiltinESMExports();
+}
