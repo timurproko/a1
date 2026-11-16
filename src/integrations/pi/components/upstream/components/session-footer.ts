@@ -123,7 +123,7 @@ export class SessionFooter implements Component {
       const route = ` → ${routed.model.modelId}${level}`;
       rightWithoutProvider += this.profile === "a1" ? theme.fg("dim", route) : route;
     }
-    const nameWidth = this.profile === "a1" ? visibleWidth(sessionName ?? "") : 0;
+    const nameWidth = this.profile === "a1" && sessionName ? visibleWidth(sessionName) + 2 : 0;
     let right = rightWithoutProvider;
     if ((view.status.footer?.availableProviderCount ?? 1) > 1 && view.activeModel) {
       const provider = `(${view.activeModel.providerId}) `;
@@ -139,14 +139,14 @@ export class SessionFooter implements Component {
       leftWidth = visibleWidth(left);
     }
     const rightWidth = visibleWidth(right);
-    this.#nameBudget = Math.max(0, width - rightWidth - 2);
+    this.#nameBudget = Math.max(0, width - rightWidth - 4);
     if (this.profile === "a1" && sessionName && this.#nameBudget > 0) {
       this.#nameBudget = Math.min(visibleWidth(sessionName), this.#nameBudget);
       const statsBudget = this.#nameBudget < visibleWidth(sessionName) ? 0
-        : Math.max(0, width - rightWidth - 2 - this.#nameBudget - 3);
+        : Math.max(0, width - rightWidth - 4 - this.#nameBudget - 3);
       left = statsBudget >= 4 ? truncateToWidth(left, statsBudget, dimEllipsis) : "";
       const prefix = left ? left + theme.fg("dim", " • ") : "";
-      const name = this.#nameFrame(sessionName, this.#nameBudget).text;
+      const name = ` ${this.#nameFrame(sessionName, this.#nameBudget).text} `;
       this.#nameSpan = { row: 1, column: visibleWidth(prefix), width: visibleWidth(name) };
       left = prefix + (this.#nameHovered ? theme.bg("selectedBg", name) : name);
       leftWidth = visibleWidth(left);

@@ -1,4 +1,3 @@
-export { createPiSessionNameMenu } from "./session-name-menu.js";
 export { loadHistoryEditor, type HistoryEditorConstructor } from "./history-editor-loader.js";
 export {
   createPiShellOperationLoader,

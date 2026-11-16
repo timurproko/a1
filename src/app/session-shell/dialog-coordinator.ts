@@ -4,21 +4,21 @@ import type { TerminalOverlayHandle } from "../../contracts/presentation/index.j
 import type { OwnedUiCommandResult, OwnedUiDialog } from "../../contracts/owned-ui/index.js";
 import type { UiRouteHost, UiRouteInput } from "../../ui/apps/contracts.js";
 import { InputRoute } from "./input-route.js";
-import type { FooterNameMenu } from "./footer-name-menu.js";
+import type { FooterNameInteraction } from "./footer-name-interaction.js";
 import type { OwnedUiPresenterTerminal } from "./shell-host.js";
 import type { OwnedUiSessionShellOptions, OwnedUiSessionShellRoot } from "./session-shell-root.js";
 
 type StartupRoute = NonNullable<OwnedUiSessionShellOptions["engine"]["startupRoute"]>;
 
-type NameMenu = Pick<FooterNameMenu, "handleInput" | "onSessionReplaced" | "dispose">;
+type NameEditing = Pick<FooterNameInteraction, "handleInput" | "onSessionReplaced" | "dispose">;
 
-function lazyFooterNameMenu(ports: ConstructorParameters<typeof FooterNameMenu>[0]): NameMenu {
-  let delegate: FooterNameMenu | undefined;
+function lazyFooterNameEditing(ports: ConstructorParameters<typeof FooterNameInteraction>[0]): NameEditing {
+  let delegate: FooterNameInteraction | undefined;
   let disposed = false;
   setImmediate(() => {
     if (disposed) return;
-    void import("./footer-name-menu.js").then(({ FooterNameMenu }) => {
-      if (!disposed) { delegate = new FooterNameMenu(ports); ports.terminal.requestRender(); }
+    void import("./footer-name-interaction.js").then(({ FooterNameInteraction }) => {
+      if (!disposed) { delegate = new FooterNameInteraction(ports); ports.terminal.requestRender(); }
     }).catch(() => {});
   });
   return {
@@ -45,12 +45,12 @@ interface SessionDialogPorts {
   /** A rendered route closed itself. */
   readonly routeClosed?: (route: string) => void;
   readonly startupRoute?: StartupRoute;
-  readonly nameMenu?: { readonly create: OwnedUiShellComponents["dialogs"]["sessionNameMenu"]; readonly edit: () => void };
+  readonly editName?: () => void;
 }
 
 /** Coordinates owned routes, dock dialogs, and backend overlays through one replacement/close lifecycle. */
 export class SessionDialogCoordinator {
-  readonly nameMenu: NameMenu | undefined;
+  readonly nameEditing: NameEditing | undefined;
   readonly #ports: SessionDialogPorts;
   #handle: { hide(): void; close?(): void } | undefined;
   #id: string | undefined;
@@ -64,9 +64,8 @@ export class SessionDialogCoordinator {
   constructor(ports: SessionDialogPorts) {
     this.#ports = ports;
     this.#startupRoute = ports.startupRoute;
-    this.nameMenu = ports.nameMenu === undefined ? undefined : lazyFooterNameMenu({
-      root: ports.root, terminal: { ...ports.terminal, viewport: ports.viewport ?? (() => ({ rows: 24 })) },
-      ...ports.nameMenu,
+    this.nameEditing = ports.editName === undefined ? undefined : lazyFooterNameEditing({
+      root: ports.root, terminal: ports.terminal, edit: ports.editName,
     });
   }
 
@@ -247,12 +246,12 @@ export class SessionDialogCoordinator {
 
   /** A replaced session takes its dialog with it; a retained startup route still opens. */
   onSessionReplaced(): void {
-    this.nameMenu?.onSessionReplaced();
+    this.nameEditing?.onSessionReplaced();
     this.#close();
   }
 
   dispose(): void {
-    this.nameMenu?.dispose();
+    this.nameEditing?.dispose();
     if (this.#startupRouteTimer !== undefined) clearTimeout(this.#startupRouteTimer);
     this.#startupRouteTimer = undefined;
     this.#apps?.hide();

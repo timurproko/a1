@@ -13,10 +13,10 @@
 
 ## 3. Open name editing directly from the padded footer name
 
-- [ ] 3.1 Reserve one blank cell on each side of the footer name and include both cells in its hover and click target without covering adjacent labels.
-- [ ] 3.2 Replace the right-click Edit menu with a normal left-click that directly opens the prefilled dialog.
-- [ ] 3.3 Preserve prompt text, cursor/selection where supported, and attachments through naming and cancellation; remove the superseded context-menu surface.
-- [ ] 3.4 Add direct-click, padded hover, clipped/resized target, unnamed/comparison, and draft/attachment-retention cases.
+- [x] 3.1 Reserve one blank cell on each side of the footer name and include both cells in its hover and click target without covering adjacent labels.
+- [x] 3.2 Replace the right-click Edit menu with a normal left-click that directly opens the prefilled dialog.
+- [x] 3.3 Preserve prompt text, cursor/selection where supported, and attachments through naming and cancellation; remove the superseded context-menu surface.
+- [x] 3.4 Add direct-click, padded hover, clipped/resized target, unnamed/comparison, and draft/attachment-retention cases.
 
 ## 4. Select words and complete names with repeated clicks
 

@@ -1,0 +1,139 @@
+import { stripTerminalSequences } from "@earendil-works/pi-tui";
+import { describe, expect, it, vi } from "vitest";
+import { piTheme } from "../../../src/integrations/pi/components/index.js";
+import { cellBackgroundAt } from "../../support/ansi-cell-style.js";
+import { screenshotPng } from "../../fixtures/image-sources.js";
+import { fixture, nextImmediate } from "./session-shell-fixture.js";
+
+async function namedFixture(name = "alpha project", bare = true) {
+  const value = await fixture([], [], bare, undefined, undefined, undefined, undefined, undefined, undefined,
+    engine => { engine.session.name = name; });
+  if (bare) await vi.waitFor(() => expect(value.shell.root.chrome.footerName).toBeDefined());
+  return value;
+}
+
+function clickName(value: Awaited<ReturnType<typeof fixture>>, side: "left" | "right" = "left") {
+  value.shell.runtime.renderNow();
+  const region = value.shell.root.chrome.footerName?.region()!;
+  expect(region).toBeDefined();
+  const column = side === "left" ? region.columnStart : region.columnEnd;
+  value.terminal.input(`\x1b[<0;${column};${region.rowStart}M\x1b[<0;${column};${region.rowStart}m`);
+}
+
+describe("direct footer name editing", () => {
+  it("hovers exactly one blank cell on each side without moving the name or neighboring text", async () => {
+    const value = await namedFixture();
+    try {
+      value.terminal.resize(100, 24);
+      value.shell.runtime.renderNow();
+      const region = value.shell.root.chrome.footerName?.region()!;
+      const original = value.shell.root.render(100)[region.rowStart - 1]!;
+      const plain = stripTerminalSequences(original);
+      expect(plain.slice(region.columnStart - 1, region.columnEnd)).toBe(" alpha project ");
+      const expected = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
+      for (const column of [region.columnStart, region.columnEnd]) {
+        value.terminal.input(`\x1b[<35;${column};${region.rowStart}M`);
+        const hovered = value.shell.root.render(100)[region.rowStart - 1]!;
+        expect(stripTerminalSequences(hovered)).toBe(plain);
+        for (let col = region.columnStart; col <= region.columnEnd; col++) expect(cellBackgroundAt(hovered, col - 1)).toBe(expected);
+        expect(cellBackgroundAt(hovered, region.columnStart - 2)).toBe(cellBackgroundAt(original, region.columnStart - 2));
+        expect(cellBackgroundAt(hovered, region.columnEnd)).toBe(cellBackgroundAt(original, region.columnEnd));
+      }
+      value.terminal.input(`\x1b[<35;${region.columnEnd + 1};${region.rowStart}M`);
+      expect(value.shell.root.render(100)[region.rowStart - 1]).toBe(original);
+    } finally { await value.shell.dispose(); }
+  });
+
+  it.each(["left", "right"] as const)("opens directly from the %s padding and retains the prompt", async side => {
+    const value = await namedFixture();
+    try {
+      value.shell.root.editor.setText("an unfinished prompt");
+      clickName(value, side);
+      expect(value.shell.readiness().overlayOpen).toBe(false);
+      expect(value.shell.root.usesDefaultInputSurface()).toBe(false);
+      expect(stripTerminalSequences(value.shell.root.render(80).join("\n"))).toContain("alpha project");
+      expect(stripTerminalSequences(value.terminal.writes.join(""))).not.toContain(" Edit ");
+      value.terminal.input("New Name");
+      value.terminal.input("\r");
+      await vi.waitFor(() => expect(value.engine.session.name).toBe("new name"));
+      expect(value.shell.root.editor.getText()).toBe("an unfinished prompt");
+      expect(value.engine.session.promptOptions).toHaveLength(0);
+    } finally { await value.shell.dispose(); }
+  });
+
+  it.each([false, true])("retains attached images and unsent text after naming, save=%s", async save => {
+    const value = await fixture([], [], true, undefined, {
+      readText: async () => null,
+      readImage: async () => ({ data: screenshotPng(8, 8).toString("base64"), mimeType: "image/png" }),
+    }, undefined, undefined, undefined, undefined, engine => { engine.session.name = "attached draft"; });
+    try {
+      value.terminal.input("\x16");
+      await vi.waitFor(() => expect(value.shell.root.promptChips.prepareSubmission(value.shell.root.editor.getText()).images).toHaveLength(1));
+      const draft = `${value.shell.root.editor.getText()} unfinished prompt`;
+      value.shell.root.editor.setText(draft);
+      const attachments = value.shell.root.promptChips.prepareSubmission(draft).images;
+      clickName(value);
+      expect(value.shell.root.usesDefaultInputSurface()).toBe(false);
+      value.terminal.input("Updated");
+      value.terminal.input(save ? "\r" : "\x1b");
+      await vi.waitFor(() => expect(value.shell.root.usesDefaultInputSurface()).toBe(true));
+      expect(value.engine.session.name).toBe(save ? "updated" : "attached draft");
+      expect(value.shell.root.editor.getText()).toBe(draft);
+      expect(value.shell.root.promptChips.prepareSubmission(draft).images).toEqual(attachments);
+      expect(value.engine.session.promptOptions).toHaveLength(0);
+    } finally { await value.shell.dispose(); }
+  });
+
+  it("does not open a menu on right-click or edit neighboring metadata", async () => {
+    const value = await namedFixture();
+    try {
+      value.shell.root.editor.setText("retained");
+      value.shell.runtime.renderNow();
+      const region = value.shell.root.chrome.footerName?.region()!;
+      value.terminal.input(`\x1b[<2;${region.columnStart};${region.rowStart}M\x1b[<2;${region.columnStart};${region.rowStart}m`);
+      expect(value.shell.readiness().overlayOpen).toBe(false);
+      expect(value.shell.root.usesDefaultInputSurface()).toBe(true);
+      value.terminal.input(`\x1b[<0;${region.columnEnd + 1};${region.rowStart}M\x1b[<0;${region.columnEnd + 1};${region.rowStart}m`);
+      expect(value.shell.root.usesDefaultInputSurface()).toBe(true);
+      clickName(value);
+      value.terminal.input("discarded");
+      value.terminal.input("\x1b");
+      await nextImmediate();
+      expect(value.engine.session.name).toBe("alpha project");
+      expect(value.shell.root.editor.getText()).toBe("retained");
+    } finally { await value.shell.dispose(); }
+  });
+
+  it("tracks clipped and resized targets", async () => {
+    const value = await namedFixture("a long session name that must be clipped");
+    try {
+      for (const [columns, rows] of [[36, 14], [28, 10], [100, 30]]) {
+        value.terminal.resize(columns!, rows!);
+        value.shell.runtime.renderNow();
+        const region = value.shell.root.chrome.footerName?.region();
+        if (region === undefined) continue;
+        expect(region.columnEnd).toBeLessThan(columns!);
+        expect(region.rowStart).toBeLessThanOrEqual(rows!);
+        clickName(value);
+        expect(value.shell.root.usesDefaultInputSurface()).toBe(false);
+        value.terminal.input("\x1b");
+      }
+    } finally { await value.shell.dispose(); }
+  });
+
+  it("has no name target for unnamed, comparison, or extension-replaced footers", async () => {
+    for (const [name, bare] of [["", true], ["named", false]] as const) {
+      const value = await namedFixture(name, bare);
+      try {
+        value.shell.runtime.renderNow();
+        expect(value.shell.root.chrome.footerName?.region()).toBeUndefined();
+      } finally { await value.shell.dispose(); }
+    }
+    const value = await namedFixture();
+    try {
+      value.shell.root.setExtensionFooter({ render: () => ["custom footer"], invalidate() {} });
+      value.shell.runtime.renderNow();
+      expect(value.shell.root.chrome.footerName?.region()).toBeUndefined();
+    } finally { await value.shell.dispose(); }
+  });
+});

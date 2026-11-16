@@ -247,7 +247,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
         disposed: () => this.#disposed,
         exit: () => { void this.shutdown(); },
         ...(startupRoute === undefined ? {} : { startupRoute }),
-        ...(this.#customViewport ? { nameMenu: { create: this.#presenters.components.dialogs.sessionNameMenu, edit: () => { void this.runWorkflow({ command: "name", argument: "" }); } } } : {}),
+        ...(this.#customViewport ? { editName: () => { void this.runWorkflow({ command: "name", argument: "" }); } } : {}),
       });
       constructed.push(() => this.#dialogs.dispose());
       this.selectors = this.#createSelectors(options.presenters);
@@ -412,7 +412,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
     if (data.includes("\u001b[<") && !this.root.viewportInputGeometryReady(viewport.columns, viewport.rows)) {
       this.#terminal.renderNow();
     }
-    const nameRouted = this.#dialogs.nameMenu?.handleInput(data) ?? { data, consumed: false };
+    const nameRouted = this.#dialogs.nameEditing?.handleInput(data) ?? { data, consumed: false };
     data = nameRouted.data;
     if (nameRouted.consumed && data.length === 0) return { consume: true };
     const routed = this.root.handleViewportPreInput(data, true, Date.now(),

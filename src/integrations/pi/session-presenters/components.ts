@@ -2,7 +2,6 @@ import type { OwnedUiShellComponents, OwnedUiShellLazySelectorLoader } from "../
 import type { ProgressSpinnerSource } from "../../../contracts/presentation/index.js";
 import { createPiShellEditor } from "../components/shell-editor-autocomplete.js";
 import { createPiExtensionUiBridge } from "../components/shell-extension-ui.js";
-import { createPiSessionNameMenu } from "../components/session-name-menu.js";
 import {
   createPiQueuedInputStatus,
   createPiShellFooter,
@@ -108,7 +107,6 @@ export function createPiShellComponents(
           : surfaces.createPiShellOperationLoader(runtime, message);
       },
       extensionUiBridge: createPiExtensionUiBridge,
-      sessionNameMenu: createPiSessionNameMenu,
       lazySelectors: loadLazySelectors,
     },
     text: {

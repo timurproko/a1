@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-16T13:43:40.949Z",
+  "recordedAt": "2026-11-16T14:20:31.307Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "b4afdddf44e059c67ccf5097e5317d913521b470",
@@ -1907,7 +1907,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "A1 PR links, model/name priority over stats, level colors, secondary-accent name reveals, dim name/row clipping, and explicit visible-name geometry with accent-selected hover for context editing; Pi intact.",
       "upgradeStrategy": "three-way",
-      "localSha256": "64a26783a073cc6e06b7f4e5454f37bbf78f4b7e86673713ee32c473452a4635",
+      "localSha256": "6ef6c602d9369a931df6b1bf18401dcc025e9282e3a2c5afce2960910a4dd4b5",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1941,9 +1941,9 @@
         },
         {
           "id": "owned-footer-name-context-edit",
-          "reason": "Approved improve-session-name-dialog exposes only visible bare-A1 name cells for accent-selected hover and a draft-preserving right-click Edit menu.",
+          "reason": "Approved improve-session-name-dialog gives the visible bare-A1 name one-cell side padding, accent-selected hover, and draft-preserving direct left-click editing.",
           "upstreamBehavior": "Comparison, unnamed, and extension-replaced footers retain their existing behavior; neighboring footer metadata remains outside the name target.",
-          "acceptanceTest": "test/app/session-shell/footer-name-menu.test.ts"
+          "acceptanceTest": "test/app/session-shell/footer-name-interaction.test.ts"
         }
       ],
       "behaviorCategories": [

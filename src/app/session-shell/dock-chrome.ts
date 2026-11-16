@@ -6,7 +6,7 @@ import type { SessionViewportController } from "./session-viewport-controller.js
 import type { TailControlRegion } from "./viewport-pointer.js";
 import { parseReleaseUpdateDiagnostic } from "./transcript-document.js";
 
-import type { FooterNameTargetPort } from "./footer-name-menu.js";
+import type { FooterNameTargetPort } from "./footer-name-interaction.js";
 
 // Invariant: the notice is dock chrome, never transcript content; the custom viewport alone uses it.
 interface DockNotice {

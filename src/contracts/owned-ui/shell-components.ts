@@ -105,7 +105,7 @@ export interface OwnedUiShellViewComponentPort extends OwnedUiShellComponentPort
   update(view: OwnedUiSessionViewModel): void;
   /** Footer-only ephemeral frame; returns whether its clipped name still needs animation. */
   setNameReveal?(frame: { readonly from: string; readonly elapsed: number } | null): boolean;
-  /** Zero-based visible name geometry in the most recent footer render, excluding outer gutters. */
+  /** Zero-based name geometry including one-cell side padding, excluding outer footer gutters. */
   footerNameSpan?(): { readonly row: number; readonly column: number; readonly width: number } | undefined;
   setNameHovered?(hovered: boolean): void;
 }
@@ -551,7 +551,6 @@ export interface OwnedUiShellComponents {
     /** The cancellable share progress surface: a bordered dialog or a plain loader; loads its module on first use. */
     shareProgress(runtime: OwnedUiShellRuntime, message: string, style: "dialog" | "loader"): Promise<OwnedUiShellOperationLoaderPort>;
     extensionUiBridge(host: OwnedUiShellExtensionUiBridgeHost): OwnedUiShellExtensionUiBridge;
-    sessionNameMenu(onEdit: () => void, onCancel: () => void, requestRender: () => void): OwnedUiShellComponentPort;
     /** Absent until composition supplies a loader; the shell loads the vendor's own on first use otherwise. */
     readonly lazySelectors: () => Promise<OwnedUiShellLazySelectorLoader>;
   };
