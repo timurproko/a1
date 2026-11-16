@@ -35,7 +35,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await bare.shell.submit("/name Direct Name");
     expect(bare.engine.session.calls).toContain("name:Direct Name");
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
-    expect(stripTerminalSequences(bare.shell.root.render(100).join("\n"))).toContain("Session name set: direct name");
+    expect(stripTerminalSequences(bare.shell.root.render(100).join("\n"))).not.toContain("Session name set:");
 
     await bare.shell.submit("/name");
     await vi.waitFor(() => {
@@ -66,7 +66,8 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(bare.engine.session.name).toBe("renamed");
     expect(bare.shell.root.usesDefaultInputSurface()).toBe(true);
     const namedFrame = stripTerminalSequences(bare.shell.root.render(100).join("\n"));
-    expect(namedFrame).toContain("Session name set: renamed");
+    expect(namedFrame).not.toContain("Session name set:");
+    expect(bare.shell.view().status.footer?.sessionName).toBe("renamed");
 
     const resultCount = bare.engine.session.calls.length;
     const namedResultCount = namedFrame.match(/Session name set:/g)?.length;
@@ -97,6 +98,8 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     await comparison.shell.submit("/name");
     expect(comparison.shell.root.usesDefaultInputSurface()).toBe(true);
     expect(stripTerminalSequences(comparison.shell.root.render(100).join("\n"))).toContain("Warning: Usage: /name <name>");
+    await comparison.shell.submit("/name Comparison");
+    expect(stripTerminalSequences(comparison.shell.root.render(100).join("\n"))).toContain("Session name set: comparison");
     await comparison.shell.dispose();
   });
 

@@ -26,9 +26,9 @@
 
 ## 5. Confirm successful bare-A1 naming only in the footer
 
-- [ ] 5.1 Suppress the successful `Session name set:` presentation for direct and prompted bare-A1 naming while retaining name persistence and genuine errors.
-- [ ] 5.2 Preserve comparison-profile naming messages and unrelated workflow feedback.
-- [ ] 5.3 Add focused cases for silent success, errors, cancellation, footer updates, and comparison behavior.
+- [x] 5.1 Suppress the successful `Session name set:` presentation for direct and prompted bare-A1 naming while retaining name persistence and genuine errors.
+- [x] 5.2 Preserve comparison-profile naming messages and unrelated workflow feedback.
+- [x] 5.3 Add focused cases for silent success, errors, cancellation, footer updates, and comparison behavior.
 
 ## 6. Open model and thinking selectors from matching footer controls
 
