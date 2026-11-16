@@ -15,7 +15,7 @@ validatePackedManifest(packed, sourceManifest);
 if (expectedVersion && packed.version !== expectedVersion) throw new Error(`installer candidate version ${packed.version} is not ${expectedVersion}`);
 const entries = readPackedEntries(bytes);
 const paths = entries.map(entry => entry.path).sort();
-const expectedPaths = ["package/LICENSE", "package/README.md", "package/bin/a1-install.js", "package/bin/progress-palette.js", "package/package.json"];
+const expectedPaths = ["package/LICENSE", "package/README.md", "package/bin/a1-install.js", "package/bin/progress-palette.js", "package/bin/repair-capsule.js", "package/package.json"];
 if (JSON.stringify(paths) !== JSON.stringify(expectedPaths)) throw new Error("installer candidate payload is not minimal");
 const executable = entries.find(entry => entry.path === "package/bin/a1-install.js");
 if (!executable || (executable.mode & 0o111) === 0) throw new Error("installer candidate executable mode is invalid");
@@ -43,6 +43,7 @@ try {
     "a1-install --develop",
     "a1-install --develop <preview-or-version>",
     "a1-install --verbose",
+    "a1-install --repair <absolute-recovery-capsule> [--develop [preview-or-version]]",
     "",
   ].join("\n");
   if (invoked.stdout.replace(/\r\n/gu, "\n") !== expectedHelp || invoked.stderr !== "") {

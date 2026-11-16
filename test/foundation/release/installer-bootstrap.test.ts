@@ -863,6 +863,7 @@ describe("installer package manifest", () => {
     expect(manifest.name).toBe("@timurproko/a1-install");
     expect(Object.entries(manifest.bin)).toEqual([["a1-install", "bin/a1-install.js"]]);
     expect(manifest.files).toContain("bin/progress-palette.js");
+    expect(manifest.files).toContain("bin/repair-capsule.js");
     expect(manifest.dependencies).toBeUndefined();
     expect(manifest.optionalDependencies).toBeUndefined();
     expect(manifest.peerDependencies).toBeUndefined();
