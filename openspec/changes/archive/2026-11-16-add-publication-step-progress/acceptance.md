@@ -17,7 +17,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-16-add-publication-step-progress/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-16-add-publication-step-progress/acceptance.md",
   "finalizedDate": "2026-11-16",
-  "specBaseSha": "cf8884d7901842e5085f8c762720d3d258ad581d",
+  "specBaseSha": "e449cc683579e67e225af4db71a434044f985276",
   "acceptanceScenarios": [
     "Running publication jobs display current/total workflow-step positions and refresh independently as steps advance.",
     "Successful jobs show total/total, failed jobs retain their failure label, and skipped jobs omit counters.",
@@ -25,7 +25,7 @@ The maintainer integration decision accepts these scenarios:
     "Interactive rows retain counters when space permits without wrapping, while redirected output remains readable and append-only."
   ],
   "archiveDigest": "346f1cc17c0da52b1d4af23dd1031519798f7721e314d6d438818ce789066091",
-  "specDigest": "6bb23155b2fe8367440396ecb7443df67d3ced363935c79abe23d793cbcc4ef9",
+  "specDigest": "12f4fe960b67ae3e049a70a04a3c962e161704f58096723ed7891a1b05352900",
   "tasksDigest": "dfaa51e1b38b28f8776683937cf71b6261eab14bd0346d314add6cdcb5ff9da0",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []

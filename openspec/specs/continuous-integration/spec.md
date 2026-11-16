@@ -1877,6 +1877,25 @@ When a published-installer smoke stage fails, the harness SHALL record for each 
 - **WHEN** the installed manifest names the target version while the retired predecessor directory still exists
 - **THEN** the evidence SHALL show both so the failure is attributed to settlement after replacement rather than to installation
 
+### Requirement: Read-only published-pair reproduction
+
+Development validation SHALL provide an explicitly selected diagnostic route that exercises an existing immutable application and installer version on hosted Windows without publishing packages or changing public npm tags. It SHALL capture bounded sanitized detached recovery-worker errors and exit information without changing the installed predecessor's package bytes. Diagnostic success SHALL NOT substitute for finalized-candidate validation or authorize promotion.
+
+#### Scenario: A published recovery worker exits without a result
+
+- **WHEN** an explicitly requested existing-version reproduction loses its recovery worker before result publication
+- **THEN** the diagnostic artifact SHALL retain available worker stderr, uncaught errors, and exit status alongside the primary smoke failure
+
+#### Scenario: Normal development validation is requested
+
+- **WHEN** no published-pair diagnostic version is supplied
+- **THEN** ordinary validation routing SHALL remain unchanged and no registry reproduction SHALL run
+
+#### Scenario: Diagnostic reproduction fails
+
+- **WHEN** a read-only published-pair reproduction fails
+- **THEN** neither package publishing nor public-tag promotion SHALL occur and failure evidence SHALL still be uploaded
+
 ### Requirement: Development publication shows per-job workflow-step progress
 
 The development-publication observer SHALL append a compact `(current/total)` workflow-step counter to each visible non-skipped job when GitHub supplies a usable nonempty step list. Total SHALL count the returned steps, including setup and teardown, rather than using potentially noncontiguous step numbers. Current SHALL identify the last returned step position reported in progress or completed, including skipped steps, or zero before any step starts; a successful job SHALL show total/total. Counters SHALL NOT represent passed tests or elapsed-time estimates. Missing, empty, or malformed step metadata and wholly skipped jobs SHALL retain status-only presentation without invented counts.
@@ -1903,22 +1922,3 @@ A change to a displayed counter SHALL refresh that job even while its state rema
 
 - **WHEN** an interactive job name and counter exceed the terminal width
 - **THEN** the name SHALL shorten to retain the counter where space permits without wrapping into unrelated output
-
-### Requirement: Read-only published-pair reproduction
-
-Development validation SHALL provide an explicitly selected diagnostic route that exercises an existing immutable application and installer version on hosted Windows without publishing packages or changing public npm tags. It SHALL capture bounded sanitized detached recovery-worker errors and exit information without changing the installed predecessor's package bytes. Diagnostic success SHALL NOT substitute for finalized-candidate validation or authorize promotion.
-
-#### Scenario: A published recovery worker exits without a result
-
-- **WHEN** an explicitly requested existing-version reproduction loses its recovery worker before result publication
-- **THEN** the diagnostic artifact SHALL retain available worker stderr, uncaught errors, and exit status alongside the primary smoke failure
-
-#### Scenario: Normal development validation is requested
-
-- **WHEN** no published-pair diagnostic version is supplied
-- **THEN** ordinary validation routing SHALL remain unchanged and no registry reproduction SHALL run
-
-#### Scenario: Diagnostic reproduction fails
-
-- **WHEN** a read-only published-pair reproduction fails
-- **THEN** neither package publishing nor public-tag promotion SHALL occur and failure evidence SHALL still be uploaded
