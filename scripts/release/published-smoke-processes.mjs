@@ -92,7 +92,8 @@ export function createPublishedSmokeRunner(root, {
     async run(command, args, options) {
       // Platform: keep the shell alive until cleanup inventories its descendants. spawnSync's timeout kills
       // cmd.exe alone, stranding detached updater/npm owners and any inherited output handles.
-      const child = spawn(command, args, { ...options, timeout: undefined, stdio: ["ignore", "pipe", "pipe"] });
+      const { failureProbe, ...spawnOptions } = options;
+      const child = spawn(command, args, { ...spawnOptions, timeout: undefined, stdio: ["ignore", "pipe", "pipe"] });
       if (child.pid) children.add(child.pid);
       // Rationale: a long command is where a detached updater tree can vanish; periodic sightings show
       // which process went first. One sample at a time so a slow inspection never stacks up.
@@ -110,9 +111,15 @@ export function createPublishedSmokeRunner(root, {
       };
       child.stdout?.on("data", chunk => { stdout = capture(stdout, chunk); });
       child.stderr?.on("data", chunk => { stderr = capture(stderr, chunk); });
-      let timer;
+      let timer, probeTimer, probeInFlight = null;
       try {
         return await new Promise(done => {
+          if (failureProbe) probeTimer = setInterval(() => {
+            probeInFlight ??= Promise.resolve().then(failureProbe).then(failure => {
+              if (failure) done({ status: null, signal: null, error: failure, stdout, stderr });
+            }).catch(failure => { done({ status: null, signal: null, error: failure, stdout, stderr }); })
+              .finally(() => { probeInFlight = null; });
+          }, 500);
           timer = setTimeout(() => {
             const timeout = Object.assign(new Error(`published smoke command timed out after ${options.timeout}ms`), { code: "ETIMEDOUT" });
             done({ status: null, signal: null, error: timeout, stdout, stderr });
@@ -125,7 +132,9 @@ export function createPublishedSmokeRunner(root, {
         });
       } finally {
         clearTimeout(timer);
+        if (probeTimer) clearInterval(probeTimer);
         if (sampler) clearInterval(sampler);
+        await probeInFlight;
         await inFlight;
       }
     },

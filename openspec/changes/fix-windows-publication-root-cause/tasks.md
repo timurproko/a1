@@ -6,8 +6,9 @@
 
 ## 2. Root-cause repair
 
-- [ ] Recognize only the authenticated legacy heartbeat crash and settle all fixture writers before explicit installer recovery; keep unrelated update failures blocking promotion.
-- [ ] Retain failed direct-update evidence separately from successful installer recovery and check the recovered exact candidate without deleting settings or data.
-- [ ] Add native regression coverage for heartbeat sharing failures and focused contracts for recognition, settlement, and failed recovery.
+- [x] Recognize only the authenticated legacy heartbeat crash and settle all fixture writers before explicit installer recovery; keep unrelated update failures blocking promotion.
+- [x] Retain failed direct-update evidence separately from successful installer recovery and check the recovered exact candidate without deleting settings or data.
+- [x] Reconcile a verified installer-activated target's abandoned journal only after both recorded recovery owners are dead, without restarting the old capsule.
+- [x] Add native regression coverage for heartbeat sharing failures and focused contracts for recognition, settlement, and failed recovery.
 - [x] Print smoke phases and bound a stalled update to five minutes while retaining safe failure settlement.
-- [ ] Document the regression introduction, failure mechanism, earlier repairs, observed outcomes, and explicit remaining gaps.
+- [x] Document the regression introduction, failure mechanism, earlier repairs, observed outcomes, and explicit remaining gaps.
