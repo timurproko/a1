@@ -115,13 +115,18 @@ describe("published smoke process ownership", () => {
     await expect(runner.close()).resolves.toBeUndefined();
   });
 
-  it("does not sample short commands", async () => {
+  it.each([30_000, 119_999, 120_000])("samples commands only at or above the two-minute budget boundary: %sms", async timeout => {
     const root = await fixture();
     let lists = 0;
     const runner = createPublishedSmokeRunner(root, { self: 2, sampleIntervalMs: 5, list: async () => { lists += 1; return [row(2, 1, "2")]; } });
-    await runner.run(process.execPath, ["-e", "setTimeout(() => {}, 60)"], { cwd: root, env: process.env, timeout: 60_000 });
-    expect(lists).toBe(0);
-    expect(runner.history!()).toMatchObject({ samples: 0, errors: 0, rows: [] });
+    await runner.run(process.execPath, ["-e", "setTimeout(() => {}, 60)"], { cwd: root, env: process.env, timeout });
+    if (timeout >= 120_000) {
+      expect(lists).toBeGreaterThan(0);
+      expect(runner.history!().samples).toBe(lists);
+    } else {
+      expect(lists).toBe(0);
+      expect(runner.history!()).toMatchObject({ samples: 0, errors: 0, rows: [] });
+    }
   });
 
   it("refuses a changed process identity before termination", async () => {

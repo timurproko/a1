@@ -15,7 +15,7 @@ const startedAfter = (child, parent) => /^\d+$/u.test(child) && /^\d+$/u.test(pa
 export function createPublishedSmokeRunner(root, {
   spawn = crossSpawn, list = listSystemProcesses, terminate = terminateSystemProcess,
   pause = sleep, self = process.pid, now = Date.now,
-  sampleIntervalMs = 10_000, sampleThresholdMs = 5 * 60_000,
+  sampleIntervalMs = 10_000, sampleThresholdMs = 2 * 60_000,
 } = {}) {
   const children = new Set();
   const known = new Map();

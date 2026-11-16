@@ -9,12 +9,11 @@ import { pathToFileURL } from "node:url";
 import { compareVersions, resolveInstallerNpmCli, sanitizeDiagnostic } from "../../packages/a1-install/bin/a1-install.js";
 
 const execFile = promisify(execFileCallback);
-const COMMAND_BUDGET_MS = 10 * 60_000;
-const UPDATE_BUDGET_MS = 5 * 60_000;
+const COMMAND_BUDGET_MS = 2 * 60_000;
 
 /** Bound a stalled predecessor update independently of its older internal recovery deadline. */
 export function updateCommandBudgetMs() {
-  return UPDATE_BUDGET_MS;
+  return COMMAND_BUDGET_MS;
 }
 
 /** Run published installation in disposable prefixes and retain safe evidence on either outcome. */
@@ -52,8 +51,14 @@ export async function smokePublishedInstaller({
   };
   const execute = async (command, args, options) => {
     const startedAt = Date.now();
-    writeProgress(`[published installer] ${stage} started\n`);
-    const result = await runner.run(command, args, options);
+    writeProgress(`[published installer] ${stage} started (timeout=${options.timeout}ms)\n`);
+    const progress = setInterval(() => {
+      writeProgress(`[published installer] ${stage} running (${Date.now() - startedAt}ms elapsed; timeout=${options.timeout}ms)\n`);
+    }, 30_000);
+    progress.unref?.();
+    let result;
+    try { result = await runner.run(command, args, options); }
+    finally { clearInterval(progress); }
     const durationMs = Date.now() - startedAt;
     timings[stage] = (timings[stage] ?? 0) + durationMs;
     writeProgress(`[published installer] ${stage} ${result.status === 0 && !result.error ? "passed" : "failed"} (${durationMs}ms)\n`);
@@ -253,6 +258,15 @@ export async function smokePublishedInstaller({
       launcherVerified: false, activationVerified: false,
     };
   }
+  const writeEvidence = async () => {
+    await mkdir(dirname(output), { recursive: true });
+    await writeFile(output, `${JSON.stringify(evidence, null, 2)}\n`);
+  };
+  if (primaryError) {
+    // Rationale: a hard outer timeout during settlement must not erase diagnostics already collected.
+    try { await writeEvidence(); }
+    catch { /* Rationale: the final write retries and reports unavailable evidence without masking the stage failure. */ }
+  }
   if (root) {
     try {
       await runner?.close();
@@ -278,8 +292,7 @@ export async function smokePublishedInstaller({
     if (evidence.cleanup && evidence.stage !== "cleanup") diagnostic("Published installer smoke cleanup", `secondary cleanup failure: ${evidence.cleanup.error}`);
   }
   try {
-    await mkdir(dirname(output), { recursive: true });
-    await writeFile(output, `${JSON.stringify(evidence, null, 2)}\n`);
+    await writeEvidence();
   } catch (error) {
     if (!primaryError) {
       const failure = new Error(safe(error instanceof Error ? error.message : error), { cause: error });
