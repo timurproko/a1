@@ -183,7 +183,7 @@ describe("published installer smoke evidence", () => {
             if (args[0] === "update") {
               expect(options.timeout).toBe(300_000);
               await vi.advanceTimersByTimeAsync(elapsed);
-              // Partial target files never substitute for successful command completion.
+              // Invariant: partial target files never substitute for successful command completion.
               writeManifest(options, fault === "wrong-manifest" ? "wrong" : version);
               updated = true;
               return fault === "timeout"
