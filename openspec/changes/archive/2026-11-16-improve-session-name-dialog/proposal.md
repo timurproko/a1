@@ -10,6 +10,7 @@ Session renaming should edit the existing name with familiar selection and clipb
 - Fit hover and click targets to footer text without added side spaces. Normal left-click opens the name dialog directly, retaining the prompt draft and attachments.
 - Remove the initially implemented right-click Edit menu as explicitly superseded by the direct-click refinement.
 - Give the footer's model name and thinking level matching text-only hover and direct-click access to their existing selectors, preserving the prompt draft.
+- Show a visible provider as `model [provider] • thinking level`, matching the Models dialog while preserving existing qualifier visibility and narrow-layout priorities.
 - Keep the active thinking level visible while its selector is open. Keep footer hover active over dock dialogs and make a repeated click cancel through the existing Escape path.
 - Suppress bare-A1's successful `Session name set:` message; preserve genuine errors, naming normalization/persistence, unrelated dialogs, and comparison behavior.
 

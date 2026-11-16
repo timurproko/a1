@@ -42,6 +42,10 @@ The user subsequently withdrew hover padding: name, model, and thinking controls
 
 Footer controls remain hoverable while a dock dialog owns input. A control click while a dock replacement is active sends Escape to that active surface through its existing input/cancellation path rather than applying its contents, opening a nested dialog, or modifying the prompt. A click with the ordinary prompt active opens the requested dialog as before. Floating overlays remain an interaction boundary; background controls do not activate through them. Consume the click's remaining gesture after opening or closing.
 
+### Provider qualifier consistency
+
+When the existing multi-provider visibility and width rules show a qualifier, bare A1 renders `model [provider] • thinking level`, placing the qualifier immediately after the active model rather than before it in parentheses. Construct the model, qualifier, active-level, and optional route suffix semantically so control geometry never depends on searching painted text. The model target covers only the model name; the level target starts after the optional bracketed qualifier and separator. Omit the optional qualifier before clipping higher-priority model/name content as before. Do not change single-provider visibility, routed-model meaning, foreground roles, or pinned comparison formatting.
+
 ## Risks and delivery
 
-Cover complete shell pointer routing, not only direct component input. Check word selection on wide graphemes and scrolled names, selection retention on release, padded target exclusion of neighboring metadata, and prompt/attachment retention. Deliver the nine ordered task groups in the PR; trusted automation owns refinalization and exact-head CI. No migration is required.
+Cover complete shell pointer routing, not only direct component input. Check word selection on wide graphemes and scrolled names, selection retention on release, padded target exclusion of neighboring metadata, and prompt/attachment retention. Deliver the ten ordered task groups in the PR; trusted automation owns refinalization and exact-head CI. No migration is required.

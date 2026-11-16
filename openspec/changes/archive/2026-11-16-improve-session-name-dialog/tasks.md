@@ -51,3 +51,9 @@
 - [x] 9.1 Keep footer hover active while a dock dialog owns input and route a repeated control click through its normal Escape path.
 - [x] 9.2 Preserve drafts, attachments, and cancellation effects without applying unsaved name, model, or thinking edits.
 - [x] 9.3 Cover repeated clicks and slash-opened dialogs while keeping floating-overlay and comparison boundaries unchanged.
+
+## 10. Match the Models dialog's provider qualifier
+
+- [ ] 10.1 Render a shown bare-A1 provider after the model name in square brackets, before the thinking level, preserving existing visibility and fitting priorities.
+- [ ] 10.2 Keep provider metadata outside model/level hover targets and align those targets correctly with or without the qualifier and routed-model suffix.
+- [ ] 10.3 Add wide/narrow, single-provider, routed-model, foreground, pointer geometry, and comparison-format cases.
