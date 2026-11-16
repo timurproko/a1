@@ -260,14 +260,14 @@ describe("owned shared input and status presentation", () => {
     expect(input.getText()).toBe("");
   });
 
-  it("exports separate padded model and thinking spans with foreground-preserving hover", () => {
+  it("exports separate text-only model and thinking spans with foreground-preserving hover", () => {
     const base = view();
     const footer = createPiShellFooter(base, "/WORK", "a1");
     const original = footer.render(80)[1]!;
     const spans = footer.footerControlSpans!();
     expect(spans.map(span => span.command)).toEqual(["models", "thinking"]);
     for (const span of spans) {
-      const label = span.command === "models" ? " MODEL " : " medium ";
+      const label = span.command === "models" ? "MODEL" : "medium";
       expect(stripTerminalSequences(original).slice(span.column, span.column + span.width)).toBe(label);
       footer.setFooterHovered!(span.command);
       const hovered = footer.render(80)[1]!;
@@ -276,6 +276,8 @@ describe("owned shared input and status presentation", () => {
       for (let column = span.column; column < span.column + span.width; column++) {
         expect(cellBackgroundAt(hovered, column)).toBe(cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0));
       }
+      if (span.column > 0) expect(cellBackgroundAt(hovered, span.column - 1)).toBe("default");
+      if (span.column + span.width < 80) expect(cellBackgroundAt(hovered, span.column + span.width)).toBe("default");
     }
     for (let width = 1; width <= 80; width++) {
       footer.render(width);
@@ -319,7 +321,7 @@ describe("owned shared input and status presentation", () => {
     expect(hyperlinkTargetAtColumn(ownedRow, plain.indexOf(" • ") + 1)).toBeUndefined();
     expect(cellStyle(ownedRow, "•")).toEqual(cellStyle(piTheme().fg("dim", "•"), "•"));
     const statsRow = stripTerminalSequences(createPiShellFooter(footerState, "/WORK", "a1").render(120)[1]!);
-    expect(statsRow).toMatch(/0\.0%\/0 •  footer-test\s+\(PROVIDER\) MODEL • medium $/);
+    expect(statsRow).toMatch(/0\.0%\/0 • footer-test\s+\(PROVIDER\) MODEL • medium$/);
     const linkColumn = plain.indexOf("#540");
     expect(hyperlinkTargetAtColumn(ownedRow, linkColumn - 1)).toBeUndefined();
     expect(hyperlinkTargetAtColumn(ownedRow, linkColumn)).toBe("https://github.com/timurproko/a1/pull/540");
@@ -412,7 +414,7 @@ describe("owned shared input and status presentation", () => {
     const plain = stripTerminalSequences(footer.render(100)[1]!);
     expect(footer.setNameReveal?.({ from: "old-name", elapsed: 600 })).toBe(true);
     const first = footer.render(100)[1]!;
-    expect(stripTerminalSequences(first)).toContain(" •  n");
+    expect(stripTerminalSequences(first)).toContain(" • n");
     const secondary = cellStyle(piTheme().fg("mdHeading", "n"), "n").foreground.split(";").map(Number);
     expect(cellStyle(first, "n").foreground).toBe(secondary.map(value => Math.round((value + 235) / 2)).join(";"));
     expect(cellStyle(first, "n")).not.toEqual(cellStyle(piTheme().fg("accent", "n"), "n"));
@@ -426,9 +428,8 @@ describe("owned shared input and status presentation", () => {
       const unnamed = createPiShellFooter(base, "/WORK", "a1").render(width);
       expect(named.every(row => visibleWidth(row) <= width)).toBe(true);
       if (width === 1) expect(named).toEqual(unnamed);
-      if (width >= "MODEL • medium".length + 9) expect(stripTerminalSequences(named[1]!)).toContain("new");
-      if (width === 20) expect(footer.footerControlSpans!().some(span => span.command === "name")).toBe(false);
-      if (width === 12) expect(stripTerminalSequences(named[1]!)).toContain(" … ");
+      if (width >= 12) expect(stripTerminalSequences(named[1]!)).toContain("new");
+      if (width === 12) expect(stripTerminalSequences(named[1]!)).toContain("new-…");
     }
     footer.dispose?.();
   });
@@ -452,14 +453,14 @@ describe("owned shared input and status presentation", () => {
       expect(rows).toHaveLength(2);
       expect(rows.every(row => visibleWidth(row) <= width)).toBe(true);
       expect(line).not.toMatch(/^\s*•|•\s*$/u);
-      if (width >= name.length + "MODEL • medium".length + 6) expect(line).toContain(name);
+      if (width >= name.length + "MODEL • medium".length + 2) expect(line).toContain(name);
     }
     const constrained = stripTerminalSequences(footer.render(60)[1]!);
     expect(constrained).toContain(name);
     expect(constrained).toContain("…");
     expect(constrained).not.toContain("$3.019");
-    const minimal = stripTerminalSequences(footer.render(42)[1]!);
-    expect(minimal).toBe(` ${name}    MODEL • medium `);
+    const minimal = stripTerminalSequences(footer.render(38)[1]!);
+    expect(minimal).toBe(`${name}  MODEL • medium`);
     expect(minimal).not.toContain("(PROVIDER)");
     const modelColumn = constrained.indexOf("MODEL");
     footer.setNameReveal?.({ from: "Previous task name", elapsed: 700 });
@@ -477,7 +478,7 @@ describe("owned shared input and status presentation", () => {
     const footer = createPiShellFooter(state, "/WORK", "a1"); footer.render(100);
     expect(footer.setNameReveal?.({ from: "longer-old-name", elapsed: 0 })).toBe(true);
     const row = footer.render(100)[1]!;
-    expect(stripTerminalSequences(row)).toContain(" •  n");
+    expect(stripTerminalSequences(row)).toContain(" • n");
     expect(row).not.toContain("\u001b[38;2;");
     const pinned = createPiShellFooter(state, "/WORK", "pi");
     expect(pinned.setNameReveal?.({ from: "old", elapsed: 0 })).toBe(false);
@@ -494,7 +495,7 @@ describe("owned shared input and status presentation", () => {
         usage: { ...base.status.usage!, input: 120000, output: 120000, cost: 10, contextWindow: 272000 },
       },
     };
-    for (const width of [1, 10, 22]) {
+    for (const width of [1, 8, 22]) {
       const owned = createPiShellFooter(state, "/WORK", "a1").render(width)[1]!;
       const comparison = createPiShellFooter(state, "/WORK", "pi").render(width)[1]!;
       expect(visibleWidth(owned)).toBeLessThanOrEqual(width);
@@ -528,8 +529,8 @@ describe("owned shared input and status presentation", () => {
       const [path, line] = createPiShellFooter(state, "/WORK", "a1").render(width);
       expect(visibleWidth(path!)).toBeLessThanOrEqual(width);
       expect(visibleWidth(line!)).toBeLessThanOrEqual(width);
-      if (width >= 13) expect(stripTerminalSequences(line!)).toContain("gpt-5.6-sol");
-      if (width === 11) expect(stripTerminalSequences(line!)).toBe(" gpt-5.6-… ");
+      if (width >= 11) expect(stripTerminalSequences(line!)).toContain("gpt-5.6-sol");
+      if (width === 11) expect(stripTerminalSequences(line!)).toBe("gpt-5.6-sol");
       if (width < 4) expect(hyperlinkTargetAtColumn(path!, 0)).toBeUndefined();
     }
     const path = rows[0]!;

@@ -43,8 +43,8 @@
 
 ## 8. Restore text-only footer controls without added spaces
 
-- [ ] 8.1 Remove the previously requested side padding from name, model, and thinking text, fitting hover/click geometry to visible text only.
-- [ ] 8.2 Preserve compact spacing, foreground roles, clipping priorities, and adjacent metadata; update focused geometry and layout cases.
+- [x] 8.1 Remove the previously requested side padding from name, model, and thinking text, fitting hover/click geometry to visible text only.
+- [x] 8.2 Preserve compact spacing, foreground roles, clipping priorities, and adjacent metadata; update focused geometry and layout cases.
 
 ## 9. Toggle dock dialogs from the still-hoverable footer
 

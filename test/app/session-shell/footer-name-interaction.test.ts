@@ -21,7 +21,7 @@ function clickName(value: Awaited<ReturnType<typeof fixture>>, side: "left" | "r
 }
 
 describe("direct footer name editing", () => {
-  it("hovers exactly one blank cell on each side without moving the name or neighboring text", async () => {
+  it("hovers only the name text without adding spaces or moving neighboring text", async () => {
     const value = await namedFixture();
     try {
       value.terminal.resize(100, 24);
@@ -29,7 +29,7 @@ describe("direct footer name editing", () => {
       const region = value.shell.root.chrome.footerName?.region()!;
       const original = value.shell.root.render(100)[region.rowStart - 1]!;
       const plain = stripTerminalSequences(original);
-      expect(plain.slice(region.columnStart - 1, region.columnEnd)).toBe(" alpha project ");
+      expect(plain.slice(region.columnStart - 1, region.columnEnd)).toBe("alpha project");
       const expected = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
       for (const column of [region.columnStart, region.columnEnd]) {
         value.terminal.input(`\x1b[<35;${column};${region.rowStart}M`);
@@ -44,7 +44,7 @@ describe("direct footer name editing", () => {
     } finally { await value.shell.dispose(); }
   });
 
-  it.each(["left", "right"] as const)("opens directly from the %s padding and retains the prompt", async side => {
+  it.each(["left", "right"] as const)("opens directly from the %s text edge and retains the prompt", async side => {
     const value = await namedFixture();
     try {
       value.shell.root.editor.setText("an unfinished prompt");
@@ -144,7 +144,7 @@ describe("direct footer name editing", () => {
     } finally { await value.shell.dispose(); }
   });
 
-  it.each(["models", "thinking"] as const)("opens %s from its padded footer control without losing the draft", async command => {
+  it.each(["models", "thinking"] as const)("opens %s from its text-only footer control without losing the draft", async command => {
     const value = await namedFixture();
     try {
       value.shell.root.editor.setText("unsent selected prompt");
