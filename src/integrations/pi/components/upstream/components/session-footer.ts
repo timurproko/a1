@@ -1,9 +1,8 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.5.2 (MIT), commit b4afdddf44e059c67ccf5097e5317d913521b470,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
- * Modifications: A1 PR links, model/name priority over stats, level colors, secondary-accent name
- * reveals, dim clipping, and explicit text-only name/model/level spans for foreground-preserving
- * hover, direct dialog access, and bracketed providers after the active model; Pi intact.
+ * Modifications: A1 PR links, name/model fitting, level colors, name reveals, dim clipping, and
+ * text-only name/model-plus-provider/level hover and direct dialog targets; Pi intact.
  * Deviations: owned-status-level-color, owned-pull-request-badge, owned-footer-ellipsis,
  * owned-footer-model-priority, owned-session-name-reveal, owned-footer-direct-controls,
  * owned-footer-provider-qualifier.
@@ -186,10 +185,11 @@ export class SessionFooter implements Component {
       theme.fg("dim", left) + (this.profile === "a1" ? line.slice(left.length) : theme.fg("dim", line.slice(left.length))),
     ];
     if (this.profile === "a1" && view.activeModel !== null) {
+      modelWidth += providerWidth;
       const column = width - drawnRightWidth;
       if (modelWidth > 0 && modelWidth <= drawnRightWidth) this.#controlSpans.push({ command: "models", row: 1, column, width: modelWidth });
       const levelWidth = visibleWidth(view.thinkingLevel);
-      const levelOffset = modelWidth + providerWidth + 3;
+      const levelOffset = modelWidth + 3;
       if (levelShown && levelOffset + levelWidth <= drawnRightWidth) {
         this.#controlSpans.push({ command: "thinking", row: 1, column: column + levelOffset, width: levelWidth });
       }

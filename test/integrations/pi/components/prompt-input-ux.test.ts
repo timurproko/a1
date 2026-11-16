@@ -267,7 +267,7 @@ describe("owned shared input and status presentation", () => {
     const spans = footer.footerControlSpans!();
     expect(spans.map(span => span.command)).toEqual(["models", "thinking"]);
     for (const span of spans) {
-      const label = span.command === "models" ? "MODEL" : "medium";
+      const label = span.command === "models" ? "MODEL [PROVIDER]" : "medium";
       expect(stripTerminalSequences(original).slice(span.column, span.column + span.width)).toBe(label);
       footer.setFooterHovered!(span.command);
       const hovered = footer.render(80)[1]!;
@@ -311,15 +311,19 @@ describe("owned shared input and status presentation", () => {
     const from = plain.indexOf("[PROVIDER]");
     for (const command of ["models", "thinking"] as const) {
       const span = footer.footerControlSpans!().find(span => span.command === command)!;
-      expect(plain.slice(span.column, span.column + span.width)).toBe(command === "models" ? "MODEL" : "medium");
+      expect(plain.slice(span.column, span.column + span.width)).toBe(command === "models" ? "MODEL [PROVIDER]" : "medium");
       footer.setFooterHovered!(command);
       const hovered = footer.render(80)[1]!;
-      for (let col = from; col < from + "[PROVIDER]".length; col++) expect(cellBackgroundAt(hovered, col)).toBe("default");
+      expect(cellStyle(hovered, "[")).toEqual(cellStyle(wide, "["));
+      const background = command === "models" ? cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0) : "default";
+      for (let col = from; col < from + "[PROVIDER]".length; col++) expect(cellBackgroundAt(hovered, col)).toBe(background);
     }
     const narrow = footer.render(30)[1]!;
     const narrowPlain = stripTerminalSequences(narrow);
     expect(narrowPlain).toContain("MODEL • medium");
     expect(narrowPlain).not.toContain("PROVIDER");
+    const model = footer.footerControlSpans!().find(span => span.command === "models")!;
+    expect(narrowPlain.slice(model.column, model.column + model.width)).toBe("MODEL");
     const level = footer.footerControlSpans!().find(span => span.command === "thinking")!;
     expect(narrowPlain.slice(level.column, level.column + level.width)).toBe("medium");
     const single = createPiShellFooter({ ...base, status: { ...base.status, footer: { ...base.status.footer!, availableProviderCount: 1 } } }, "/WORK", "a1");
@@ -327,6 +331,8 @@ describe("owned shared input and status presentation", () => {
     const routed = createPiShellFooter({ ...base, routedModel: { model: { providerId: "OTHER", modelId: "ROUTED", displayName: "Routed" }, thinkingLevel: "high" } }, "/WORK", "a1");
     const routedPlain = stripTerminalSequences(routed.render(100)[1]!);
     expect(routedPlain).toContain("MODEL [PROVIDER] • medium → ROUTED • high");
+    const routedModel = routed.footerControlSpans!().find(span => span.command === "models")!;
+    expect(routedPlain.slice(routedModel.column, routedModel.column + routedModel.width)).toBe("MODEL [PROVIDER]");
     const activeLevel = routed.footerControlSpans!().find(span => span.command === "thinking")!;
     expect(routedPlain.slice(activeLevel.column, activeLevel.column + activeLevel.width)).toBe("medium");
     const pinned = createPiShellFooter(base, "/WORK", "pi");

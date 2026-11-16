@@ -254,6 +254,43 @@ describe("direct footer name editing", () => {
     } finally { await value.shell.dispose(); }
   });
 
+  it.each(["opening bracket", "provider", "closing bracket"] as const)("treats the %s as part of the model hover and click target", async part => {
+    const value = await namedFixture();
+    try {
+      value.shell.root.editor.setText("retained provider draft");
+      const target = () => {
+        value.shell.runtime.renderNow();
+        const region = value.shell.root.chrome.footerName?.region("models")!;
+        const row = value.shell.root.render(80)[region.rowStart - 1]!;
+        const label = stripTerminalSequences(row).slice(region.columnStart - 1, region.columnEnd);
+        expect(label).toBe("gpt-5 [openai]");
+        const offset = part === "opening bracket" ? label.indexOf("[") : part === "closing bracket" ? label.indexOf("]") : label.indexOf("openai");
+        return { region, row, column: region.columnStart + offset };
+      };
+      const { region, row, column } = target();
+      value.terminal.input(`\x1b[<35;${column};${region.rowStart}M`);
+      const hovered = value.shell.root.render(80)[region.rowStart - 1]!;
+      expect(stripTerminalSequences(hovered)).toBe(stripTerminalSequences(row));
+      const background = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
+      for (let col = region.columnStart; col <= region.columnEnd; col++) expect(cellBackgroundAt(hovered, col - 1)).toBe(background);
+      expect(cellBackgroundAt(hovered, region.columnEnd)).toBe("default");
+      const click = () => {
+        const { region, column } = target();
+        value.terminal.input(`\x1b[<0;${column};${region.rowStart}M\x1b[<0;${column};${region.rowStart}m`);
+      };
+      click();
+      await vi.waitFor(() => expect(stripTerminalSequences(value.shell.root.render(80).join("\n"))).toContain("Models"));
+      click();
+      expect(value.shell.root.usesDefaultInputSurface()).toBe(true);
+      await value.shell.runWorkflow({ command: "thinking", argument: "" });
+      click();
+      await vi.waitFor(() => expect(stripTerminalSequences(value.shell.root.render(80).join("\n"))).toContain("Models"));
+      expect(value.shell.root.chrome.footerName?.activeControl).toBe("models");
+      expect(value.shell.root.editor.getText()).toBe("retained provider draft");
+      expect(value.engine.session.promptOptions).toHaveLength(0);
+    } finally { await value.shell.dispose(); }
+  });
+
   it("blocks background footer actions through a floating overlay", async () => {
     const value = await namedFixture();
     try {

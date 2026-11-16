@@ -66,5 +66,5 @@
 
 ## 12. Include the provider in the model control
 
-- [ ] 12.1 Extend the model hover/click span through its visible space and bracketed provider, without extra padding or changes to thinking geometry.
-- [ ] 12.2 Cover full-label hover, preserved foregrounds, provider-edge clicks, dialog toggling, and omitted-qualifier/narrow/comparison boundaries.
+- [x] 12.1 Extend the model hover/click span through its visible space and bracketed provider, without extra padding or changes to thinking geometry.
+- [x] 12.2 Cover full-label hover, preserved foregrounds, provider-edge clicks, dialog toggling, and omitted-qualifier/narrow/comparison boundaries.

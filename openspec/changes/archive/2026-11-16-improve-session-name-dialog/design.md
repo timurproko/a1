@@ -26,7 +26,7 @@ The pre-pivot reference (parent of `9f0307c0`, native attach popup/strip painter
 
 ### Consistent model and thinking controls
 
-The visible active model name and thinking level use the same padded hover/left-click convention. Explicit footer spans distinguish the model with its optional provider, level, and name from separators and unrelated metadata. Clicking invokes the existing Models or Thinking Level workflow without prompt submission. Missing or suppressed spans, comparison and extension-replaced footers remain noninteractive. Preserve each span's semantic foreground and retained prompt/attachment lifecycle.
+The visible active model name and thinking level use the same text-only hover/left-click convention. Explicit footer spans distinguish the model with its optional provider, level, and name from separators and unrelated metadata. Clicking invokes the existing Models or Thinking Level workflow without prompt submission. Missing or suppressed spans, comparison and extension-replaced footers remain noninteractive. Preserve each span's semantic foreground and retained prompt/attachment lifecycle.
 
 ### Footer-only successful-name feedback
 
