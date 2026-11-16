@@ -22,7 +22,7 @@ The maintainer integration decision accepts these scenarios:
     "Updates still incomplete at five minutes fail with retained diagnostics and fixture-process settlement, without trusting partial target files.",
     "Generic timeouts never authorize installer recovery, and failed smoke lanes continue to block public tag promotion."
   ],
-  "archiveDigest": "22ecc97aefc52893c6303a87a669b140ee59fdcd96da3a6a9b00106576f03ea9",
+  "archiveDigest": "7441d676342e6e7cafc149111b40d69de1d3fdcbd449f68b039861d26b0be017",
   "specDigest": "6b1adacbb370920a0db41f1a921165abe9a6a97b7973615481fd8bf2a7e3a9bd",
   "tasksDigest": "9e6e08c247ea5a935cbd964bddad5a11bac19836c823b26b16cb31d1c97ec486",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
