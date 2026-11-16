@@ -389,7 +389,8 @@ describe("owned shared input and status presentation", () => {
       const unnamed = createPiShellFooter(base, "/WORK", "a1").render(width);
       expect(named.every(row => visibleWidth(row) <= width)).toBe(true);
       if (width === 1) expect(named).toEqual(unnamed);
-      if (width >= 14) expect(stripTerminalSequences(named[1]!)).toContain("new");
+      if (width >= "MODEL • medium".length + 7) expect(stripTerminalSequences(named[1]!)).toContain("new");
+      if (width === 20) expect(stripTerminalSequences(named[1]!)).toContain(" n… ");
       if (width === 12) expect(stripTerminalSequences(named[1]!)).toContain(" ne… ");
     }
     footer.dispose?.();

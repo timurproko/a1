@@ -2,7 +2,7 @@ import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { CURSOR_MARKER, Spacer, Text, decodeKittyPrintable, getKeybindings, matchesKey, renderFakeCursor, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { OwnedUiShellComponentPort, OwnedUiShellExtensionUiBridgeHost } from "../../../contracts/owned-ui/index.js";
 import { dialogFrameGeometry } from "../../../contracts/presentation/index.js";
-import { paintTextSelection, wordLeft, wordRight } from "../../../ui/components/index.js";
+import { paintTextSelection, TEXT_SELECTION_MULTI_CLICK_MS, wordLeft, wordRight } from "../../../ui/components/index.js";
 import { BracketedPasteFramer, PASTE_START } from "./bracketed-paste.js";
 import { PiModalFrame } from "./modal-frame.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints } from "./theme.js";
@@ -18,6 +18,19 @@ interface NameDialogPorts extends Clipboard {
 const MAX_LENGTH = 4_096;
 const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 const DELETE_ACTIONS = ["tui.editor.deleteCharBackward", "tui.editor.deleteCharForward", "tui.editor.deleteWordBackward", "tui.editor.deleteWordForward", "tui.editor.deleteToLineStart", "tui.editor.deleteToLineEnd"] as const;
+
+function wordSelection(text: string, position: number): { from: number; to: number } {
+  const parts = [...GRAPHEMES.segment(text)];
+  const classify = (value: string) => /\s/u.test(value) ? 0 : /[\p{L}\p{N}_]/u.test(value) ? 1 : 2;
+  let selected = parts.findIndex(part => position >= part.index && position < part.index + part.segment.length);
+  if (selected < 0) selected = parts.length - 1;
+  if (selected < 0) return { from: 0, to: 0 };
+  let from = selected, to = selected;
+  const kind = classify(parts[selected]!.segment);
+  while (from > 0 && classify(parts[from - 1]!.segment) === kind) from--;
+  while (to + 1 < parts.length && classify(parts[to + 1]!.segment) === kind) to++;
+  return { from: parts[from]!.index, to: parts[to]!.index + parts[to]!.segment.length };
+}
 
 function singleLine(text: string): string {
   return text.replace(/\r\n|[\r\n\u2028\u2029]/gu, "").replace(/\t/gu, "    ").replace(/[\u0000-\u001f\u007f-\u009f]/gu, "");
@@ -39,6 +52,7 @@ export class SessionNameDialog implements OwnedUiShellComponentPort {
   #dragging = false;
   #disposed = false;
   #revision = 0;
+  #lastClick: { readonly time: number; readonly column: number; readonly count: number } | undefined;
 
   constructor(initialValue: string, ports: NameDialogPorts) {
     this.#value = "";
@@ -68,6 +82,7 @@ export class SessionNameDialog implements OwnedUiShellComponentPort {
 
   handleInput(data: string): void {
     if (this.#disposed) return;
+    this.#lastClick = undefined;
     if (this.#paste.open || data.includes(PASTE_START)) {
       const start = data.indexOf(PASTE_START);
       if (!this.#paste.open && start > 0) this.handleInput(data.slice(0, start));
@@ -138,12 +153,22 @@ export class SessionNameDialog implements OwnedUiShellComponentPort {
   handleLocalMouse(event: Mouse): void {
     if (this.#disposed || event.button !== 0) return;
     if (event.kind === "press") {
-      if (event.row !== this.#inputRow) { this.#anchor = undefined; return; }
-      this.#caret = this.#position(event.column);
-      this.#anchor = this.#caret;
-      this.#dragging = true;
+      if (event.row !== this.#inputRow) { this.#anchor = undefined; this.#lastClick = undefined; return; }
+      const now = Date.now(), previous = this.#lastClick;
+      const count = previous !== undefined && now - previous.time <= TEXT_SELECTION_MULTI_CLICK_MS
+        && Math.abs(event.column - previous.column) <= 1 ? previous.count + 1 : 1;
+      this.#lastClick = { time: now, column: event.column, count };
+      const kind = ((count - 1) % 3) + 1;
+      const range = kind === 2 ? wordSelection(this.#value, this.#position(event.column, false))
+        : kind === 3 ? { from: 0, to: this.#value.length }
+        : { from: this.#position(event.column), to: this.#position(event.column) };
+      this.#anchor = range.from;
+      this.#caret = range.to;
+      this.#dragging = kind === 1;
     } else if ((event.kind === "motion" || event.kind === "release") && this.#dragging) {
-      this.#caret = this.#position(event.column);
+      const position = this.#position(event.column);
+      if (position !== this.#caret) this.#lastClick = undefined;
+      this.#caret = position;
       if (event.kind === "release") this.#dragging = false;
     } else return;
     this.#revision++;
@@ -200,7 +225,7 @@ export class SessionNameDialog implements OwnedUiShellComponentPort {
     }).catch(() => {}).finally(() => this.#reads.delete(read));
   }
 
-  #position(column: number): number {
+  #position(column: number, nearest = true): number {
     // Protocol: component-local columns include the frame inset and two-cell prompt marker.
     if (this.#dragging && column < 4 && this.#start > 0) {
       this.#start = [...GRAPHEMES.segment(this.#value.slice(0, this.#start))].at(-1)?.index ?? 0;
@@ -209,7 +234,7 @@ export class SessionNameDialog implements OwnedUiShellComponentPort {
     let cells = 0;
     for (const { index, segment } of GRAPHEMES.segment(this.#value.slice(this.#start))) {
       const next = cells + visibleWidth(segment);
-      if (target < next) return this.#start + index + (target - cells >= (next - cells) / 2 ? segment.length : 0);
+      if (target < next) return this.#start + index + (nearest && target - cells >= (next - cells) / 2 ? segment.length : 0);
       cells = next;
     }
     return this.#value.length;

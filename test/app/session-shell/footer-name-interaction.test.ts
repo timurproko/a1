@@ -5,8 +5,8 @@ import { cellBackgroundAt } from "../../support/ansi-cell-style.js";
 import { screenshotPng } from "../../fixtures/image-sources.js";
 import { fixture, nextImmediate } from "./session-shell-fixture.js";
 
-async function namedFixture(name = "alpha project", bare = true) {
-  const value = await fixture([], [], bare, undefined, undefined, undefined, undefined, undefined, undefined,
+async function namedFixture(name = "alpha project", bare = true, clipboard?: Parameters<typeof fixture>[4]) {
+  const value = await fixture([], [], bare, undefined, clipboard, undefined, undefined, undefined, undefined,
     engine => { engine.session.name = name; });
   if (bare) await vi.waitFor(() => expect(value.shell.root.chrome.footerName).toBeDefined());
   return value;
@@ -81,6 +81,29 @@ describe("direct footer name editing", () => {
       expect(value.shell.root.editor.getText()).toBe(draft);
       expect(value.shell.root.promptChips.prepareSubmission(draft).images).toEqual(attachments);
       expect(value.engine.session.promptOptions).toHaveLength(0);
+    } finally { await value.shell.dispose(); }
+  });
+
+  it("supports word and whole-name repeated clicks through the real shell route", async () => {
+    const copied: string[] = [];
+    const value = await namedFixture("alpha project", true, { readText: async () => null, writeText: async text => { copied.push(text); } });
+    try {
+      value.shell.root.editor.setText("retained draft");
+      clickName(value);
+      value.shell.runtime.renderNow();
+      const rows = value.shell.root.render(80).map(stripTerminalSequences);
+      const row = rows.findIndex(line => line.trimStart().startsWith(">")) + 1;
+      const column = rows[row - 1]!.indexOf("project") + 1;
+      const click = () => value.terminal.input(`\x1b[<0;${column};${row}M\x1b[<0;${column};${row}m`);
+      click(); click();
+      value.terminal.input("\x03");
+      await vi.waitFor(() => expect(copied).toEqual(["project"]));
+      value.shell.runtime.renderNow();
+      click(); click(); click();
+      value.terminal.input("\x03");
+      await vi.waitFor(() => expect(copied).toEqual(["project", "alpha project"]));
+      value.terminal.input("\x1b");
+      expect(value.shell.root.editor.getText()).toBe("retained draft");
     } finally { await value.shell.dispose(); }
   });
 

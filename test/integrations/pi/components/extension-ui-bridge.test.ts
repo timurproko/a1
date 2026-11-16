@@ -305,6 +305,70 @@ describe("pinned extension UI bridge", () => {
     value.bridge.dispose();
   });
 
+  it.each([
+    { name: "Alpha project name", word: "project", width: 60 },
+    { name: "Alpha 界e\u0301 name", word: "界e\u0301", width: 60 },
+    { name: "long hidden prefix before Omega", word: "Omega", width: 18 },
+  ])("selects a word on double-click and the complete name on triple-click: $name", async ({ name, word, width }) => {
+    const onCopyText = vi.fn();
+    const value = fixture({ onCopyText });
+    const result = value.bridge.input("Session Name", "", { initialValue: name, sessionNameEditing: true });
+    const surface = value.inputSurface!;
+    await surface.ready;
+    const rows = surface.render(width);
+    const row = rows.findIndex(row => stripTerminalSequences(row).trimStart().startsWith(">")) + 1;
+    const plain = stripTerminalSequences(rows[row - 1]!);
+    const column = visibleWidth(plain.slice(0, plain.indexOf(word))) + 1;
+    const click = () => {
+      surface.handleLocalMouse!({ kind: "press", button: 0, column, row });
+      surface.handleLocalMouse!({ kind: "release", button: 0, column, row });
+    };
+    click(); click();
+    surface.handleInput!("\x03");
+    expect(onCopyText).toHaveBeenLastCalledWith(word, false);
+    surface.handleInput!("\x18");
+    expect(onCopyText).toHaveBeenLastCalledWith(word, true);
+    surface.handleInput!("\x1a");
+    surface.render(width);
+    click(); click(); click();
+    surface.handleInput!("\x03");
+    expect(onCopyText).toHaveBeenLastCalledWith(name, false);
+    surface.handleInput!("replacement");
+    surface.handleInput!("\x1a");
+    surface.handleInput!("\r");
+    await expect(result).resolves.toBe(name);
+    value.bridge.dispose();
+  });
+
+  it("resets repeated clicks after the time window or an ordinary drag", async () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(1000);
+    const onCopyText = vi.fn();
+    const value = fixture({ onCopyText });
+    try {
+      const result = value.bridge.input("Session Name", "", { initialValue: "alpha beta", sessionNameEditing: true });
+      const surface = value.inputSurface!;
+      await surface.ready;
+      surface.render(60);
+      const click = () => {
+        surface.handleLocalMouse!({ kind: "press", button: 0, column: 5, row: 4 });
+        surface.handleLocalMouse!({ kind: "release", button: 0, column: 5, row: 4 });
+      };
+      click();
+      clock.mockReturnValue(1600);
+      click();
+      surface.handleInput!("X");
+      expect(stripTerminalSequences(surface.render(60).join("\n"))).toContain("aXlpha beta");
+      surface.handleLocalMouse!({ kind: "press", button: 0, column: 4, row: 4 });
+      surface.handleLocalMouse!({ kind: "motion", button: 0, column: 6, row: 4 });
+      surface.handleLocalMouse!({ kind: "release", button: 0, column: 6, row: 4 });
+      click();
+      surface.handleInput!("Y");
+      surface.handleInput!("\x1b");
+      await expect(result).resolves.toBeUndefined();
+      expect(onCopyText).not.toHaveBeenCalled();
+    } finally { value.bridge.dispose(); clock.mockRestore(); }
+  });
+
   it("retains early pointer and keyboard input while name editing loads", async () => {
     const onCopyText = vi.fn();
     const value = fixture({ onCopyText });

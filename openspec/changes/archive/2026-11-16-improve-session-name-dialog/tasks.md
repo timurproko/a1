@@ -20,9 +20,9 @@
 
 ## 4. Select words and complete names with repeated clicks
 
-- [ ] 4.1 Double-click selects a word and triple-click selects the entire name, with prompt-consistent timing and grapheme boundaries.
-- [ ] 4.2 Keep selection through release and subsequent copy, cut, replacement, or undo; reset click tracking after editing or a drag.
-- [ ] 4.3 Add component and full-route cases, including Unicode and horizontally scrolled names.
+- [x] 4.1 Double-click selects a word and triple-click selects the entire name, with prompt-consistent timing and grapheme boundaries.
+- [x] 4.2 Keep selection through release and subsequent copy, cut, replacement, or undo; reset click tracking after editing or a drag.
+- [x] 4.3 Add component and full-route cases, including Unicode and horizontally scrolled names.
 
 ## 5. Confirm successful bare-A1 naming only in the footer
 
