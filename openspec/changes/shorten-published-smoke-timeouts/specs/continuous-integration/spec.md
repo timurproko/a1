@@ -16,6 +16,11 @@ The published-installer smoke harness SHALL bound installer acquisition, fresh a
 - **THEN** it SHALL print the smoke phase and timeout before awaiting that command and periodic phase, elapsed-time, and timeout progress while waiting
 - **AND** it SHALL print the outcome and duration when the command returns and stop its progress timer on return or exception
 
+#### Scenario: Other platforms and stages keep their budget
+
+- **WHEN** the smoke runs metadata queries or non-interactive launch commands on any platform
+- **THEN** those commands SHALL retain their thirty-second deadlines
+
 #### Scenario: Installation and short commands retain bounded deadlines
 
 - **WHEN** the smoke runs acquisition, application installation, predecessor installation, update, or authenticated recovery

@@ -15,6 +15,12 @@ Run 43828121742 checks out cf8884d, whose Windows predecessor-update budget is t
 
 Two-minute commands may expose slow but healthy hosted Windows installs as failures; this is an explicitly approved initial budget, not proof of a fix for the Windows updater. Outer hard timeouts can interrupt cleanup or diagnostics; the pre-cleanup checkpoint improves retained evidence but cannot guarantee evidence after abrupt runner termination. No retry or weakened assertions are added.
 
+## Implementation observations
+
+The shared installation budget and predecessor-update accessor now return 120000 ms. The Published pair job has a ten-minute limit and only its exercise step has an eight-minute limit; evidence upload remains always() and promotion still requires successful smoke. Progress starts with the command budget, repeats phase/elapsed/budget every thirty seconds, and clears its timer in finally. Process sampling retains its ten-second cadence for commands budgeted at least two minutes. Failed-stage evidence is written before fixture settlement and written again after cleanup; checkpoint write failures are retried by the final authoritative write without masking the original stage error.
+
+Focused local validation passed: 76 tests across smoke evidence, process ownership (including native Windows detached-tree settlement), explicit installer recovery, legacy crash authentication, and npm promotion. Core build, both typechecks, strict change validation, and diff whitespace checks passed. The initial bin typecheck required the fresh worktree's core build; it passed after building. Strict OpenSpec validation also confirmed that the modified requirement retains all existing scenario identities.
+
 ## Known gaps
 
 The underlying hosted Windows update failure is not repaired by shortening deadlines. Hosted timings and exact-candidate CI remain external validation; focused local tests cover budgets, progress, snapshot ordering, process sampling, legacy recovery, and promotion gates.
