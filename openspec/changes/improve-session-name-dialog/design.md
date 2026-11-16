@@ -42,6 +42,12 @@ Accepted non-whitespace text continues through the existing direct naming workfl
 - Shared selection helpers can affect prompt painting: retain prompt regression assertions and keep behavior opt-in.
 - Clipboard availability differs by terminal: reuse existing clipboard adapters and bracketed-paste handling rather than introducing a new backend.
 
+### Open naming from the footer without submitting the prompt
+
+The user-requested refinement adds a third outcome: the bare-A1 status/footer session-name span highlights on hover and a right-click opens a context menu containing `Edit`. Choosing `Edit` invokes the same name workflow directly rather than submitting `/name` through the prompt. Retain the current draft, cursor/selection where supported, and attachment state while the menu and dialog own input; cancelling either surface restores ordinary prompt focus without sending or clearing it. Bound hit testing to the rendered name span, including clipping and resize; do not treat the whole footer or adjacent model/status text as the name. Unnamed sessions have no name target, and comparison behavior remains unchanged. Keep the menu inside terminal bounds and use established context-menu presentation and pointer ownership.
+
+Historical style reference: the parent of pivot commit `9f0307c0` retained popup painting in `native/terminal-host/src/roles/attach.rs` and geometry/state in `native/terminal-host/src/core/attach/mod.rs`. Its popup is borderless, has one-cell horizontal padding, a solid dark grey resting background (RGB 38/38/38), normal white actionable labels, and an accent-selected hover background without label recoloring or bolding. It opens with no row highlighted, anchors next to its control (above a bottom bar), clamps horizontally, consumes menu input, and dismisses on outside click or Escape. Reproduce this visual treatment in the present TypeScript owned UI; do not restore the retired native host or its hard-coded accent table. Use the current live `selectedBg` role for hover. The footer-name hover uses that same subtle background, preserving its ordinary foreground.
+
 ## Delivery
 
-Two implementation outcomes, in order: current-name prefill; name-field editing and selection. Focused tests accompany each outcome. No product code is changed during planning. No migration is required.
+Three implementation outcomes, in order: current-name prefill; name-field editing and selection; footer-name hover and right-click Edit. Focused tests accompany each outcome. The third outcome is the explicit user-requested scope refinement after implementation began. No migration is required.

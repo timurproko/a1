@@ -105,3 +105,33 @@ Close shortcut guidance SHALL keep Ctrl+C implicit. A close or cancel hint SHALL
 #### Scenario: Press Ctrl+C outside a dismissible surface
 - **WHEN** no dismissible surface owns input and the active editor, terminal surface, comparison profile, or non-opted-in application host receives Ctrl+C
 - **THEN** that surface's existing interrupt, clear, copy, close-chord, or exit behavior SHALL remain unchanged
+
+## ADDED Requirements
+
+### Requirement: Footer session names offer draft-preserving context editing
+
+The visible session-name span in bare A1's status footer SHALL highlight on mouse hover while retaining its ordinary foreground. Right-clicking that span SHALL open a compact context menu containing `Edit`. The menu SHALL use the pre-pivot popup treatment: a borderless dark grey surface, one-cell horizontal padding, normal-weight white actionable text, no initial highlighted item, and the live accent-selected background on hover. It SHALL appear above its bottom-bar anchor and remain clamped within terminal bounds. Clicking outside or pressing Escape or Ctrl+C SHALL dismiss it without changing the session or prompt.
+
+Choosing `Edit` by mouse or keyboard SHALL open the same prefilled Session Name dialog as argument-free `/name`, without submitting, clearing, or replacing the ordinary prompt draft or its attachments. Submitting or cancelling the dialog SHALL restore that retained draft and attachments. Hit testing SHALL cover only visible name cells, account for clipping and resize, and exclude adjacent footer metadata. An unnamed session SHALL expose no invisible name target. The comparison profile SHALL retain its established footer behavior.
+
+#### Scenario: Hover and edit a footer name
+- **WHEN** the pointer enters the visible session-name span in the bare-A1 footer
+- **THEN** that span SHALL receive subtle accent-selected hover background without changing neighboring footer cells
+- **WHEN** the user right-clicks that span
+- **THEN** a borderless dark popup containing `Edit` SHALL open above the footer without an initially highlighted item
+- **AND** hovering Edit SHALL change only its background to the live selected-background role
+
+#### Scenario: Keep an entered prompt through name editing
+- **WHEN** the user has an ordinary prompt draft with attachments and chooses Edit from the footer-name context menu
+- **THEN** the prefilled name dialog SHALL open without sending or clearing that draft
+- **WHEN** the user submits a new name or cancels the dialog
+- **THEN** the prompt draft and attachments SHALL remain available for continued editing
+
+#### Scenario: Dismiss the context menu
+- **WHEN** the user clicks outside the open name menu or presses Escape or Ctrl+C
+- **THEN** the menu SHALL close without changing the name, submitting the prompt, or losing the prompt draft
+
+#### Scenario: Bound name interaction to its painted geometry
+- **WHEN** the footer name is clipped or the terminal resizes
+- **THEN** hover and right-click hit testing SHALL follow only its current visible cells and the menu SHALL stay inside terminal bounds
+- **AND** adjacent footer metadata and unnamed or comparison sessions SHALL NOT acquire a name-edit target
