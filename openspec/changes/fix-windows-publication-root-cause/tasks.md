@@ -11,4 +11,5 @@
 - [x] 2.3 Reconcile a verified installer-activated target's abandoned journal only after both recorded recovery owners are dead, without restarting the old capsule.
 - [x] 2.4 Add native regression coverage for heartbeat sharing failures and focused contracts for recognition, settlement, and failed recovery.
 - [x] 2.5 Print smoke phases and bound a stalled update to five minutes while retaining safe failure settlement.
+- [ ] 2.7 Add capsule-verified explicit installer repair for a partial legacy package tree, refusing live writers and preserving user data.
 - [x] 2.6 Document the regression introduction, failure mechanism, earlier repairs, observed outcomes, and explicit remaining gaps.
