@@ -26,7 +26,7 @@ The pre-pivot reference (parent of `9f0307c0`, native attach popup/strip painter
 
 ### Consistent model and thinking controls
 
-The visible active model name and thinking level use the same padded hover/left-click convention. Explicit footer spans distinguish model, level, and name from provider metadata, separators, and clipping markers. Clicking invokes the existing Models or Thinking Level workflow without prompt submission. Missing or suppressed spans, comparison and extension-replaced footers remain noninteractive. Preserve each span's semantic foreground and retained prompt/attachment lifecycle.
+The visible active model name and thinking level use the same padded hover/left-click convention. Explicit footer spans distinguish the model with its optional provider, level, and name from separators and unrelated metadata. Clicking invokes the existing Models or Thinking Level workflow without prompt submission. Missing or suppressed spans, comparison and extension-replaced footers remain noninteractive. Preserve each span's semantic foreground and retained prompt/attachment lifecycle.
 
 ### Footer-only successful-name feedback
 
@@ -44,7 +44,7 @@ Footer controls remain hoverable while a dock dialog owns input. A control click
 
 ### Provider qualifier consistency
 
-When the existing multi-provider visibility and width rules show a qualifier, bare A1 renders `model [provider] • thinking level`, placing the qualifier immediately after the active model rather than before it in parentheses. Construct the model, qualifier, active-level, and optional route suffix semantically so control geometry never depends on searching painted text. The model target covers only the model name; the level target starts after the optional bracketed qualifier and separator. Omit the optional qualifier before clipping higher-priority model/name content as before. Do not change single-provider visibility, routed-model meaning, foreground roles, or pinned comparison formatting.
+When the existing multi-provider visibility and width rules show a qualifier, bare A1 renders `model [provider] • thinking level`, placing the qualifier immediately after the active model rather than before it in parentheses. Construct the model, qualifier, active-level, and optional route suffix semantically so control geometry never depends on searching painted text. The latest refinement makes the model target cover the model name, connecting space, and visible bracketed provider as one control; the thinking separator and level stay outside it. The level target starts after the optional bracketed qualifier and separator. When fitting omits the provider, the model target shrinks back to the visible model alone. Omit the optional qualifier before clipping higher-priority model/name content as before. Do not change single-provider visibility, routed-model meaning, foreground roles, or pinned comparison formatting.
 
 ### Replace a different footer dialog
 
@@ -52,4 +52,4 @@ The user refined toggling: clicking the same active footer control cancels it, w
 
 ## Risks and delivery
 
-Cover complete shell pointer routing, not only direct component input. Check word selection on wide graphemes and scrolled names, selection retention on release, text-only target exclusion of neighboring metadata, and prompt/attachment retention. Deliver the eleven ordered task groups in the PR; trusted automation owns refinalization and exact-head CI. No migration is required.
+Cover complete shell pointer routing, not only direct component input. Check word selection on wide graphemes and scrolled names, selection retention on release, text-only target exclusion of neighboring metadata, and prompt/attachment retention. Deliver the twelve ordered task groups in the PR; trusted automation owns refinalization and exact-head CI. No migration is required.

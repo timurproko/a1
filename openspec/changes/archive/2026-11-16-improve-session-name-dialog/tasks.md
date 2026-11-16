@@ -63,3 +63,8 @@
 - [x] 11.1 Declare the active name/model/thinking surface semantically so same-control toggles and different-control replacements do not inspect rendered titles.
 - [x] 11.2 Cancel the active dialog through Escape, then open a different requested dialog without exposing or submitting the retained prompt.
 - [x] 11.3 Cover all cross-control transitions, same-control cancellation, slash-opened dialogs, unsaved edits, attachments, and lazy preparation boundaries.
+
+## 12. Include the provider in the model control
+
+- [ ] 12.1 Extend the model hover/click span through its visible space and bracketed provider, without extra padding or changes to thinking geometry.
+- [ ] 12.2 Cover full-label hover, preserved foregrounds, provider-edge clicks, dialog toggling, and omitted-qualifier/narrow/comparison boundaries.
