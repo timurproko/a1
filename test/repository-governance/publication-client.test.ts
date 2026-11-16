@@ -45,6 +45,10 @@ function developmentRunner(snapshots: Array<{ status: string; conclusion: string
 }
 
 const developmentOptions = { repository: "owner/app", requestId: "fixture-request", sleep: async () => {}, isTTY: false };
+const publicationSteps = (...statuses: string[]) => statuses.map((status, index) => ({
+  name: index === 0 ? "Set up job" : `Step ${index + 1}`, number: index * 3 + 1, status,
+  conclusion: status === "completed" ? "success" : null,
+}));
 
 describe("development preview version", () => {
   const source = "b".repeat(40);
@@ -495,6 +499,78 @@ describe("publication failure reporting", () => {
   });
 });
 
+describe("publication workflow-step counters", () => {
+  it.each([
+    [false, { TERM: "xterm" }],
+    [true, { TERM: "dumb" }],
+  ])("appends only changed counters or states without step dumps (TTY %s)", async (isTTY, environment) => {
+    const mac = { id: 1, name: "macOS validation (Node 24)", status: "in_progress", conclusion: null,
+      steps: publicationSteps("in_progress", "queued", "queued") };
+    const windows = { ...mac, id: 2, name: "Windows validation (Node 24)", steps: publicationSteps("completed", "in_progress") };
+    const advanced = { ...mac, steps: publicationSteps("completed", "in_progress", "queued") };
+    const output: string[] = [];
+    const { run, calls } = developmentRunner([
+      { status: "in_progress", conclusion: null, jobs: [mac, windows] },
+      { status: "in_progress", conclusion: null, jobs: [advanced, windows] },
+      { status: "in_progress", conclusion: null, jobs: [windows, advanced] },
+      { status: "completed", conclusion: "success", jobs: [advanced, windows].map(job => ({ ...job, status: "completed", conclusion: "success" })) },
+    ]);
+    await dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
+      ...developmentOptions, run, isTTY, environment, write: text => { output.push(text); },
+    });
+    expect(output.filter(line => line.includes("●"))).toEqual([
+      "  ● Running: macOS validation (Node 24) (1/3)\n",
+      "  ● Running: Windows validation (Node 24) (2/2)\n",
+      "  ● Running: macOS validation (Node 24) (2/3)\n",
+      "  ● Passed:  macOS validation (Node 24) (3/3)\n",
+      "  ● Passed:  Windows validation (Node 24) (2/2)\n",
+    ]);
+    expect(output.join("")).not.toMatch(/Set up job|Step 2|\u001b/u);
+    expect(calls.filter(call => call.args[1]?.includes("/jobs?"))).toHaveLength(4);
+  });
+
+  it.each([
+    ["not started", publicationSteps("queued", "queued"), "in_progress", null, " (0/2)"],
+    ["skipped step", [{ ...publicationSteps("completed")[0]!, conclusion: "skipped" }, ...publicationSteps("queued")], "in_progress", null, " (1/2)"],
+    ["failed before pending steps", publicationSteps("completed", "queued"), "completed", "failure", " (1/2)"],
+    ["all steps settled after failure", publicationSteps("completed", "completed"), "completed", "failure", " (2/2)"],
+    ["successful", publicationSteps("completed", "completed"), "completed", "success", " (2/2)"],
+    ["wholly skipped", publicationSteps("completed"), "completed", "skipped", ""],
+    ["absent steps", undefined, "in_progress", null, ""],
+    ["empty steps", [], "in_progress", null, ""],
+    ["non-array steps", {}, "in_progress", null, ""],
+    ["null step", [null], "in_progress", null, ""],
+    ["missing step status", [{ name: "Setup" }], "in_progress", null, ""],
+    ["unknown step status", publicationSteps("unknown"), "in_progress", null, ""],
+  ])("renders %s metadata without inventing passed checks", async (_name, steps, status, conclusion, counter) => {
+    const output: string[] = [];
+    const { run } = developmentRunner([{ status: "completed", conclusion: conclusion === "failure" ? "failure" : "success", jobs: [
+      { id: 1, name: "Build", status, conclusion, steps },
+    ] }]);
+    const result = dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
+      ...developmentOptions, run, write: text => { output.push(text); },
+    });
+    if (conclusion === "failure") await expect(result).rejects.toThrow("Build [failure]");
+    else await result;
+    const label = conclusion === "failure" ? "Failed: " : conclusion === "success" ? "Passed: " : conclusion === "skipped" ? "Skipped:" : "Running:";
+    expect(output.filter(line => line.includes("●"))).toEqual([`  ● ${label} Build${counter}\n`]);
+  });
+
+  it("refreshes when step metadata becomes available or its total changes", async () => {
+    const entry = { id: 1, name: "Build", status: "in_progress", conclusion: null };
+    const output: string[] = [];
+    const { run } = developmentRunner([
+      { status: "in_progress", conclusion: null, jobs: [entry] },
+      { status: "in_progress", conclusion: null, jobs: [{ ...entry, steps: publicationSteps("in_progress") }] },
+      { status: "completed", conclusion: "success", jobs: [{ ...entry, steps: publicationSteps("in_progress", "queued") }] },
+    ]);
+    await dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", { ...developmentOptions, run, write: text => { output.push(text); } });
+    expect(output.filter(line => line.includes("●"))).toEqual([
+      "  ● Running: Build\n", "  ● Running: Build (1/1)\n", "  ● Running: Build (1/2)\n",
+    ]);
+  });
+});
+
 describe("interactive development publication rows", () => {
   const size = { columns: 120, rows: 40 };
   const interactiveOptions = { ...developmentOptions, isTTY: true, environment: { TERM: "xterm-256color" }, terminalSize: () => size };
@@ -539,6 +615,38 @@ describe("interactive development publication rows", () => {
     const lastJob = final.final.rows.findIndex(line => line.includes("Windows validation"));
     expect(final.final.rows[lastJob + 1]).toBe("  Workflow passed; verifying npm packages.");
     expect(final.final.cursor).toEqual({ row: lastJob + 3, column: 1 });
+  });
+
+  it.each([16, 40, 120])("updates counters in place and keeps rows safe at %i columns", async columns => {
+    const geometry = { columns, rows: 40 };
+    const mac = { ...job(1, "macOS validation (Node 24)"), steps: publicationSteps("in_progress", "queued", "queued") };
+    const advanced = { ...mac, steps: publicationSteps("completed", "in_progress", "queued") };
+    const windows = { ...job(2, "Windows validation (Node 24)"), steps: publicationSteps("completed", "in_progress") };
+    const output: string[] = [];
+    const polls: number[] = [];
+    const { run } = developmentRunner([
+      snapshot([mac, windows]), snapshot([advanced, windows]), snapshot([windows, advanced]),
+      snapshot([{ ...complete(advanced), steps: publicationSteps("completed", "completed", "completed") }, complete(windows)], "completed", "success"),
+    ]);
+    await dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.10", {
+      ...interactiveOptions, terminalSize: () => geometry, run, write: text => { output.push(text); }, sleep: async () => { polls.push(output.length); },
+    });
+    expect(polls).toEqual([3, 4, 4]);
+    const running = await replay(output.slice(0, 4), geometry);
+    const final = await replay(output, geometry);
+    const rows = final.final.rows.filter(line => line.includes("●"));
+    expect(rows).toHaveLength(2);
+    expect(rows.every(line => line.startsWith("  ● Passed:  ") && line.length < columns)).toBe(true);
+    if (columns >= 40) {
+      expect(running.final.rows.filter(line => line.includes("●")).map(line => line.slice(-5))).toEqual(["(2/3)", "(2/2)"]);
+      expect(rows.map(line => line.slice(-5))).toEqual(["(3/3)", "(2/2)"]);
+    }
+    if (columns === 40) expect(rows.every(line => line.includes("…"))).toBe(true);
+    expect(final.finalStyles?.map(cell => [cell.column, cell.colors[1]])).toEqual([[3, 2], [3, 2]]);
+    const lastJob = final.final.rows.findLastIndex(line => line.includes("●"));
+    // Platform: the success line wraps in tiny terminals; inspect the rows before it is written.
+    const beforeFooter = await replay(output.slice(0, -1), geometry);
+    expect(beforeFooter.final.rows[lastJob + 1]).toBe("");
   });
 
   it("keeps jobs with identical names separate by their job IDs", async () => {
