@@ -6,4 +6,4 @@
 
 ## 2. Document discovery-record lifecycle and pruning
 
-- [ ] 2.1 Describe record lifecycle, abrupt-exit accumulation, pruning rules and remaining limits in `docs/features/integration-api.md`.
+- [x] 2.1 Describe record lifecycle, abrupt-exit accumulation, pruning rules and remaining limits in `docs/features/integration-api.md`.

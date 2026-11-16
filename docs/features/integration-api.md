@@ -51,6 +51,10 @@ Profile updates are atomic per-key assignments under the existing shared setting
 
 ## Errors and completion
 
+### Discovery records
+
+Each interactive session publishes one private discovery record for its control endpoint under the runtime directory and removes it on ordinary shutdown. A session that ends abruptly (closed terminal, Core kill, crash, reboot) leaves its record behind. A1 prunes such records when it can prove the owner process is gone: once, bounded in time and count, when a session starts its endpoint, and opportunistically while a lookup scans the directory. Records of live processes, records that cannot be parsed and records of unknown format are never removed automatically. `control-limit` is raised when more than 256 live candidates are examined or when the directory exceeds a much larger raw ceiling, so a flooded directory still fails closed; a machine with many abruptly ended sessions keeps a working API without manual cleanup.
+
 Stable request errors: `invalid-request`, `unsupported-version`, `unsupported-operation`, `target-required`, `invalid-target`, `unsupported-profile`, `unsupported-scope`, `unsupported-setting`, `invalid-value`. Exit refusals: `session-stopping`, `session-busy`, `editor-not-empty`, `pending-input`, `overlay-open`. Runtime/transport failures include `session-unavailable`, `ambiguous-session`, `request-expired`, `control-boundary`, `control-limit`, `control-failed`, `settings-failed`, `invalid-response`, `response-limit`. Error messages are diagnostics, not machine contracts.
 
 An update is acknowledged only after its owning service applies or durably stores it. Requests retain nonce, process liveness, exact runtime/session, binding-generation, serialization and deadline fencing in private local IPC. Expired/disconnected queued work cannot replay onto a replacement. Lost acknowledgement is an unknown outcome: read back a fresh exact target instead of automatic retry/replay. Client JSON parsing alone is insufficient: validate version, ID, response type, command, target, setting, value and completion status. Structured failures must remain available to callers.
