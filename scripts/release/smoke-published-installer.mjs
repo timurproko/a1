@@ -265,7 +265,7 @@ export async function smokePublishedInstaller({
   if (primaryError) {
     // Rationale: a hard outer timeout during settlement must not erase diagnostics already collected.
     try { await writeEvidence(); }
-    catch { /* The final write retries and reports unavailable evidence without masking the stage failure. */ }
+    catch { /* Rationale: the final write retries and reports unavailable evidence without masking the stage failure. */ }
   }
   if (root) {
     try {
