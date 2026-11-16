@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { lstat, mkdtemp, rm, readdir, realpath, writeFile, mkdir, symlink } from "node:fs/promises";
+import { lstat, mkdtemp, rm, readdir, realpath, writeFile, mkdir, symlink, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -85,6 +85,75 @@ describe("bounded local session control", () => {
     await expect(requestSessionControl({ runtimeDir, sessionId: target.state.sessionId, payload: null })).rejects.toMatchObject({ code: "control-boundary" });
     await writeFile(join(directory, name), "not JSON, never echo these bytes");
     await expect(requestSessionControl({ runtimeDir, sessionId: target.state.sessionId, payload: null })).rejects.toMatchObject({ code: "control-boundary", message: "Malformed session control record." });
+  });
+
+  // Provenance: a synthetic registration in this build's record format for a process that no longer exists.
+  const staleRecord = (pid: number) => ({ version: 1, id: randomUUID(), nonce: randomUUID(), runtimeId: randomUUID(), owner: { pid, startIdentity: "pid-liveness" }, sessionId: randomUUID(), binding: 1 });
+  async function seedRecords(directory: string, count: number, pid: number) {
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    const ids: string[] = [];
+    for (let index = 0; index < count; index++) {
+      const record = staleRecord(pid);
+      ids.push(record.id);
+      await writeFile(join(directory, `${record.id}.json`), JSON.stringify(record), { mode: 0o600 });
+    }
+    return ids;
+  }
+  // Platform: above any real pid range on Windows, macOS and Linux, so the real probe reports it gone.
+  const DEAD_PID = 2_000_000_000;
+  const records = async (directory: string) => (await readdir(directory)).filter(name => name.endsWith(".json"));
+
+  it("prunes records of dead owners when a session starts and keeps live and unreadable ones", async () => {
+    const directory = join(runtimeDir, "session-controls");
+    const dead = await seedRecords(directory, 12, DEAD_PID);
+    const [liveForeign] = await seedRecords(directory, 1, process.pid);
+    const malformed = `${randomUUID()}.json`;
+    await writeFile(join(directory, malformed), "not JSON", { mode: 0o600 });
+    const target = await host();
+    const remaining = await records(directory);
+    expect(remaining).toHaveLength(3);
+    expect(remaining).toContain(`${liveForeign}.json`);
+    expect(remaining).toContain(malformed);
+    for (const id of dead) expect(remaining).not.toContain(`${id}.json`);
+    // Invariant: unreadable records remain a lookup refusal (unchanged); only dead owners are pruned.
+    await expect(requestSessionControl({ runtimeDir, sessionId: target.state.sessionId, payload: null })).rejects.toMatchObject({ code: "control-boundary" });
+    await unlink(join(directory, malformed));
+    expect(await requestSessionControl({ runtimeDir, sessionId: target.state.sessionId, payload: "after-sweep" })).toBe("after-sweep");
+  });
+
+  it("resolves a live session past 256 stale records and prunes them while looking", async () => {
+    const target = await host();
+    const directory = join(runtimeDir, "session-controls");
+    await seedRecords(directory, 300, DEAD_PID);
+    expect((await records(directory)).length).toBe(301);
+    expect(await requestSessionControl({ runtimeDir, sessionId: target.state.sessionId, payload: "still-reachable" })).toBe("still-reachable");
+    expect((await records(directory)).length).toBe(1);
+  });
+
+  it("still fails closed on a flooded directory or too many live candidates, and an injected probe never deletes", async () => {
+    const target = await host();
+    const directory = join(runtimeDir, "session-controls");
+    await seedRecords(directory, 300, process.pid);
+    await expect(requestSessionControl({ runtimeDir, sessionId: target.state.sessionId, payload: null })).rejects.toMatchObject({ code: "control-limit" });
+    expect((await records(directory)).length).toBe(301);
+    await expect(requestSessionControl({ runtimeDir, sessionId: target.state.sessionId, payload: null, inspectProcess: async () => null })).rejects.toMatchObject({ code: "session-unavailable" });
+    expect((await records(directory)).length).toBe(301);
+    await seedRecords(directory, 4096 - 300, DEAD_PID);
+    await expect(requestSessionControl({ runtimeDir, sessionId: target.state.sessionId, payload: null })).rejects.toMatchObject({ code: "control-limit" });
+    expect((await records(directory)).length).toBe(4097);
+  });
+
+  it("bounds the start-time sweep and leaves the remainder for later", async () => {
+    const directory = join(runtimeDir, "session-controls");
+    await seedRecords(directory, 40, DEAD_PID);
+    let probes = 0;
+    const slow = async (pid: number) => { probes++; if (pid === process.pid) return { pid, startIdentity: "pid-liveness" }; await new Promise(done => setTimeout(done, 60)); return null; };
+    const control = await serveSessionControl({ runtimeDir, runtimeId: randomUUID(), identity: () => ({ sessionId: randomUUID(), binding: 1 }), handle: async value => value, inspectProcess: slow });
+    hosts.push(control);
+    const left = (await records(directory)).length;
+    expect(left).toBeGreaterThan(1);
+    expect(left).toBeLessThan(41);
+    expect(probes).toBeLessThan(41);
   });
 
   it("refuses linked discovery directories", async () => {
