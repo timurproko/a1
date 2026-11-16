@@ -73,7 +73,7 @@ describe("exercised npm channel promotion", () => {
     expect(smoke["timeout-minutes"]).toBe(30);
     const exercise = smoke.steps.find((step: { run?: string }) => step.run === "node scripts/release/smoke-published-installer.mjs");
     expect(exercise["timeout-minutes"]).toBe(25);
-    // Acquisition + fresh install + predecessor install + update + repair take at most 19 minutes.
+    // Rationale: acquisition + fresh install + predecessor install + update + repair can consume 19 minutes.
     expect(exercise["timeout-minutes"]).toBeGreaterThan(2 + 5 + 5 + 2 + 5);
     expect(smoke["timeout-minutes"]).toBeGreaterThan(exercise["timeout-minutes"]);
     expect(exercise["continue-on-error"]).toBeUndefined();
