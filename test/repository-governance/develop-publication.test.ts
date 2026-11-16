@@ -107,7 +107,12 @@ describe("development publication completion and recovery", () => {
     ["advanced public tag", { ...complete, tags: ["0.2.7-dev.1400", version] }, `${names[0]} npm next names 0.2.7-dev.1400`],
   ])("does not claim success after workflow success with %s", async (_label, final, message) => {
     const f = fixture(staged, final);
-    await expect(f.execute()).rejects.toThrow(message);
+    const error = await f.execute().catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain(message);
+    f.output.push(`[develop] ${(error as Error).message}\n`);
+    expect(f.output.join("")).toContain(`  ● Passed:  Promote exercised pair to npm next (1/1)\n\n[workflow] passed; verifying npm packages.\n[develop] publication succeeded but `);
+    expect(f.output.join("").split("\n").filter(line => line.startsWith("[develop] publication"))).toHaveLength(1);
     expect(f.output.join("")).not.toContain(`[develop] published ${version}`);
   });
 
@@ -155,14 +160,25 @@ describe("development publication completion and recovery", () => {
     expect(f.fetch).toHaveBeenCalledTimes(4);
   });
 
-  it("surfaces registry verification failure even after a successful workflow", async () => {
+  it.each(["HTTP 403", "HTTP 503", "invalid tags", "invalid next", "unreadable JSON"])("keeps post-workflow registry %s errors left-aligned", async failure => {
     const f = fixture();
     for (let index = 0; index < 4; index++) {
       f.fetch.mockImplementationOnce(async () => Response.json(index < 2 ? { version } : { next: previous }));
     }
-    f.fetch.mockImplementationOnce(async () => new Response(null, { status: 503 }));
-    await expect(f.execute()).rejects.toThrow("HTTP 503");
-    expect(f.output.join("")).not.toContain(`[develop] published ${version}`);
+    if (!failure.startsWith("HTTP")) {
+      f.fetch.mockImplementationOnce(async () => Response.json({ version }));
+      f.fetch.mockImplementationOnce(async () => Response.json({ version }));
+    }
+    f.fetch.mockImplementationOnce(async () => failure.startsWith("HTTP") ? new Response(null, { status: Number(failure.slice(-3)) })
+      : failure === "unreadable JSON" ? new Response("not json") : Response.json(failure === "invalid tags" ? [] : { next: 1327 }));
+    const error = await f.execute().catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(Error);
+    if (failure.startsWith("HTTP")) expect((error as Error).message).toContain(failure);
+    f.output.push(`[develop] ${(error as Error).message}\n`);
+    const transcript = f.output.join("");
+    expect(transcript).toContain("  ● Passed:  Promote exercised pair to npm next (1/1)\n\n[workflow] passed; verifying npm packages.\n[develop] ");
+    expect(transcript).not.toContain("\n\n\n");
+    expect(transcript).not.toContain(`[develop] published ${version}`);
   });
 
   it("routes the develop entry through pair completion instead of an existence-only early return", async () => {

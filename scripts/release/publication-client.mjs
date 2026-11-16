@@ -184,7 +184,7 @@ export function describePublicationFailure(runId, options = {}) {
   if (primary.length > 0 && failed.some(isAggregate)) lines.push("Downstream lane/result checks also failed.");
   lines.push(publicationState(jobs));
   lines.push(options.develop ? "Next: fix the failure, then rerun npm run develop after checking the run above." : "Next: inspect the full log and fix the failure before retrying.");
-  return [heading, `Full log: ${url}`, "", ...lines.map(line => `  * ${line}`)].join("\n");
+  return [heading, `Full log: ${url}`, "", ...lines.map(line => `* ${line}`)].join("\n");
 }
 
 function publicationColorEnabled(options) {
@@ -222,9 +222,11 @@ function createPublicationProgress(options) {
   let interactive = Boolean(options.isTTY ?? process.stdout.isTTY) && environment.TERM !== "dumb";
   const rows = new Map();
   let geometry;
+  let hasProgress = false;
   const stopUpdating = () => { interactive = false; };
   if (interactive) process.stdout.on("resize", stopUpdating);
   const update = (id, label, name, counter = "") => {
+    hasProgress = true;
     const size = options.terminalSize?.() ?? { columns: process.stdout.columns, rows: process.stdout.rows };
     const index = rows.get(id);
     const count = rows.size + (index === undefined ? 1 : 0);
@@ -251,7 +253,11 @@ function createPublicationProgress(options) {
       write(`\u001b[${distance}A\r\u001b[2K${line.slice(0, -1)}\u001b[${distance}B\r`);
     }
   };
-  return { update, dispose: () => process.stdout.off("resize", stopUpdating) };
+  return { update, finish: () => {
+    process.stdout.off("resize", stopUpdating);
+    // Invariant: the header already supplies the separator when no job rows were displayed.
+    if (hasProgress) write("\n");
+  } };
 }
 
 function isOptionalSkippedJob(job) {
@@ -268,7 +274,7 @@ async function waitForDevelopmentPublication(runId, version, repository, options
   const interrupt = () => controller.abort();
   const states = new Map();
   const progress = createPublicationProgress(options);
-  const stopped = reason => new Error(`Stopped watching ${plainText(version, 80)} (run ${runId}): ${reason}. Remote outcome unknown; it may still be running. Check this run before starting another publication.\nFull log: https://github.com/${repository}/actions/runs/${runId}`);
+  const stopped = reason => new Error(`Stopped watching ${plainText(version, 80)} (run ${runId}): ${reason}.\nRemote outcome unknown; it may still be running. Check this run before starting another publication.\nFull log: https://github.com/${repository}/actions/runs/${runId}`);
   process.once("SIGINT", interrupt);
   process.once("SIGTERM", interrupt);
   try {
@@ -297,21 +303,20 @@ async function waitForDevelopmentPublication(runId, version, repository, options
       }
       if (current.status === "completed") {
         if (current.conclusion !== "success") {
-          write("\n");
           throw new Error(describePublicationFailure(runId, { run: execute, repository, version, jobs, develop: true }));
         }
-        write("\n[workflow] passed; verifying npm packages.\n");
-        return;
+        break;
       }
       try { await wait(POLL_INTERVAL_MS, undefined, { signal }); }
       catch { throw stopped(signal.aborted ? "interrupted" : "status waiting unavailable"); }
     }
-    throw stopped("interrupted");
+    if (signal.aborted) throw stopped("interrupted");
   } finally {
     process.off("SIGINT", interrupt);
     process.off("SIGTERM", interrupt);
-    progress.dispose();
+    progress.finish();
   }
+  write("[workflow] passed; verifying npm packages.\n");
 }
 
 export async function dispatchPublication(channel, source, version, options = {}) {

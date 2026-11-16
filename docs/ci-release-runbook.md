@@ -262,29 +262,47 @@ Unchanged snapshots, setup/teardown step details, derivative lane/result gates, 
 never-started inactive-mode optional skips remain omitted. Previously started jobs
 that become skipped and skipped npm staging remain visible. A final failure names
 the primary lane or stage and bounded, deduplicated diagnostic messages; the full
-log retains the complete detail. A blank line separates a completed failure from
-progress. Its plain heading keeps the existing `[develop]` prefix without a dot;
-the unindented log link comes next, then a blank line and uniformly indented
-asterisk bullets for every detail, including diagnostics:
+log retains the complete detail. Every observer exit leaves exactly one blank line
+between the last status row and subsequent output, including success, failure,
+interruption, unavailable or malformed status, and local waiting errors. With no
+visible jobs, the header's existing blank separator is reused. This applies to
+live updates and append-only fallbacks alike; only job-status rows are indented.
+A failure's plain heading keeps the existing `[develop]` prefix without a dot;
+the unindented log link comes next, then a blank line and left-margin asterisk
+bullets for every detail, including diagnostics:
 
 ```text
 [develop] Publication failed: 0.2.7-dev.1313 (run 43732033913)
 Full log: https://github.com/timurproko/a1/actions/runs/43732033913
 
-  * Published pair (win32-node24, windows-2025, 24) [failure]
-  * Detailed failure evidence unavailable; see the full log.
-  * Downstream lane/result checks also failed.
-  * npm staging: success. Packages may already exist; inspect the registry before retrying.
-  * Next: fix the failure, then rerun npm run develop after checking the run above.
+* Published pair (win32-node24, windows-2025, 24) [failure]
+* Detailed failure evidence unavailable; see the full log.
+* Downstream lane/result checks also failed.
+* npm staging: success. Packages may already exist; inspect the registry before retrying.
+* Next: fix the failure, then rerun npm run develop after checking the run above.
 ```
 
 If npm staging was skipped, it reports publication blocked before staging. Otherwise it warns that packages
 may already exist, or that publication state is unknown, so inspect the run and
 registry before retrying. Fix the cause before rerunning `npm run develop`.
 Interrupting the local wait does not cancel the remote run. Interrupted waiting or
-unavailable GitHub status reports an unknown remote outcome and keeps the log link;
-check that run before requesting another publication. Stable-candidate validation
-retains its existing live job-list presentation.
+unavailable GitHub status reports an unknown remote outcome and keeps the log link.
+The reason heading, remote-outcome guidance, and log link each start at the left
+margin on separate lines:
+
+```text
+  ● Running: npm staging (10/12)
+
+[develop] Stopped watching 0.2.7-dev.1333 (run 43925703803): GitHub status unavailable.
+Remote outcome unknown; it may still be running. Check this run before starting another publication.
+Full log: https://github.com/timurproko/a1/actions/runs/43925703803
+```
+
+Check that run before requesting another publication. On workflow success, the
+same blank separator precedes `[workflow] passed; verifying npm packages.`;
+the develop result or registry-verification error follows directly below at the
+left margin. Workflow success alone never claims that registry publication is
+complete. Stable-candidate validation retains its existing live job-list presentation.
 
 Nightly resolves the same current `origin/develop` source. It runs one platform-independent full documentation review before the platform matrix, and the matrix records that prerequisite instead of repeating the scan four times. It always runs complete verification even if source has not changed. For a new number it packs once and
 runs the suite against that final-version tarball before publication. For an
