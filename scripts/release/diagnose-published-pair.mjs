@@ -66,12 +66,16 @@ export async function diagnosePublishedPair(environment = process.env) {
       const runner = createPublishedSmokeRunner(root);
       return { ...runner, async run(command, args, options) {
         process.stdout.write(`[published-pair diagnostic] ${args[0] ?? "install"} started\n`);
-        return await runner.run(command, args, { ...options, timeout: Math.min(options.timeout, 5 * 60_000) });
+        // Rationale: old immutable installers predate --repair. Diagnose the candidate's explicit
+        // repair implementation against unchanged registry application bytes, never claim a published pair.
+        const repair = args.includes("--repair");
+        return await runner.run(repair ? process.execPath : command, repair ? [resolve("packages/a1-install/bin/a1-install.js"), ...args] : args,
+          { ...options, timeout: Math.min(options.timeout, 5 * 60_000) });
       } };
     } });
   } finally {
     await writeFile(resolve(output, "worker-diagnostics.json"), `${JSON.stringify({
-      version, observerMode, processes: await collectPublishedPairDiagnostics(raw, environment),
+      version, observerMode, candidateInstallerRepair: true, processes: await collectPublishedPairDiagnostics(raw, environment),
     }, null, 2)}\n`);
   }
 }

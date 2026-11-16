@@ -492,8 +492,8 @@ never enables this path. A recognized crash ends the wait promptly; the general 
 deadline is five minutes. Each smoke phase is printed before waiting.
 
 The harness retains the failed direct attempt, inventories and settles every fixture
-writer, then invokes the exact published installer on the same prefix, settings, and
-data. It does not delete user state or alter the predecessor package to force a pass.
+writer, then invokes the exact published installer with `--repair` and the authenticated
+capsule path on the same prefix, settings, and data. It does not delete user state or alter the predecessor package to force a pass.
 The recovery installer must have the exact successful transcript; its manifest, active
 release, reported version, and callable launcher must all identify the candidate.
 Evidence reports `upgradeMethod: installer-recovery`, `installerRecoveryVerified: true`,
@@ -502,8 +502,13 @@ in settlement or recovery keeps promotion blocked. Native Windows regression cov
 holds an actual non-delete-sharing handle over a current worker heartbeat and requires
 that worker to survive and publish its successful npm result.
 
-For a real affected installation, let the failed updater exit, then use the official
-installer with the same channel/selector from the README. Do not delete configuration,
+For a real affected installation, let the failed updater exit, then use the new official
+installer with `--repair` naming its absolute capsule path and the same channel/selector.
+The capsule is in the transaction's `update-recovery` directory; preserve it. This explicit
+mode independently validates ownership even when npm left the package manifest or CLI
+incomplete, refuses recorded live owners and any native package/recovery writer, installs
+with the capsule's explicit prefix, and activates in the authenticated data directory.
+It never delegates back into the immutable or partial predecessor. Do not delete configuration,
 sessions, history, or transaction files, and do not run a second package writer while
 the first is active. The smoke's process stopping is limited to its disposable fixture;
 it is not permission to terminate arbitrary installed sessions. On the next update,

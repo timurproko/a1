@@ -186,7 +186,7 @@ export async function smokePublishedInstaller({
       upgradeMethod = "installer-recovery";
       writeProgress("[published installer] authenticated legacy heartbeat failure; recovering with the published installer after process settlement\n");
       stage = "recover-predecessor-with-installer";
-      const recovered = await execute(installerLauncher, args, { cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: COMMAND_BUDGET_MS });
+      const recovered = await execute(installerLauncher, [...args, "--repair", resolve(dirname(crash.ownerPath), "capsule.json")], { cwd: root, encoding: "utf8", env: updateEnvironment, windowsHide: true, timeout: COMMAND_BUDGET_MS });
       if (recovered.stdout.replace(/\r\n/gu, "\n") !== "a1 successfully installed\n" || recovered.stderr !== "") throw new Error("published recovery installer transcript is invalid");
     }
     stage = "launch-updated-application";

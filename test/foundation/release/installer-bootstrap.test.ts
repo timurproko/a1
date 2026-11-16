@@ -41,6 +41,7 @@ const expectedInstallerHelp = [
   "a1-install --develop",
   "a1-install --develop <preview-or-version>",
   "a1-install --verbose",
+  "a1-install --repair <absolute-recovery-capsule> [--develop [preview-or-version]]",
   "",
 ].join("\n");
 afterEach(async () => {
@@ -142,6 +143,7 @@ describe("installer command contract", () => {
     await Promise.all([
       writeFile(executable, await readFile(resolve("packages/a1-install/bin/a1-install.js"))),
       writeFile(resolve(executable, "..", "progress-palette.js"), await readFile(resolve("packages/a1-install/bin/progress-palette.js"))),
+      writeFile(resolve(executable, "..", "repair-capsule.js"), await readFile(resolve("packages/a1-install/bin/repair-capsule.js"))),
     ]);
     await chmod(executable, 0o755);
     await symlink(executable, launcher, "file");
