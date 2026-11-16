@@ -1,4 +1,4 @@
-import { Text, stripTerminalSequences } from "@earendil-works/pi-tui";
+import { Text, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import {
   createPiExtensionUiBridge,
@@ -7,8 +7,10 @@ import {
 } from "../../../../src/integrations/pi/components/index.js";
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
+import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
+import { paintTextSelection } from "../../../../src/ui/components/index.js";
 
-function fixture() {
+function fixture(clipboard: Pick<PiExtensionUiBridgeHost, "onCopyText" | "readClipboardContent"> = {}) {
   let inputSurface: PiShellComponentPort | null = null;
   const widgets = new Map<string, PiShellComponentPort>();
   const statuses = new Map<string, string>();
@@ -19,6 +21,7 @@ function fixture() {
   let expanded = false;
   const host: PiExtensionUiBridgeHost = {
     runtime: { getColumns: () => 80, getRows: () => 24, requestRender: vi.fn() },
+    ...clipboard,
     setInputSurface: component => { inputSurface = component; },
     setProgramStatusBlocked: status => blockedStatuses.push(status),
     showOverlay: component => {
@@ -132,6 +135,269 @@ describe("pinned extension UI bridge", () => {
     value.bridge.reset();
     await expect(switched).resolves.toBeUndefined();
     expect(value.inputSurface).toBeNull();
+    value.bridge.dispose();
+  });
+
+  it("prefills internal inputs without changing public extension inputs", async () => {
+    const value = fixture();
+    const input = value.bridge.input("Name", "", { initialValue: "Project" });
+    expect(stripTerminalSequences(value.inputSurface!.render(60).join("\n"))).toContain("> Project");
+    value.inputSurface!.handleInput?.(" Alpha");
+    value.inputSurface!.handleInput?.("\r");
+    await expect(input).resolves.toBe("Project Alpha");
+    const extensionInput = value.bridge.context.input("Name", "");
+    expect(stripTerminalSequences(value.inputSurface!.render(60).join("\n"))).not.toContain("Project");
+    value.inputSurface!.handleInput?.("\x1b");
+    await expect(extensionInput).resolves.toBeUndefined();
+    value.bridge.dispose();
+  });
+
+  it("selects, copies, cuts, pastes, replaces, and undoes in the opt-in name field", async () => {
+    const onCopyText = vi.fn();
+    const value = fixture({ onCopyText, readClipboardContent: async () => ({ kind: "text", text: "Beta" }) });
+    const result = value.bridge.input("Session Name", "", { initialValue: "Alpha", sessionNameEditing: true });
+    await value.inputSurface!.ready;
+    const key = (data: string) => value.inputSurface!.handleInput!(data);
+    const inputRow = () => value.inputSurface!.render(60).find(row => stripTerminalSequences(row).trimStart().startsWith(">"))!;
+    key("\x01");
+    const row = inputRow().replace(/\x1b_[^\x07]*\x07/gu, "");
+    const plain = stripTerminalSequences(row);
+    const first = plain.indexOf("Alpha");
+    const promptSelection = paintTextSelection("Alpha", 0, 5, visibleWidth, true);
+    for (let column = first; column < first + 5; column++) {
+      expect(cellBackgroundAt(row, column)).toBe(cellBackgroundAt(promptSelection, column - first));
+    }
+    expect(cellStyle(row, "A")).toEqual(cellStyle(promptSelection, "A"));
+    expect(cellBackgroundAt(row, first - 1)).toBe("default");
+    expect(cellBackgroundAt(row, first + 5)).toBe("default");
+    expect(stripTerminalSequences(value.inputSurface!.render(60).join("\n"))).toContain("Enter submit  Esc close");
+    expect(stripTerminalSequences(value.inputSurface!.render(60).join("\n"))).not.toMatch(/Ctrl\+[ACVXZ]/u);
+    key("\x03");
+    expect(onCopyText).toHaveBeenLastCalledWith("Alpha", false);
+    expect(value.inputSurface).not.toBeNull();
+    key("\x18");
+    expect(onCopyText).toHaveBeenLastCalledWith("Alpha", true);
+    expect(stripTerminalSequences(inputRow()).trim()).toBe(">");
+    key("\x1a");
+    expect(stripTerminalSequences(inputRow())).toContain("Alpha");
+    key("\x16");
+    await vi.waitFor(() => expect(stripTerminalSequences(inputRow())).toContain("Beta"));
+    key("\x1a");
+    expect(stripTerminalSequences(inputRow())).toContain("Alpha");
+    key("Replaced");
+    expect(stripTerminalSequences(inputRow())).toContain("Replaced");
+    key("\x1a");
+    expect(stripTerminalSequences(inputRow())).toContain("Alpha");
+    key("\r");
+    await expect(result).resolves.toBe("Alpha");
+    value.bridge.dispose();
+  });
+
+  it("maps framed mouse selections to graphemes and retains them through cut and undo", async () => {
+    const onCopyText = vi.fn();
+    const value = fixture({ onCopyText });
+    const result = value.bridge.input("Session Name", "", { initialValue: "A界e\u0301🙂Z", sessionNameEditing: true });
+    await value.inputSurface!.ready;
+    const surface = value.inputSurface!;
+    const rows = surface.render(60);
+    const row = rows.findIndex(row => stripTerminalSequences(row).trimStart().startsWith(">")) + 1;
+    surface.handleLocalMouse!({ kind: "press", button: 0, column: 5, row });
+    surface.handleLocalMouse!({ kind: "motion", button: 0, column: 8, row });
+    surface.handleLocalMouse!({ kind: "release", button: 0, column: 8, row });
+    surface.handleInput!("\x03");
+    expect(onCopyText).toHaveBeenLastCalledWith("界e\u0301", false);
+    surface.handleInput!("\x18");
+    expect(stripTerminalSequences(surface.render(60).join("\n"))).toContain("A🙂Z");
+    surface.handleInput!("\x1a");
+    surface.handleInput!("\x03");
+    expect(onCopyText).toHaveBeenLastCalledWith("界e\u0301", false);
+    surface.handleInput!("\x1b");
+    await expect(result).resolves.toBeUndefined();
+    value.bridge.dispose();
+  });
+
+  it("maps horizontal scrolling and resize without splitting text or overflowing the frame", async () => {
+    const onCopyText = vi.fn();
+    const value = fixture({ onCopyText });
+    const result = value.bridge.input("Session Name", "", { initialValue: "0123456789界Z", sessionNameEditing: true });
+    await value.inputSurface!.ready;
+    const surface = value.inputSurface!;
+    const narrow = surface.render(15);
+    const input = narrow.findIndex(row => stripTerminalSequences(row).trimStart().startsWith(">"));
+    const first = stripTerminalSequences(narrow[input]!).trim().slice(2, 4);
+    expect(first).not.toBe("01");
+    surface.handleLocalMouse!({ kind: "press", button: 0, column: 4, row: input + 1 });
+    surface.handleLocalMouse!({ kind: "motion", button: 0, column: 6, row: input + 1 });
+    surface.handleLocalMouse!({ kind: "release", button: 0, column: 6, row: input + 1 });
+    surface.handleInput!("\x03");
+    expect(onCopyText).toHaveBeenLastCalledWith(first, false);
+    expect(stripTerminalSequences(surface.render(60).join("\n"))).toContain("0123456789界Z");
+    for (const width of [1, 2, 3, 4, 8, 15, 60]) {
+      expect(surface.render(width).map(row => ({ row: stripTerminalSequences(row), width: visibleWidth(row) }))
+        .filter(row => row.width > width), `overflow at ${width}`).toEqual([]);
+    }
+    surface.handleInput!("\x1b");
+    await expect(result).resolves.toBeUndefined();
+    value.bridge.dispose();
+  });
+
+  it("keeps pasted text single-line, bounded, and undoable without interpreting embedded shortcuts", async () => {
+    const value = fixture();
+    const result = value.bridge.input("Session Name", "", { initialValue: "Alpha", sessionNameEditing: true });
+    await value.inputSurface!.ready;
+    const surface = value.inputSurface!;
+    surface.handleInput!("\x01");
+    surface.handleInput!("\x1b[200~New\r\n");
+    surface.handleInput!("Name\t\x03\x00\x1b[20");
+    surface.handleInput!("1~");
+    expect(value.inputSurface).toBe(surface);
+    expect(stripTerminalSequences(surface.render(60).join("\n"))).toContain("NewName    ");
+    surface.handleInput!("\x1a");
+    surface.handleInput!("\x01");
+    surface.handleInput!("x".repeat(4097));
+    surface.handleInput!("\r");
+    await expect(result).resolves.toBe("Alpha");
+    value.bridge.dispose();
+  });
+
+  it("ignores stale clipboard reads after edits, dismissal, or replacement", async () => {
+    let complete: (value: { readonly kind: "text"; readonly text: string }) => void = () => {};
+    const signals: AbortSignal[] = [];
+    const value = fixture({ readClipboardContent: signal => {
+      signals.push(signal!);
+      return new Promise(resolve => { complete = resolve; });
+    } });
+    const first = value.bridge.input("Session Name", "", { initialValue: "First", sessionNameEditing: true });
+    await value.inputSurface!.ready;
+    value.inputSurface!.handleInput!("\x16");
+    await Promise.resolve();
+    value.inputSurface!.handleInput!("\x1b");
+    await expect(first).resolves.toBeUndefined();
+    expect(signals[0]!.aborted).toBe(true);
+    const second = value.bridge.input("Session Name", "", { initialValue: "Second", sessionNameEditing: true });
+    await value.inputSurface!.ready;
+    complete({ kind: "text", text: "stale" });
+    await new Promise(resolve => setImmediate(resolve));
+    value.inputSurface!.handleInput!("\x16");
+    await Promise.resolve();
+    value.inputSurface!.handleInput!(" edited");
+    complete({ kind: "text", text: "stale" });
+    await new Promise(resolve => setImmediate(resolve));
+    value.inputSurface!.handleInput!("\r");
+    await expect(second).resolves.toBe(" edited");
+    value.bridge.dispose();
+  });
+
+  it("selects the initial name for immediate replacement and undo", async () => {
+    const value = fixture();
+    const result = value.bridge.input("Session Name", "", { initialValue: "Existing", sessionNameEditing: true });
+    const surface = value.inputSurface!;
+    await surface.ready;
+    const field = surface.render(60).find(row => stripTerminalSequences(row).includes("> Existing"))!;
+    const painted = field.replace(/\x1b_[^\x07]*\x07/gu, "");
+    const from = stripTerminalSequences(painted).indexOf("Existing");
+    expect(cellBackgroundAt(painted, from)).toBe(cellBackgroundAt(paintTextSelection("x", 0, 1, visibleWidth), 0));
+    surface.handleInput!("Replacement");
+    surface.handleInput!("\x1a");
+    surface.handleInput!("New name");
+    surface.handleInput!("\r");
+    await expect(result).resolves.toBe("New name");
+    value.bridge.dispose();
+  });
+
+  it.each([
+    { name: "Alpha project name", word: "project", width: 60 },
+    { name: "Alpha 界e\u0301 name", word: "界e\u0301", width: 60 },
+    { name: "long hidden prefix before Omega", word: "Omega", width: 18 },
+  ])("selects a word on double-click and the complete name on triple-click: $name", async ({ name, word, width }) => {
+    const onCopyText = vi.fn();
+    const value = fixture({ onCopyText });
+    const result = value.bridge.input("Session Name", "", { initialValue: name, sessionNameEditing: true });
+    const surface = value.inputSurface!;
+    await surface.ready;
+    const rows = surface.render(width);
+    const row = rows.findIndex(row => stripTerminalSequences(row).trimStart().startsWith(">")) + 1;
+    const plain = stripTerminalSequences(rows[row - 1]!);
+    const column = visibleWidth(plain.slice(0, plain.indexOf(word))) + 1;
+    const click = () => {
+      surface.handleLocalMouse!({ kind: "press", button: 0, column, row });
+      surface.handleLocalMouse!({ kind: "release", button: 0, column, row });
+    };
+    click(); click();
+    surface.handleInput!("\x03");
+    expect(onCopyText).toHaveBeenLastCalledWith(word, false);
+    surface.handleInput!("\x18");
+    expect(onCopyText).toHaveBeenLastCalledWith(word, true);
+    surface.handleInput!("\x1a");
+    surface.render(width);
+    click(); click(); click();
+    surface.handleInput!("\x03");
+    expect(onCopyText).toHaveBeenLastCalledWith(name, false);
+    surface.handleInput!("replacement");
+    surface.handleInput!("\x1a");
+    surface.handleInput!("\r");
+    await expect(result).resolves.toBe(name);
+    value.bridge.dispose();
+  });
+
+  it("resets repeated clicks after the time window or an ordinary drag", async () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(1000);
+    const onCopyText = vi.fn();
+    const value = fixture({ onCopyText });
+    try {
+      const result = value.bridge.input("Session Name", "", { initialValue: "alpha beta", sessionNameEditing: true });
+      const surface = value.inputSurface!;
+      await surface.ready;
+      surface.render(60);
+      const click = () => {
+        surface.handleLocalMouse!({ kind: "press", button: 0, column: 5, row: 4 });
+        surface.handleLocalMouse!({ kind: "release", button: 0, column: 5, row: 4 });
+      };
+      click();
+      clock.mockReturnValue(1600);
+      click();
+      surface.handleInput!("X");
+      expect(stripTerminalSequences(surface.render(60).join("\n"))).toContain("aXlpha beta");
+      surface.handleLocalMouse!({ kind: "press", button: 0, column: 4, row: 4 });
+      surface.handleLocalMouse!({ kind: "motion", button: 0, column: 6, row: 4 });
+      surface.handleLocalMouse!({ kind: "release", button: 0, column: 6, row: 4 });
+      click();
+      surface.handleInput!("Y");
+      surface.handleInput!("\x1b");
+      await expect(result).resolves.toBeUndefined();
+      expect(onCopyText).not.toHaveBeenCalled();
+    } finally { value.bridge.dispose(); clock.mockRestore(); }
+  });
+
+  it("retains early pointer and keyboard input while name editing loads", async () => {
+    const onCopyText = vi.fn();
+    const value = fixture({ onCopyText });
+    const result = value.bridge.input("Session Name", "", { initialValue: "Alpha", sessionNameEditing: true });
+    const surface = value.inputSurface!;
+    const rows = surface.render(60);
+    const row = rows.findIndex(row => stripTerminalSequences(row).trimStart().startsWith(">")) + 1;
+    surface.handleLocalMouse!({ kind: "press", button: 0, column: 4, row });
+    surface.handleLocalMouse!({ kind: "motion", button: 0, column: 9, row });
+    surface.handleLocalMouse!({ kind: "release", button: 0, column: 9, row });
+    surface.handleInput!("\x03");
+    await surface.ready;
+    expect(onCopyText).toHaveBeenLastCalledWith("Alpha", false);
+    expect(value.inputSurface).toBe(surface);
+    surface.handleInput!("\x1b");
+    await expect(result).resolves.toBeUndefined();
+    value.bridge.dispose();
+  });
+
+  it("cancels an unselected name field and leaves public extension-input cancellation unchanged", async () => {
+    const value = fixture();
+    const named = value.bridge.input("Session Name", "", { initialValue: "Alpha", sessionNameEditing: true });
+    value.inputSurface!.handleInput!("\x1b[C");
+    value.inputSurface!.handleInput!("\x03");
+    await expect(named).resolves.toBeUndefined();
+    const extension = value.bridge.context.input("Session Name", "");
+    value.inputSurface!.handleInput!("text");
+    value.inputSurface!.handleInput!("\x03");
+    await expect(extension).resolves.toBeUndefined();
     value.bridge.dispose();
   });
 

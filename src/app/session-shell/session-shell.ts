@@ -241,13 +241,13 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
       // terminal no longer renders it.
       constructed.push(() => this.root.dispose());
       this.#dialogs = new SessionDialogCoordinator({
-        terminal: this.#terminal,
-        root: this.root,
+        terminal: this.#terminal, root: this.root,
         routeHost: routeHost ?? null, dialogs: options.presenters.components.dialogs, inPlaceSession: this.#customViewport,
         presentation: options.presenters, viewport: () => this.#terminal.viewport(),
         disposed: () => this.#disposed,
         exit: () => { void this.shutdown(); },
         ...(startupRoute === undefined ? {} : { startupRoute }),
+        ...(this.#customViewport ? { editName: command => this.runWorkflow({ command, argument: "" }) } : {}),
       });
       constructed.push(() => this.#dialogs.dispose());
       this.selectors = this.#createSelectors(options.presenters);
@@ -412,6 +412,9 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
     if (data.includes("\u001b[<") && !this.root.viewportInputGeometryReady(viewport.columns, viewport.rows)) {
       this.#terminal.renderNow();
     }
+    const nameRouted = this.#dialogs.nameEditing?.handleInput(data) ?? { data, consumed: false };
+    data = nameRouted.data;
+    if (nameRouted.consumed && data.length === 0) return { consume: true };
     const routed = this.root.handleViewportPreInput(data, true, Date.now(),
       this.root.usesDefaultInputSurface() && !this.#terminal.hasFocusedOverlay());
     if (routed.copySelection !== undefined) {
@@ -419,7 +422,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
       this.#trackCopy(this.#clipboard.copySelection(snapshot), copyCharacters(snapshot));
     }
     if (routed.copyLastMessage) void this.runWorkflow({ command: "copy", argument: "" });
-    if (!routed.consumed) return routed.data === data ? undefined : { data: routed.data };
+    if (!routed.consumed) return !nameRouted.consumed && routed.data === data ? undefined : { data: routed.data };
     return routed.data.length === 0 ? { consume: true } : { data: routed.data };
   }
 
@@ -637,7 +640,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
   async runWorkflow(request: OwnedUiWorkflowRequest): Promise<OwnedUiCommandResult> {
     if (request.command === "quit") return this.shutdown();
     if (this.#customViewport && request.command === "name" && request.argument.trim().length === 0) {
-      void this.#extensionBridge.input("Session Name", "Enter name").then(value => {
+      void this.#extensionBridge.input("Session Name", "Enter name", { initialValue: this.view().status.footer?.sessionName ?? "", sessionNameEditing: true }).then(value => {
         if (this.#disposed || value === undefined || value.trim().length === 0) return;
         return this.runWorkflow({ ...request, argument: value });
       }).catch(error => {
@@ -828,6 +831,11 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
     return this.#presenters.components.dialogs.extensionUiBridge({
       runtime: componentRuntime(this.#terminal),
       agentDir: this.backend.identity.agentDir,
+      onCopyText: (text, cut) => {
+        const delivery = this.#clipboard.copyText(text);
+        if (delivery !== undefined) this.#trackCopy(delivery, cut ? undefined : text.length);
+      },
+      readClipboardContent: signal => this.#clipboard.readContent(signal),
       setInputSurface: component => this.root.setInputSurface(component, true, "opaque"),
       setProgramStatusBlocked: status => this.#programStatus.setBlocked("extension-dialog", status),
       showOverlay: (component, overlayOptions) => this.#terminal.showOverlay(component, overlayOptions),

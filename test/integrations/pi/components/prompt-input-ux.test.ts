@@ -260,6 +260,85 @@ describe("owned shared input and status presentation", () => {
     expect(input.getText()).toBe("");
   });
 
+  it("exports separate text-only model and thinking spans with foreground-preserving hover", () => {
+    const base = view();
+    const footer = createPiShellFooter(base, "/WORK", "a1");
+    const original = footer.render(80)[1]!;
+    const spans = footer.footerControlSpans!();
+    expect(spans.map(span => span.command)).toEqual(["models", "thinking"]);
+    for (const span of spans) {
+      const label = span.command === "models" ? "MODEL [PROVIDER]" : "medium";
+      expect(stripTerminalSequences(original).slice(span.column, span.column + span.width)).toBe(label);
+      footer.setFooterHovered!(span.command);
+      const hovered = footer.render(80)[1]!;
+      expect(stripTerminalSequences(hovered)).toBe(stripTerminalSequences(original));
+      expect(cellStyle(hovered, span.command === "models" ? "M" : "m")).toEqual(cellStyle(original, span.command === "models" ? "M" : "m"));
+      for (let column = span.column; column < span.column + span.width; column++) {
+        expect(cellBackgroundAt(hovered, column)).toBe(cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0));
+      }
+      if (span.column > 0) expect(cellBackgroundAt(hovered, span.column - 1)).toBe("default");
+      if (span.column + span.width < 80) expect(cellBackgroundAt(hovered, span.column + span.width)).toBe("default");
+    }
+    for (let width = 1; width <= 80; width++) {
+      footer.render(width);
+      const visible = footer.footerControlSpans!();
+      for (const span of visible) {
+        expect(span.column).toBeGreaterThanOrEqual(0);
+        expect(span.column + span.width).toBeLessThanOrEqual(width);
+      }
+      if (visible.length === 2) expect(visible[0]!.column + visible[0]!.width).toBeLessThan(visible[1]!.column);
+    }
+    const absent = createPiShellFooter({ ...base, activeModel: null }, "/WORK", "a1");
+    absent.render(80);
+    expect(absent.footerControlSpans!()).toEqual([]);
+    const hidden = createPiShellFooter(base, "/WORK", "a1", () => false);
+    hidden.render(80);
+    expect(hidden.footerControlSpans!().map(span => span.command)).toEqual(["models"]);
+    const comparison = createPiShellFooter(base, "/WORK", "pi");
+    comparison.render(80);
+    expect(comparison.footerControlSpans!()).toEqual([]);
+  });
+
+  it.each(["dark", "light"] as const)("places bracketed providers after the model with accurate controls in %s", themeName => {
+    applyPiTheme(themeName, false, "truecolor");
+    const base = view();
+    const footer = createPiShellFooter(base, "/WORK", "a1");
+    const wide = footer.render(80)[1]!;
+    const plain = stripTerminalSequences(wide);
+    expect(plain).toContain("MODEL [PROVIDER] • medium");
+    expect(plain).not.toContain("(PROVIDER)");
+    expect(cellStyle(wide, "[")).toEqual(cellStyle(piTheme().fg("dim", "["), "["));
+    const from = plain.indexOf("[PROVIDER]");
+    for (const command of ["models", "thinking"] as const) {
+      const span = footer.footerControlSpans!().find(span => span.command === command)!;
+      expect(plain.slice(span.column, span.column + span.width)).toBe(command === "models" ? "MODEL [PROVIDER]" : "medium");
+      footer.setFooterHovered!(command);
+      const hovered = footer.render(80)[1]!;
+      expect(cellStyle(hovered, "[")).toEqual(cellStyle(wide, "["));
+      const background = command === "models" ? cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0) : "default";
+      for (let col = from; col < from + "[PROVIDER]".length; col++) expect(cellBackgroundAt(hovered, col)).toBe(background);
+    }
+    const narrow = footer.render(30)[1]!;
+    const narrowPlain = stripTerminalSequences(narrow);
+    expect(narrowPlain).toContain("MODEL • medium");
+    expect(narrowPlain).not.toContain("PROVIDER");
+    const model = footer.footerControlSpans!().find(span => span.command === "models")!;
+    expect(narrowPlain.slice(model.column, model.column + model.width)).toBe("MODEL");
+    const level = footer.footerControlSpans!().find(span => span.command === "thinking")!;
+    expect(narrowPlain.slice(level.column, level.column + level.width)).toBe("medium");
+    const single = createPiShellFooter({ ...base, status: { ...base.status, footer: { ...base.status.footer!, availableProviderCount: 1 } } }, "/WORK", "a1");
+    expect(stripTerminalSequences(single.render(80)[1]!)).not.toContain("PROVIDER");
+    const routed = createPiShellFooter({ ...base, routedModel: { model: { providerId: "OTHER", modelId: "ROUTED", displayName: "Routed" }, thinkingLevel: "high" } }, "/WORK", "a1");
+    const routedPlain = stripTerminalSequences(routed.render(100)[1]!);
+    expect(routedPlain).toContain("MODEL [PROVIDER] • medium → ROUTED • high");
+    const routedModel = routed.footerControlSpans!().find(span => span.command === "models")!;
+    expect(routedPlain.slice(routedModel.column, routedModel.column + routedModel.width)).toBe("MODEL [PROVIDER]");
+    const activeLevel = routed.footerControlSpans!().find(span => span.command === "thinking")!;
+    expect(routedPlain.slice(activeLevel.column, activeLevel.column + activeLevel.width)).toBe("medium");
+    const pinned = createPiShellFooter(base, "/WORK", "pi");
+    expect(stripTerminalSequences(pinned.render(80)[1]!)).toContain("(PROVIDER) MODEL • medium");
+  });
+
   it("links only the PR number in the owned footer and leaves the pinned profile unchanged", () => {
     applyPiTheme("dark", false, "truecolor");
     const state = view();
@@ -282,7 +361,7 @@ describe("owned shared input and status presentation", () => {
     expect(hyperlinkTargetAtColumn(ownedRow, plain.indexOf(" • ") + 1)).toBeUndefined();
     expect(cellStyle(ownedRow, "•")).toEqual(cellStyle(piTheme().fg("dim", "•"), "•"));
     const statsRow = stripTerminalSequences(createPiShellFooter(footerState, "/WORK", "a1").render(120)[1]!);
-    expect(statsRow).toMatch(/0\.0%\/0 • footer-test\s+\(PROVIDER\) MODEL • medium$/);
+    expect(statsRow).toMatch(/0\.0%\/0 • footer-test\s+MODEL \[PROVIDER\] • medium$/);
     const linkColumn = plain.indexOf("#540");
     expect(hyperlinkTargetAtColumn(ownedRow, linkColumn - 1)).toBeUndefined();
     expect(hyperlinkTargetAtColumn(ownedRow, linkColumn)).toBe("https://github.com/timurproko/a1/pull/540");
@@ -390,6 +469,7 @@ describe("owned shared input and status presentation", () => {
       expect(named.every(row => visibleWidth(row) <= width)).toBe(true);
       if (width === 1) expect(named).toEqual(unnamed);
       if (width >= 12) expect(stripTerminalSequences(named[1]!)).toContain("new");
+      if (width === 12) expect(stripTerminalSequences(named[1]!)).toContain("new-…");
     }
     footer.dispose?.();
   });
@@ -421,7 +501,7 @@ describe("owned shared input and status presentation", () => {
     expect(constrained).not.toContain("$3.019");
     const minimal = stripTerminalSequences(footer.render(38)[1]!);
     expect(minimal).toBe(`${name}  MODEL • medium`);
-    expect(minimal).not.toContain("(PROVIDER)");
+    expect(minimal).not.toContain("[PROVIDER]");
     const modelColumn = constrained.indexOf("MODEL");
     footer.setNameReveal?.({ from: "Previous task name", elapsed: 700 });
     const animated = stripTerminalSequences(footer.render(60)[1]!);
@@ -485,11 +565,12 @@ describe("owned shared input and status presentation", () => {
     expect(usage).toContain("…");
     expect(cellStyle(rows[1]!, "…")).toEqual(cellStyle(piTheme().fg("dim", "…"), "…"));
     expect(cellStyle(rows[1]!, "h")).toEqual(cellStyle(piTheme().getThinkingBorderColor("high")("h"), "h"));
-    for (const width of [1, 2, 8, 11, 12, 40]) {
+    for (const width of [1, 2, 8, 11, 12, 13, 40]) {
       const [path, line] = createPiShellFooter(state, "/WORK", "a1").render(width);
       expect(visibleWidth(path!)).toBeLessThanOrEqual(width);
       expect(visibleWidth(line!)).toBeLessThanOrEqual(width);
       if (width >= 11) expect(stripTerminalSequences(line!)).toContain("gpt-5.6-sol");
+      if (width === 11) expect(stripTerminalSequences(line!)).toBe("gpt-5.6-sol");
       if (width < 4) expect(hyperlinkTargetAtColumn(path!, 0)).toBeUndefined();
     }
     const path = rows[0]!;
@@ -510,7 +591,7 @@ describe("owned shared input and status presentation", () => {
     for (const level of LEVELS) {
       footer.update({ ...state, thinkingLevel: level });
       const row = footer.render(100)[1]!;
-      expect(stripTerminalSequences(row)).toContain(`(PROVIDER) MODEL • ${level}`);
+      expect(stripTerminalSequences(row)).toContain(`MODEL [PROVIDER] • ${level}`);
       expect(cellStyle(row, level[0]!)).toEqual(cellStyle(piTheme().getThinkingBorderColor(level)(level), level[0]!));
       for (const character of ["P", "M", "•"]) expect(cellStyle(row, character)).toEqual(cellStyle(piTheme().fg("dim", character), character));
       for (const width of [1, 12, 20, 30, 80]) expect(footer.render(width).every(line => visibleWidth(line) <= width)).toBe(true);
@@ -519,13 +600,13 @@ describe("owned shared input and status presentation", () => {
     expect(stripTerminalSequences(footer.render(100)[1]!)).toContain("no-model");
     expect(stripTerminalSequences(footer.render(100)[1]!)).not.toContain(" • ");
     footer.update({ ...state, thinkingLevel: "low", activeModel: { ...state.activeModel!, modelId: "RESTORED" } });
-    expect(stripTerminalSequences(footer.render(100)[1]!)).toContain("RESTORED • low");
+    expect(stripTerminalSequences(footer.render(100)[1]!)).toContain("RESTORED [PROVIDER] • low");
     const pinned = createPiShellFooter({ ...state, thinkingLevel: "off" }, "/WORK");
     expect(stripTerminalSequences(pinned.render(100)[1]!)).not.toContain(" • off");
     pinned.update({ ...state, thinkingLevel: "high" });
     expect(cellStyle(pinned.render(100)[1]!, "h")).toEqual(cellStyle(piTheme().fg("dim", "h"), "h"));
     const levelHidden = createPiShellFooter(state, "/WORK", "a1", () => false);
-    expect(stripTerminalSequences(levelHidden.render(100)[1]!)).toContain("(PROVIDER) MODEL");
+    expect(stripTerminalSequences(levelHidden.render(100)[1]!)).toContain("MODEL [PROVIDER]");
     expect(stripTerminalSequences(levelHidden.render(100)[1]!)).not.toContain(" • medium");
   });
 });

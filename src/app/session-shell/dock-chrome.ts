@@ -6,6 +6,8 @@ import type { SessionViewportController } from "./session-viewport-controller.js
 import type { TailControlRegion } from "./viewport-pointer.js";
 import { parseReleaseUpdateDiagnostic } from "./transcript-document.js";
 
+import type { FooterNameTargetPort } from "./footer-name-interaction.js";
+
 // Invariant: the notice is dock chrome, never transcript content; the custom viewport alone uses it.
 interface DockNotice {
   readonly kind: "status" | "warning" | "error" | "new-session";
@@ -29,6 +31,7 @@ interface DockChromePorts {
  * banner above Working with its close control, and the short copy acknowledgement.
  */
 export class DockChrome {
+  footerName: FooterNameTargetPort | undefined;
   readonly #ports: DockChromePorts;
   #notice: DockNotice | undefined;
   // Invariant: bare A1 docks the release notice above the live status; closing it lasts for this session only.

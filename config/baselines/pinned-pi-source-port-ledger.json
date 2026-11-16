@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-14T08:26:03.667Z",
+  "recordedAt": "2026-11-16T16:02:08.657Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "b4afdddf44e059c67ccf5097e5317d913521b470",
@@ -1765,9 +1765,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/extension-input.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, and route the bare-A1 instruction row and chrome through the shared semantic shortcut and compact padded modal-frame components while preserving input, timeout, focus, submission, cancellation, and disposal behavior.",
+      "modifications": "Mechanical port: remap public imports, use ECMAScript private fields, route bare-A1 chrome through the shared shortcut and compact modal-frame components, and place an explicitly prefilled input's caret at the end through the public pointer API; preserve timeout, focus, submission, cancellation, and disposal behavior.",
       "upgradeStrategy": "three-way",
-      "localSha256": "c53ccb8475fbdfedf69ba409b4a032c3aa7269946367f393bdf40925d374303d",
+      "localSha256": "214d5ff5bcbd75a6e4ad4e3f803036f619343a291822c5569ad6dc27556d966d",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -1905,14 +1905,14 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "A1 PR links, model/name priority over stats, level colors, secondary-accent name reveals, dim name/row clipping; Pi intact.",
+      "modifications": "A1 PR links, name/model fitting, level colors, name reveals, dim clipping, and text-only name/model-plus-provider/level hover and direct dialog targets; Pi intact.",
       "upgradeStrategy": "three-way",
-      "localSha256": "47e00b13437d56b41b1857f1d49eb2a500a4f3e4076335773958a03d8ea93f31",
+      "localSha256": "bf533a0db912798b228ff6367629ba8e90d0771e05556b4729456b1c69d663cd",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
-          "reason": "Accepted unify-prompt-input-ux moves the existing thinking-level border color to the bare-A1 footer level-name span, including a visible off label for a selected model; a thinking selector suppresses that duplicate span until close.",
-          "upstreamBehavior": "The comparison footer presentation is unchanged outside the same temporary selector suppression. Owned provider omission, width fitting, usage, and extension rows preserve existing behavior; a missing model has no fabricated level.",
+          "reason": "Accepted unify-prompt-input-ux moves the existing thinking-level border color to the bare-A1 footer level-name span, including a visible off label for a selected model; bare A1 retains that span while its thinking selector is open.",
+          "upstreamBehavior": "The comparison footer retains its existing temporary selector suppression. Owned provider omission, width fitting, usage, and extension rows preserve existing behavior; a missing model has no fabricated level.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         },
         {
@@ -1937,6 +1937,18 @@
           "id": "owned-session-name-reveal",
           "reason": "Approved context-aware-session-naming places bare-A1 session names after stats with secondary-accent reveals; contextual-session-names reserves the name ahead of detailed statistics and optional provider/route text.",
           "upstreamBehavior": "The comparison footer retains its path-row name. Bare A1 preserves path/PR and model identity, reduces detailed stats before clipping names, and never animates authoritative terminal-title text.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        },
+        {
+          "id": "owned-footer-direct-controls",
+          "reason": "Approved improve-session-name-dialog gives visible bare-A1 name, model, and thinking-level controls text-only accent-selected hover without extra spaces and draft-preserving direct left-click dialog access.",
+          "upstreamBehavior": "Comparison and extension-replaced footers remain noninteractive. Absent names/models, suppressed levels, separators, and neighboring metadata acquire no fabricated target.",
+          "acceptanceTest": "test/app/session-shell/footer-name-interaction.test.ts"
+        },
+        {
+          "id": "owned-footer-provider-qualifier",
+          "reason": "Approved improve-session-name-dialog formats a shown bare-A1 provider as model [provider] before the thinking-level separator to match Models.",
+          "upstreamBehavior": "Existing qualifier visibility, narrow omission, model/name priority, route suffixes, semantic foregrounds, and comparison prefix formatting remain unchanged; the shown provider shares the model target, while thinking separators and route metadata remain outside it.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         }
       ],

@@ -26,6 +26,7 @@ export function createDeferredModelsDialog(options: ModelsDialogConfig & ModelsD
     options.requestRender();
   }).catch(() => { if (!closed) { failure = "Models unavailable — Esc close"; options.requestRender(); } });
   return {
+    footerControl: "models",
     ready,
     render: width => dialog?.render(width) ?? (failure === undefined ? [] : [failure.slice(0, width)]),
     handleInput: data => {

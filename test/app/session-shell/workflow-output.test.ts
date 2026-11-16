@@ -72,6 +72,25 @@ describe("WorkflowOutput", () => {
     expect(pinned.text()).toContain("Switched to a model");
   });
 
+  it("keeps bare-A1 naming quiet while preserving errors and pinned naming feedback", () => {
+    const bare = harness(true);
+    bare.output.appendResult(result({ command: "name", message: "Session name set: Alpha" }));
+    bare.output.appendResult(result({ command: "name", messages: [{ kind: "status", message: "Session name set: Beta" }] }));
+    expect(bare.anchored).toEqual([]);
+    expect(bare.dock.setNotice).not.toHaveBeenCalled();
+    bare.output.appendResult(result({ command: "name", outcome: "failed", message: "Name could not be saved" }));
+    expect(bare.dock.setNotice).toHaveBeenLastCalledWith({ kind: "error", message: "Name could not be saved" });
+    bare.output.appendResult(result({ command: "name", messageKind: "warning", message: "Storage warning" }));
+    expect(bare.dock.setNotice).toHaveBeenLastCalledWith({ kind: "warning", message: "Storage warning" });
+    bare.output.appendResult(result({ command: "name", outcome: "cancelled" }));
+    expect(bare.dock.setNotice).toHaveBeenCalledTimes(2);
+    bare.output.appendResult(result({ command: "debug", message: "Debug saved" }));
+    expect(bare.text()).toContain("Debug saved");
+    const pinned = harness(false);
+    pinned.output.appendResult(result({ command: "name", message: "Session name set: Alpha" }));
+    expect(pinned.text()).toContain("Session name set: Alpha");
+  });
+
   it("anchors pinned output after the transcript and replaces a repeated status in place", () => {
     const { output, document, anchored, invalidate, text, grow } = harness(false);
     output.appendStatus("first");
