@@ -26,7 +26,7 @@ export function describePublicationFailure(runId: number | string, options?: {
   jobs?: PublicationJob[];
   develop?: boolean;
 }): string;
-export function dispatchPublication(channel: "develop", source: string, version: string, options?: {
+export interface PublicationOptions {
   run?: PublicationRunner;
   repository?: string;
   requestId?: string;
@@ -37,7 +37,12 @@ export function dispatchPublication(channel: "develop", source: string, version:
   environment?: NodeJS.ProcessEnv;
   /** Read current output dimensions; defaults to stdout. Unknown dimensions disable cursor updates. */
   terminalSize?: () => { columns: number; rows: number };
-}): Promise<number>;
+}
+export function dispatchPublication(channel: "develop", source: string, version: string, options?: PublicationOptions): Promise<number>;
+export function publishDevelopmentPreview(preview: Awaited<ReturnType<typeof resolveDevelopPreview>>, installerPackageName: string, options?: PublicationOptions & {
+  fetch?: typeof fetch;
+  log?: (message: string) => void;
+}): Promise<void>;
 export function dispatchStableValidation(candidate: {
   repository: string;
   source: string;

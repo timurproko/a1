@@ -15,6 +15,12 @@ The maintainer approved fixing the staged-package early return and retaining the
 
 An incomplete publication reruns the existing workflow, including its required native checks, rather than only the failed promotion job. This is deliberate: the command does not invent weaker recovery authority. A transient registry error is surfaced instead of treated as absence. A newer public version remains protected by the workflow's existing promotion guard.
 
+## Implementation observations
+
+The develop entry now delegates to publication-client pair orchestration. Both exact-version resources and both dedicated next tags are required for the no-op result. Recovery and fresh requests use the same dispatch and observer, and the command checks versions and next tags again after workflow success. Dedicated tag reads have a thirty-second request bound, cache bypass, and refused redirects. No workflow or registry-write authority was changed.
+
+Focused local validation passed: 120 tests across development pair recovery and the existing publication client. New contracts cover staged-only and both partial-promotion orders, missing versions/tags, fresh and fully published pairs, wrong post-success tags including a newer public version, registry failures/malformed data, live progress counters and URL, actionable failed-promotion diagnostics, interruption, and entry delegation. Core build, both typechecks, full code-documentation governance, strict OpenSpec validation, and diff whitespace checks passed.
+
 ## Known gaps
 
-Implementation pending. Local fake-boundary tests cannot establish live publication recovery; the maintainer may choose a separately authorized publication after integration.
+No unresolved implementation gap is identified. Local fake-boundary tests cannot establish live publication recovery; the maintainer may choose a separately authorized publication after integration. No real publication was dispatched and no npm tag or permission was changed during implementation.

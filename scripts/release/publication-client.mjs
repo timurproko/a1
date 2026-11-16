@@ -60,6 +60,49 @@ export async function registryVersion(packageName, version, fetchImpl = fetch) {
   return manifest;
 }
 
+async function registryNextVersion(packageName, fetchImpl) {
+  const response = await fetchImpl(`https://registry.npmjs.org/-/package/${encodeURIComponent(packageName)}/dist-tags?verify=${Date.now()}`, {
+    headers: { accept: "application/json", "cache-control": "no-cache" },
+    signal: AbortSignal.timeout(30_000), redirect: "error",
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`npm registry returned HTTP ${response.status} for ${packageName} dist-tags`);
+  const tags = await response.json();
+  if (!tags || typeof tags !== "object" || Array.isArray(tags) || (tags.next !== undefined && typeof tags.next !== "string")) {
+    throw new Error(`npm returned invalid dist-tags for ${packageName}`);
+  }
+  return tags.next ?? null;
+}
+
+/** Complete a numbered preview only after both immutable packages and public next tags exist. */
+export async function publishDevelopmentPreview(preview, installerPackageName, options = {}) {
+  const { source, version, packageName, pullRequest } = preview;
+  const fetchImpl = options.fetch ?? fetch;
+  const log = options.log ?? (message => process.stdout.write(`[develop] ${message}\n`));
+  const names = [packageName, installerPackageName];
+  const versions = () => Promise.all(names.map(name => registryVersion(name, version, fetchImpl)));
+  const nextTags = () => Promise.all(names.map(name => registryNextVersion(name, fetchImpl)));
+  const existing = await versions();
+  if (existing.every(manifest => manifest !== null) && (await nextTags()).every(tag => tag === version)) {
+    log(`${version} already published for both packages on npm next (#${pullRequest}); nothing to build or publish`);
+    return;
+  }
+
+  log(existing.some(manifest => manifest !== null)
+    ? `recovering ${version} for ${source}; existing package bytes will be verified and exercised before npm next promotion`
+    : `requesting ${version} for ${source}`);
+  await dispatchPublication("develop", source, version, options);
+  const published = await versions();
+  for (const [index, manifest] of published.entries()) {
+    if (manifest === null) throw new Error(`publication succeeded but npm does not serve ${names[index]}@${version}`);
+  }
+  const tags = await nextTags();
+  for (const [index, tag] of tags.entries()) {
+    if (tag !== version) throw new Error(`publication succeeded but ${names[index]} npm next names ${tag ?? "no version"}, not ${version}`);
+  }
+  log(`published ${version} on npm next (#${pullRequest})`);
+}
+
 const MAX_FAILURE_LINES = 10;
 const MAX_FAILURE_JOBS = 4;
 const QUIET_READ = { stdio: ["ignore", "pipe", "pipe"], timeout: 30_000, maxBuffer: 16 * 1024 * 1024 };
