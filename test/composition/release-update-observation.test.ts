@@ -59,6 +59,7 @@ describe("update readiness", () => {
     setSessionWriterLockBackendForTest(lockfileBackend(resolve(root, "locks")));
     const saved = await writeResumeFixture(resolve(root, "sessions"), root, { largeMessages: 1000 });
     const before = await readFile(saved.path);
+    expect(before.length).toBeGreaterThan(6_000_000);
     const runtime = await createPiRuntimeIntegration({ cwd: root, agentDir: resolve(root, "agent"), sessionSelection: { target: saved.path } });
     const adapter = await createPiEngineAdapter({ cwd: root, sessionId: "continuity", createRuntime: async () => runtime });
     const work = Promise.withResolvers<void>();
@@ -86,7 +87,8 @@ describe("update readiness", () => {
       expect(adapter.view().editor.submitEnabled).toBe(true);
       prompt.mockResolvedValue(undefined);
       expect(await adapter.execute({ type: "prompt", sessionId: "continuity", correlationId: "next", text: "next input" })).toMatchObject({ outcome: "completed" });
-      expect(await readFile(saved.path)).toEqual(before);
+      // Performance: compare every persisted byte without enumerating millions of Buffer properties.
+      expect((await readFile(saved.path)).equals(before), "persisted session bytes changed").toBe(true);
     } finally {
       work.resolve(); await adapter.dispose();
       setSessionWriterLockBackendForTest(undefined);
