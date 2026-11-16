@@ -54,9 +54,9 @@
 
 ## 10. Match the Models dialog's provider qualifier
 
-- [ ] 10.1 Render a shown bare-A1 provider after the model name in square brackets, before the thinking level, preserving existing visibility and fitting priorities.
-- [ ] 10.2 Keep provider metadata outside model/level hover targets and align those targets correctly with or without the qualifier and routed-model suffix.
-- [ ] 10.3 Add wide/narrow, single-provider, routed-model, foreground, pointer geometry, and comparison-format cases.
+- [x] 10.1 Render a shown bare-A1 provider after the model name in square brackets, before the thinking level, preserving existing visibility and fitting priorities.
+- [x] 10.2 Keep provider metadata outside model/level hover targets and align those targets correctly with or without the qualifier and routed-model suffix.
+- [x] 10.3 Add wide/narrow, single-provider, routed-model, foreground, pointer geometry, and comparison-format cases.
 
 ## 11. Replace footer dialogs when choosing another control
 

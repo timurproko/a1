@@ -195,7 +195,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(plain).not.toContain("●");
     expect(plain.match(/Moderate reasoning/g)).toHaveLength(1);
     expect(plain.match(/\bmedium\b/g)).toHaveLength(2);
-    expect(stripTerminalSequences(bare.shell.root.footer.render(100)[1]!)).toContain("gpt-5 • medium");
+    expect(stripTerminalSequences(bare.shell.root.footer.render(100)[1]!)).toContain("gpt-5 [openai] • medium");
     expect(plain).toContain("Type search  Enter select  Space default  Esc close");
     expect(plain).not.toContain("Ctrl+S");
     expect(plain).not.toContain("Escape/Ctrl+C");
@@ -254,19 +254,19 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
         await vi.waitFor(() => expect(value.shell.root.usesDefaultInputSurface()).toBe(false));
       };
       await open();
-      expect(footer()).toContain("gpt-5 • medium");
+      expect(footer()).toContain("gpt-5 [openai] • medium");
       value.shell.root.handleInput("low");
       value.shell.root.handleInput(" ");
       await vi.waitFor(() => expect(value.engine.defaultThinkingLevel).toBe("low"));
       expect(value.engine.session.thinkingLevel).toBe("medium");
-      expect(footer()).toContain("gpt-5 • medium");
+      expect(footer()).toContain("gpt-5 [openai] • medium");
       value.shell.root.handleInput("\r");
       await vi.waitFor(() => expect(value.engine.session.thinkingLevel).toBe("low"));
-      await vi.waitFor(() => expect(footer()).toContain("gpt-5 • low"));
+      await vi.waitFor(() => expect(footer()).toContain("gpt-5 [openai] • low"));
       await open();
-      expect(footer()).toContain("gpt-5 • low");
+      expect(footer()).toContain("gpt-5 [openai] • low");
       value.terminal.input("\x1b");
-      expect(footer()).toContain("gpt-5 • low");
+      expect(footer()).toContain("gpt-5 [openai] • low");
       expect(value.shell.root.editor.getText()).toBe("retained draft");
     } finally { await value.shell.dispose(); }
   });

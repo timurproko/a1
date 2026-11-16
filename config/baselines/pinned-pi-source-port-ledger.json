@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-16T14:49:39.457Z",
+  "recordedAt": "2026-11-16T15:05:01.189Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "b4afdddf44e059c67ccf5097e5317d913521b470",
@@ -1905,9 +1905,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "A1 PR links, model/name priority over stats, level colors, secondary-accent name reveals, dim clipping, and explicit text-only name/model/level spans for foreground-preserving hover and direct dialog access; Pi intact.",
+      "modifications": "A1 PR links, model/name priority over stats, level colors, secondary-accent name reveals, dim clipping, and explicit text-only name/model/level spans for foreground-preserving hover, direct dialog access, and bracketed providers after the active model; Pi intact.",
       "upgradeStrategy": "three-way",
-      "localSha256": "61a57d6787fb65bc3292ee76996448418efed77adb30c57d881d7d1d69cac61d",
+      "localSha256": "4b67e3d9b012044669506caf5a21a9f75ed8f4dd642fdf25bcaf622a985b5524",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1944,6 +1944,12 @@
           "reason": "Approved improve-session-name-dialog gives visible bare-A1 name, model, and thinking-level controls text-only accent-selected hover without extra spaces and draft-preserving direct left-click dialog access.",
           "upstreamBehavior": "Comparison and extension-replaced footers remain noninteractive. Absent names/models, suppressed levels, separators, and neighboring metadata acquire no fabricated target.",
           "acceptanceTest": "test/app/session-shell/footer-name-interaction.test.ts"
+        },
+        {
+          "id": "owned-footer-provider-qualifier",
+          "reason": "Approved improve-session-name-dialog formats a shown bare-A1 provider as model [provider] before the thinking-level separator to match Models.",
+          "upstreamBehavior": "Existing qualifier visibility, narrow omission, model/name priority, route suffixes, semantic foregrounds, and comparison prefix formatting remain unchanged; provider metadata stays outside interactive spans.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         }
       ],
       "behaviorCategories": [

@@ -2,10 +2,11 @@
  * Provenance: @earendil-works/pi-coding-agent 1.5.2 (MIT), commit b4afdddf44e059c67ccf5097e5317d913521b470,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
  * Modifications: A1 PR links, model/name priority over stats, level colors, secondary-accent name
- * reveals, dim clipping, and explicit text-only name/model/level spans for foreground-preserving hover
- * and direct dialog access; Pi intact.
+ * reveals, dim clipping, and explicit text-only name/model/level spans for foreground-preserving
+ * hover, direct dialog access, and bracketed providers after the active model; Pi intact.
  * Deviations: owned-status-level-color, owned-pull-request-badge, owned-footer-ellipsis,
- * owned-footer-model-priority, owned-session-name-reveal, owned-footer-direct-controls.
+ * owned-footer-model-priority, owned-session-name-reveal, owned-footer-direct-controls,
+ * owned-footer-provider-qualifier.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { hyperlink, stripTerminalSequences, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
@@ -113,33 +114,35 @@ export class SessionFooter implements Component {
     if (leftWidth > width) { left = truncateToWidth(left, width, this.profile === "a1" ? dimEllipsis : "..."); leftWidth = visibleWidth(left); }
 
     const modelName = view.activeModel?.modelId ?? "no-model";
-    const modelText = modelName;
     let levelShown = this.profile === "a1" && view.activeModel !== null && this.show();
-    let modelOffset = 0, modelWidth = visibleWidth(modelText);
-    let rightWithoutProvider = this.profile === "a1"
-      ? !levelShown ? theme.fg("dim", modelText)
-        : theme.fg("dim", `${modelText} • `) + theme.getThinkingBorderColor(view.thinkingLevel)(view.thinkingLevel)
-      : view.activeModel === null || view.thinkingLevel === "off" || !this.show() ? modelName : `${modelName} • ${view.thinkingLevel}`;
+    let providerWidth = 0, modelWidth = visibleWidth(modelName);
+    const modelPart = this.profile === "a1" ? theme.fg("dim", modelName) : modelName;
+    const levelSuffix = this.profile === "a1"
+      ? levelShown ? theme.fg("dim", " • ") + theme.getThinkingBorderColor(view.thinkingLevel)(view.thinkingLevel) : ""
+      : view.activeModel === null || view.thinkingLevel === "off" || !this.show() ? "" : ` • ${view.thinkingLevel}`;
+    let rightWithoutProvider = modelPart + levelSuffix;
     const modelLevel = rightWithoutProvider;
     const routed = view.routedModel;
+    let routeSuffix = "";
     if (routed) {
       const level = routed.thinkingLevel === undefined ? "" : ` • ${routed.thinkingLevel}`;
       const route = ` → ${routed.model.modelId}${level}`;
-      rightWithoutProvider += this.profile === "a1" ? theme.fg("dim", route) : route;
+      routeSuffix = this.profile === "a1" ? theme.fg("dim", route) : route;
+      rightWithoutProvider += routeSuffix;
     }
     const nameWidth = this.profile === "a1" ? visibleWidth(sessionName ?? "") : 0;
     let right = rightWithoutProvider;
     if ((view.status.footer?.availableProviderCount ?? 1) > 1 && view.activeModel) {
-      const provider = `(${view.activeModel.providerId}) `;
-      right = (this.profile === "a1" ? theme.fg("dim", provider) : provider) + rightWithoutProvider;
+      const provider = this.profile === "a1" ? ` [${view.activeModel.providerId}]` : `(${view.activeModel.providerId}) `;
+      right = this.profile === "a1" ? modelPart + theme.fg("dim", provider) + levelSuffix + routeSuffix : provider + rightWithoutProvider;
       if (Math.max(leftWidth, nameWidth) + 2 + visibleWidth(right) > width) right = rightWithoutProvider;
-      else modelOffset = visibleWidth(provider);
+      else if (this.profile === "a1") providerWidth = visibleWidth(provider);
     }
 
     if (this.profile === "a1" && Math.max(leftWidth, nameWidth) + 2 + visibleWidth(right) > width) {
       const fitted = [rightWithoutProvider, modelLevel].find(value => visibleWidth(value) + 2 + nameWidth <= width)
         ?? [rightWithoutProvider, modelLevel].find(value => visibleWidth(value) + 2 <= width);
-      modelOffset = 0;
+      providerWidth = 0;
       if (fitted !== undefined) right = fitted;
       else {
         const clipped = truncateToWidth(modelName, width, dimEllipsis);
@@ -183,11 +186,12 @@ export class SessionFooter implements Component {
       theme.fg("dim", left) + (this.profile === "a1" ? line.slice(left.length) : theme.fg("dim", line.slice(left.length))),
     ];
     if (this.profile === "a1" && view.activeModel !== null) {
-      const column = width - drawnRightWidth + modelOffset;
-      if (modelWidth > 0 && modelOffset + modelWidth <= drawnRightWidth) this.#controlSpans.push({ command: "models", row: 1, column, width: modelWidth });
+      const column = width - drawnRightWidth;
+      if (modelWidth > 0 && modelWidth <= drawnRightWidth) this.#controlSpans.push({ command: "models", row: 1, column, width: modelWidth });
       const levelWidth = visibleWidth(view.thinkingLevel);
-      if (levelShown && modelOffset + modelWidth + 3 + levelWidth <= drawnRightWidth) {
-        this.#controlSpans.push({ command: "thinking", row: 1, column: column + modelWidth + 3, width: levelWidth });
+      const levelOffset = modelWidth + providerWidth + 3;
+      if (levelShown && levelOffset + levelWidth <= drawnRightWidth) {
+        this.#controlSpans.push({ command: "thinking", row: 1, column: column + levelOffset, width: levelWidth });
       }
     }
     const hovered = this.#controlSpans.find(span => span.command === this.#hovered);
