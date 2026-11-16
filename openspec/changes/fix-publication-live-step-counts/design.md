@@ -14,4 +14,10 @@ Extend the focused publication-client tests with all-pending, mixed completed/in
 
 ## Known Gaps
 
-No implementation has been written. The reported run has completed, so its REST response no longer preserves live step statuses. A new live publication is not needed for this bounded parser repair and will not be dispatched. Counters remain unable to show progress inside one long-running step.
+No unresolved implementation gap is identified. The reported run has completed, so its REST response no longer preserves live step statuses. No live publication was dispatched. Counters remain unable to show progress inside one long-running step.
+
+## Implementation Evidence
+
+The parser now accepts pending as a not-started status. Focused regressions cover pending and queued future steps, independent lane updates, silent unchanged snapshots, final totals, and interactive replay at 16, 40, and 120 columns. Additional cases cover all-pending lists, mixed queued/pending lists, failure before pending steps, and strict rejection of unknown statuses beside active steps.
+
+Before the parser fix, the focused suite reproduced nine pending-step failures while 84 other cases passed. The initial attempt could not initialize because the fresh checkout lacked local dependencies; installing the locked dependencies without scripts resolved that setup issue.

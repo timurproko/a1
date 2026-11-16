@@ -501,13 +501,15 @@ describe("publication failure reporting", () => {
 
 describe("publication workflow-step counters", () => {
   it.each([
-    [false, { TERM: "xterm" }],
-    [true, { TERM: "dumb" }],
-  ])("appends only changed counters or states without step dumps (TTY %s)", async (isTTY, environment) => {
+    [false, { TERM: "xterm" }, "queued"],
+    [false, { TERM: "xterm" }, "pending"],
+    [true, { TERM: "dumb" }, "queued"],
+    [true, { TERM: "dumb" }, "pending"],
+  ])("appends only changed counters or states without step dumps (TTY %s, environment %j, future steps %s)", async (isTTY, environment, futureStatus) => {
     const mac = { id: 1, name: "macOS validation (Node 24)", status: "in_progress", conclusion: null,
-      steps: publicationSteps("in_progress", "queued", "queued") };
+      steps: publicationSteps("in_progress", futureStatus, futureStatus) };
     const windows = { ...mac, id: 2, name: "Windows validation (Node 24)", steps: publicationSteps("completed", "in_progress") };
-    const advanced = { ...mac, steps: publicationSteps("completed", "in_progress", "queued") };
+    const advanced = { ...mac, steps: publicationSteps("completed", "in_progress", futureStatus) };
     const output: string[] = [];
     const { run, calls } = developmentRunner([
       { status: "in_progress", conclusion: null, jobs: [mac, windows] },
@@ -531,6 +533,10 @@ describe("publication workflow-step counters", () => {
 
   it.each([
     ["not started", publicationSteps("queued", "queued"), "in_progress", null, " (0/2)"],
+    ["all pending", publicationSteps("pending", "pending"), "in_progress", null, " (0/2)"],
+    ["mixed not-started statuses", publicationSteps("completed", "pending", "queued"), "in_progress", null, " (1/3)"],
+    ["running before pending steps", publicationSteps("completed", "in_progress", "pending"), "in_progress", null, " (2/3)"],
+    ["failed with pending steps", publicationSteps("completed", "pending"), "completed", "failure", " (1/2)"],
     ["skipped step", [{ ...publicationSteps("completed")[0]!, conclusion: "skipped" }, ...publicationSteps("queued")], "in_progress", null, " (1/2)"],
     ["failed before pending steps", publicationSteps("completed", "queued"), "completed", "failure", " (1/2)"],
     ["all steps settled after failure", publicationSteps("completed", "completed"), "completed", "failure", " (2/2)"],
@@ -542,6 +548,7 @@ describe("publication workflow-step counters", () => {
     ["null step", [null], "in_progress", null, ""],
     ["missing step status", [{ name: "Setup" }], "in_progress", null, ""],
     ["unknown step status", publicationSteps("unknown"), "in_progress", null, ""],
+    ["unknown status alongside live steps", publicationSteps("completed", "in_progress", "unknown"), "in_progress", null, ""],
   ])("renders %s metadata without inventing passed checks", async (_name, steps, status, conclusion, counter) => {
     const output: string[] = [];
     const { run } = developmentRunner([{ status: "completed", conclusion: conclusion === "failure" ? "failure" : "success", jobs: [
@@ -617,10 +624,10 @@ describe("interactive development publication rows", () => {
     expect(final.final.cursor).toEqual({ row: lastJob + 3, column: 1 });
   });
 
-  it.each([16, 40, 120])("updates counters in place and keeps rows safe at %i columns", async columns => {
+  it.each([16, 40, 120].flatMap(columns => ["queued", "pending"].map(futureStatus => ({ columns, futureStatus }))))("updates counters in place at $columns columns with $futureStatus future steps", async ({ columns, futureStatus }) => {
     const geometry = { columns, rows: 40 };
-    const mac = { ...job(1, "macOS validation (Node 24)"), steps: publicationSteps("in_progress", "queued", "queued") };
-    const advanced = { ...mac, steps: publicationSteps("completed", "in_progress", "queued") };
+    const mac = { ...job(1, "macOS validation (Node 24)"), steps: publicationSteps("in_progress", futureStatus, futureStatus) };
+    const advanced = { ...mac, steps: publicationSteps("completed", "in_progress", futureStatus) };
     const windows = { ...job(2, "Windows validation (Node 24)"), steps: publicationSteps("completed", "in_progress") };
     const output: string[] = [];
     const polls: number[] = [];
@@ -632,12 +639,14 @@ describe("interactive development publication rows", () => {
       ...interactiveOptions, terminalSize: () => geometry, run, write: text => { output.push(text); }, sleep: async () => { polls.push(output.length); },
     });
     expect(polls).toEqual([3, 4, 4]);
+    const initial = await replay(output.slice(0, 3), geometry);
     const running = await replay(output.slice(0, 4), geometry);
     const final = await replay(output, geometry);
     const rows = final.final.rows.filter(line => line.includes("●"));
     expect(rows).toHaveLength(2);
     expect(rows.every(line => line.startsWith("  ● Passed:  ") && line.length < columns)).toBe(true);
     if (columns >= 40) {
+      expect(initial.final.rows.filter(line => line.includes("●")).map(line => line.slice(-5))).toEqual(["(1/3)", "(2/2)"]);
       expect(running.final.rows.filter(line => line.includes("●")).map(line => line.slice(-5))).toEqual(["(2/3)", "(2/2)"]);
       expect(rows.map(line => line.slice(-5))).toEqual(["(3/3)", "(2/2)"]);
     }
