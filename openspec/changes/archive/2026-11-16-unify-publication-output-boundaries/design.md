@@ -25,6 +25,10 @@ The maintainer approved this plan and requested implementation in PR 962. Progre
 
 The publication-client and develop-publication suites passed all 211 tests, including the exit matrix and headless terminal replay. The smoke-published-installer consumer suite passed all 31 tests. Core build, both typechecks, strict OpenSpec validation, and whitespace checks passed. Initial raw-transcript assertions for redraw cases were corrected to inspect terminal replay, because stripping ANSI does not apply cursor movement. Typechecking required the fresh worktree's generated dist prerequisites, then passed after the core build. No real workflow or npm publication was dispatched.
 
+## CI repair
+
+Exact-head CI found two delivery defects: the archived change lacked its required `.openspec.yaml` metadata, and one test implementation comment lacked its intent label. Restore the change's `spec-driven` schema and creation date, and classify the terminal-row comment as an invariant. These repairs do not alter product behavior, acceptance scenarios, validation gates, or implementation scope. Trusted automation must refinalize the updated archive and validate the new head.
+
 ## Known gaps
 
 No unresolved implementation gaps are identified. Hosted exact-head CI remains separate validation; local fixtures and terminal replay do not claim live publication acceptance. Stable validation retains its GitHub-owned watcher. Workflow dispatch, polling, registry verification, cancellation semantics, and publication authority remain unchanged.

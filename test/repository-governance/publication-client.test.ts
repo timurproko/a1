@@ -911,7 +911,7 @@ describe("publication progress exit boundary", () => {
       expect(following).toEqual([`${reasonHeading}${reason}.`, guidance, url]);
     }
     if (visibleJobs && mode === "interactive" && observationStops.includes(exit)) {
-      // The earlier Build row was redrawn, but the final visible row is still running.
+      // Invariant: redrawing an earlier row leaves the boundary below the still-running final row.
       expect(rows.filter(line => line.includes("●"))).toEqual(["  ● Passed:  Build (2/2)", "  ● Running: npm staging (1/2)"]);
     }
   });
