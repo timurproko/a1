@@ -34,10 +34,10 @@ The maintainer integration decision accepts these scenarios:
     "When shown, the provider follows the model as model [provider] before the thinking level; model and provider share one hover/click target, separate from thinking.",
     "Comparison-profile behavior and unrelated workflow feedback remain unchanged."
   ],
-  "archiveDigest": "83d3350e654c860171cf436ffb1ccb82753ab7d561560a1576b43a95388f82ed",
+  "archiveDigest": "a2156b192fe0a7aa3d5497bfb4c384edcaa084d31e187a2ba6016aafec4ea459",
   "specDigest": "ec28ad6cc5f0453f39b59825d9e4259008f50f2c0a4f0dba827359311bb27e5f",
   "tasksDigest": "0772dbc107a88b424cbff18c915819fcdcef7ed0ba14bc3ec5a305df767bb04a",
-  "evidenceDigest": "9c5f52c83242a67a12e443b1d646801e572824db5ab6fe08ba6a9e1c5fac96e8",
+  "evidenceDigest": "f2bc509f32edd23272ad52ab2bde6d125b45c0e1f551d8e20483ed05906f78cb",
   "knownGaps": []
 }
 ```
