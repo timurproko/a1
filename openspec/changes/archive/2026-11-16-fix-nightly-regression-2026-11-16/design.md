@@ -10,6 +10,13 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Evidence
 
+### CI repair: large-history equality assertion
+
+- The first finalized candidate passed the original API-consumer and Unix smoke-fixture failures on every native lane. Its only test failure was the 30-second timeout in Windows Node 22 core at `test/composition/release-update-observation.test.ts:57`, with the Windows lane and complete aggregates failing downstream. Linux, macOS, and Windows Node 24 Full regression passed.
+- Focused local profiling isolates test-framework overhead: session setup approximately 1.05 seconds, runtime/adapter creation approximately 0.17 seconds, both prompts approximately 2 ms, and reading the persisted history approximately 3 ms; Vitest deep equality of the 6 MB Buffer alone takes 10.3 seconds. This leaves the unchanged test vulnerable to hosted-runner load rather than indicating adapter cancellation or history mutation.
+- Use native `Buffer.equals` to compare every persisted byte instead of deep-enumerating millions of numeric properties. Retain 1,000 history messages, all notice/admitted-work/transcript/identity/cleanup assertions, and the 30-second deadline. Add an explicit greater-than-6-MB fixture assertion so the test cannot silently lose its large-history coverage.
+- All six tests in the affected file pass locally on Windows Node 24 (large-session case 1.61 seconds) and Node 22 (1.19 seconds). Typecheck and diff whitespace checks pass. No production code, timeout, budget, or coverage changes; known implementation gaps remain none. The new head still requires fresh selected native Full regression after automatic re-finalization.
+
 ### Focused implementation results
 
 - Regenerated `config/baselines/pinned-pi-public-api.json` with the maintained updater; only eight consumer lists changed. The direct collection test now compares the entire surface, including consumers, rather than a declaration-only delta. The CLI drift assertion remains unchanged.
