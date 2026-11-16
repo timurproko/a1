@@ -224,30 +224,41 @@ builds or uploads npm bytes from the workstation.
 
 While waiting, the command prints `[publication] version — run ID` once, followed
 by an unindented full Actions log link. In an interactive terminal, each job keeps
-one row: its dot and label update in place when its state changes, so yellow Running
-becomes green Passed without a duplicate row. Rows omit the publication prefix,
+one row: its dot, label, and available workflow-step counter update in place when
+its state or counter changes, so yellow Running becomes green Passed without a
+duplicate row. Rows omit the publication prefix,
 with job names aligned after a fixed-width status field:
 
 ```text
 [publication] 0.2.7-dev.1313 — run 43732033913
 Full log: https://github.com/timurproko/a1/actions/runs/43732033913
 
-  ● Running: Windows validation (Node 24)
-  ● Passed:  Linux validation (Node 24)
-  ● Failed:  macOS validation (Node 24)
+  ● Running: Windows validation (Node 24) (2/6)
+  ● Passed:  Linux validation (Node 24) (5/5)
+  ● Failed:  macOS validation (Node 24) (3/5)
   ● Skipped: npm staging
 ```
+
+The `(current/total)` counter counts the workflow steps GitHub currently returns,
+including setup and teardown, not internal tests or elapsed time. Current is the
+last step position reported running or completed (including skipped steps), or zero
+before any step starts. Passed jobs show total/total; a failed job can also reach
+total/total when all its steps have settled without implying success. Jobs with
+unavailable, empty, or malformed step metadata and wholly skipped jobs omit the
+counter. A long-running command within one step does not advance it. Counters
+refresh independently for each job; unchanged snapshots remain silent.
 
 Only the small dot is colored: yellow for running, green for passed, red for failed,
 and gray for skipped. Labels and job names keep the terminal's default text color.
 `NO_COLOR` and `FORCE_COLOR=0` use neutral dots while retaining interactive row
 updates. Redirected output and dumb terminals use plain append-only transitions
-without terminal controls. Interactive names are shortened to fit the terminal
-width; the full log retains complete identities. Unknown or very narrow dimensions,
+without terminal controls. Interactive names are shortened to retain the counter
+where space permits and fit the terminal width; the full log retains complete
+identities. Unknown or very narrow dimensions,
 a terminal resize, or more rows than fit on screen switch to append-only transitions
 for the rest of that observation, avoiding unsafe cursor movement into unrelated
 output. There is no spinner or continuous animation.
-Unchanged snapshots, setup/teardown steps, derivative lane/result gates, and
+Unchanged snapshots, setup/teardown step details, derivative lane/result gates, and
 never-started inactive-mode optional skips remain omitted. Previously started jobs
 that become skipped and skipped npm staging remain visible. A final failure names
 the primary lane or stage and bounded, deduplicated diagnostic messages; the full

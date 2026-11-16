@@ -12,6 +12,13 @@ Extend only the focused publication-client tests: independent lanes and changing
 
 Stable candidate watching, workflow steps, publication checks, polling cadence, and registry mutation remain unchanged. Counters describe only the step metadata GitHub currently exposes; they cannot reveal progress inside a single long-running command.
 
+## Local Validation
+
+- `npx vitest run test/repository-governance/publication-client.test.ts`: all 83 tests passed, including step-counter transitions and headless terminal replay at 16, 40, and 120 columns.
+- `npm run build:core` followed by `npm run typecheck`: passed. The first typecheck before building lacked generated `dist` imports in this fresh checkout; generating its normal prerequisite resolved that environmental failure.
+- `npx openspec validate add-publication-step-progress --strict`: passed.
+- `git diff --check`: passed.
+
 ## Known Gaps
 
-No unresolved implementation gap is planned. Hosted Actions and real-terminal observation are not performed by focused local checks.
+No unresolved implementation gap is identified. Hosted Actions and real-terminal observation were not performed by focused local checks; no publication was dispatched. Counters cannot expose progress within a single workflow step, and missing metadata intentionally leaves status-only output.
