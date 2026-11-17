@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-16T16:02:08.657Z",
+  "recordedAt": "2026-11-17T10:19:27.467Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "b4afdddf44e059c67ccf5097e5317d913521b470",
@@ -2876,9 +2876,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tool-execution.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Retain pinned shell/public renderers. Own image conversion; replace private APIs with public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut hints. Restore the enclosing default-shell background after nested renderer resets. Omit non-actionable image fallback rows when images are hidden or the terminal has no image protocol. See docs/architecture/tool-image-presentation.md.",
+      "modifications": "Retain pinned shell/public renderers. Own image conversion; replace private APIs with public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut hints. Restore enclosing default and built-in self-shell backgrounds after nested renderer resets. Omit non-actionable image fallback rows when images are hidden or the terminal has no image protocol. See docs/architecture/tool-image-presentation.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "ec2cf568fd8523c17e3b4d4c0c0ea265e89afff1b566d3bed5150975547a1bf6",
+      "localSha256": "8469dc7ec8040723d2d0fc3d3cba43df273475379dea0682746abbb1648ccef8",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
@@ -2900,8 +2900,8 @@
         },
         {
           "id": "default-shell-background-reset-scoping",
-          "reason": "User-approved resident rendering repair: nested tool renderers must not cancel the enclosing pending, success, or error background before the padded row ends.",
-          "upstreamBehavior": "The explicit a1 pi comparison keeps pinned terminal-control bytes; bare A1 only restores its enclosing default-shell background after a nested full or default-background reset while preserving explicit nested backgrounds and all visible content.",
+          "reason": "User-approved rendering repairs: nested tool renderers and built-in self-rendered edit previews must not cancel their enclosing pending, success, or error background before the padded row ends.",
+          "upstreamBehavior": "The explicit a1 pi comparison keeps pinned terminal-control bytes; bare A1 restores enclosing default-shell and explicitly themed self-shell row backgrounds after nested full or default-background resets while preserving explicit nested backgrounds, unrelated extension surfaces, and all visible content.",
           "acceptanceTest": "test/integrations/pi/components/tool-shell-parity.test.ts"
         },
         {

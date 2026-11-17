@@ -216,6 +216,14 @@ export interface TerminalStopOptions {
   readonly drainIdleMs?: number;
 }
 
+/** A trusted one-cell scrollbar paint, addressed independently of row-content advance. */
+export interface TerminalRailCell {
+  readonly row: number;
+  readonly column: number;
+  /** Resolved SGR/background and exactly one glyph or blank; no image or cursor commands. */
+  readonly text: string;
+}
+
 export interface TerminalDamageFrameDescriptor {
   /**
    * Frame ids are compared only within one presentation epoch; absent means the current epoch. A
@@ -235,6 +243,8 @@ export interface TerminalDamageFrameDescriptor {
   readonly liveTailRows?: number;
   readonly verticalShiftRows: number;
   readonly safeVerticalShift: boolean;
+  /** Owned gutter cells; absent on comparison/unassociated frames. Row strings contain no rail glyph. */
+  readonly railCells?: readonly TerminalRailCell[];
   readonly cause: string;
 }
 
@@ -265,6 +275,8 @@ export interface TerminalDamageDecision {
   readonly reason: TerminalDamageDecisionReason;
   readonly shiftRows: number;
   readonly paintedRows: readonly number[];
+  /** Exact independently addressed one-cell paints; separate from full-row rewrites and clears. */
+  readonly paintedCells?: readonly { readonly row: number; readonly column: number }[];
 }
 
 /** What the shell's hyperlink analysis reports for one visible row. */

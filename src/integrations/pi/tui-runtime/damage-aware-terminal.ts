@@ -1,4 +1,6 @@
-import type { TerminalPort } from "../../../contracts/presentation/index.js";
+import { sliceByColumn, visibleWidth } from "@earendil-works/pi-tui";
+import type { TerminalPort, TerminalRailCell } from "../../../contracts/presentation/index.js";
+import { paintScrollbarCells, validRailCells } from "./scrollbar-paint.js";
 
 export const PINNED_PI_TUI_DAMAGE_GRAMMAR = "@earendil-works/pi-tui@1.5.2:tui-alt-screen-one-write-v1";
 
@@ -69,6 +71,7 @@ const SGR_SEQUENCE = /\u001b\[([0-9:;]*)m/gu;
  */
 export class DamageAwareTerminalAdapter implements TerminalPort {
   readonly #rows = new Map<number, string>();
+  #railCells: readonly TerminalRailCell[] = [];
   readonly #links = new Map<number, ReturnType<DamageAwareTerminalOptions["inspectHyperlinks"]>>();
   #cleanupRevision = 0;
   readonly #cleanupRows = new Set<number>();
@@ -79,8 +82,7 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
   #presentationEpoch = 0;
   #armed: ArmedFrame | undefined;
   #lastConsumedFrameId = 0;
-  #cacheWidth = 0;
-  #cacheHeight = 0;
+  readonly #cacheGeometry = { width: 0, height: 0 };
   #canvasBackgroundAnsi: string | null = null;
   #decision: PiTuiDamageDecision = {
     frameId: null,
@@ -132,7 +134,13 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
    */
   presentedRows(): readonly string[] {
     const presented: string[] = [];
-    for (let row = 1; row <= this.rows; row += 1) presented.push(this.#rows.get(row) ?? "");
+    const cells = new Map(this.#railCells.map(cell => [cell.row, cell]));
+    for (let row = 1; row <= this.rows; row += 1) {
+      const content = this.#rows.get(row) ?? "";
+      const cell = cells.get(row);
+      const head = cell === undefined ? content : sliceByColumn(content, 0, cell.column - 1, true);
+      presented.push(cell === undefined ? content : `${head}${" ".repeat(Math.max(0, cell.column - 1 - visibleWidth(head)))}${cell.text}`);
+    }
     return presented;
   }
 
@@ -171,6 +179,7 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
     this.#cleanupRows.clear();
     this.#cleanupNeedsCompleteFrame = false;
     this.#lastConsumedFrameId = 0;
+    this.#railCells = [];
     this.#invalidateRows();
     this.inner.stop();
   }
@@ -187,7 +196,7 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
       this.#decision = this.#decide(armed, parsed);
       return;
     }
-    const sameGeometry = this.#cacheWidth === this.columns && this.#cacheHeight === this.rows;
+    const sameGeometry = this.#cacheGeometry.width === this.columns && this.#cacheGeometry.height === this.rows;
     const unknownPaint = parsed === null && !OUT_OF_BAND.test(data);
     if (!sameGeometry || unknownPaint) this.#invalidatePresentation();
     if (unknownPaint && !this.hyperlinkCleanupPending && this.options.inspectHyperlinks(data).ranges.length > 0) {
@@ -220,6 +229,19 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
         output = buildDamageWrite(parsed, armed.descriptor, new Set(decision.paintedRows), this.#rows);
       }
     }
+    const railDescriptor = armed?.descriptor;
+    const railFrame = railDescriptor !== undefined && railDescriptor.width === this.columns
+      && railDescriptor.height === this.rows && validRailCells(railDescriptor)
+      && output.startsWith(BEGIN_SYNCHRONIZED_OUTPUT) && CURSOR_SUFFIX.test(output);
+    if (railFrame) {
+      const painted = parsePinnedFullscreenWrite(output);
+      const desiredRows = new Map(this.#rows);
+      for (const row of parsed?.rows ?? []) desiredRows.set(row.row, row.content);
+      const railPaint = paintScrollbarCells(output, railDescriptor, this.#railCells, desiredRows,
+        painted === null ? null : new Set(painted.rows.map(row => row.row)), decision.reason === "transformed" || output.includes("\u001b[2J"));
+      output = railPaint.output;
+      this.#decision = { ...this.#decision, paintedCells: railPaint.cells };
+    }
     const forwarded = this.#canvasBackgroundAnsi === null
       ? output
       : paintTerminalCanvasFrame(output, this.#canvasBackgroundAnsi);
@@ -250,6 +272,7 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
     // Invariant: cache invalidation follows forwarded bytes, not a suppressed clear.
     // A bounded cleanup preserves prior rows and publishes all changed or invalidated rows.
     this.#rememberFrame(armed?.descriptor, cleanup ?? parsed, output);
+    if (railFrame) this.#railCells = railDescriptor.railCells!;
     if (cleanup !== null) {
       this.#cleanedRevision = Math.max(this.#cleanedRevision, coveredRevision);
       if (this.#cleanupRevision === coveredRevision) {
@@ -284,7 +307,7 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
     this.#lastConsumedFrameId = descriptor.frameId;
     if (this.hyperlinkCleanupPending) return { ...base, reason: "pending-hyperlink-cleanup" };
     if (parsed !== null && parsed.structuralPrefix === "\u001b[2J"
-      && this.#cacheWidth === descriptor.width && this.#cacheHeight === descriptor.height
+      && this.#cacheGeometry.width === descriptor.width && this.#cacheGeometry.height === descriptor.height
       && descriptor.width === this.columns && descriptor.height === this.rows
       && hasCompleteScreenRows(parsed.rows, descriptor.height) && this.#hasSameHyperlinkState(parsed.rows)) {
       return {
@@ -367,10 +390,10 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
     if (parsed === null) return;
     const width = descriptor?.width ?? this.columns;
     const height = descriptor?.height ?? this.rows;
-    if (width !== this.#cacheWidth || height !== this.#cacheHeight) {
+    if (width !== this.#cacheGeometry.width || height !== this.#cacheGeometry.height) {
       this.#invalidateRows();
-      this.#cacheWidth = width;
-      this.#cacheHeight = height;
+      this.#cacheGeometry.width = width;
+      this.#cacheGeometry.height = height;
     }
     if (parsed.rows.some(row => row.row > this.rows)) { this.#invalidatePresentation(); return; }
     for (const row of parsed.rows) {
@@ -402,7 +425,7 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
   }
 
   #boundedCleanupFrame(parsed: ParsedFullscreenWrite): ParsedFullscreenWrite | null {
-    const sameGeometry = this.#cacheWidth === this.columns && this.#cacheHeight === this.rows;
+    const sameGeometry = this.#cacheGeometry.width === this.columns && this.#cacheGeometry.height === this.rows;
     const complete = hasCompleteScreenRows(parsed.rows, this.rows);
     if (this.#cleanupNeedsCompleteFrame && !complete) return null;
     const suppressReset = sameGeometry && !this.#cleanupNeedsCompleteFrame
@@ -447,6 +470,7 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
   }
 
   #invalidatePresentation(): void {
+    this.#railCells = [];
     if ([...this.#links.values()].some(state => state.ranges.length > 0) && !this.hyperlinkCleanupPending) {
       this.requestHyperlinkCleanup();
     }
@@ -459,8 +483,8 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
   #invalidateRows(): void {
     this.#rows.clear();
     this.#links.clear();
-    this.#cacheWidth = 0;
-    this.#cacheHeight = 0;
+    this.#cacheGeometry.width = 0;
+    this.#cacheGeometry.height = 0;
   }
 }
 

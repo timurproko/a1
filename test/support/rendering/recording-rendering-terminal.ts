@@ -36,7 +36,8 @@ export class RecordingRenderingTerminal implements TerminalPort {
     this.writes.push({
       data, atMs: this.#atMs,
       ...(this.#cause === undefined ? {} : { cause: this.#cause }),
-      ...(fresh ? { damageDecision: { ...decision, paintedRows: [...decision.paintedRows] } } : {}),
+      ...(fresh ? { damageDecision: { ...decision, paintedRows: [...decision.paintedRows],
+        ...(decision.paintedCells === undefined ? {} : { paintedCells: decision.paintedCells.map(cell => ({ ...cell })) }) } } : {}),
     });
   }
 

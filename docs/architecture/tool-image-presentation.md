@@ -26,6 +26,12 @@ Kitty APC payloads are zero-column opaque controls, not displayable base64 text.
 
 This correction does not introduce an ANSI parser, change link detection, relax text width limits, or change terminal erase policy. Image placement, scaling and clipping remain subject to the existing public Image and viewport visibility policies; physical partially clipped-image behavior is not established by a component byte comparison.
 
+## Tool surface resets
+
+Bare A1 scopes nested full/default-background resets to the enclosing tool surface. Default-shell content uses the outer tool box's theme role. Built-in self-rendered edit previews bypass that box, so their completed rows retain the first explicitly declared pending/success/error tool background through nested resets and padding, while preserving intentional nested colors and the final outer close. Unrelated extension-owned colors and the explicit Pi comparison route remain unchanged. This prevents literal ANSI reset bytes in displayed source diffs from exposing canvas-colored strips inside green blocks; it does not rewrite original tool inputs or details.
+
+`tool-background-continuity.test.ts` checks actual terminal-cell backgrounds for public built-in edit rendering, truecolor/indexed themes, cached/replaced rows, clipping, resize, explicit nested colors, and comparison parity.
+
 ## Evidence
 
 - `transcript-image-conversion.test.ts`: independent pinned stale-cache baseline, JPEG replacement, PNG replacement, hidden-image omission and restoration, non-Kitty presentation, failed-conversion fallback and real scheduled Kitty publication at unchanged semantic revision.
