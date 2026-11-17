@@ -1,13 +1,14 @@
-import { SessionNamingController } from "../features/session-naming/index.js";
 import type { OwnedSettingsManager } from "../ui/settings/manager.js";
 import type { ComposedSessionBackend } from "./session-backend.js";
 
 /** Connect product policy to the engine and consume verified context under lifecycle coordination. */
-export function bindAutomaticSessionNaming(backend: ComposedSessionBackend, settings: OwnedSettingsManager | null, bare: boolean) {
+export async function bindAutomaticSessionNaming(backend: ComposedSessionBackend, settings: OwnedSettingsManager | null, bare: boolean) {
   if (!bare || !backend.naming) return { dispose() {} };
+  // Rationale: comparison sessions never need A1 naming; load it only for an eligible product profile.
+  const { SessionNamingController } = await import("../features/session-naming/index.js");
   const naming = new SessionNamingController({
     backend, naming: backend.naming,
-    enabled: () => backend.identity.currentSessionFile() !== null && (settings?.value("sessionAutoName") ?? true),
+    enabled: () => backend.identity.currentSessionFile() !== null && (backend.naming?.state()?.autoName ?? settings?.value("sessionAutoName") ?? true),
     format: () => settings?.value("sessionNameFormat") ?? "sentence",
     withContext: async (consume, signal) => {
       const sessionId = backend.identity.currentHistorySessionId();
