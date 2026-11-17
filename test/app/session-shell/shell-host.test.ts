@@ -1,5 +1,5 @@
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
 vi.mock("../../../src/app/session-shell/paste-executor.js", async importOriginal => {
   const actual = await importOriginal<typeof import("../../../src/app/session-shell/paste-executor.js")>();
@@ -21,10 +21,18 @@ import { fixture, nextImmediate, secondPresenter } from "./session-shell-fixture
 
 const reply = (text: string) => ({ role: "assistant", content: [{ type: "text", text }], timestamp: 1 });
 
+beforeEach(() => {
+  // Rationale: advance the real TUI's throttle deterministically rather than racing a busy runner's clock.
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "performance"] });
+});
+afterEach(() => { vi.useRealTimers(); });
+
 async function settledFrames(): Promise<void> {
-  // Rationale: Pi schedules frames on the next tick and throttles them; two turns cover both.
+  // Rationale: deferred footer initialization can request an active-presenter frame after a plain sleep.
   await nextImmediate();
-  await new Promise(resolve => setTimeout(resolve, 40));
+  await vi.dynamicImportSettled();
+  await nextImmediate();
+  await vi.advanceTimersByTimeAsync(40);
 }
 
 /**

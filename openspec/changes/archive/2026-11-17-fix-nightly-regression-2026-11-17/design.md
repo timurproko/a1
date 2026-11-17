@@ -24,6 +24,13 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 - Pre-finalization PR inspection: Development run 44036077289 skips product suites, PR Full regression, and the protected aggregate while #964 is draft, as intended. The finalization owner reports a successful draft skip, not validation of this implementation. No standalone Full dispatch was used. The finalized exact head still requires selected native Full regression and Development validation required before validated handoff; final run/head/selection belong in Actions and handoff, not another evidence commit.
 - Known gaps: none in this metadata repair. Full regression's recorded owner set and four native lanes remain preserved in the original triage and immutable provenance. Numbered-package nightly publication recovery remains independent and is not established by this repair.
 
+### Repair after finalized-head macOS validation
+
+- Selected PR Full regression run 44039771766 on finalized head 91ca24babb887fdace55da800fa00bf7a4dc10a3 reports one macOS failure in `test/app/session-shell/shell-host.test.ts`: the detached-presenter case receives a cursor-only terminal write where it expects no writes. The original governance failures are repaired; core owner validation and Windows Node 24 core pass.
+- The fixture's forty-millisecond sleep does not await deferred footer initialization introduced by #960. Controlled frame timers reproduce the exact unexpected cursor write locally; tracing identifies the active presenter's asynchronous `lazyFooterNameEditing` import callback in `dialog-coordinator.ts`, not the detached presenter's render gate.
+- The test file now awaits dynamic-import settlement before advancing the real TUI's throttle through the same forty-millisecond window. Real next-tick/immediate scheduling and all exact terminal-write, redraw, attach, and detached-presenter assertions remain intact. No production behavior, assertions, budgets, timeouts, or coverage were weakened.
+- All five shell-host tests and typecheck pass locally on Windows Node 24.21.0. This repair is a new commit against the archived form; trusted automation must re-finalize it and native exact-head CI must run again. No old successful evidence is reused for the new candidate.
+
 ### Original triage evidence
 
 - Run [Full regression #96](https://github.com/timurproko/a1/actions/runs/44022764568) (attempt 1, schedule) on `7c146a8` at 2026-11-17T05:15:03Z:
