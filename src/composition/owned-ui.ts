@@ -128,7 +128,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     await host.dispose();
     throw error;
   }
-  const naming = bindAutomaticSessionNaming(backend, bareSettings, bare);
+  const naming = await bindAutomaticSessionNaming(backend, bareSettings, bare);
   const releaseNote = await StartupReleaseNote.load({
     productMode,
     configDir: productPaths.configDir,

@@ -240,16 +240,18 @@ describe("session runtime composition wiring", () => {
   function namingBackend(file: string) {
     const listeners = new Set<(event: unknown) => void>();
     const emit = (event: unknown) => { for (const listener of listeners) listener(event); };
-    let state = { sessionFile: file, binding: 1, name: null as string | null, nameEntryId: null as string | null, source: "unnamed", completedContext: null as string | null };
+    let state = { sessionFile: file, binding: 1, name: null as string | null, nameEntryId: null as string | null, source: "unnamed", completedContext: null as string | null, autoName: null as boolean | null };
+    const policyListeners = new Set<() => void>();
     const complete = vi.fn(async (_request: unknown) => "fix-cache");
     const apply = vi.fn((_expected: unknown, name: string, context: string) => { state = { ...state, name, source: "auto", nameEntryId: name, completedContext: context }; return true; });
     let promptNumber = 0;
     return { complete, apply,
+      policy(enabled: boolean) { state = { ...state, autoName: enabled }; for (const listener of policyListeners) listener(); },
       extra: {
         identity: { cwd: primary, agentDir: join(root, "agent"), sessionBindingGeneration: 1,
           currentHistorySessionId: () => sessionId, currentSessionFile: () => file },
         session: { view: () => ({ transcript: [] }), onEvent: (next: (event: unknown) => void) => { listeners.add(next); return () => { listeners.delete(next); }; } },
-        naming: { state: () => state, complete, apply },
+        naming: { state: () => state, complete, apply, onAutoNameChange(listener: () => void) { policyListeners.add(listener); return () => { policyListeners.delete(listener); }; } },
       },
       prompt(text: string) { emit({ type: "agent-run-started" }); emit({ type: "transcript-block", block: { id: `prompt-${++promptNumber}`, kind: "user", text } }); },
     };
@@ -279,6 +281,24 @@ describe("session runtime composition wiring", () => {
       await vi.waitFor(() => expect(backend.apply).toHaveBeenCalledTimes(2), { timeout: 10_000 });
       expect(backend.apply.mock.calls[1]?.[1]).toBe("Fix Cache");
       expect(backend.complete.mock.calls[1]).toEqual([expect.objectContaining({ prompt: expect.stringContaining("Add a search box") })]);
+    } finally { await composed.application.dispose(); }
+  });
+
+  it("resolves a session override ahead of profile policy and cancels pending naming", async () => {
+    observed.autoName = false;
+    const backend = namingBackend(await sessionFile(sessionId));
+    const composed = await compose({}, backend.extra);
+    try {
+      backend.prompt("Inherited disabled"); await new Promise(resolve => setImmediate(resolve));
+      expect(backend.complete).not.toHaveBeenCalled();
+      let answer!: (name: string) => void;
+      backend.complete.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+      backend.policy(true); backend.prompt("Fix cache");
+      await vi.waitFor(() => expect(backend.complete).toHaveBeenCalledOnce());
+      backend.policy(false); backend.policy(true); answer("Obsolete cache");
+      await vi.dynamicImportSettled(); expect(backend.apply).not.toHaveBeenCalled();
+      backend.prompt("Fix cache again");
+      await vi.waitFor(() => expect(backend.apply).toHaveBeenCalledOnce());
     } finally { await composed.application.dispose(); }
   });
 
