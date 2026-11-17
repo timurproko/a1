@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import semver from "semver";
 import {
   releaseDocumentationChanged,
   releaseDocumentationFindings,
@@ -34,6 +35,14 @@ describe("explicit prerelease-aware release targets", () => {
 
   it.each([undefined, null, "", "broken", "v0.1.8", "01.1.8", "0.1", " 0.1.8", "0.1.8 ", "0.1.8-dev.01"])("rejects malformed current version %j", current => {
     expect(() => resolveReleasePlan(current, ["patch"])).toThrow(ReleaseUsageError);
+  });
+
+  it("keeps dependency-free target syntax equivalent to canonical stable semver", () => {
+    for (const value of ["0.0.0", "1.2.3", "9007199254740991.0.0", "9007199254740992.0.0", "1.2.9007199254740992", "1.0.0\n", "1.0.0 ", "v1.0.0", "01.0.0", "1.0.0-dev", "1.0.0+build"]) {
+      const accepted = semver.valid(value) === value && !value.includes("-") && !value.includes("+");
+      if (accepted) expect(parseReleaseArguments([value])).toEqual({ target: value });
+      else expect(() => parseReleaseArguments([value])).toThrow(ReleaseUsageError);
+    }
   });
 
   it("rejects an exact stable target below the open development core", () => {
