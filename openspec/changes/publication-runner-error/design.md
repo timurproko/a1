@@ -14,6 +14,8 @@ Explain the infrastructure cause in a bounded bullet, preserve raw cause display
 
 Focused formatter fixtures cover confirmed allocation failures, derivative gates, all-primary classification, missing/started steps, ordinary cancellations and timeouts, conflicting or unreadable annotations, mixed causes and the diagnostic cap. An observer fixture proves that the same guidance reaches the development command while it still rejects the failed publication and dispatches no retry.
 
+Focused local validation passed all 199 publication-client tests, the managed build, both TypeScript checks, strict OpenSpec validation and whitespace checks. These are implementation checks, not publication recovery or maintainer acceptance. No real workflow was dispatched by validation.
+
 ## Known gaps
 
 None identified within the message-only scope. This does not resolve GitHub runner capacity or establish publication recovery. Unrecognized infrastructure messages intentionally keep conservative inspect-and-fix guidance.
