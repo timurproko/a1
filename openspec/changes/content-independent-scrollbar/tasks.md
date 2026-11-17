@@ -13,5 +13,5 @@
 
 ## 3. Keep tool-block backgrounds continuous through nested resets
 
-- [ ] Preserve the owning tool-block background when nested content emits default/reset background sequences, without flattening intentional nested backgrounds or changing source copy.
-- [ ] Add terminal-cell regressions for literal ANSI bytes displayed in source diffs, nested styling resets, clipping/padding, and repeated cached/changed frames.
+- [x] Preserve the owning tool-block background when nested content emits default/reset background sequences, without flattening intentional nested backgrounds or changing source copy.
+- [x] Add terminal-cell regressions for literal ANSI bytes displayed in source diffs, nested styling resets, clipping/padding, and repeated cached/changed frames.

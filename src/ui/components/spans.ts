@@ -16,6 +16,10 @@ const SGR = /^\[[0-9;]*m$/;
 const BARE_URL = /https?:\/\/[^\s\u0000-\u001f\u007f<>"']+/giu;
 const TRAILING_URL_PUNCTUATION = /[.,;:!?]/u;
 
+function replayableStyles(text: string): readonly string[] {
+  return textSequences(text).filter(sequence => !sequence.startsWith("\u001b_G") && !sequence.startsWith("\u001b]1337;File="));
+}
+
 /**
  * Replaces the visible columns `[from, to)` of `line` with `span`, preserving
  * the styling before it and re-asserting whatever was still open afterwards, so
@@ -65,9 +69,9 @@ export function overlaySpan(
       if (column < from) head += " ".repeat(from - column);
       if (column + width > to) tail += " ".repeat(column + width - to);
     }
-    if (column < to) replay += textSequences(token).join("");
+    if (column < to) replay += replayableStyles(token).join("");
     if (column + width <= from) {
-      for (const sequence of textSequences(token)) {
+      for (const sequence of replayableStyles(token)) {
         const link = HYPERLINK.exec(sequence);
         if (link) hyperlinkOpen = (link[1] ?? "").length > 0;
       }
@@ -96,7 +100,7 @@ function sliceStyledColumns(line: string, from: number, to: number): string {
       if (!started) { output = styles + output; started = true; }
       output += column >= from && end <= to ? token : " ".repeat(Math.min(to, end) - Math.max(from, column));
     }
-    if (column < from) styles += textSequences(token).join("");
+    if (column < from) styles += replayableStyles(token).join("");
     column = end;
   }
   return `${output}\u001b[0m${HYPERLINK_OFF}`;

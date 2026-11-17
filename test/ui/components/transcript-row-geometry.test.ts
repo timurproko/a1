@@ -50,6 +50,7 @@ describe("consistent and inert transcript row geometry", () => {
     expect(normalizeTranscriptRow(source)).toBe(source);
     expect(normalizeTranscriptRow(`${ESC}]133;A\u0007${source}`)).toBe(source);
     expect(overlaySpan(`${image}abcdefgh`, 7, 8, "┃").split(image)).toHaveLength(2);
+    expect(overlaySpan(`e${image}\u0301abcdefgh`, 7, 8, "┃").split(image)).toHaveLength(2);
   });
 
   it.each(["Steering: a\u2060b", "Steering:\tx", "Steering: a\rb", "Steering: a\bb", `tool ${ESC}[4;1Hbad`, "Steering: a ⏎ next"])("paints %j in its own row and copies the original source", async source => {

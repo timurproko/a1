@@ -65,6 +65,6 @@ The maintainer's second screenshot shows dark horizontal strips inside green too
 
 ## Validation and open evidence
 
-Before approval, only the focused ad hoc replay above has been executed; no product code or tests have been changed. During implementation run only changed-owner typechecks, explicit regression files, and strict change validation. Broad suites and CI are not substitutes for physical-cell assertions.
+Initial planning used only the focused ad hoc replay above. Implementation and bounded validation are now recorded in `implementation-evidence.md`, including explicit local validation limitations and their disposition. Broad suites and CI are not substitutes for physical-cell assertions.
 
 A physical Herdr replay of the final candidate remains useful because the supplied PNG does not contain terminal bytes or host Unicode settings. Record it honestly if available; do not claim that an emulator replay proves the exact screenshot trigger. Any host-specific failure remaining after the bounded physical placement change must be explicitly dispositioned rather than hidden behind a universal guarantee.

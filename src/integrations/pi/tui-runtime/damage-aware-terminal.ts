@@ -1,4 +1,4 @@
-import { sliceByColumn } from "@earendil-works/pi-tui";
+import { sliceByColumn, visibleWidth } from "@earendil-works/pi-tui";
 import type { TerminalPort, TerminalRailCell } from "../../../contracts/presentation/index.js";
 import { paintScrollbarCells, validRailCells } from "./scrollbar-paint.js";
 
@@ -82,8 +82,7 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
   #presentationEpoch = 0;
   #armed: ArmedFrame | undefined;
   #lastConsumedFrameId = 0;
-  #cacheWidth = 0;
-  #cacheHeight = 0;
+  readonly #cacheGeometry = { width: 0, height: 0 };
   #canvasBackgroundAnsi: string | null = null;
   #decision: PiTuiDamageDecision = {
     frameId: null,
@@ -139,7 +138,8 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
     for (let row = 1; row <= this.rows; row += 1) {
       const content = this.#rows.get(row) ?? "";
       const cell = cells.get(row);
-      presented.push(cell === undefined ? content : `${sliceByColumn(content, 0, cell.column - 1, true)}${cell.text}`);
+      const head = cell === undefined ? content : sliceByColumn(content, 0, cell.column - 1, true);
+      presented.push(cell === undefined ? content : `${head}${" ".repeat(Math.max(0, cell.column - 1 - visibleWidth(head)))}${cell.text}`);
     }
     return presented;
   }
@@ -179,6 +179,7 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
     this.#cleanupRows.clear();
     this.#cleanupNeedsCompleteFrame = false;
     this.#lastConsumedFrameId = 0;
+    this.#railCells = [];
     this.#invalidateRows();
     this.inner.stop();
   }
@@ -195,7 +196,7 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
       this.#decision = this.#decide(armed, parsed);
       return;
     }
-    const sameGeometry = this.#cacheWidth === this.columns && this.#cacheHeight === this.rows;
+    const sameGeometry = this.#cacheGeometry.width === this.columns && this.#cacheGeometry.height === this.rows;
     const unknownPaint = parsed === null && !OUT_OF_BAND.test(data);
     if (!sameGeometry || unknownPaint) this.#invalidatePresentation();
     if (unknownPaint && !this.hyperlinkCleanupPending && this.options.inspectHyperlinks(data).ranges.length > 0) {
@@ -305,7 +306,7 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
     this.#lastConsumedFrameId = descriptor.frameId;
     if (this.hyperlinkCleanupPending) return { ...base, reason: "pending-hyperlink-cleanup" };
     if (parsed !== null && parsed.structuralPrefix === "\u001b[2J"
-      && this.#cacheWidth === descriptor.width && this.#cacheHeight === descriptor.height
+      && this.#cacheGeometry.width === descriptor.width && this.#cacheGeometry.height === descriptor.height
       && descriptor.width === this.columns && descriptor.height === this.rows
       && hasCompleteScreenRows(parsed.rows, descriptor.height) && this.#hasSameHyperlinkState(parsed.rows)) {
       return {
@@ -388,10 +389,10 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
     if (parsed === null) return;
     const width = descriptor?.width ?? this.columns;
     const height = descriptor?.height ?? this.rows;
-    if (width !== this.#cacheWidth || height !== this.#cacheHeight) {
+    if (width !== this.#cacheGeometry.width || height !== this.#cacheGeometry.height) {
       this.#invalidateRows();
-      this.#cacheWidth = width;
-      this.#cacheHeight = height;
+      this.#cacheGeometry.width = width;
+      this.#cacheGeometry.height = height;
     }
     if (parsed.rows.some(row => row.row > this.rows)) { this.#invalidatePresentation(); return; }
     for (const row of parsed.rows) {
@@ -423,7 +424,7 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
   }
 
   #boundedCleanupFrame(parsed: ParsedFullscreenWrite): ParsedFullscreenWrite | null {
-    const sameGeometry = this.#cacheWidth === this.columns && this.#cacheHeight === this.rows;
+    const sameGeometry = this.#cacheGeometry.width === this.columns && this.#cacheGeometry.height === this.rows;
     const complete = hasCompleteScreenRows(parsed.rows, this.rows);
     if (this.#cleanupNeedsCompleteFrame && !complete) return null;
     const suppressReset = sameGeometry && !this.#cleanupNeedsCompleteFrame
@@ -481,8 +482,8 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
   #invalidateRows(): void {
     this.#rows.clear();
     this.#links.clear();
-    this.#cacheWidth = 0;
-    this.#cacheHeight = 0;
+    this.#cacheGeometry.width = 0;
+    this.#cacheGeometry.height = 0;
   }
 }
 

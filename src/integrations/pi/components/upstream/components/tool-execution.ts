@@ -3,9 +3,9 @@
  * packages/coding-agent/src/modes/interactive/components/tool-execution.ts.
  * Modifications: Retain pinned shell/public renderers. Own image conversion; replace private APIs with
  * public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut
- * hints. Restore the enclosing default-shell background after nested renderer resets. Omit
- * non-actionable image fallback rows when images are hidden or the terminal has no image protocol. See
- * docs/architecture/tool-image-presentation.md.
+ * hints. Restore enclosing default and built-in self-shell backgrounds after nested renderer resets.
+ * Omit non-actionable image fallback rows when images are hidden or the terminal has no image
+ * protocol. See docs/architecture/tool-image-presentation.md.
  * Deviations: current-tool-image-conversion-ownership, read-range-secondary-accent,
  * concise-tool-expand-shortcut-hint, default-shell-background-reset-scoping,
  * unsupported-image-fallback-omission, hidden-image-fallback-omission.
@@ -44,13 +44,8 @@ function withConciseExpandHint(component: Component): Component {
 	} });
 }
 
-function enclosingToolBackground(
-	theme: ReturnType<typeof piTheme>,
-	role: "toolPendingBg" | "toolErrorBg" | "toolSuccessBg",
-): (text: string) => string {
-	const background = theme.bg(role, "\u0000").split("\u0000")[0]!;
-	// Invariant: child defaults return to the enclosing shell, not the terminal canvas.
-	return text => theme.bg(role, text.replace(/\u001b\[([0-9:;]*)m/gu, (ansi, parameters: string) => {
+function restoreToolBackground(text: string, background: string): string {
+	return text.replace(/\u001b\[([0-9:;]*)m/gu, (ansi, parameters: string) => {
 		const values = parameters.split(";");
 		let restore = false;
 		for (let index = 0; index < values.length; index++) {
@@ -66,7 +61,28 @@ function enclosingToolBackground(
 			}
 		}
 		return restore ? ansi + background : ansi;
-	}));
+	});
+}
+
+function enclosingToolBackground(
+	theme: ReturnType<typeof piTheme>,
+	role: "toolPendingBg" | "toolErrorBg" | "toolSuccessBg",
+): (text: string) => string {
+	const background = theme.bg(role, "\u0000").split("\u0000")[0]!;
+	// Invariant: child defaults return to the enclosing shell, not the terminal canvas.
+	return text => theme.bg(role, restoreToolBackground(text, background));
+}
+
+function restoreSelfShellBackground(row: string): string {
+	if (!isPiAccentProjectionEnabled) return row;
+	const background = /\u001b\[(?:4[0-7]|10[0-7]|48;(?:2;\d+;\d+;\d+|5;\d+))m/u.exec(row)?.[0];
+	if (background === undefined || !(["toolPendingBg", "toolSuccessBg", "toolErrorBg"] as const)
+		.some(role => piTheme().bg(role, "\u0000").startsWith(`${background}\u0000`))) return row;
+	// Self-rendered edit previews bypass contentBox. Preserve their chosen surface, not the tool's
+	// lifecycle-derived role, and leave the enclosing final close in place so it cannot leak.
+	const close = row.lastIndexOf("\u001b[49m");
+	return close < 0 ? restoreToolBackground(row, background)
+		: restoreToolBackground(row.slice(0, close), background) + row.slice(close);
 }
 
 export function mergeBuiltInRenderers(definition: ToolRendererInput | undefined, builtIn: ToolRendererInput | undefined): ToolRenderers | undefined {
@@ -316,7 +332,7 @@ export class ToolExecutionComponent extends Container {
 		}
 
 		if (this.toolDefinition !== undefined && this.getRenderShell() === "self") {
-			const contentLines = this.selfRenderContainer.render(width);
+			const contentLines = this.selfRenderContainer.render(width).map(restoreSelfShellBackground);
 			this.selfRenderHeight = contentLines.length;
 			if (contentLines.length === 0 && this.imageComponents.length === 0) {
 				return [];

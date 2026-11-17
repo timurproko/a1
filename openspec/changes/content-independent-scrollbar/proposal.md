@@ -24,4 +24,4 @@ None.
 
 Expected owners: neutral UI text/span geometry, transcript frame composition and metadata, presentation contracts, shell frame handoff, and the existing Pi terminal adapter. Tests cover neutral geometry, composed viewport rows, and actual emitted terminal writes. No external Herdr implementation changes, new terminal parser/emulator, dependency upgrade, or change to pinned comparison-profile behavior is proposed.
 
-This is a planning-only change. Product implementation requires approval and an explicit implementation request.
+The maintainer approved implementation and explicitly added tool-background continuity to the same delivery. All three implementation outcomes remain in PR #967; integration still requires a separate maintainer decision.

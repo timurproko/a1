@@ -9,7 +9,7 @@ const PROMPT_ZONE = /^\u001b\]133;[ABC](?:\u0007|\u001b\\)$/u;
 function safeSequence(sequence: string): boolean {
   if (SGR.test(sequence) || PRIVATE_SOURCE.test(sequence)) return true;
   const body = sequence.slice(2, sequence.endsWith("\u0007") ? -1 : -2);
-  // Images and OSC links are opaque transports, not commands to execute as row content.
+  // Protocol: images and OSC links are opaque transports, not commands to execute as row content.
   return !/[\u0000-\u001f\u007f-\u009f]/u.test(body)
     && (sequence.startsWith("\u001b_G") || sequence.startsWith("\u001b]1337;File=")
       || /^\u001b\]8;[^;]*;/u.test(sequence));

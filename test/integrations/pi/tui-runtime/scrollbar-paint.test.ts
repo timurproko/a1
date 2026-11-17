@@ -4,7 +4,7 @@ import { DamageAwareTerminalAdapter } from "../../../../src/integrations/pi/tui-
 import { paintScrollbarCells, validRailCells } from "../../../../src/integrations/pi/tui-runtime/scrollbar-paint.js";
 import { TranscriptViewport, type TranscriptViewportFrame } from "../../../../src/ui/components/transcript-viewport.js";
 import { readVisibleHyperlinks } from "../../../../src/ui/components/visible-hyperlinks.js";
-import { stripAnsi } from "../../../../src/ui/components/text.js";
+import { displayWidth, stripAnsi } from "../../../../src/ui/components/text.js";
 import { RecordingRenderingTerminal } from "../../../support/rendering/recording-rendering-terminal.js";
 
 const ESC = "\u001b";
@@ -15,7 +15,7 @@ const theme = {
   thumb: (text: string) => `${ESC}[38;2;210;210;210m${text}${ESC}[39m`,
   sticky: (text: string) => text, quietSticky: (text: string) => text,
   bottomControl: (text: string) => text,
-  selection: (text: string) => text, // Selection-specific colors use the ordinary viewport theme below.
+  selection: (text: string) => text, // Rationale: selection-specific colors use the ordinary viewport theme below.
 };
 
 function harness(width = 40, height = 8) {
@@ -26,7 +26,7 @@ function harness(width = 40, height = 8) {
   const write = (bytes: string) => new Promise<void>(resolve => screen.write(bytes, resolve));
   const present = async (frame: TranscriptViewportFrame, options: { batched?: boolean; clear?: boolean; shorten?: boolean } = {}) => {
     const rows = [...frame.terminalRows!];
-    if (options.shorten) rows[1] = rows[1]!.slice(0, -1); // Independent content advance may be shorter than its logical width.
+    if (options.shorten) rows[1] = rows[1]!.slice(0, -1); // Invariant: independent content advance may be shorter than its logical width.
     const changed = rows.flatMap((text, index) => options.clear || text !== previous[index] ? [{ row: index + 1, text }] : []);
     const paints = options.batched
       ? changed.map(({ row }) => `${ESC}[${row};1H${ESC}[2K`).join("")
@@ -77,7 +77,7 @@ describe("physical content-independent scrollbar paint", () => {
       });
     };
     try {
-      // Pinned Pi's fullscreen lifecycle already disables autowrap.
+      // Protocol: pinned Pi's fullscreen lifecycle already disables autowrap.
       await h.write(`${ESC}[?7l`);
       let frame = compose();
       expect(frame.terminalRows!.join("")).not.toMatch(/[┃▐]/u);
@@ -86,7 +86,7 @@ describe("physical content-independent scrollbar paint", () => {
       expect(h.screen.buffer.active.cursorX).toBe(1);
       expect(h.screen.buffer.active.cursorY).toBe(7);
       const cached = await h.present(compose());
-      expect(cached).not.toContain(`${ESC}7`); // Same rows and cell styling do no extra rail work.
+      expect(cached).not.toContain(`${ESC}7`); // Performance: same rows and cell styling do no extra rail work.
       await h.present(compose(), { shorten: true });
       assertRails(h.screen, 6, width > 1 ? "┃" : undefined);
       documentRows = documentRows.map((_row, index) => index % 2 ? `Steering:\tx\ry ⏎ z` : `emoji ❤${ESC}[2m\ufe0f${ESC}[22m`);
@@ -122,7 +122,7 @@ describe("physical content-independent scrollbar paint", () => {
         covered = 3;
         frame = compose();
         expect(frame.descriptor.railCells!.some(cell => cell.row === 3)).toBe(false);
-        // Simulate the pinned overlay compositor replacing the covered cells.
+        // Compatibility: simulate the pinned overlay compositor replacing the covered cells.
         frame = { ...frame, terminalRows: frame.terminalRows!.map((row, index) => index === 2 ? `${" ".repeat(width - 1)}M` : row) };
         await h.present(frame);
         assertRails(h.screen, 6, "▐", 3);
@@ -197,6 +197,7 @@ describe("physical content-independent scrollbar paint", () => {
     try {
       const bytes = await h.present(frame, { clear: true, batched: true });
       expect(bytes.split(image)).toHaveLength(2);
+      expect(displayWidth(h.adapter.presentedRows()[1]!)).toBe(40);
       assertRails(h.screen, 6, "┃");
       const count = h.terminal.writes.length;
       h.adapter.arm(frame.descriptor, SAFE);

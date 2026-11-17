@@ -19,7 +19,7 @@ export function stripAnsi(text: string): string {
 }
 
 function codePointWidth(codePoint: number): number {
-  // Unicode properties cover non-advancing marks and format characters outside the common blocks.
+  // Protocol: Unicode properties cover non-advancing marks and format characters outside the common blocks.
   if (codePoint > 0x7f && ZERO_WIDTH.test(String.fromCodePoint(codePoint))) return 0;
   // Protocol: East Asian wide/fullwidth ranges remain independent of emoji presentation.
   if (codePoint >= 0x1100 && codePoint <= 0x115f) return 2;
@@ -49,7 +49,7 @@ function couldBeEmoji(grapheme: string): boolean {
 }
 
 /** Width of one grapheme cluster: two for emoji, else the widest code point it contains. */
-export function graphemeWidth(grapheme: string): number {
+function graphemeWidth(grapheme: string): number {
   // Invariant: bare text pictographs stay narrow; default emoji and RGI sequences stay wide.
   if (couldBeEmoji(grapheme)
     && (RGI_EMOJI_PATTERN.test(grapheme) || EMOJI_PRESENTATION_PATTERN.test(grapheme))) return 2;

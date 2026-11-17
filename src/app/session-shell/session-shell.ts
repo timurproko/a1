@@ -341,7 +341,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter, OwnedUiS
 
   render(width: number): readonly string[] {
     const rows = this.root.render(width);
-    // Logical frame rows retain chrome for inspection; Pi receives only content and the armed rail metadata.
+    // Invariant: logical frame rows retain chrome for inspection; Pi receives only content and the armed rail metadata.
     return this.#customViewport ? this.root.viewport.frame?.terminalRows ?? rows : rows;
   }
 

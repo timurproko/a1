@@ -64,9 +64,9 @@ export interface TranscriptViewportFrameInput {
     readonly columnStart: number;
     readonly columnEnd: number;
   }[];
-  /** Transient paint-only text that must not participate in frame allocation or copying. */
   /** Overlay geometry is pending, so no independent rail paint is safe yet. */
   readonly railOccluded?: boolean;
+  /** Transient paint-only text that must not participate in frame allocation or copying. */
   readonly frameOverlay?: {
     /** One-based terminal row. */
     readonly row: number;

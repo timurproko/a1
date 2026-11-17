@@ -22,7 +22,7 @@ export function validRailCells(descriptor: TerminalDamageFrameDescriptor): boole
 }
 
 /** Reconstructs a snapshot cell without retransmitting images carried by the source row. */
-export function rowCell(row: string, column: number): string {
+function rowCell(row: string, column: number): string {
   return `${RESET}${sliceByColumn(row.replace(IMAGE, ""), column - 1, 1, true) || " "}${RESET}`;
 }
 
