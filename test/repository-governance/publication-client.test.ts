@@ -90,10 +90,10 @@ describe("publication failure reporting", () => {
       "Publication failed (run 42)",
       "Full log: https://github.com/owner/app/actions/runs/42",
       "",
-      "* Windows validation (Node 24) [failure]",
-      "* startup budget failed for pi warm: 2438ms exceeds 2000ms; dominant phases: ui-entry 741ms",
-      "* Publication blocked before npm staging.",
-      "* Next: inspect the full log and fix the failure before retrying.",
+      "  * Windows validation (Node 24) [failure]",
+      "  * startup budget failed for pi warm: 2438ms exceeds 2000ms; dominant phases: ui-entry 741ms",
+      "  * Publication blocked before npm staging.",
+      "  * Next: inspect the full log and fix the failure before retrying.",
     ].join("\n"));
     expect(calls[0]!.args).toContain("--paginate");
     expect(calls[1]!.args).toContain("--paginate");
@@ -113,7 +113,7 @@ describe("publication failure reporting", () => {
     expect(message.split("\n").filter(line => line.includes("assertion"))).toHaveLength(10);
     expect(message).toContain("PR core [failure]");
     expect(message).toContain("Rendering [failure]");
-    expect(message.split("\n").slice(3).every(line => line.startsWith("* "))).toBe(true);
+    expect(message.split("\n").slice(3).every(line => line.startsWith("  * "))).toBe(true);
     expect(message).toContain("Detailed failure evidence unavailable");
     expect(message).toContain("npm publication state is unknown");
   });
@@ -130,7 +130,7 @@ describe("publication failure reporting", () => {
       queried.push(args[1]!);
       return args[1]!.includes("/1/") ? annotationPages("Error: recovery guardian timed out", "Process completed with exit code 1.") : "[]";
     } });
-    expect(message).toContain("macOS validation (Node 24) [failure]\n* Error: recovery guardian timed out");
+    expect(message).toContain("macOS validation (Node 24) [failure]\n  * Error: recovery guardian timed out");
     expect(message).toContain("Unexpected producer [timed_out]");
     expect(message).toContain("Downstream lane/result checks also failed.");
     expect(message).toContain("Publication blocked before npm staging.");
@@ -172,7 +172,7 @@ describe("publication failure reporting", () => {
     const message = describePublicationFailure(42, { repository: "owner/app", run: () => { throw new Error("offline"); } });
     expect(message).toContain("Failed job details unavailable");
     expect(message.split("\n").slice(0, 3)).toEqual(["Publication failed (run 42)", "Full log: https://github.com/owner/app/actions/runs/42", ""]);
-    expect(message.split("\n").slice(3).every(line => line.startsWith("* "))).toBe(true);
+    expect(message.split("\n").slice(3).every(line => line.startsWith("  * "))).toBe(true);
     expect(message).toContain("npm publication state is unknown");
     expect(message).toContain("Full log: https://github.com/owner/app/actions/runs/42");
   });
@@ -202,7 +202,7 @@ describe("publication failure reporting", () => {
     expect([process.listenerCount("SIGINT"), process.listenerCount("SIGTERM")]).toEqual(before);
   });
 
-  it("renders the development transcript with log-first left-margin failure bullets", async () => {
+  it("renders the development transcript with failure bullets aligned to status dots", async () => {
     const windows = { id: 1, name: "Develop / Published pair (win32-node24, windows-2025, 24)", status: "in_progress", conclusion: null };
     const linux = { id: 2, name: "Develop / Published pair (linux-node24, ubuntu-24.04, 24)", status: "in_progress", conclusion: null };
     const staging = { id: 3, name: "Develop / Stage 0.1.8-dev.9 on npm", status: "completed", conclusion: "success" };
@@ -236,11 +236,11 @@ describe("publication failure reporting", () => {
       "[develop] Publication failed: 0.1.8-dev.9 (run 42)",
       "Full log: https://github.com/owner/app/actions/runs/42",
       "",
-      "* Published pair (win32-node24, windows-2025, 24) [failure]",
-      "* Detailed failure evidence unavailable; see the full log.",
-      "* Downstream lane/result checks also failed.",
-      "* npm staging: success. Packages may already exist; inspect the registry before retrying.",
-      "* Next: fix the failure, then rerun npm run develop after checking the run above.",
+      "  * Published pair (win32-node24, windows-2025, 24) [failure]",
+      "  * Detailed failure evidence unavailable; see the full log.",
+      "  * Downstream lane/result checks also failed.",
+      "  * npm staging: success. Packages may already exist; inspect the registry before retrying.",
+      "  * Next: fix the failure, then rerun npm run develop after checking the run above.",
       "",
     ].join("\n"));
     expect(transcript.match(/\[publication\]/gu)).toHaveLength(1);
@@ -253,10 +253,10 @@ describe("publication failure reporting", () => {
     const message = describePublicationFailure(42, { repository: "owner/app", jobs: Array.from({ length: 6 }, (_unused, index) => ({
       id: index + 1, name: `Failed owner ${index + 1}`, conclusion: "failure",
     })), run: () => annotationPages(...Array.from({ length: 12 }, (_unused, index) => `Error ${index + 1}`)) });
-    expect(message.split("\n").slice(3).every(line => line.startsWith("* "))).toBe(true);
-    expect(message.match(/^\* Error /gmu)).toHaveLength(10);
-    expect(message).toContain("* Additional diagnostics in the full log.");
-    expect(message).toContain("* 2 additional failed jobs in the full log.");
+    expect(message.split("\n").slice(3).every(line => line.startsWith("  * "))).toBe(true);
+    expect(message.match(/^  \* Error /gmu)).toHaveLength(10);
+    expect(message).toContain("  * Additional diagnostics in the full log.");
+    expect(message).toContain("  * 2 additional failed jobs in the full log.");
     expect(message.match(/^Full log:/gmu)).toHaveLength(1);
     expect(message).not.toContain("●");
   });
@@ -277,7 +277,7 @@ describe("publication failure reporting", () => {
     const { run, calls } = developmentRunner([{ status: "completed", conclusion: "failure", jobs: fixtureJobs }]);
     await expect(dispatchPublication("develop", "a".repeat(40), "0.1.8-dev.9", {
       ...developmentOptions, run, write: (text: string) => { output.push(text); },
-    })).rejects.toThrow(/^Publication failed: 0.1.8-dev.9 \(run 42\)\nFull log: https:\/\/github.com\/owner\/app\/actions\/runs\/42\n\n\* Windows validation \(Node 24\) \[failure\]\n\* startup budget failed/);
+    })).rejects.toThrow(/^Publication failed: 0.1.8-dev.9 \(run 42\)\nFull log: https:\/\/github.com\/owner\/app\/actions\/runs\/42\n\n  \* Windows validation \(Node 24\) \[failure\]\n  \* startup budget failed/);
     expect(output[0]).toBe("\n[publication] 0.1.8-dev.9 — run 42\nFull log: https://github.com/owner/app/actions/runs/42\n\n");
     expect(calls.some(call => call.args[0] === "run" && call.args[1] === "watch")).toBe(false);
   });
@@ -899,12 +899,12 @@ describe("publication progress exit boundary", () => {
     expect(rows[boundary + 1]).toBe("");
     const following = rows.slice(boundary + 2).filter(Boolean);
     expect(following.length).toBeGreaterThan(0);
-    expect(following.every(line => /^\S/u.test(line))).toBe(true);
+    expect(following.every(line => /^(?:\S|  \* )/u.test(line))).toBe(true);
     if (exit === "success") expect(following).toEqual(["[workflow] passed; verifying npm packages."]);
     else if (conclusions.includes(exit)) {
       expect(following[0]).toBe(`[develop] Publication failed: ${version} (run 42)`);
       expect(following[1]).toBe(url);
-      expect(following.slice(2).every(line => line.startsWith("* "))).toBe(true);
+      expect(following.slice(2).every(line => line.startsWith("  * "))).toBe(true);
     } else {
       const reason = exit === "wait failure" ? "status waiting unavailable"
         : ["aborted wait", "SIGINT", "SIGTERM"].includes(exit) ? "interrupted" : "GitHub status unavailable";
@@ -926,7 +926,7 @@ describe("publication progress exit boundary", () => {
     const lastJob = rows.findLastIndex(line => line.includes("●"));
     expect(rows[lastJob + 1]).toBe("");
     expect(rows[lastJob + 2]).toMatch(/^(?:\[workflow\]|\[develop\])/u);
-    expect(rows.slice(lastJob + 2).filter(Boolean).every(line => /^\S/u.test(line))).toBe(true);
+    expect(rows.slice(lastJob + 2).filter(Boolean).every(line => /^(?:\S|  \* )/u.test(line))).toBe(true);
     if (mode === "neutral") {
       expect(output.join("")).not.toMatch(/\u001b\[\d+m/u);
       expect(final.finalStyles).toEqual([]);
@@ -988,7 +988,7 @@ describe("stable candidate validation waiting", () => {
   it("throws the failed jobs and reasons when validation fails", async () => {
     const { run } = watched(new Error("exit status 1"), "completed", "failure");
     await expect(waitForStableValidation({ repository: "owner/app", runId: 51 }, { run }))
-      .rejects.toThrow(/Linux validation \(Node 24\) \[failure\]\n\* expected 1 to be 2/);
+      .rejects.toThrow(/Linux validation \(Node 24\) \[failure\]\n  \* expected 1 to be 2/);
   });
 
   it("reports that validation keeps running when watching stops early", async () => {

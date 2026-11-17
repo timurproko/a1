@@ -184,7 +184,7 @@ export function describePublicationFailure(runId, options = {}) {
   if (primary.length > 0 && failed.some(isAggregate)) lines.push("Downstream lane/result checks also failed.");
   lines.push(publicationState(jobs));
   lines.push(options.develop ? "Next: fix the failure, then rerun npm run develop after checking the run above." : "Next: inspect the full log and fix the failure before retrying.");
-  return [heading, `Full log: ${url}`, "", ...lines.map(line => `* ${line}`)].join("\n");
+  return [heading, `Full log: ${url}`, "", ...lines.map(line => `  * ${line}`)].join("\n");
 }
 
 function publicationColorEnabled(options) {
