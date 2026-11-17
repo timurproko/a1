@@ -4,7 +4,7 @@ Bare A1 automatically names an unnamed session from its current task while the a
 
 The request does not add a conversation turn or delay the main response. It makes at most two attempts, with 30-second deadlines and respective 4,096/32,768 token ceilings. Failed, empty, generic, or attachment-path results use a deterministic fallback from meaningful task words or current branch hints; when no usable task words exist, the fallback is `New task` in the default format.
 
-**Automatic session name** in the Agent settings group is enabled by default. Turning it off cancels pending naming without deleting the current name. The `a1 pi` comparison profile does not receive automatic naming or the A1 footer layout/reveal.
+**Automatic session name** in the Agent settings group is enabled by default. Turning it off cancels pending naming without deleting the current name. External applications can override this profile policy for one persistent session using the integration API's boolean `sessionAutoName` setting. The override survives resume, cancels pending work on disable, and does not change the profile or other sessions. Re-enabling only permits future eligible naming; manual names and already-completed contexts remain preserved. See [Per-session automatic naming](integration-api.md#per-session-automatic-naming) for readback, durable-session requirements and an example. The `a1 pi` comparison profile does not receive automatic naming or the A1 footer layout/reveal.
 
 ## Editing names and footer controls
 

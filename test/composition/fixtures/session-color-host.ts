@@ -8,10 +8,14 @@ const settings = new OwnedSettingsManager({ configDir: join(root, "profile"), pr
 const listeners = new Set<() => void>();
 const identity = { sessionId, sessionBindingGeneration: 1, disposed: false, currentHistorySessionId: () => identity.sessionId };
 const backend = { identity, session: { onEvent: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; } } } as unknown as OwnedUiSessionBackend;
-let name: string | null = null, nameEntryId: string | null = null, nameSequence = 0;
+let name: string | null = null, nameEntryId: string | null = null, nameSequence = 0, autoName: boolean | null = null;
 const naming = {
-  state: (): OwnedUiSessionNameState => ({ sessionFile: "fixture", binding: identity.sessionBindingGeneration, name, nameEntryId, source: name ? "user" : "unnamed", completedContext: null }),
+  state: (): OwnedUiSessionNameState => ({ sessionFile: "fixture", binding: identity.sessionBindingGeneration, name, nameEntryId, source: name ? "user" : "unnamed", completedContext: null, autoName }),
   complete: async () => null, apply: () => false,
+  setAutoName: (expected: OwnedUiSessionNameState, enabled: boolean) => {
+    if (expected.binding !== identity.sessionBindingGeneration) return false;
+    autoName = enabled; return true;
+  },
   rename: (expected: OwnedUiSessionNameState, next: string) => {
     if (expected.binding !== identity.sessionBindingGeneration || expected.nameEntryId !== nameEntryId) return false;
     if (next !== name) { name = next; nameEntryId = String(++nameSequence); }
@@ -25,7 +29,7 @@ process.on("message", async input => {
   if (request.action === "current") await settings.change("a1", "accentColor", request.color!);
   if (request.action === "replace") {
     identity.sessionId = request.sessionId!; identity.sessionBindingGeneration++;
-    name = null; nameEntryId = null;
+    name = null; nameEntryId = null; autoName = null;
     settings.startSession(); for (const listener of listeners) listener();
   }
   if (request.action === "stop") { identity.disposed = true; await control.dispose(); process.send?.({ stopped: true }); process.disconnect(); return; }

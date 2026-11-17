@@ -9,7 +9,7 @@ Response envelope: `{"version":1,"id":"read-1","type":"response","command":"sett
 ## Operations
 
 - `capabilities`: installed supported operations, `launchColor`, `terminalIdentity`, bounded snapshots and `lifecycle` (both lifecycle operations below are implemented). No target, interactive startup, trust prompt, endpoint or Core probe.
-- `settings.list`: `data.settings` contains descriptors for the two supported settings. Choices, labels, descriptions and section derive from A1 declarations; no target required.
+- `settings.list`: `data.settings` contains descriptors for the three supported settings. Choices, labels, descriptions and section derive from A1 declarations; no target required.
 - `settings.get`: requires setting and target; returns target, setting, storedValue, effectiveValue, origin and application.
 - `settings.update`: additionally requires value; returns the same readback plus status `applied` (session) or `stored` (profile).
 - `session.get`: requires a session target; returns `{target,name,nameRevision}` only after the active runtime validates the binding. Name is the authoritative durable name or null; the revision is opaque.
@@ -19,13 +19,23 @@ Response envelope: `{"version":1,"id":"read-1","type":"response","command":"sett
 
 Targets are either `{scope:"profile",profileId:"a1"}` or `{scope:"session",sessionId,runtimeId}`. Both live identities must be complete UUIDs. There is no ambient or machine-wide current-session selection, terminal inventory, private-path access or comparison-profile control.
 
-## Sidebar / external manual renaming
+## External manual renaming
 
 Read `session.get`, then submit `session.rename` with its `nameRevision` as `expectedNameRevision`. A name is trimmed, nonempty, single-line, at most 256 Unicode code points and within the request byte limit; controls and Unicode line/paragraph separators are rejected. A stale revision fails with `name-conflict`, never overwriting a newer local or external edit. A current same-name request is a no-op, without duplicate history. Manual edits persist through the same engine owner as `/name` and automatic naming preserves them. In-memory/nonpersistent sessions cannot provide durable name control and return `session-unavailable`.
 
 Existing A1-to-Herdr program-status/name reporting remains unchanged. API renames use ordinary name-change notifications; they do not add polling, title overrides or another display database. Herdr plugin feature switches gate only plugin actions, not vanilla native reporting. A missing reply means unknown completion: read again; do not replay a rename automatically.
 
 Request example: `{"version":1,"id":"rename-1","type":"session.rename","target":{"scope":"session","sessionId":"SESSION-UUID","runtimeId":"RUNTIME-UUID"},"name":"Fix cache","expectedNameRevision":"64-LOWERCASE-HEX-CHARACTERS-FROM-SESSION-GET"}`.
+
+## Per-session automatic naming
+
+Use `settings.get` or `settings.update` with `setting: "sessionAutoName"` and an exact session/runtime target. Updates require a JSON boolean, not `"false"` or `0`. With no session override, readback is `storedValue: null`, `origin: "profile"` and a boolean `effectiveValue` inherited from Automatic session name in the profile. An explicit override returns boolean stored/effective values, `origin: "session"`, `application: "live"`, and `status: "applied"` on update. It persists across resume and wins over subsequent profile changes, without changing the profile or other sessions. There is no profile write or reset-to-inherit operation for this setting.
+
+Setting false cancels pending naming immediately and rejects late results without deleting the current name or its ownership. Setting true permits future ordinary eligible naming on a user prompt; it does not rename immediately, regenerate a completed context or overwrite a manual name. External applications can disable automatic naming, read `session.get`, then use the existing revision-guarded `session.rename` to assign a durable name. Reads reconcile lost acknowledgements; do not automatically replay writes.
+
+A durable policy update requires an existing persistent conversation file. Pi defers new setup-only sessions until the first conversation message: updates before that point, and in-memory sessions, return `session-unavailable` rather than acknowledging an override that would disappear on exit.
+
+Request example: `{"version":1,"id":"auto-name-off","type":"settings.update","target":{"scope":"session","sessionId":"SESSION-UUID","runtimeId":"RUNTIME-UUID"},"setting":"sessionAutoName","value":false}`.
 
 ## Graceful exit for supervisors
 
@@ -53,8 +63,9 @@ Request example: `{"version":1,"id":"retire-7","type":"session.exit","target":{"
 | --- | --- | --- |
 | `defaultAccentColor` | profile | `next-session`: durable default for future initialization |
 | `accentColor` | session | `live`: ephemeral Current color of the exact runtime/session |
+| `sessionAutoName` | session | `live`: durable boolean override for only this persistent session |
 
-Palette choices come from descriptors, not an extra color endpoint. Session storedValue means the session-local selection, not disk persistence. Session origin is `session`; profile origin is `default` or `stored`. A profile's effectiveValue describes its future-session initialization policy, not a claim about any already-running session. An invocation `--session-color` wins on startup and successful replacement, never persists, and is not changed by live updates.
+Palette choices come from descriptors, not an extra color endpoint. For Current color, session storedValue means the session-local selection, not disk persistence, and origin is `session`. Automatic naming has the distinct durable/inherited semantics above. Profile origin is `default` or `stored`. A profile's effectiveValue describes its future-session initialization policy, not a claim about any already-running session. An invocation `--session-color` wins on startup and successful replacement, never persists, and is not changed by live updates.
 
 Profile updates are atomic per-key assignments under the existing shared settings lock, preserving unrelated concurrent changes and unknown fields. Same-key assignments are last-writer-wins; this API exposes no document read-modify-write operation and needs no revision token. Running peers retain Current color and refresh persistent values through the existing shared-file path. Engine settings are not exposed; the TUI continues through the existing AgentSettingsPort/PiSettingsCoordinator for engine effects and durability.
 

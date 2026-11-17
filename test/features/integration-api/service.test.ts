@@ -23,6 +23,7 @@ describe("shared integration application authority", () => {
     expect(descriptors.data).toMatchObject({ settings: [
       { id: "defaultAccentColor", scope: "profile", application: "next-session" },
       { id: "accentColor", scope: "session", choices: ["blue", "green", "orange", "pink", "purple", "cyan", "grey"] },
+      { id: "sessionAutoName", scope: "session", type: "boolean", choices: [true, false], application: "live" },
     ] });
     expect(services.profile).not.toHaveBeenCalled(); expect(services.session).not.toHaveBeenCalled();
   });

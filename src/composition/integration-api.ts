@@ -13,6 +13,7 @@ import { applyIntegrationSettings, applySessionLifecycle, integrationFailure, pa
  */
 export async function startIntegrationControl(backend: OwnedUiSessionBackend & { readonly naming?: OwnedUiSessionNamingPort }, settings: ApplicationSettings, runtimeDir: string, runtime: string | OwnedRuntimeContext = createOwnedRuntimeContext(), herdrBinding?: HerdrBindingReservation, lifecycle: () => OwnedUiSessionLifecyclePort | null = () => null) {
   const { applySessionName } = await import("../features/integration-api/session-names.js");
+  const { applySessionAutoName } = await import("../features/integration-api/session-auto-name.js");
   const context = typeof runtime === "string" ? createOwnedRuntimeContext(runtime, herdrBinding) : runtime;
   const publishedBinding = backend.identity.sessionBindingGeneration;
   const identity = () => ({ sessionId: backend.identity.currentHistorySessionId() ?? backend.identity.sessionId, binding: backend.identity.sessionBindingGeneration });
@@ -25,6 +26,10 @@ export async function startIntegrationControl(backend: OwnedUiSessionBackend & {
     // Invariant: lifecycle work stays synchronous inside this serialized handler (readiness and admission share one turn).
     if (request.type === "session.lifecycle" || request.type === "session.exit") return applySessionLifecycle(request, lifecycle());
     if (request.type === "session.get" || request.type === "session.rename") return applySessionName(request, backend.naming);
+    if (request.setting === "sessionAutoName") {
+      settings.refresh();
+      return applySessionAutoName(request, backend.naming, settings.value("sessionAutoName"));
+    }
     return await applyIntegrationSettings(request, settings);
   } });
   return new ReadySessionBinding(backend, control, context, publishedBinding);

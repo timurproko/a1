@@ -1,8 +1,10 @@
+import { existsSync } from "node:fs";
 import type { AgentSession, AgentSessionRuntime } from "../startup-public.js";
 import type { OwnedUiSessionNameState, OwnedUiSessionNamingPort, OwnedUiSessionNameCompletion } from "../../../contracts/owned-ui/index.js";
 import { isRecord } from "./message-values.js";
 
 const CUSTOM_TYPE = "a1-session-naming-v1";
+const POLICY_TYPE = "a1-session-auto-name-v1";
 
 interface NamingPorts {
   session(): AgentSession | undefined;
@@ -17,6 +19,7 @@ export class PiSessionNaming implements OwnedUiSessionNamingPort {
   readonly #ports: NamingPorts;
   #applying = false;
   #changes = 0;
+  readonly #policyListeners = new Set<() => void>();
   #reveal: { readonly id: string; readonly from: string } | undefined;
 
   constructor(ports: NamingPorts) { this.#ports = ports; }
@@ -36,13 +39,16 @@ export class PiSessionNaming implements OwnedUiSessionNamingPort {
     const entries = manager.getEntries();
     const info = entries.findLast(entry => entry.type === "session_info");
     const custom = entries.findLast(entry => entry.type === "custom" && entry.customType === CUSTOM_TYPE);
+    const policy = entries.findLast(entry => entry.type === "custom" && entry.customType === POLICY_TYPE);
+    const policyData: unknown = policy?.type === "custom" ? policy.data : undefined;
+    const autoName = isRecord(policyData) && policyData.version === 1 && typeof policyData.enabled === "boolean" ? policyData.enabled : null;
     const name = manager.getSessionName() ?? null;
     const data: unknown = custom?.type === "custom" ? custom.data : undefined;
     const automatic = info !== undefined && typeof info.id === "string" && isRecord(data)
       && data.version === 1 && data.name === name && data.nameEntryId === info.id
       && typeof data.context === "string";
     return {
-      sessionFile, binding: this.#ports.binding(), name, nameEntryId: info?.id ?? null,
+      sessionFile, binding: this.#ports.binding(), name, nameEntryId: info?.id ?? null, autoName,
       source: automatic ? "auto" : name?.trim() ? "user" : "unnamed",
       completedContext: automatic ? data.context as string : null,
     };
@@ -66,6 +72,23 @@ export class PiSessionNaming implements OwnedUiSessionNamingPort {
     return this.state()?.name === name;
   }
 
+  onAutoNameChange(listener: () => void): () => void {
+    this.#policyListeners.add(listener);
+    return () => { this.#policyListeners.delete(listener); };
+  }
+
+  setAutoName(expected: OwnedUiSessionNameState, enabled: boolean): boolean {
+    const current = this.state(), session = this.#ports.session();
+    if (!current || !session || current.sessionFile !== expected.sessionFile || current.binding !== expected.binding
+      || !existsSync(current.sessionFile)) return false;
+    // Pi defers setup-only sessions until a conversation exists; never acknowledge an in-memory-only write.
+    if (current.autoName === enabled) return true;
+    session.sessionManager.appendCustomEntry(POLICY_TYPE, { version: 1, enabled });
+    for (const listener of this.#policyListeners) listener();
+    this.#ports.changed();
+    return this.state()?.autoName === enabled;
+  }
+
   async complete(request: OwnedUiSessionNameCompletion): Promise<string | null> {
     const { completeSessionName } = await import("./session-name-completion.js");
     return completeSessionName(request, this.#ports.session(), this.#ports.runtime(), this.#ports.unavailable());
@@ -74,7 +97,7 @@ export class PiSessionNaming implements OwnedUiSessionNamingPort {
   apply(expected: OwnedUiSessionNameState, name: string, context: string): boolean {
     const current = this.state();
     const session = this.#ports.session();
-    if (!current || !session || current.source === "user" || current.sessionFile !== expected.sessionFile
+    if (!current || !session || current.autoName === false || current.source === "user" || current.sessionFile !== expected.sessionFile
       || current.binding !== expected.binding || current.nameEntryId !== expected.nameEntryId || current.name !== expected.name) return false;
     this.#applying = true;
     this.#changes = 0;

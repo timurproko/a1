@@ -7,7 +7,7 @@ export function bindAutomaticSessionNaming(backend: ComposedSessionBackend, sett
   if (!bare || !backend.naming) return { dispose() {} };
   const naming = new SessionNamingController({
     backend, naming: backend.naming,
-    enabled: () => backend.identity.currentSessionFile() !== null && (settings?.value("sessionAutoName") ?? true),
+    enabled: () => backend.identity.currentSessionFile() !== null && (backend.naming?.state()?.autoName ?? settings?.value("sessionAutoName") ?? true),
     format: () => settings?.value("sessionNameFormat") ?? "sentence",
     withContext: async (consume, signal) => {
       const sessionId = backend.identity.currentHistorySessionId();

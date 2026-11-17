@@ -3,11 +3,11 @@ import { integrationCapabilities, integrationFailure, integrationResponse, parse
 
 /** Deliberately small allowlist; no engine settings, private paths or credentials cross this boundary. */
 function integrationSettingDescriptors() {
-  return ["defaultAccentColor", "accentColor"].map(key => {
-    const setting = OWNED_SETTING_DECLARATIONS[key as "accentColor" | "defaultAccentColor"];
+  return (["defaultAccentColor", "accentColor", "sessionAutoName"] as const).map(key => {
+    const setting = OWNED_SETTING_DECLARATIONS[key];
     return { id: setting.id, label: setting.label, description: setting.description, section: setting.section,
-      type: "string", choices: setting.allowedValues, scope: key === "accentColor" ? "session" : "profile",
-      application: setting.application, concurrency: key === "accentColor" ? "serialized" : "atomic-key-assignment" };
+      type: key === "sessionAutoName" ? "boolean" : "string", choices: setting.allowedValues, scope: key === "defaultAccentColor" ? "profile" : "session",
+      application: setting.application, concurrency: key === "defaultAccentColor" ? "atomic-key-assignment" : "serialized" };
   });
 }
 
@@ -62,6 +62,7 @@ export async function applyIntegrationSettings(input: unknown, settings: Applica
     const request = parseIntegrationRequest(input);
     if (request.type !== "settings.get" && request.type !== "settings.update") throw integrationFailure("unsupported-operation", "Not a settings operation.");
     const id = request.setting!;
+    if (id === "sessionAutoName") throw integrationFailure("session-unavailable", "Session naming requires its persistent owner.");
     settings.refresh();
     let status: "applied" | "stored" | undefined;
     if (request.type === "settings.update") {

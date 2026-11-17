@@ -1,9 +1,9 @@
 ## 1. External per-session automatic-name control
 
-- [ ] 1.1 Add boolean sessionAutoName descriptors, strict request/response validation and exact-session read/update handling while preserving color and rename contracts.
-- [ ] 1.2 Persist independent session overrides through the naming owner and resolve inherited profile policy without cross-session leakage.
-- [ ] 1.3 Cancel pending naming on disable and fence late results; preserve current names and manual ownership on both toggle directions.
-- [ ] 1.4 Add focused API, persistence/resume, replacement, idempotence and cancellation fixtures; document external disable/readback/rename usage.
+- [x] 1.1 Add boolean sessionAutoName descriptors, strict request/response validation and exact-session read/update handling while preserving color and rename contracts.
+- [x] 1.2 Persist independent session overrides through the naming owner and resolve inherited profile policy without cross-session leakage.
+- [x] 1.3 Cancel pending naming on disable and fence late results; preserve current names and manual ownership on both toggle directions.
+- [x] 1.4 Add focused API, persistence/resume, replacement, idempotence and cancellation fixtures; document external disable/readback/rename usage.
 
 ## 2. Remove Herdr sidebar renaming
 

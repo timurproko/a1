@@ -27,8 +27,8 @@ export interface IntegrationRequest {
   readonly id: string;
   readonly type: IntegrationOperation;
   readonly target?: IntegrationTarget;
-  readonly setting?: "accentColor" | "defaultAccentColor";
-  readonly value?: string;
+  readonly setting?: "accentColor" | "defaultAccentColor" | "sessionAutoName";
+  readonly value?: string | boolean;
   readonly name?: string;
   readonly expectedNameRevision?: string;
 }
@@ -73,8 +73,8 @@ export function parseIntegrationRequest(value: unknown): IntegrationRequest {
       return { ...value, name: value.name.trim() } as unknown as IntegrationRequest;
     }
   } else {
-    if (value.setting !== "accentColor" && value.setting !== "defaultAccentColor") throw integrationFailure("unsupported-setting", "This setting is not exposed.");
-    if ((value.setting === "accentColor") !== (target.scope === "session")) throw integrationFailure("unsupported-scope", "Setting is not supported in this scope.");
+    if (value.setting !== "accentColor" && value.setting !== "defaultAccentColor" && value.setting !== "sessionAutoName") throw integrationFailure("unsupported-setting", "This setting is not exposed.");
+    if ((value.setting !== "defaultAccentColor") !== (target.scope === "session")) throw integrationFailure("unsupported-scope", "Setting is not supported in this scope.");
     if (type === "settings.update" && !OWNED_SETTING_DECLARATIONS[value.setting].allowedValues.includes(value.value as never)) {
       throw integrationFailure("invalid-value", "Choose a value from the setting descriptor.");
     }
@@ -119,8 +119,10 @@ export function assertIntegrationResponse(value: unknown, request: IntegrationRe
   if (request.setting !== undefined) {
     const data = value.data;
     const choices = OWNED_SETTING_DECLARATIONS[request.setting].allowedValues;
-    if (data.setting !== request.setting || !choices.includes(data.storedValue as never) || !choices.includes(data.effectiveValue as never)
-      || !["default", "stored", "session", "invocation"].includes(data.origin as string)
+    const inheritedNaming = request.setting === "sessionAutoName" && data.storedValue === null && data.origin === "profile";
+    if (data.setting !== request.setting || (!inheritedNaming && !choices.includes(data.storedValue as never)) || !choices.includes(data.effectiveValue as never)
+      || !(inheritedNaming || ["default", "stored", "session", "invocation"].includes(data.origin as string))
+      || (request.setting === "sessionAutoName" && !inheritedNaming && (data.origin !== "session" || data.storedValue !== data.effectiveValue))
       || data.application !== (request.target?.scope === "session" ? "live" : "next-session")) throw integrationFailure("invalid-response", "Malformed setting readback.");
     if (request.type === "settings.update" && (data.storedValue !== request.value
       || data.status !== (request.target?.scope === "session" ? "applied" : "stored")
