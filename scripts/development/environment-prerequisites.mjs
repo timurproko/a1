@@ -93,6 +93,9 @@ function dependencyCheck({ dependencies }) {
     const detail = mismatched.slice(0, 5).map(entry => `${entry.name} ${entry.actual} installed, ${entry.expected} declared`).join("; ");
     return failure("dependencies", "Dependencies", BLOCKING, `node_modules is stale: ${detail}`, remedy);
   }
+  if (dependencies?.incomplete?.length) {
+    return failure("dependencies", "Dependencies", BLOCKING, `installed packages have missing entry files: ${dependencies.incomplete.slice(0, 5).join(", ")}`, remedy);
+  }
   return success("dependencies", "Dependencies", `${dependencies.declared} declared dependencies installed`);
 }
 

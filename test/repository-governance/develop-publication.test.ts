@@ -183,7 +183,7 @@ describe("development publication completion and recovery", () => {
 
   it("routes the develop entry through pair completion instead of an existence-only early return", async () => {
     const entry = await readFile("scripts/development/develop.mjs", "utf8");
-    expect(entry).toContain("await publishDevelopmentPreview(preview, installer.name)");
+    expect(entry).toContain("await publishDevelopmentPreview(preview, installer.name, { signal })");
     expect(entry).not.toContain("registryVersion");
   });
 });
