@@ -268,6 +268,11 @@ npm run preview:readme
 
 ## Publish
 
+Both publication commands check checkout dependencies before loading publication code.
+Missing, stale or incomplete dependencies trigger one locked `npm ci --include=dev`,
+then the original command continues after a successful recheck. Healthy installations
+are not reinstalled. Setup failure stops the command before any publication request.
+
 ### Develop
 
 Request the preview publish:

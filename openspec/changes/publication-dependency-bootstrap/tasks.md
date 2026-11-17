@@ -6,6 +6,6 @@
 
 ## 2. Develop/release startup recovery
 
-- [ ] 2.1 Bootstrap both public commands before dependency-bearing imports, preserving side-effect-free library imports and existing injectable release test boundaries.
-- [ ] 2.2 Preserve original arguments, source/target selection, exit/cancellation behavior and all existing release/publication approval rules, with no automatic replay after startup.
-- [ ] 2.3 Add entry-boundary fixtures and document automatic repair, failure diagnostics and its checkout-local/network scope.
+- [x] 2.1 Bootstrap both public commands before dependency-bearing imports, preserving side-effect-free library imports and existing injectable release test boundaries.
+- [x] 2.2 Preserve original arguments, source/target selection, exit/cancellation behavior and all existing release/publication approval rules, with no automatic replay after startup.
+- [x] 2.3 Add entry-boundary fixtures and document automatic repair, failure diagnostics and its checkout-local/network scope.

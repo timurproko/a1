@@ -23,6 +23,7 @@ export function resolveNpmCli(env = process.env) {
 
 async function terminateNpm(child) {
   if (!child.pid) return;
+  if (child.exitCode !== null || child.signalCode !== null) throw new Error("npm exited before its process tree could be verified.");
   if (process.platform === "win32") {
     await new Promise((done, reject) => {
       const killer = spawn(resolve(process.env.SystemRoot ?? "C:/Windows", "System32/taskkill.exe"), ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true, shell: false });
@@ -54,7 +55,10 @@ export async function runNpm(args, { cwd, signal, capture = false, env = process
       interruption = reason;
       settlement = Promise.resolve().then(() => terminate(child)).then(() => null, error => error);
       settlement.then(error => {
-        if (error) { cleanup(); reject(Object.assign(new Error(`${interruption.message} ${error.message} Dependency lock retained; inspect the installer before retrying.`), { settled: false })); }
+        if (error) {
+          cleanup(); child.unref?.(); child.stdout?.destroy();
+          reject(Object.assign(new Error(`${interruption.message} ${error.message} Dependency lock retained; inspect the installer before retrying.`), { settled: false }));
+        }
       });
     };
     const aborted = () => stop(Object.assign(new Error("Dependency setup cancelled."), { name: "AbortError" }));

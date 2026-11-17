@@ -13,7 +13,8 @@ async function configuration(root) {
     [manifestText, lockText] = await Promise.all([readFile(join(root, "package.json"), "utf8"), readFile(join(root, "package-lock.json"), "utf8")]);
     manifest = JSON.parse(manifestText); lock = JSON.parse(lockText);
   } catch { throw new Error("Dependency setup needs readable package.json and package-lock.json; repair the checkout before retrying."); }
-  if (!/^npm@\d/u.test(manifest.packageManager ?? "") || ![2, 3].includes(lock.lockfileVersion) || !lock.packages?.[""]
+  if (!manifest || !lock || typeof manifest.name !== "string" || typeof manifest.version !== "string"
+    || !/^npm@\d/u.test(manifest.packageManager ?? "") || ![2, 3].includes(lock.lockfileVersion) || !lock.packages?.[""]
     || manifest.name !== lock.name || manifest.version !== lock.version) throw new Error("Dependency setup requires the repository's matching npm manifest and lockfile.");
   for (const section of ["dependencies", "devDependencies", "optionalDependencies"]) {
     const declared = manifest[section] ?? {};
