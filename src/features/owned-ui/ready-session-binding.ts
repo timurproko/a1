@@ -37,7 +37,7 @@ export class ReadySessionBinding {
     if (this.#published === undefined) this.#publish();
   }
 
-  #identity() { return { sessionId: this.#backend.identity.currentHistorySessionId() ?? this.#backend.identity.sessionId, binding: this.#backend.identity.sessionBindingGeneration }; }
+  #identity() { return { sessionId: this.#backend.identity.currentHistorySessionId() ?? this.#backend.identity.sessionId, binding: this.#backend.identity.sessionBindingGeneration, cwd: this.#backend.identity.cwd }; }
 
   #publish(): void {
     this.#published = undefined;
