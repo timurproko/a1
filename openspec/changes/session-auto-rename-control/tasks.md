@@ -7,6 +7,6 @@
 
 ## 2. Remove Herdr sidebar renaming
 
-- [ ] 2.1 Remove the agent Rename contribution, Sidebar rename setting, inline editor wiring and exclusively owned packaging from canonical external source.
-- [ ] 2.2 Preserve legacy preference readability, stable plugin identity, color matching, Pin/Close, tab/space naming and native name reporting; update focused fixtures and documentation.
-- [ ] 2.3 Record the external source diff, actual checks, deployment disposition and any remaining gaps in implementation-evidence.md.
+- [x] 2.1 Remove the agent Rename contribution, Sidebar rename setting, inline editor wiring and exclusively owned packaging from canonical external source.
+- [x] 2.2 Preserve legacy preference readability, stable plugin identity, color matching, Pin/Close, tab/space naming and native name reporting; update focused fixtures and documentation.
+- [x] 2.3 Record the external source diff, actual checks, deployment disposition and any remaining gaps in implementation-evidence.md.

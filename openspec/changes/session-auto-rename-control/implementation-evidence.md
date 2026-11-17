@@ -6,14 +6,50 @@ Implemented boolean sessionAutoName descriptors and strict setting-specific requ
 
 Focused fixtures cover inherited/explicit booleans, invalid values/scope, readback failures, unavailable/replaced owners, persistent resume, idempotence, preserved automatic/manual provenance, late result fencing, disable/re-enable before UI delivery, future-prompt eligibility and completed-context preservation. Transport fixtures cover independent runtimes, replacement and exact-runtime mismatch.
 
-Checks so far: build and typecheck passed; strict OpenSpec validation passed. The focused seven-file run passed 117 of 118 tests; the new cancellation fixture supplied a deliberately generic New task candidate that correctly triggered the existing retry policy, so its fixture now supplies the meaningful Fix cache candidate. The repaired fixture is rerun separately; later results will be recorded here.
+Checks passed: npm run build; npm run typecheck; all 118 tests in these seven focused files:
 
-Pinned Pi SDK/session format documentation, sessions example and SessionManager implementation were inspected. Policy writes require an already-materialized persistent conversation file because Pi defers setup-only metadata writes. Unsupported setup-only updates return session-unavailable; this limitation is documented rather than acknowledged as durable.
+- test/features/integration-api/service.test.ts
+- test/features/integration-api/session-auto-name.test.ts
+- test/features/integration-api/session-names.test.ts
+- test/features/session-naming/session-naming.test.ts
+- test/integrations/pi/engine/session-auto-name.test.ts
+- test/composition/session-colors.integration.test.ts
+- test/composition/session-runtime-wiring.test.ts
 
-## External customization
+Pinned Pi SDK/session format documentation, sessions example and SessionManager implementation were inspected. Policy writes require an already-materialized persistent conversation file because Pi defers setup-only metadata writes. Unsupported setup-only updates return session-unavailable; this boundary is documented rather than acknowledged as durable. Explicit policy values survive resume and do not rewrite current names or naming provenance.
 
-Pending the second implementation outcome. Canonical source: C:/Users/tprokopiev/.config/herdr-app/customizations/. No external production edits or deployment have been made yet.
+## External customization source
 
-## Delivery boundaries
+Canonical source: C:/Users/tprokopiev/.config/herdr-app/customizations/. Its owning yadm checkout was already dirty on main at 6952245ac811f3dadb3457a92289714e1cf2cdbe, including provider/grouping work. Those unrelated changes were preserved and are not staged or committed by this delivery. This A1 PR records the coordinated outcome but does not contain the external source files.
 
-No A1 publication, native binary change, terminal injection, process restart or live-session mutation test is included. The task remains attached in D:/Git/a1/.worktrees/session-auto-rename-control on fix/session-auto-rename-control; implementation PR is #971.
+Task-only changes relative to captured pre-edit bytes:
+
+- customization.json: remove both agent-rename helper output mappings.
+- src/features/agents/main.js: remove inline editor lifecycle/rendering and double-click rename; preserve existing named-space/folder grouping, pinning and navigation.
+- src/features/menu/main.js: remove inline-rename result dispatch; retain generic plugin actions, Pin/Close and tab/space naming.
+- src/plugins/a1-colors/plugin.js and state.js: remove Sidebar rename declarations, menus, guards, gates and enable helper; preserve stable plugin identity and color controls.
+- src/plugins/a1-colors/session-color.cjs: remove the exclusively sidebar-owned name worker route, retaining color membership/expiry fences.
+- src/plugins/a1-colors/session-name.js and src/ui/agent-rename.js: retire the source modules.
+- src/plugins/api.cjs: accept additive boolean descriptors and validate inherited/applied sessionAutoName readback without relaxing string/color or name acknowledgements.
+- src/plugins/a1-colors/session-name.test.mjs, settings.test.mjs and session-sync.test.mjs: cover removed action/gates/settings, ignored old preferences, portable import/export and unchanged colors/external naming.
+- tests/agent-rename.test.mjs, agents-grouping.test.mjs, plugins.test.mjs and a1-client.test.mjs: cover removed packaging, actual clicked Pin/Close and tab/space actions, all click counts/presentations, boolean descriptor compatibility and strict readback.
+- tests/features/a1-rename-native.mjs: synthetic settings/menu/ordinary-agent previews, with no real agent control or preference writes.
+- README.md, docs/ARCHITECTURE.md and docs/A1-COLOR-CONTRACT.md: document removal, external naming and automatic-name control.
+
+The task-only diff is 20 external paths. Ignored local recovery/inspection artifacts in the owning A1 worktree retain pre-edit bytes and separate preexisting/task-only diffs: .artifacts/agent/herdr-before/, herdr-preexisting.patch and herdr-task.patch. SHA-256 of herdr-task.patch is 45e7f7d2e0e99bf0957e48d60959031128c764761493d2239a7c8e27a60a2e13. These disposable artifacts are not authoritative source or portable preferences.
+
+## External checks and deployment
+
+Passed focused removal/grouping/plugin/client fixtures, the required customization npm test suite, npm run check:host-api, and npm run build. Herdr 0.1.16 is reviewed; no missing APIs, commands or direct native imports were reported. The customization build contains 17 modules. With A1_API_CANDIDATE_ROOT selecting this built A1 checkout, tests/a1-api-candidate.test.mjs passed against the actual public CLI and disposable runtimes, including color discovery with the added boolean descriptor, two-session isolation and stale replacement refusal.
+
+Conflict-safe source-scoped deployment selected only the six changed production sources: Agents main, Menu main, A1 plugin declaration, A1 state, color worker and shared API client. It changed 42 outputs, preserved 836 unselected ownership entries, and removed no files. Backup: 1794926397940-27068. This mode intentionally preserves inactive obsolete owned files rather than pruning them; removed helpers are absent from new packaging and all active imports/routes are gone. No unrelated source, layout, palette or preference update was deployed.
+
+npm run doctor passed with no issues; both existing native patch opt-ins were already current. npm run check:native passed for all 17 installed Custom mods. Native checks emitted their existing read-only hc/git warnings; no test created, killed or changed a real agent/session.
+
+Synthetic native settings, menu and agent previews passed eager checks and were opened, captured and visually inspected. The menu contains only Pin to the top and Close; A1 settings contain only Match space color; the ordinary agent row has no editor. The fixture deliberately supplies an old renameSession:true preference. Its transient overlays were closed and private fixture mods removed by the fixture. Screenshots stay ignored under .artifacts/agent/herdr-ui/. No live agent rename or name-policy mutation was performed.
+
+## Delivery boundaries and known-gap disposition
+
+No remaining implementation gap is identified within the approved behavior. The setup-only durability refusal and unchanged manual-ownership rule are intentional documented boundaries, not promises of pre-conversation writes or forced re-autonaming. No A1 publication, installed-runtime upgrade, native binary change, terminal injection or process restart is included; old running A1 versions do not acquire the new API. External source changes remain in the separately managed dirty yadm checkout, not in this A1 Git history, and need that checkout owner's normal delivery. Source-scoped deployment intentionally retains inert obsolete files to preserve unrelated ownership.
+
+The task remains attached in D:/Git/a1/.worktrees/session-auto-rename-control on fix/session-auto-rename-control; implementation PR is #971. Editing ownership is retained for follow-up; no merge authority is inferred.
