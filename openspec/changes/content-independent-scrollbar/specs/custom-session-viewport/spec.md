@@ -1,5 +1,21 @@
 ## ADDED Requirements
 
+### Requirement: Tool-result backgrounds survive nested content resets
+
+Bare A1 SHALL preserve the owning tool-result row surface when displayed source or nested styling emits a default-background or complete ANSI reset. Such resets SHALL return to the tool-result surface rather than exposing dark terminal-canvas strips. Deliberate nested backgrounds, selection styling, semantic source copy, clipping, padding, and image transport SHALL retain their existing behavior.
+
+#### Scenario: Display source containing literal ANSI resets
+
+- **WHEN** a green tool-result or diff row displays source containing literal ANSI reset bytes
+- **THEN** text and trailing padding after those bytes SHALL remain on the owning green surface
+- **AND** no default-canvas strip SHALL appear inside the block
+
+#### Scenario: Replace or clip styled tool content
+
+- **WHEN** nested-styled tool content is clipped, cached, or replaced in a subsequent frame
+- **THEN** default-background resets SHALL restore the current tool surface
+- **AND** intentional non-default nested backgrounds SHALL remain distinguishable
+
 ### Requirement: Transcript row content cannot reposition the scrollbar
 
 Bare A1 SHALL resolve owned transcript rows using consistent visible-cell and grapheme geometry across measurement, clipping, padding, selection, and styled spans. Styling inside a grapheme cluster and invisible Unicode format characters SHALL NOT change the column assigned to subsequent chrome. Raw content controls SHALL NOT execute terminal cursor movement, row erasure, or mode changes; tabs SHALL have deterministic space presentation before row paint. Safe presentation SHALL preserve semantic source text, truthful selection and copy mappings, supported styles and hyperlinks, and authorized image payloads.

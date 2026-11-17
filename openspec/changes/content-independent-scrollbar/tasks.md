@@ -10,3 +10,8 @@
 - [ ] Paint exposed rail/gutter cells at their physical column inside the existing synchronized terminal transaction, preserving cursor state, modal occlusion, comparison behavior, and image transport.
 - [ ] Integrate fixed rail painting with full and differential writes, regional scroll, row caches, stale-frame rejection, presentation resets, hyperlink cleanup, visibility changes, and geometry changes.
 - [ ] Add emitted-terminal-cell regressions for content replacement, scrolling, steering lifecycle, resize, dock changes, selection/backgrounds, rail styles/appearance, occlusion, and cached/damage-aware repainting.
+
+## 3. Keep tool-block backgrounds continuous through nested resets
+
+- [ ] Preserve the owning tool-block background when nested content emits default/reset background sequences, without flattening intentional nested backgrounds or changing source copy.
+- [ ] Add terminal-cell regressions for literal ANSI bytes displayed in source diffs, nested styling resets, clipping/padding, and repeated cached/changed frames.

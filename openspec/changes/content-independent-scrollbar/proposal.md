@@ -8,6 +8,7 @@ The transcript scrollbar is logically assigned a fixed gutter but physically emi
 - Carry semantic rail-cell placement to the terminal presentation boundary and paint the exposed rail at its declared physical column independently of preceding content advance.
 - Preserve existing scrollbar appearance/style, gutter backgrounds, selection/copy boundaries, image transport, modal occlusion, dock placement, and bounded differential rendering.
 - Add independent terminal-cell regressions for static and changing hostile-content fixtures rather than relying solely on A1's own width assertions.
+- Keep tool-result backgrounds continuous when displayed source or nested styling contains ANSI resets, fixing dark strips inside green blocks reported in a follow-up screenshot.
 
 ## Capabilities
 

@@ -59,6 +59,10 @@ Each implementation outcome includes focused regressions. Include literal word j
 
 Exercise repeated cached composition, changed-content replacement in both directions, steering arrival/removal, scrolling and follow-tail, thumb movement, dock growth/shrink, resize including minimal widths, hidden/auto/always appearance, thin/thick glyphs, selection, modal coverage, and damage-aware output. Assert rail position and continuity, absence of phantom cells, dock isolation, cursor restoration, background continuity, copy exclusions, and image preservation.
 
+### 4. Preserve tool-block surfaces across nested ANSI resets
+
+The maintainer's second screenshot shows dark horizontal strips inside green tool-result/diff blocks, starting at source snippets containing literal ESC reset bytes from `text.ts`. Treat this as an approved third implementation outcome in the same PR. Trace the owning tool surface and ensure nested default-background resets return to that surface rather than the terminal canvas. Preserve deliberate nested backgrounds, semantic source copy, image transport, and selection. Add independent terminal-cell color assertions for literal reset bytes inside displayed source, nested styles, clipping/padding, and repeated frames; do not merely inspect the presence of an opening green SGR.
+
 ## Validation and open evidence
 
 Before approval, only the focused ad hoc replay above has been executed; no product code or tests have been changed. During implementation run only changed-owner typechecks, explicit regression files, and strict change validation. Broad suites and CI are not substitutes for physical-cell assertions.
