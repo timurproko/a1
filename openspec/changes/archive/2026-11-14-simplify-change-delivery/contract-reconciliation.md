@@ -1,5 +1,9 @@
 # Contract reconciliation
 
+## Follow-up CI repair at 163108fc
+
+The conflict resolution was published as `8bd3d2b6`; trusted finalization produced `163108fc36e4d6ff90cde8c4a1c52eea609437f2` with the combined canonical recovery requirements. Development run `44065622970` exposed one worker-backed history composition wait in the ordinary parallel partition. Under R06, move that suite to its existing serial resource-sensitive scheduling mechanism without dropping cases, changing required gates or extending deadlines. Pin its original five-second default; preserve its five-second waits and explicit fifteen-second cases. All 38 focused history/ownership checks passed through the standard build-backed runner. Completed implementation ticks and the frozen contract stay unchanged; new exact-head CI is still required. No PR merge is authorized.
+
 ## Conflict reconciliation at 8cef224b
 
 For the maintainer's conflict-repair request, fetched and fast-forwarded the clean task to `8cef224b44304eb949d1d2b98594091e68c6267c`, retaining all 27 newer topic commits. Merging `develop` at `0744623bc6cf9d544187aeee40633f57fc51afcb` preserves its 26 additional commits and resolves 16 conflicted files without rebasing or dropping completed work.

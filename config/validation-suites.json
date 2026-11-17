@@ -124,6 +124,7 @@
         "test/foundation/release/release-gc.test.ts",
         "test/features/prompt-history/concurrency.integration.test.ts",
         "test/features/prompt-history/store.test.ts",
+        "test/composition/prompt-history.test.ts",
         "test/app/session-shell/command-message-parity.test.ts",
         "test/app/session-shell/command-outcome-parity.test.ts",
         "test/app/session-shell/session-shell.test.ts",

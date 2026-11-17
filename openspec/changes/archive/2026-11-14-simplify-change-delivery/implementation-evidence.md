@@ -4,6 +4,14 @@ Current independent-review disposition: earlier completion and passing tests did
 
 Current R11 disposition: the maintainer-approved paired clarification in `r11-clarification.md` resolves the later wording blocker described below. Prior observations remain historical; this clarification changes no release behavior, case expectations or adapter values. Current local verification is recorded below, separately from CI and acceptance.
 
+## Finalized-head worker partition repair at 163108fc
+
+Trusted automation re-finalized the conflict repair as `163108fc36e4d6ff90cde8c4a1c52eea609437f2`; the PR is mergeable, but Development run `44065622970` failed one prompt-history composition assertion among 1,660 selected tests. A real SQLite worker did not publish a snapshot within the existing five-second wait while its suite ran with ordinary parallel tests. The unmodified isolated suite passed all ten cases; that alone is not a successful CI rerun.
+
+Assign this worker-backed suite to the existing mandatory serial resource-sensitive owner. It is neither excluded nor deferred, and ownership tests require exactly that one owner. Preserve all storage/privacy/restart assertions and five-second snapshot waits, explicitly pin the original five-second default so the resource runner's general limit cannot enlarge it, and retain the two explicit fifteen-second cases. No product history behavior, required check, runner workflow or publication policy changes.
+
+The standard build-backed resource invocation passed **38 tests across three files** (history composition and suite/selection ownership), with the history suite completing in approximately two seconds. Required exact-head CI remains separate and must rerun after publication.
+
 ## Develop conflict repair after 8cef224b
 
 Preserved the fetched topic history and reconciled `develop` at `0744623bc6cf9d544187aeee40633f57fc51afcb`. Newer queued controls/resource reload and independent-target readiness coexist with exact preflight, primary-only adapters, approved checkout snapshots and child-lifetime exclusion. Local removal now uses the same queued owner-runtime transition and settles after resource reload, without substituting merged completion. Tests retain both-operation replacement/HEAD coverage and add queued local removal, non-Git startup/selected-primary execution and startup-inside-target refusal. The composed adapter-loss case removes primary support after preflight/preparation and still refuses the task copy.

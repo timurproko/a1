@@ -67,6 +67,10 @@ describe("validation suite ownership", () => {
     expect(ownership.filter(entry => entry.owners.filter(owner => !crossRuntime.has(owner)).length !== 1)).toEqual([]);
     expect(ownership.flatMap(entry => entry.owners.slice(1).filter(owner => !crossRuntime.has(owner)).map(owner => ({ test: entry.test, owner })))).toEqual([]);
     expect([...explicitOwners.keys()].filter(test => !tests.includes(test))).toEqual([]);
+    expect(ownership.find(entry => entry.test === "test/composition/prompt-history.test.ts")?.owners).toEqual(["fast-resource-sensitive"]);
+    const history = await readFile("test/composition/prompt-history.test.ts", "utf8");
+    expect(history).toContain("vi.setConfig({ testTimeout: 5000 })");
+    expect(history).toContain("{ timeout: 5000 }");
   });
 
   it("maps every mandatory release contract to one declared tier or scope", async () => {
@@ -130,6 +134,7 @@ describe("validation suite ownership", () => {
       "test/foundation/release/release-gc.test.ts",
       "test/features/prompt-history/concurrency.integration.test.ts",
       "test/features/prompt-history/store.test.ts",
+      "test/composition/prompt-history.test.ts",
       "test/app/session-shell/command-message-parity.test.ts",
       "test/app/session-shell/command-outcome-parity.test.ts",
       "test/app/session-shell/session-shell.test.ts",
