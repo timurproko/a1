@@ -126,12 +126,12 @@ Bare A1 composition SHALL supply the supported production process inspector to i
 
 ### Requirement: Product commands own worktree entry and attachment
 
-A1 SHALL expose worktree enter, attach, detach, status, list, and complete through cwd-independent controls and compatible shell commands. Enter SHALL create or resume a registered task worktree and acquire its editing claim. Shell mutations SHALL queue an exact-session request rather than changing context while their process pins the old cwd. The runtime's final confirmation SHALL return the canonical root and branch after resource reload and claim commit, without requiring a second inventory check. Existing session-context aliases SHALL remain compatible. Detach SHALL preserve worktree files and branches. Creation SHALL support configured or explicit bases without assuming a universal branch name.
+A1 SHALL expose worktree enter, attach, detach, status, list, and complete through cwd-independent controls and compatible shell commands. Enter SHALL create or resume a registered task worktree and acquire its editing claim. Shell mutations SHALL queue an exact-session request rather than changing context while their process pins the old cwd. The runtime's final confirmation SHALL return the canonical root and branch after resource reload and claim commit, without requiring a second inventory check. Existing session-context aliases SHALL remain compatible. Detach SHALL preserve worktree files and branches. Creation SHALL support configured or explicit bases without assuming a universal branch name. Selected existing PR/head branches SHALL retain their ancestry: verify repository/ref/head and fetch before adopting remote-only or unoccupied local branches without rewriting tips. Owned dirty checkouts SHALL preserve edits. Divergence/collisions/ownership conflict SHALL fail non-destructively. Setup and cleanup remain separate.
 
 #### Scenario: Create and resume a task
 
-- **WHEN** an active session enters a valid task branch in an explicitly selected or discovered repository
-- **THEN** A1 SHALL create its isolated worktree from the selected base and confirm attachment after the requesting tools settle
+- **WHEN** an active session enters a new valid task branch
+- **THEN** A1 SHALL create its isolated worktree from the selected current base and attach it
 - **AND** repeating entry SHALL preserve matching existing uncommitted work
 
 #### Scenario: A selected checkout cannot be acquired
@@ -139,6 +139,15 @@ A1 SHALL expose worktree enter, attach, detach, status, list, and complete throu
 - **WHEN** the selected checkout is primary, locked, mismatched, or held by another live or unverifiable runtime
 - **THEN** the operation SHALL retain existing files and the prior attachment and return a bounded actionable failure
 - **AND** SHALL NOT force creation, overwrite a branch, or remove a worktree
+
+#### Scenario: Remote-only proposal branch
+- **WHEN** implementation is requested for a verified planning PR
+- **THEN** its checkout SHALL start at that existing head, preserving history
+
+#### Scenario: Unoccupied local branch
+- **WHEN** identity and state permit explicit reuse
+- **THEN** entry SHALL retain its tip without reset
+- **AND** divergence SHALL be reported
 
 ### Requirement: Ordinary coordination is internal to the operation
 
@@ -168,7 +177,7 @@ A1 SHALL activate persisted attachment state for each session binding and retry 
 
 ### Requirement: Implementation handoff preserves task attachment
 
-Shared repository guidance SHALL keep the active task worktree attached after implementation completion and review handoff so follow-up tools and PR discovery continue using the same task context. Agents SHALL detach only on an explicit request or when switching tasks, and SHALL use guarded completion after a verified merge, not merely because an implementation response or handoff is complete. Guidance SHALL forbid running repository cleanup directly against the attached checkout. Runtime shutdown SHALL continue releasing its editing claims automatically. Runtime attachment, repository cleanup ownership, and merge authority SHALL remain independent.
+Shared repository guidance SHALL keep the active task worktree attached after implementation completion and review handoff so follow-up tools and PR discovery continue using the same task context. Agents SHALL detach on an explicit request, cross-machine transfer or task switch, and SHALL use guarded completion after a verified merge, not merely because an implementation response or handoff is complete. Guidance SHALL forbid running repository cleanup directly against the attached checkout. Runtime shutdown SHALL continue releasing its editing claims automatically. Attachment, cleanup ownership, publication and merge SHALL remain independent. Explicit local-only removal before merge SHALL use its guarded operation; ordinary review handoff MAY retain attachment.
 
 #### Scenario: Continue after an implementation handoff
 
@@ -328,3 +337,20 @@ A1 SHALL recreate cwd-bound project settings, context files, skills, extensions,
 - **WHEN** an active tool requests another worktree
 - **THEN** its result SHALL settle before runtime recreation
 - **AND** no intervening tool SHALL edit the target under the previous project's resources
+
+### Requirement: Local-only removal settles outside its checkout
+
+A1 SHALL support an explicit local-only adapter separate from merged completion. Owned-context and preservation preflight SHALL precede detach; a trusted exact repository operation SHALL run after shell exit and revalidate publication/content/claims. Runtime code SHALL not delete files or remote refs. Missing support/races SHALL preserve resources and report the actual outcome without a broad sweep.
+
+#### Scenario: Published open-PR removal
+- **WHEN** the user requests local-only removal and preflight succeeds
+- **THEN** the session SHALL leave before the exact operation runs
+- **AND** remote branch/PR SHALL remain unchanged
+
+#### Scenario: Owner appears after detach
+- **WHEN** another owner acquires the checkout
+- **THEN** cleanup SHALL retain it and the session SHALL remain usable outside it
+
+#### Scenario: Operation unavailable
+- **WHEN** no trusted local-only declaration exists
+- **THEN** the runtime SHALL report unavailable support without substituting complete/discard
