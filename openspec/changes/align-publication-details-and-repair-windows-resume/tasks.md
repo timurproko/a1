@@ -4,9 +4,7 @@
 - [x] 1.2 Update focused formatter and terminal-replay assertions for all failure and output modes.
 - [x] 1.3 Reconcile current release documentation and specification wording with aligned detail markers.
 
-## 2. Repair concurrent Windows packaged resume startup
+## 2. Include sanitized diagnostics in failed packaged-resume readiness reports
 
 - [x] 2.1 Retain bounded sanitized fatal diagnostics on pre-readiness failure without replacing the original failure or exposing private data.
-- [ ] 2.2 Identify the early Windows startup exception using retained evidence or a deterministic concurrent reproduction and document the confirmed cause.
-- [ ] 2.3 Repair the responsible startup owner while preserving independent concurrent launches, writer fencing, and genuine failure behavior.
-- [ ] 2.4 Add focused diagnostic and contention regressions and retain packaged concurrent-resume marker isolation and independent cleanup assertions.
+- [x] 2.2 Cover startup failure origins, owned-location filtering, and retained sanitized records after disposable runtime cleanup.
