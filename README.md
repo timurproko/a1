@@ -77,7 +77,7 @@ If a saved session's folder was moved or deleted, recovery offers **Continue**, 
 
 Bare A1 automatically names unnamed sessions from the current task and relevant discussion, using up to three descriptive words and 32 characters, and regenerates on the next prompt after a worktree-context change. Manual `/name` renames are preserved. Names appear after footer stats, with a secondary-accent reveal for automatic changes; narrow footers reduce stats before shortening the name. Agent settings offers **Session name format** with Sentence case (default, first choice), Kebab case, and Title Case for future generated names, or **Automatic session name** to disable naming. Valid saved formats are preserved; see [session names](docs/features/session-naming.md) for details.
 
-Inside an A1 agent session, `a1 worktree enter <branch>` creates or resumes a task checkout and attaches it. `a1 worktree attach <path>` attaches an existing checkout; `a1 worktree detach` releases it without deleting work. A1 handles coordination and ordinary recovery internally; successful attachment needs no second inventory check. See [worktree commands](docs/features/worktrees.md).
+Inside an A1 agent session, the `worktree` tool enters, attaches, detaches, and inspects task checkouts from any startup location. Attachment resolves target trust and reloads project instructions, settings, skills, and extensions while preserving the conversation. Shell alternatives include `a1 worktree enter <branch> --repo <absolute-path>` and `a1 worktree attach <absolute-path>`; these queue a transition, and the runtime reports final confirmation after the tool batch. Detach preserves files and branches. No second inventory check is required. See [worktree commands](docs/features/worktrees.md).
 
 Show all commands:
 
@@ -105,7 +105,7 @@ a1 pi
 
 Settings → Appearance separates a saved **Default color** (initially blue) from **Current color**, which affects only this session. Both offer blue, green, orange, pink, purple, cyan, and grey. `a1 --session-color green` overrides initialization before the first startup/trust/editor frame without saving a setting. Successful session replacements retain that invocation policy; live Current edits do not change it.
 
-External hosts use `a1 api <request-json>` for versioned discovery and exact runtime/session settings control through the [shared integration API](docs/features/integration-api.md). Inside Herdr Core, bare A1 automatically reports complete native session/runtime identity with bounded heartbeat and ownership-safe cleanup. Local and SSH machines need only Core, A1, and normal Node—not App or companion setup. Supported launches from a known Herdr space can receive its color before first paint; manual and new-space launches retain subsequent live matching rather than a promised startup handshake.
+External hosts use `a1 api <request-json>` for versioned discovery, exact runtime/session settings control, and supervised graceful exit (`session.lifecycle` reports whether one exact session can stop without losing a draft, queued input, dialog or running turn; `session.exit` admits the ordinary quit path only then, and an admitted exit is not proof the process has exited) through the [shared integration API](docs/features/integration-api.md). Inside Herdr Core, bare A1 automatically reports complete native session/runtime identity with bounded heartbeat and ownership-safe cleanup. Local and SSH machines need only Core, A1, and normal Node—not App or companion setup. Supported launches from a known Herdr space can receive its color before first paint; manual and new-space launches retain subsequent live matching rather than a promised startup handshake.
 
 ## Update
 
@@ -150,6 +150,8 @@ Stuck on `0.2.2` and `a1 update` fails? Run the installer once, then use `a1 upd
 ```text
 npm x -y -- @timurproko/a1-install
 ```
+
+On Windows, older builds can lose their recovery worker on a heartbeat-file sharing error and eventually report a recovery-guardian timeout. Let the failed update command finish before running the new official installer with `--repair`, its absolute recovery capsule path, and the same channel/version selector from [Install](#install). The capsule is kept in the transaction's `update-recovery` directory; repair verifies its ownership and refuses running package writers. Do not run concurrent installers or delete settings, sessions, history, or update-state files to repair the launcher. New builds tolerate heartbeat sharing failures; reinstalling once replaces the old updater too.
 
 The **Update** setting controls release discovery:
 

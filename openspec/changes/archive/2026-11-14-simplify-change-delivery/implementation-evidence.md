@@ -4,6 +4,19 @@ Current independent-review disposition: earlier completion and passing tests did
 
 Current R11 disposition: the maintainer-approved paired clarification in `r11-clarification.md` resolves the later wording blocker described below. Prior observations remain historical; this clarification changes no release behavior, case expectations or adapter values. Current local verification is recorded below, separately from CI and acceptance.
 
+## Develop conflict repair after 8cef224b
+
+Preserved the fetched topic history and reconciled `develop` at `0744623bc6cf9d544187aeee40633f57fc51afcb`. Newer queued controls/resource reload and independent-target readiness coexist with exact preflight, primary-only adapters, approved checkout snapshots and child-lifetime exclusion. Local removal now uses the same queued owner-runtime transition and settles after resource reload, without substituting merged completion. Tests retain both-operation replacement/HEAD coverage and add queued local removal, non-Git startup/selected-primary execution and startup-inside-target refusal. The composed adapter-loss case removes primary support after preflight/preparation and still refuses the task copy.
+
+Observed on the resolved tree:
+
+- **308 tests across 13 focused files passed:** 201 CLI/guidance/control tests; 87 lifecycle, process, composition and project-resource/tool tests; 20 finalization-publication tests including stale base metadata, moved targets and hold/snapshot safeguards.
+- The direct unchanged common-case runner passed **51 tests: all 50 cases and 11 hazards, zero skips**. It took approximately 283 seconds locally; this does not claim the separate 240-second Vitest child wrapper passed or waive its existing limit.
+- Core build, post-build typecheck, architecture, full code-documentation, naming, frozen-contract/scope, live body structure and whitespace checks passed. An initial pre-build bin typecheck encountered stale generated declarations; rebuilding current sources repaired the generated-input mismatch, with no compiler relaxation.
+- The conflicted canonical recovery spec is resolved to exact target bytes. This archive's project-owned delta preserves both queued-control requirements and proposal-history behavior. Trusted finalization must resynchronize that delta and the manifest; no manual active artifacts, framework changes or manual readiness mutation were used. Previous exact-head CI is not evidence for the new merge candidate.
+
+Completed task ticks, frozen payloads, release behavior and unrelated newer work remain preserved. Merge, native auto-merge arming, runtime publication, downstream migration and cleanup remain outside this repair.
+
 ## Written and published checkpoints
 
 - R20 reconciliation was recorded against `b2e47d1cba0129b2cb6ae5b832d8cd96f060994d` before implementation. That checkpoint contained planning only; no implementation or prior completed tasks were discarded.

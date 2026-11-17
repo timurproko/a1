@@ -87,7 +87,8 @@ export async function inspectCheckoutProcesses(root, { list = listSystemProcesse
   catch (error) { throw error.cleanupCode ? error : failure("development-process-inspection-unavailable"); }
 }
 
-async function terminateVerified(record, { deadline = Date.now() + 10000 } = {}) {
+/** Terminate one previously verified process with a creation-time-pinned Windows handle. */
+export async function terminateSystemProcess(record, { deadline = Date.now() + 10000 } = {}) {
   if (process.platform !== "win32") { process.kill(record.pid, "SIGTERM"); return; }
   if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}Z$/u.test(record.start)) throw failure("development-process-unverifiable");
   // Security: pin the Windows process handle and creation time before terminating; PID reuse is not stop authority.
@@ -97,7 +98,7 @@ async function terminateVerified(record, { deadline = Date.now() + 10000 } = {})
 
 /** Explicit candidate stop only: fresh identity before every stop, bounded settling, no caller/ancestor termination. */
 export async function stopCheckoutDevelopmentProcesses(root, {
-  list = listSystemProcesses, terminate = terminateVerified, self = process.pid,
+  list = listSystemProcesses, terminate = terminateSystemProcess, self = process.pid,
   sleep = milliseconds => new Promise(done => setTimeout(done, milliseconds)), passes = 4, deadline = Date.now() + 15000,
 } = {}) {
   const stopped = new Set();

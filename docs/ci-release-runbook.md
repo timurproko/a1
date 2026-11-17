@@ -225,6 +225,89 @@ version without dispatching package work. If either immutable artifact is missin
 it dispatches GitHub Actions, waits, and verifies both published versions. It never
 builds or uploads npm bytes from the workstation.
 
+While waiting, the command prints `[publication] version — run ID` once, followed
+by an unindented full Actions log link. In an interactive terminal, each job keeps
+one row: its dot, label, and available workflow-step counter update in place when
+its state or counter changes, so yellow Running becomes green Passed without a
+duplicate row. Rows omit the publication prefix,
+with job names aligned after a fixed-width status field:
+
+```text
+[publication] 0.2.7-dev.1313 — run 43732033913
+Full log: https://github.com/timurproko/a1/actions/runs/43732033913
+
+  ● Running: Windows validation (Node 24) (2/6)
+  ● Passed:  Linux validation (Node 24) (5/5)
+  ● Failed:  macOS validation (Node 24) (3/5)
+  ● Skipped: npm staging
+```
+
+The `(current/total)` counter counts the workflow steps GitHub currently returns,
+including setup and teardown, not internal tests or elapsed time. Current is the
+last step position reported running or completed (including skipped steps), or zero
+before any step starts. Passed jobs show total/total; a failed job can also reach
+total/total when all its steps have settled without implying success. Jobs with
+unavailable, empty, or malformed step metadata and wholly skipped jobs omit the
+counter. A long-running command within one step does not advance it. Counters
+refresh independently for each job; unchanged snapshots remain silent.
+
+Only the small dot is colored: yellow for running, green for passed, red for failed,
+and gray for skipped. Labels and job names keep the terminal's default text color.
+`NO_COLOR` and `FORCE_COLOR=0` use neutral dots while retaining interactive row
+updates. Redirected output and dumb terminals use plain append-only transitions
+without terminal controls. Interactive names are shortened to retain the counter
+where space permits and fit the terminal width; the full log retains complete
+identities. Unknown or very narrow dimensions,
+a terminal resize, or more rows than fit on screen switch to append-only transitions
+for the rest of that observation, avoiding unsafe cursor movement into unrelated
+output. There is no spinner or continuous animation.
+Unchanged snapshots, setup/teardown step details, derivative lane/result gates, and
+never-started inactive-mode optional skips remain omitted. Previously started jobs
+that become skipped and skipped npm staging remain visible. A final failure names
+the primary lane or stage and bounded, deduplicated diagnostic messages; the full
+log retains the complete detail. Every observer exit leaves exactly one blank line
+between the last status row and subsequent output, including success, failure,
+interruption, unavailable or malformed status, and local waiting errors. With no
+visible jobs, the header's existing blank separator is reused. This applies to
+live updates and append-only fallbacks alike. Job-status dots and failure-detail
+asterisks share two leading spaces in every output mode.
+A failure's plain heading keeps the existing `[develop]` prefix without a dot;
+the unindented log link comes next, then a blank line and aligned asterisk
+bullets for every detail, including diagnostics:
+
+```text
+[develop] Publication failed: 0.2.7-dev.1313 (run 43732033913)
+Full log: https://github.com/timurproko/a1/actions/runs/43732033913
+
+  * Published pair (win32-node24, windows-2025, 24) [failure]
+  * Detailed failure evidence unavailable; see the full log.
+  * Downstream lane/result checks also failed.
+  * npm staging: success. Packages may already exist; inspect the registry before retrying.
+  * Next: fix the failure, then rerun npm run develop after checking the run above.
+```
+
+If npm staging was skipped, it reports publication blocked before staging. Otherwise it warns that packages
+may already exist, or that publication state is unknown, so inspect the run and
+registry before retrying. Fix the cause before rerunning `npm run develop`.
+Interrupting the local wait does not cancel the remote run. Interrupted waiting or
+unavailable GitHub status reports an unknown remote outcome and keeps the log link.
+The reason heading, remote-outcome guidance, and log link each start at the left
+margin on separate lines:
+
+```text
+  ● Running: npm staging (10/12)
+
+[develop] Stopped watching 0.2.7-dev.1333 (run 43925703803): GitHub status unavailable.
+Remote outcome unknown; it may still be running. Check this run before starting another publication.
+Full log: https://github.com/timurproko/a1/actions/runs/43925703803
+```
+
+Check that run before requesting another publication. On workflow success, the
+same blank separator precedes `[workflow] passed; verifying npm packages.`;
+the develop result or registry-verification error follows directly below at the
+left margin. Workflow success alone never claims that registry publication is
+complete. Stable-candidate validation retains its existing live job-list presentation.
+
 Nightly resolves the same current `origin/develop` source. It runs one platform-independent full documentation review before the platform matrix, and the matrix records that prerequisite instead of repeating the scan four times. It always runs complete verification even if source has not changed. For a new number it packs once and
 runs the suite against that final-version tarball before publication. For an
 existing number it downloads both exact npm tarballs and runs package/update and
@@ -346,10 +429,20 @@ installer/application pair in isolated prefixes on every release lane. Only afte
 those post-publication checks pass does it upload the Release asset and fast-forward
 `master`. Uploads first use `a1-staging`, never `next` or `latest`. A separate trusted
 promotion job moves the public tags only after every native lane passes fresh install,
-predecessor update, and non-interactive launcher checks. The smoke fixture pins only
+predecessor upgrade, and non-interactive launcher checks. The real predecessor updater
+is always attempted. One explicitly declared compatibility path handles the known
+immutable Windows worker whose heartbeat sharing error terminates it before a result. The smoke fixture pins only
 A1 tag discovery through a fixture-local npm bridge; all package installations still
 use the real npm CLI and registry bytes. This lets stable smoke select the exact
 candidate while `latest` still names its predecessor, without changing installer grammar.
+The local `npm run develop` command reports an already-published preview only when both
+exact package versions exist and both public `next` tags name that version. Staged-only,
+partially present, or partially promoted pairs trigger the existing publication workflow,
+with explicit recovery intent and the same live run link, job states, step counts, and final
+outcome as a fresh publication. It verifies both exact versions and both public tags again
+after workflow success. Interrupting observation leaves the remote run alive and prints its
+link; check that run before starting another request.
+
 Existing staged bytes repeat smoke and promotion rather than becoming an existence-only
 no-op. If the public tag already names the candidate after partial recovery, smoke selects
 the newest strictly older same-channel published predecessor.
@@ -402,7 +495,7 @@ Rules that do not bend:
 - **A Pi upgrade proposal needs a re-run:** the sync never force-pushes over `chore/pi-<version>` once it carries a commit the bot did not author; a scheduled re-run posts its fresh verdicts as another sync report comment headed with the version and date and never edits the description. The description is the ordinary delivery layout: check each generated implementation outcome as its work completes, including one the report shows nothing for, never rewrite the generated items, and let trusted readiness promote the all-checked draft like any other. To re-run the derived steps and gates on the reviewer's head, dispatch the workflow with `refresh` and the `version`; it checks out the proposal branch, skips bump, evaluation, install, and merge, and reports without pushing. A branch whose commits are all the bot's is recreated from `develop` as before.
 - **A Pi version should not be adopted:** close its proposal pull request with the `pi-upgrade-skipped` label (declared in `config/github-repository-governance.json`) and say why in the closing comment; the next run proposes the newest unskipped version newer than the pin, or nothing, and names the skipped versions in its log. A proposal closed without the label is proposed again the next night. Dispatching the workflow with a `version` ignores skips, which is how a skipped version is reconsidered. To silence the schedule through a release window, set the repository variable `PI_UPGRADE_FREEZE_UNTIL` to a date (`2026-10-01`); scheduled runs exit before proposing until it passes, manual dispatches still run.
 - **Nightly documentation review fails:** inspect the reported paths and rules, identify the introducing merge from the nightly interval, and repair the invariant before unrelated work proceeds.
-- **Development publication fails:** inspect both package versions and digests, fix the cause, and rerun `npm run develop`; an npm version that already exists is verified and never overwritten. An uploaded candidate is not advertised by `next` until every published-pair check passes and promotion succeeds. A smoke failure writes sanitized stage, child outcome, and fixture-owned npm diagnostic tails to the usual published-installer artifact before removing its isolated prefixes.
+- **Development publication fails:** inspect both package versions and digests, fix the cause, and rerun `npm run develop`; an npm version that already exists is verified and never overwritten. An uploaded candidate is not advertised by `next` until every published-pair check passes and promotion succeeds. A staged or partially promoted pair is recovery work, not a successful no-op; the command follows recovery with the ordinary live status display. A smoke failure writes sanitized stage, child outcome, and fixture-owned npm diagnostic tails to the usual published-installer artifact before removing its isolated prefixes.
 - **Registry bytes are not ready:** exact-version metadata is not sufficient. Verification downloads both advertised HTTPS registry tarballs without redirects, streams SHA-512 and SHA-1 hashes, and requires both to match the validated artifacts. Each request has a 30-second timeout and each tarball a 64 MiB limit. A missing download or mismatched bytes keeps the pair unverified within the existing 180-attempt, ten-second ingestion polling allowance; it never rebuilds or republishes a package.
 - **Registry verification times out:** a `has not propagated` failure after a successful `npm publish` means npm is still ingesting the upload; it warns that a provenance-signed package "may take a few minutes" and the publisher polls for ten minutes. Confirm the version and its shasum on `https://registry.npmjs.org/<name>/<version>`, then rerun the failed jobs: the final registry check finds the exact bytes, skips `npm publish`, and verification passes. A digest or tag mismatch is not a timeout and is never repaired by rerunning.
 - **Draft preparation stops:** inspect the reported draft Release. Preparation may safely reuse an exact source-bound draft without overwriting edits, and reuses a running or successful validation of the same source and version. If `develop` advanced, retire the stale draft explicitly and prepare a new one from synchronized `develop`.
@@ -421,6 +514,50 @@ that bookkeeping failure warns, retains recovery authority, and never rolls back
 already active release. A guardian that has not settled retains ownership rather than
 racing a second rollback. Preserve transaction and capsule evidence when diagnosing a
 local failure; do not delete state as a launcher repair.
+
+### Immutable Windows heartbeat failure
+
+Published `0.2.7-dev.1307` contains the older recovery writer introduced by #265. A
+transient `EPERM` while renaming `owner.json` rejects its unhandled heartbeat promise,
+kills the detached worker, and leaves its parent waiting for a result that never arrives.
+Hosted run `43761732019` captured that exact exception and exit 1 twice. The package
+already staged as the candidate has the corrected atomic writer and caught heartbeat;
+changing that candidate cannot retrofit the worker copied by an installed predecessor.
+
+The published-pair smoke observes, without patching, only the legacy recovery entry
+with SHA-256 `1afca5ea1e2b81c77367fb842e37e78ed35d3bd06b69ec8cd7421ffb7259b13d`.
+Recovery requires a recorded failed worker exit, an owner-file sharing error, matching
+transaction/capsule/package/target authority, matching copied worker bytes, and no
+completed result. A timeout, different error, unknown worker, or unavailable authority
+never enables this path. A recognized crash ends the wait promptly; the general update
+deadline is five minutes. Each smoke phase is printed before waiting.
+
+The harness retains the failed direct attempt, inventories and settles every fixture
+writer, then invokes the exact published installer with `--repair` and the authenticated
+capsule path on the same prefix, settings, and data. It does not delete user state or alter the predecessor package to force a pass.
+The recovery installer must have the exact successful transcript; its manifest, active
+release, reported version, and callable launcher must all identify the candidate.
+Evidence reports `upgradeMethod: installer-recovery`, `installerRecoveryVerified: true`,
+and `updateVerified: false`, retaining the failed direct attempt separately. Any failure
+in settlement or recovery keeps promotion blocked. Native Windows regression coverage
+holds an actual non-delete-sharing handle over a current worker heartbeat and requires
+that worker to survive and publish its successful npm result.
+
+For a real affected installation, let the failed updater exit, then use the new official
+installer with `--repair` naming its absolute capsule path and the same channel/selector.
+The capsule is in the transaction's `update-recovery` directory; preserve it. This explicit
+mode independently validates ownership even when npm left the package manifest or CLI
+incomplete, refuses recorded live owners and any native package/recovery writer, installs
+with the capsule's explicit prefix, and activates in the authenticated data directory.
+It never delegates back into the immutable or partial predecessor. Do not delete configuration,
+sessions, history, or transaction files, and do not run a second package writer while
+the first is active. The smoke's process stopping is limited to its disposable fixture;
+it is not permission to terminate arbitrary installed sessions. On the next update,
+the repaired updater can settle the abandoned ownership-released journal when the
+requested target is already active, the installed package and full launcher set match,
+the capsule authority validates, and both recorded recovery owners are dead. It then
+reports up to date rather than restarting the old capsule. Live owners and unavailable
+or mismatched authority retain the normal recovery path; state is never simply erased.
 
 ## Safe release-command validation
 

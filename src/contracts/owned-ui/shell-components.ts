@@ -20,6 +20,8 @@ export interface OwnedUiShellKeybindingsHost {
 
 export interface OwnedUiShellComponentPort {
   readonly ready?: Promise<void>;
+  /** The footer control represented by this dock dialog, independent of how it was opened. */
+  readonly footerControl?: OwnedUiShellFooterControl;
   render(width: number): readonly string[];
   /** Bounds scrollable replacement inputs within the dock. */
   renderInDock?(width: number, maxHeight: number): readonly string[];
@@ -101,10 +103,21 @@ export interface OwnedUiShellAutocompleteCommand {
   readonly source?: "builtin" | "prompt" | "skill" | "extension";
 }
 
+export type OwnedUiShellFooterControl = "name" | "models" | "thinking";
+export interface OwnedUiShellFooterControlSpan {
+  readonly command: OwnedUiShellFooterControl;
+  readonly row: number;
+  readonly column: number;
+  readonly width: number;
+}
+
 export interface OwnedUiShellViewComponentPort extends OwnedUiShellComponentPort {
   update(view: OwnedUiSessionViewModel): void;
   /** Footer-only ephemeral frame; returns whether its clipped name still needs animation. */
   setNameReveal?(frame: { readonly from: string; readonly elapsed: number } | null): boolean;
+  /** Zero-based visible control text spans, excluding spaces, separators, and outer footer gutters. */
+  footerControlSpans?(): readonly OwnedUiShellFooterControlSpan[];
+  setFooterHovered?(control: OwnedUiShellFooterControl | undefined): void;
 }
 
 export type OwnedUiShellStatusPlacement = "live" | "dock" | "hidden";
@@ -424,6 +437,8 @@ export interface OwnedUiShellProgramStatusReporter {
 export interface OwnedUiShellExtensionUiBridgeHost {
   readonly runtime: OwnedUiShellRuntime;
   readonly agentDir?: string;
+  readonly onCopyText?: (text: string, cut: boolean) => void;
+  readonly readClipboardContent?: (signal?: AbortSignal) => Promise<OwnedUiShellClipboardContent | null>;
   setInputSurface(component: OwnedUiShellComponentPort | null): void;
   setProgramStatusBlocked(status: OwnedUiShellProgramStatusBlocked | undefined): void;
   showOverlay(component: OwnedUiShellComponentPort, options?: OwnedUiExtensionOverlayOptions): OwnedUiExtensionOverlayHandle;
@@ -448,7 +463,7 @@ export interface OwnedUiShellExtensionUiBridgeHost {
 export interface OwnedUiShellExtensionUiBridge {
   /** The extension UI context the engine binds to a session. */
   readonly context: OwnedUiExtensionUiPort;
-  input(title: string, placeholder: string, options?: { readonly retainSurfaceOnSettle?: boolean }): Promise<string | undefined>;
+  input(title: string, placeholder: string, options?: { readonly retainSurfaceOnSettle?: boolean; readonly initialValue?: string; readonly sessionNameEditing?: boolean }): Promise<string | undefined>;
   reset(): void;
   dispose(): void;
 }

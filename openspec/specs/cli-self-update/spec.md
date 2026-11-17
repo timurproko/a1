@@ -1081,3 +1081,46 @@ Update journal and recovery sidecar or launcher replacement SHALL use bounded re
 
 - **WHEN** a recovery launcher's atomic rename fails permanently
 - **THEN** the prior destination SHALL remain intact and recovery evidence SHALL remain available
+
+### Requirement: Recovery entry dispatch recognizes canonical path aliases
+
+The standalone recovery entry SHALL recognize direct execution when the invoked path and loaded module identify the same canonical filesystem entry, including symlinked ancestors. Importing the entry from another module SHALL NOT dispatch worker, restore, or launcher behavior. Entry recognition SHALL NOT bypass capsule, digest, prior-release, npm-prefix, sidecar, or launcher-set verification.
+
+#### Scenario: Recovery entry is invoked through a filesystem alias
+- **WHEN** the updater invokes the copied recovery entry through a path whose ancestor resolves to a different canonical spelling
+- **THEN** the recovery entry SHALL execute the requested verified recovery mode rather than silently exit without ownership or settlement evidence
+
+#### Scenario: Aliased worker survives updater loss
+- **WHEN** a verified recovery worker starts through an aliased entry path and the invoking updater exits after ownership transfer
+- **THEN** the worker SHALL independently establish the complete target or verified recovery launcher set and record its durable disposition
+
+#### Scenario: Cancellation reaches an aliased recovery worker
+- **WHEN** cancellation is requested after an aliased recovery worker begins package replacement
+- **THEN** the worker SHALL coordinate npm settlement and establish a callable complete launcher set before recording acknowledged cancellation
+
+#### Scenario: Recovery helpers are imported
+- **WHEN** another module imports the recovery entry's exported helpers
+- **THEN** importing SHALL NOT interpret the importing process's arguments as a direct recovery invocation
+
+### Requirement: Installer-activated targets settle abandoned replacement journals
+
+When an explicit update holds the installation execution lease and its requested target is already the approved active release, it MAY settle an abandoned ownership-released journal left by an installer recovery only after validating the transaction, capsule, canonical package root, installed target manifest, and complete target launcher set, and establishing that neither recorded recovery owner is alive. An unsettled live owner, different target, different package, incomplete launchers, or unavailable authority SHALL preserve the existing recovery path. Verified external activation SHALL be treated as committed before attempting journal persistence so a bookkeeping failure cannot roll it back.
+
+#### Scenario: Installer recovery already activated the requested target
+
+- **WHEN** the requested target is active and installed, its launchers are valid, and the abandoned transaction's journal and capsule owners are no longer alive
+- **THEN** the updater SHALL durably settle the transaction and take the up-to-date path without restarting the old capsule or npm replacement
+
+#### Scenario: Recovery mutation remains live or unverifiable
+
+- **WHEN** either recorded recovery owner is alive or the capsule, target, package root, or launcher authority cannot be verified
+- **THEN** the updater SHALL NOT discard the active transaction as an already completed installer recovery
+
+### Requirement: Recovery heartbeats cannot terminate package ownership
+
+A Windows sharing refusal during a detached recovery worker heartbeat SHALL NOT terminate that worker or orphan its npm child. Heartbeat failures SHALL remain bounded diagnostics while the worker retains responsibility for npm settlement and the callable-launcher result.
+
+#### Scenario: A native Windows reader blocks heartbeat replacement
+
+- **WHEN** an actual Windows file handle denies heartbeat owner-file replacement beyond the rename retry allowance
+- **THEN** the worker SHALL remain alive, retain the heartbeat error in diagnostics, and publish its npm settlement result after the handle and npm operation settle

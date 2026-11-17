@@ -302,6 +302,7 @@ async function launch(args: string[], shell?: { command: string; args: string[] 
             spawnFailed: spawnError !== undefined, outputBytes: Buffer.byteLength(output),
             markerRequired: marker !== undefined, markerPresent: marker === undefined || stripVTControlCharacters(output).includes(marker),
             ...summarizeResumeTrace(await trace()),
+            ...(passed ? {} : { fatal: await readResumeFatalDiagnostics(resolve(environment.A1_RUNTIME_DIR!, "crashes")).catch(() => []) }),
           };
           try {
             const line = `${JSON.stringify(diagnostic)}\n`;

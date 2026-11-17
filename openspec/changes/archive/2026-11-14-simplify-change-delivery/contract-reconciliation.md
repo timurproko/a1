@@ -1,5 +1,13 @@
 # Contract reconciliation
 
+## Conflict reconciliation at 8cef224b
+
+For the maintainer's conflict-repair request, fetched and fast-forwarded the clean task to `8cef224b44304eb949d1d2b98594091e68c6267c`, retaining all 27 newer topic commits. Merging `develop` at `0744623bc6cf9d544187aeee40633f57fc51afcb` preserves its 26 additional commits and resolves 16 conflicted files without rebasing or dropping completed work.
+
+R04/R07/R14/R15/R17 and C09–C12/C39/C40 remain the relevant boundaries. Preserve #938's explicit repository selection, queued shell requests, trust/resource reload, provisional claims and startup-inside-target refusal. Route the existing local-removal operation through that same request/transition/settlement lifecycle; keep exact preflight, primary-only declarations, approved physical/HEAD snapshot, sealed claim namespace and tracked-child exclusion. Both operations restore startup resources while their controller runs from the selected verified primary, even when startup is outside Git. Retain #966's independent target-ref/ancestry readiness checks together with fresh snapshot/hold guards.
+
+Keep the single frozen guidance route and newer control syntax rather than reintroducing duplicate progress policy. Resolve the canonical spec to exact target bytes; update only this archive's project-owned requirement delta to preserve the new queued-control semantics alongside proposal-history adoption. Trusted finalization, not hand editing, will reapply the combined delta and resynchronize canonical specs/manifest. Frozen payloads, framework assets, existing release-specific routes, completed task ticks, PR identity and history remain intact. PR merge, auto-merge arming and cleanup remain unauthorized.
+
 ## Independent review rework at c2249c67
 
 Fetched the current PR branch and fast-forwarded the clean task from `473c9844` to reviewed head `c2249c673da57714eea680677599ca6260f8875a`. No newer remote work was present. Preserved both trusted re-finalizations, the develop merge and clipboard fix #926. Work remains in this existing archive; no active OpenSpec artifacts are manually recreated.

@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
+import { stripVTControlCharacters } from "node:util";
 import { matchesStableValidationRun, STABLE_VALIDATION_WORKFLOW } from "./release-approval.mjs";
 
 const POLL_INTERVAL_MS = 5_000;
@@ -59,41 +60,263 @@ export async function registryVersion(packageName, version, fetchImpl = fetch) {
   return manifest;
 }
 
-const MAX_FAILURE_LINES = 10;
+async function registryNextVersion(packageName, fetchImpl) {
+  const response = await fetchImpl(`https://registry.npmjs.org/-/package/${encodeURIComponent(packageName)}/dist-tags?verify=${Date.now()}`, {
+    headers: { accept: "application/json", "cache-control": "no-cache" },
+    signal: AbortSignal.timeout(30_000), redirect: "error",
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`npm registry returned HTTP ${response.status} for ${packageName} dist-tags`);
+  const tags = await response.json();
+  if (!tags || typeof tags !== "object" || Array.isArray(tags) || (tags.next !== undefined && typeof tags.next !== "string")) {
+    throw new Error(`npm returned invalid dist-tags for ${packageName}`);
+  }
+  return tags.next ?? null;
+}
 
-/** Turn a failed run into the failed job names and their recorded failure messages. */
+/** Complete a numbered preview only after both immutable packages and public next tags exist. */
+export async function publishDevelopmentPreview(preview, installerPackageName, options = {}) {
+  const { source, version, packageName, pullRequest } = preview;
+  const fetchImpl = options.fetch ?? fetch;
+  const log = options.log ?? (message => process.stdout.write(`[develop] ${message}\n`));
+  const names = [packageName, installerPackageName];
+  const versions = () => Promise.all(names.map(name => registryVersion(name, version, fetchImpl)));
+  const nextTags = () => Promise.all(names.map(name => registryNextVersion(name, fetchImpl)));
+  const existing = await versions();
+  if (existing.every(manifest => manifest !== null) && (await nextTags()).every(tag => tag === version)) {
+    log(`${version} already published for both packages on npm next (#${pullRequest}); nothing to build or publish`);
+    return;
+  }
+
+  log(existing.some(manifest => manifest !== null)
+    ? `recovering ${version} for ${source}; existing package bytes will be verified and exercised before npm next promotion`
+    : `requesting ${version} for ${source}`);
+  await dispatchPublication("develop", source, version, options);
+  const published = await versions();
+  for (const [index, manifest] of published.entries()) {
+    if (manifest === null) throw new Error(`publication succeeded but npm does not serve ${names[index]}@${version}`);
+  }
+  const tags = await nextTags();
+  for (const [index, tag] of tags.entries()) {
+    if (tag !== version) throw new Error(`publication succeeded but ${names[index]} npm next names ${tag ?? "no version"}, not ${version}`);
+  }
+  log(`published ${version} on npm next (#${pullRequest})`);
+}
+
+const MAX_FAILURE_LINES = 10;
+const MAX_FAILURE_JOBS = 4;
+const QUIET_READ = { stdio: ["ignore", "pipe", "pipe"], timeout: 30_000, maxBuffer: 16 * 1024 * 1024 };
+const FAILED_CONCLUSIONS = new Set(["failure", "timed_out", "cancelled", "action_required", "startup_failure", "stale"]);
+
+function plainText(value, limit = 320) {
+  const text = stripVTControlCharacters(String(value ?? "")).split(/\r?\n/u)[0]
+    .replace(/[\u0000-\u001f\u007f-\u009f]/gu, " ").replace(/\s+/gu, " ").trim();
+  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+}
+
+function shortJobName(name) {
+  const text = plainText(name, 160).replace(/^(?:Develop|Stable|Nightly|Candidate) \/ /u, "");
+  const lane = /^Validate (?:sequential )?\(?(linux|darwin|win32)-node(\d+)/u.exec(text);
+  if (lane) return `${{ linux: "Linux", darwin: "macOS", win32: "Windows" }[lane[1]]} validation (Node ${lane[2]})`;
+  if (/^Stage .* on npm$/u.test(text)) return "npm staging";
+  return text;
+}
+
+function publicationStepCounter(job) {
+  const steps = job.steps;
+  if (job.conclusion === "skipped" || !Array.isArray(steps) || steps.length === 0
+    || steps.some(step => !step || !["pending", "queued", "in_progress", "completed"].includes(step.status))) return "";
+  const current = job.conclusion === "success" ? steps.length
+    : steps.findLastIndex(step => step.status === "in_progress" || step.status === "completed") + 1;
+  return ` (${current}/${steps.length})`;
+}
+
+function isAggregate(job) {
+  return /^(?:Validate publication lanes|Publication result)$/u.test(shortJobName(job.name));
+}
+
+function readPublicationJobs(execute, repository, runId) {
+  const pages = JSON.parse(execute("gh", [
+    "api", `repos/${repository}/actions/runs/${runId}/jobs?per_page=100`, "--paginate", "--slurp",
+  ], QUIET_READ));
+  if (!Array.isArray(pages) || pages.some(page => !Array.isArray(page.jobs))) throw new Error("GitHub job status is unavailable");
+  return pages.flatMap(page => page.jobs);
+}
+
+function publicationState(jobs) {
+  const staging = jobs.filter(job => shortJobName(job.name) === "npm staging");
+  if (staging.length > 0 && staging.every(job => job.conclusion === "skipped")) return "Publication blocked before npm staging.";
+  if (staging.length > 0) return `npm staging: ${staging.map(job => plainText(job.conclusion || job.status || "unknown", 40)).join(", ")}. Packages may already exist; inspect the registry before retrying.`;
+  return "npm publication state is unknown; inspect the log and registry before retrying.";
+}
+
+/** Prioritize producer failures without mistaking downstream gates or missing evidence for a cause. */
 export function describePublicationFailure(runId, options = {}) {
   const execute = options.run ?? run;
   const repository = options.repository ?? repositoryName();
-  const jobs = JSON.parse(execute("gh", [
-    "api", `repos/${repository}/actions/runs/${runId}/jobs?per_page=100`,
-    "--jq", "[.jobs[] | {id: .id, name: .name, conclusion: .conclusion}]",
-  ]));
-  const failed = jobs.filter(job => job.conclusion === "failure");
+  const url = `https://github.com/${repository}/actions/runs/${runId}`;
+  let jobs = options.jobs;
+  try { jobs ??= readPublicationJobs(execute, repository, runId); }
+  catch { jobs = []; }
+  const failed = jobs.filter(job => FAILED_CONCLUSIONS.has(job.conclusion));
+  const primary = failed.filter(job => !isAggregate(job));
+  const selected = primary.length > 0 ? primary : failed;
+  const heading = `Publication failed${options.version ? `: ${plainText(options.version, 80)}` : ""} (run ${runId})`;
   const lines = [];
-  for (const job of failed) {
-    let annotations = [];
+  let remaining = MAX_FAILURE_LINES;
+  for (const job of selected.slice(0, MAX_FAILURE_JOBS)) {
+    let annotations;
     try {
-      annotations = JSON.parse(execute("gh", [
-        "api", `repos/${repository}/check-runs/${job.id}/annotations`,
-        "--jq", '[.[] | select(.annotation_level == "failure") | .message]',
-      ]));
-    } catch {
-      annotations = [];
-    }
-    for (const message of annotations) {
-      const text = String(message ?? "").split("\n")[0].trim();
-      // Rationale: the generic exit-code annotation restates that the step failed without
-      // saying why, so it is dropped in favour of the assertion or error that preceded it.
-      if (!text || /^Process completed with exit code \d+\.?$/.test(text)) continue;
-      const line = `${job.name}: ${text}`;
-      if (!lines.includes(line)) lines.push(line);
-      if (lines.length >= MAX_FAILURE_LINES) break;
-    }
-    if (lines.length >= MAX_FAILURE_LINES) break;
+      const pages = JSON.parse(execute("gh", [
+        "api", `repos/${repository}/check-runs/${job.id}/annotations`, "--paginate", "--slurp",
+      ], QUIET_READ));
+      annotations = pages.flat().filter(annotation => annotation.annotation_level === "failure").map(annotation => annotation.message);
+    } catch { annotations = []; }
+    const messages = [...new Set((Array.isArray(annotations) ? annotations : []).map(message => plainText(message)))]
+      .filter(text => text && !/^Process completed with exit code \d+\.?$/u.test(text));
+    lines.push(`${shortJobName(job.name)} [${plainText(job.conclusion, 40)}]`);
+    const visible = messages.slice(0, remaining);
+    lines.push(...(visible.length > 0 ? visible : [messages.length > 0 ? "Additional diagnostics in the full log." : "Detailed failure evidence unavailable; see the full log."]));
+    remaining -= visible.length;
   }
-  const names = failed.map(job => job.name).join(", ") || "no job reported failure";
-  return `publication run ${runId} failed in ${names}${lines.length > 0 ? `\n  ${lines.join("\n  ")}` : ""}`;
+  if (selected.length > MAX_FAILURE_JOBS) lines.push(`${selected.length - MAX_FAILURE_JOBS} additional failed jobs in the full log.`);
+  if (selected.length === 0) lines.push("Failed job details unavailable; see the full log.");
+  if (primary.length > 0 && failed.some(isAggregate)) lines.push("Downstream lane/result checks also failed.");
+  lines.push(publicationState(jobs));
+  lines.push(options.develop ? "Next: fix the failure, then rerun npm run develop after checking the run above." : "Next: inspect the full log and fix the failure before retrying.");
+  return [heading, `Full log: ${url}`, "", ...lines.map(line => `  * ${line}`)].join("\n");
+}
+
+function publicationColorEnabled(options) {
+  const environment = options.environment ?? process.env;
+  const terminal = options.isTTY ?? process.stdout.isTTY;
+  return Boolean(terminal) && environment.NO_COLOR === undefined
+    && environment.TERM !== "dumb" && environment.FORCE_COLOR !== "0";
+}
+
+function formatPublicationProgress(label, name, color) {
+  const codes = { Running: 33, Passed: 32, Failed: 31, Skipped: 90 };
+  const dot = color ? `\u001b[${codes[label]}m●\u001b[39m` : "●";
+  return `  ${dot} ${`${label}:`.padEnd(8)} ${name}\n`;
+}
+
+function fitPublicationName(name, width) {
+  // Rationale: a conservative two-cell budget for non-ASCII code points avoids underestimating row width.
+  const cellBudget = character => character.codePointAt(0) <= 0x7f ? 1 : 2;
+  if ([...name].reduce((total, character) => total + cellBudget(character), 0) <= width) return name;
+  let result = "";
+  let used = 0;
+  for (const character of name) {
+    const cells = cellBudget(character);
+    if (used + cells > width - 1) break;
+    result += character;
+    used += cells;
+  }
+  return `${result}…`;
+}
+
+function createPublicationProgress(options) {
+  const write = options.write ?? (text => process.stdout.write(text));
+  const color = publicationColorEnabled(options);
+  const environment = options.environment ?? process.env;
+  let interactive = Boolean(options.isTTY ?? process.stdout.isTTY) && environment.TERM !== "dumb";
+  const rows = new Map();
+  let geometry;
+  let hasProgress = false;
+  const stopUpdating = () => { interactive = false; };
+  if (interactive) process.stdout.on("resize", stopUpdating);
+  const update = (id, label, name, counter = "") => {
+    hasProgress = true;
+    const size = options.terminalSize?.() ?? { columns: process.stdout.columns, rows: process.stdout.rows };
+    const index = rows.get(id);
+    const count = rows.size + (index === undefined ? 1 : 0);
+    // Platform: a resize may reflow old rows, and off-screen rows cannot be addressed safely.
+    // Abandon cursor updates for this observation rather than risk overwriting unrelated output.
+    if (!Number.isInteger(size.columns) || size.columns < 16 || !Number.isInteger(size.rows) || count >= size.rows
+      || (geometry && (geometry.columns !== size.columns || geometry.rows !== size.rows))) interactive = false;
+    if (!interactive) {
+      write(formatPublicationProgress(label, `${name}${counter}`, color));
+      return;
+    }
+    geometry = { ...size };
+    // Invariant: the fixed prefix occupies 13 cells; leave the last column unused to avoid wrapping.
+    const width = size.columns - 14;
+    const fitted = counter && width > counter.length + 1
+      ? `${fitPublicationName(name, width - counter.length)}${counter}`
+      : fitPublicationName(`${name}${counter}`, width);
+    const line = formatPublicationProgress(label, fitted, color);
+    if (index === undefined) {
+      rows.set(id, rows.size);
+      write(line);
+    } else {
+      const distance = rows.size - index;
+      write(`\u001b[${distance}A\r\u001b[2K${line.slice(0, -1)}\u001b[${distance}B\r`);
+    }
+  };
+  return { update, finish: () => {
+    process.stdout.off("resize", stopUpdating);
+    // Invariant: the header already supplies the separator when no job rows were displayed.
+    if (hasProgress) write("\n");
+  } };
+}
+
+function isOptionalSkippedJob(job) {
+  return /^(?:Snapshot the stable Release note|Full documentation review|Validate Windows shard|Reconstruct Windows lane|Complete stable release records)(?: \(|$)/u.test(shortJobName(job.name));
+}
+
+/** Observe development publication without inheriting GitHub's repeated job/step screen dumps. */
+async function waitForDevelopmentPublication(runId, version, repository, options) {
+  const execute = options.run ?? run;
+  const write = options.write ?? (text => process.stdout.write(text));
+  const wait = options.sleep ?? sleep;
+  const controller = new AbortController();
+  const signal = options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal;
+  const interrupt = () => controller.abort();
+  const states = new Map();
+  const progress = createPublicationProgress(options);
+  const stopped = reason => new Error(`Stopped watching ${plainText(version, 80)} (run ${runId}): ${reason}.\nRemote outcome unknown; it may still be running. Check this run before starting another publication.\nFull log: https://github.com/${repository}/actions/runs/${runId}`);
+  process.once("SIGINT", interrupt);
+  process.once("SIGTERM", interrupt);
+  try {
+    while (!signal.aborted) {
+      let current;
+      let jobs;
+      try {
+        current = JSON.parse(execute("gh", ["api", `repos/${repository}/actions/runs/${runId}`], QUIET_READ));
+        if (typeof current.status !== "string" || (current.status === "completed" && typeof current.conclusion !== "string")) throw new Error("missing run status");
+        jobs = readPublicationJobs(execute, repository, runId);
+      } catch {
+        throw stopped(signal.aborted ? "interrupted" : "GitHub status unavailable");
+      }
+      if (signal.aborted) break;
+      for (const job of jobs) {
+        if (isAggregate(job)) continue;
+        const state = job.status === "completed" ? job.conclusion : job.status;
+        if (state !== "in_progress" && state !== "success" && state !== "skipped" && !FAILED_CONCLUSIONS.has(state)) continue;
+        if (state === "skipped" && !states.has(job.id) && isOptionalSkippedJob(job)) continue;
+        const counter = publicationStepCounter(job);
+        const signature = `${state}${counter}`;
+        if (states.get(job.id) === signature) continue;
+        states.set(job.id, signature);
+        const label = state === "in_progress" ? "Running" : state === "success" ? "Passed" : state === "skipped" ? "Skipped" : "Failed";
+        progress.update(job.id, label, shortJobName(job.name), counter);
+      }
+      if (current.status === "completed") {
+        if (current.conclusion !== "success") {
+          throw new Error(describePublicationFailure(runId, { run: execute, repository, version, jobs, develop: true }));
+        }
+        break;
+      }
+      try { await wait(POLL_INTERVAL_MS, undefined, { signal }); }
+      catch { throw stopped(signal.aborted ? "interrupted" : "status waiting unavailable"); }
+    }
+    if (signal.aborted) throw stopped("interrupted");
+  } finally {
+    process.off("SIGINT", interrupt);
+    process.off("SIGTERM", interrupt);
+    progress.finish();
+  }
+  write("[workflow] passed; verifying npm packages.\n");
 }
 
 export async function dispatchPublication(channel, source, version, options = {}) {
@@ -101,34 +324,31 @@ export async function dispatchPublication(channel, source, version, options = {}
   if (channel !== "develop") throw new Error("stable publication starts only when an authorized human publishes the prepared draft Release");
   const write = options.write ?? (text => process.stdout.write(text));
   const wait = options.sleep ?? sleep;
-  execute("gh", ["auth", "status"], { stdio: "inherit" });
+  const repository = options.repository ?? repositoryName();
+  execute("gh", ["auth", "status"], QUIET_READ);
   const requestId = options.requestId ?? randomUUID();
   execute("gh", [
     "workflow", "run", "develop.yml", "--ref", "develop",
     "-f", `source_sha=${source}`,
     "-f", `request_id=${requestId}`,
-  ], { stdio: "inherit" });
+  ], QUIET_READ);
 
   const deadline = Date.now() + RUN_APPEAR_TIMEOUT_MS;
   let runId;
   while (Date.now() < deadline) {
     const runs = JSON.parse(execute("gh", [
-      "run", "list", "--workflow", "develop.yml", "--event", "workflow_dispatch",
+      "run", "list", "--repo", repository, "--workflow", "develop.yml", "--event", "workflow_dispatch",
       "--json", "databaseId,displayTitle", "--limit", "50",
-    ]));
+    ], QUIET_READ));
     runId = runs.find(entry => entry.displayTitle?.includes(requestId))?.databaseId;
     if (runId !== undefined) break;
     await wait(POLL_INTERVAL_MS);
   }
   if (runId === undefined) throw new Error(`publication request ${requestId} did not appear in GitHub Actions within 5 minutes`);
 
-  const url = execute("gh", ["run", "view", String(runId), "--json", "url", "--jq", ".url"]);
-  write(`[publication] workflow run ${runId} is responsible for ${version}\n[publication] ${url}\n`);
-  try {
-    execute("gh", ["run", "watch", String(runId), "--exit-status"], { stdio: "inherit" });
-  } catch {
-    throw new Error(describePublicationFailure(runId, { run: execute, repository: options.repository }));
-  }
+  const url = `https://github.com/${repository}/actions/runs/${runId}`;
+  write(`\n[publication] ${plainText(version, 80)} — run ${runId}\nFull log: ${url}\n\n`);
+  await waitForDevelopmentPublication(runId, version, repository, options);
   return runId;
 }
 

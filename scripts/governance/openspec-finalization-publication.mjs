@@ -101,7 +101,7 @@ async function promoteCompletedDraft({ reader, publisher, pull, implementation, 
   if (typeof pull.node_id !== "string" || !pull.node_id) throw archiveFailure("finalization-candidate-identity");
   const target = (await reader.get(`${reader.prefix}/git/ref/heads/develop`)).object?.sha;
   if (!SHA.test(target ?? "")) throw archiveFailure("target-identity");
-  if (pull.base?.sha !== target) return { disposition: "retry", reason: "draft-target-changed", head: pull.head.sha, commits: [] };
+  // Rationale: PR base metadata can lag develop; fetched ancestry below establishes current-target readiness.
   const root = await realpath(await mkdtemp(join(tmpdir(), "openspec-readiness-")));
   const checkout = join(root, "checkout");
   await mkdir(checkout);
@@ -146,10 +146,12 @@ async function promoteCompletedDraft({ reader, publisher, pull, implementation, 
   const current = await reader.get(`${reader.prefix}/pulls/${number}`);
   const blocker = deliveryMutationBlocker(current);
   if (blocker) return { disposition: "skipped", reason: blocker, head: pull.head.sha, commits: [] };
-  const currentTarget = (await reader.get(`${reader.prefix}/git/ref/heads/develop`)).object?.sha;
-  if (currentTarget !== target || !sameDeliverySnapshot(current, pull, reader.repository)) {
+  if (!sameDeliverySnapshot(current, pull, reader.repository)) {
     return { disposition: "retry", reason: "draft-changed-before-ready", head: pull.head.sha, commits: [] };
   }
+  const currentTarget = (await reader.get(`${reader.prefix}/git/ref/heads/develop`)).object?.sha;
+  if (!SHA.test(currentTarget ?? "")) throw archiveFailure("target-identity");
+  if (currentTarget !== target) return { disposition: "retry", reason: "draft-target-changed", head: pull.head.sha, commits: [] };
   const guarded = await guardedDeliveryMutation({ read: () => reader.get(`${reader.prefix}/pulls/${number}`), expected: current,
     repository: reader.repository, mutate: fresh => publisher.ready(number, fresh.node_id) });
   if (!guarded.performed) return { disposition: "retry", reason: guarded.reason, head: pull.head.sha, commits: [] };

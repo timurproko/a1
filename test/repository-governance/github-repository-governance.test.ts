@@ -80,6 +80,9 @@ describe("declarative GitHub repository governance", () => {
     const inspected = await inspectLocalWorkflows(value);
     const report = compareRepositoryGovernance(value, await matchingLive(value));
     expect(report.matches).toBe(true);
+    expect(inspected.find(workflow => workflow.name === "Development validation")).toMatchObject({
+      artifactRetentionDays: [7, 14],
+    });
     expect(inspected.find(workflow => workflow.name === "Merged branch cleanup")).toMatchObject({
       triggers: ["pull_request_target:closed"], trustedSource: "default-branch", permissions: ["contents: write"],
     });
@@ -104,6 +107,20 @@ describe("declarative GitHub repository governance", () => {
       triggers: ["schedule", "workflow_call"], trustedSource: "authoritative-develop", environments: ["npm-publish"], artifactRetentionDays: [30],
       authority: expect.arrayContaining(["master-fast-forward", "npm-latest"]),
     });
+  });
+
+  it("reports drift when a workflow adds a diagnostic retention period", async () => {
+    const value = await definition();
+    const stale = structuredClone(value);
+    const index = stale.workflows.findIndex(workflow => workflow.path === ".github/workflows/ci.yml");
+    stale.workflows[index] = { ...stale.workflows[index]!, artifactRetentionDays: [14] };
+    const report = compareRepositoryGovernance(stale, await matchingLive(value));
+    expect(report.matches).toBe(false);
+    expect(report.differences).toEqual([
+      { path: `workflows[${index}].artifactRetentionDays[0]`, expected: 14, actual: 7, reason: "value" },
+      { path: `workflows[${index}].artifactRetentionDays[1]`, expected: undefined, actual: 14, reason: "unknown" },
+    ]);
+    expect(report.mutationPerformed).toBe(false);
   });
 
   it("recognizes tag rollback only through a contents-scoped App token", async () => {

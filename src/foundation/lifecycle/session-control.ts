@@ -33,6 +33,8 @@ export interface SessionControlRequestOptions extends ControlOptions {
 }
 
 const LIMIT = 8192;
+// Rationale: the live-candidate bound keeps lookups cheap; the raw ceiling still fails a flooded directory closed.
+const LIVE_LIMIT = 256, RAW_LIMIT = 4096, SWEEP_BUDGET_MS = 750, PUBLICATION_BUDGET_MS = 750;
 const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
 const SLUG = /^[a-z0-9-]{1,128}$/iu;
 const fail = (code: string, message: string) => Object.assign(new Error(message), { code });
@@ -92,6 +94,45 @@ async function readRegistration(file: string): Promise<Registration> {
   return value;
 }
 
+/** Remove one registration and, on Unix, the socket path it owned. Windows named pipes die with their process. */
+async function removeRegistration(directory: string, id: string): Promise<void> {
+  await unlink(join(directory, `${id}.json`)).catch(error => { if (error.code !== "ENOENT") throw error; });
+  if (process.platform === "win32") return;
+  const endpoint = await address(directory, id, false).catch(() => null);
+  if (endpoint) await unlink(endpoint).catch(() => {});
+}
+
+/**
+ * Unlink records whose owner process is provably gone. Bounded by `deadline` and the raw ceiling so a flooded
+ * directory cannot stall a starting session; live, unreadable and foreign-format records are left alone.
+ */
+async function pruneStaleRegistrations(directory: string, inspect: (pid: number) => Promise<ProcessIdentity | null>, deadline: number): Promise<number> {
+  const names = (await readdir(directory)).filter(name => UUID.test(name.slice(0, -5)) && name.endsWith(".json")).slice(0, RAW_LIMIT);
+  let pruned = 0;
+  for (const name of names) {
+    if (Date.now() >= deadline) break;
+    const record = await readRegistration(join(directory, name)).catch(() => null);
+    if (record === null || `${record.id}.json` !== name) continue;
+    if (await inspect(record.owner.pid) !== null) continue;
+    await removeRegistration(directory, record.id).catch(() => {});
+    pruned++;
+  }
+  return pruned;
+}
+
+/** Preserve the last complete registration while brief Windows discovery readers release its file. */
+async function publishRegistration(temporary: string, file: string): Promise<void> {
+  const deadline = Date.now() + PUBLICATION_BUDGET_MS;
+  for (let pause = 10; ; pause = Math.min(pause * 2, 100)) {
+    try { await rename(temporary, file); return; }
+    catch (error) {
+      const code = error instanceof Error && "code" in error ? error.code : undefined;
+      if (process.platform !== "win32" || !["EPERM", "EACCES", "EBUSY"].includes(String(code)) || Date.now() >= deadline) throw error;
+      await new Promise(done => setTimeout(done, Math.min(pause, Math.max(1, deadline - Date.now()))));
+    }
+  }
+}
+
 function receive(socket: Socket, consume: (value: unknown) => void): void {
   let data = "", complete = false;
   socket.setEncoding("utf8");
@@ -113,6 +154,9 @@ export async function serveSessionControl(options: SessionControlHostOptions): P
   const inspect = options.inspectProcess ?? inspectLiveProcess;
   const owner = await inspect(process.pid);
   if (!owner || owner.pid !== process.pid || !owner.startIdentity) throw fail("session-unavailable", "Runtime identity cannot be verified.");
+  // Invariant: records of abruptly ended sessions never survive long enough to starve lookups; the sweep is
+  // bounded and its failure never prevents this endpoint from starting.
+  await pruneStaleRegistrations(directory, inspect, Date.now() + SWEEP_BUDGET_MS).catch(() => {});
   const id = randomUUID(), nonce = randomUUID(), file = join(directory, `${id}.json`);
   const endpoint = await address(directory, id, true);
   let disposed = false, queue = Promise.resolve(), publication = Promise.resolve();
@@ -155,7 +199,7 @@ export async function serveSessionControl(options: SessionControlHostOptions): P
       const temporary = join(directory, `${id}.${randomUUID()}.tmp`);
       try {
         await writeFile(temporary, JSON.stringify({ version: 1, id, nonce, runtimeId: options.runtimeId, owner, ...identity }), { mode: 0o600, flag: "wx" });
-        await rename(temporary, file);
+        await publishRegistration(temporary, file);
       } finally { await unlink(temporary).catch(() => {}); }
     });
     return publication;
@@ -182,13 +226,24 @@ export async function requestSessionControl(options: SessionControlRequestOption
   const deadline = Date.now() + budget;
   const directory = await privateDirectory(options.runtimeDir, false).catch(() => { throw fail("session-unavailable", "No live session control is available."); });
   const names = (await readdir(directory)).filter(name => UUID.test(name.slice(0, -5)) && name.endsWith(".json"));
-  if (names.length > 256) throw fail("control-limit", "Too many session records to resolve safely.");
+  if (names.length > RAW_LIMIT) throw fail("control-limit", "Too many session records to resolve safely.");
+  const inspect = options.inspectProcess ?? inspectLiveProcess;
   const matches: Registration[] = [];
+  let live = 0;
   for (const name of names) {
-    const record = await readRegistration(join(directory, name)).catch(error => { if (error.code === "ENOENT") return null; throw error; });
-    if (record === null || `${record.id}.json` !== name || record.sessionId !== options.sessionId || (options.runtimeId !== undefined && record.runtimeId !== options.runtimeId)) continue;
-    const owner = await (options.inspectProcess ?? inspectLiveProcess)(record.owner.pid);
-    if (owner?.startIdentity === record.owner.startIdentity) matches.push(record);
+    const file = join(directory, name);
+    const record = await readRegistration(file).catch(error => { if (error.code === "ENOENT") return null; throw error; });
+    if (record === null || `${record.id}.json` !== name) continue;
+    const owner = await inspect(record.owner.pid);
+    if (owner === null) {
+      // Rationale: a dead owner's record only slows every later lookup; removing it here is the same judgement
+      // the serve-time sweep makes. Only the real process probe may delete; an injected inspector cannot.
+      if (options.inspectProcess === undefined) await removeRegistration(directory, record.id).catch(() => {});
+    } else {
+      if (++live > LIVE_LIMIT) throw fail("control-limit", "Too many session records to resolve safely.");
+      if (record.sessionId === options.sessionId && (options.runtimeId === undefined || record.runtimeId === options.runtimeId)
+        && owner.startIdentity === record.owner.startIdentity) matches.push(record);
+    }
     if (Date.now() >= deadline) throw fail("request-expired", "Session lookup exceeded its deadline.");
   }
   if (matches.length !== 1) throw fail(matches.length > 1 ? "ambiguous-session" : "session-unavailable", "Select one running bare session by its complete session id.");

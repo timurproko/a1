@@ -16,6 +16,7 @@ vi.mock("../../../src/foundation/lifecycle/native-claim-gate.js", () => {
 import {
   readActiveSessionRepositoryContext, readSessionStartupRoot, registerSessionRepositoryRuntime, setSessionRepositoryContext, sessionWorktreeCompletionPath,
 } from "../../../src/foundation/lifecycle/session-repository-context.js";
+import { executeSessionWorktreeControl, requestSessionWorktreeControl, takeSessionWorktreeControl } from "../../../src/foundation/lifecycle/session-worktree-control.js";
 import {
   describeWorktreeCompletion, requestSessionWorktreeCompletion, requestSessionWorktreeLocalRemoval, settleSessionWorktreeCompletion,
 } from "../../../src/foundation/lifecycle/session-worktree-completion.js";
@@ -38,7 +39,7 @@ execFileSync("git", ["-C", primary, "worktree", "remove", worktree], { stdio: "p
 console.log(JSON.stringify({ disposition: "removed", cwd: process.cwd(), rest }));
 `;
 
-async function attachedFixture(template?: string) {
+async function attachedFixture(template?: string, startup: "primary" | "home" | "task" = "primary") {
   const root = await mkdtemp(join(tmpdir(), "a1-worktree-completion-")); roots.push(root);
   const primary = join(root, "primary"), worktree = join(root, "task"), dataDir = join(root, "data"), script = join(root, "cleanup.cjs");
   await writeFile(script, CLEANUP);
@@ -56,9 +57,11 @@ async function attachedFixture(template?: string) {
     await execute("git", ["-C", primary, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "commit", "-m", "declare cleanup"]);
     await execute("git", ["-C", worktree, "merge", "--ff-only", "develop"]);
   }
+  const home = join(root, "home"); await mkdir(home);
+  const startupDirectory = startup === "home" ? home : startup === "task" ? worktree : primary;
   const session = async (id: string) => {
     const identity = { sessionId: id, sessionFile: join(root, `${id}.jsonl`) };
-    await writeFile(identity.sessionFile, `${JSON.stringify({ type: "session", version: 3, id, cwd: primary })}\n`);
+    await writeFile(identity.sessionFile, `${JSON.stringify({ type: "session", version: 3, id, cwd: startupDirectory })}\n`);
     return identity;
   };
   const inspectProcess = async (pid: number) => ({ pid, startIdentity: `fixture:${pid}` });
@@ -68,14 +71,14 @@ async function attachedFixture(template?: string) {
   await registerSessionRepositoryRuntime(identity, "runtime-one", { pid: 1001, startIdentity: "fixture:1001" }, { dataDir, inspectProcess });
   await registerSessionRepositoryRuntime(other, "runtime-two", { pid: 1002, startIdentity: "fixture:1002" }, { dataDir, inspectProcess });
   await setSessionRepositoryContext(identity, worktree, options);
-  return { root, primary, worktree, dataDir, identity, other, options, otherOptions };
+  return { root, primary, worktree, home, dataDir, identity, other, options, otherOptions };
 }
 
 const REMOVE = "node {script} {primary} {worktree}";
 
 function localRemovalTemplate(disposition = "eligible"): string {
   const preflight = `console.log(JSON.stringify({operation: 'remove-local', preflight: true, results: [{path: process.argv[1], disposition: '${disposition}', reason: 'fixture-preservation-blocker'}]})); ${disposition === "eligible" ? "" : "process.exit(1);"}`;
-  const remove = "require('node:child_process').execFileSync('git', ['-C', process.argv[1], 'worktree', 'remove', process.argv[2]], {stdio: 'pipe'}); console.log(JSON.stringify({disposition: 'removed'}));";
+  const remove = "require('node:child_process').execFileSync('git', ['-C', process.argv[1], 'worktree', 'remove', process.argv[2]], {stdio: 'pipe'}); console.log(JSON.stringify({disposition: 'removed', cwd: process.cwd()}));";
   return JSON.stringify({ localRemoval: { preflight: ["node", "-e", preflight, "{worktree}"], execute: ["node", "-e", remove, "{primary}", "{worktree}", "{snapshot}"] } });
 }
 
@@ -114,6 +117,31 @@ describe("worktree completion", () => {
     });
   }
 
+  it.each(["complete-worktree", "remove-local-worktree"] as const)("%s returns to non-repository startup while cleanup runs only in the selected primary checkout", async action => {
+    const f = await attachedFixture(action === "complete-worktree" ? REMOVE : localRemovalTemplate(), "home");
+    const prepared: string[] = [];
+    await requestSessionWorktreeControl(f.identity, { action }, f.options);
+    expect((await readActiveSessionRepositoryContext(f.identity, f.options))?.cwd).toBe(await realpath(f.worktree));
+    const request = await takeSessionWorktreeControl(f.identity, f.options);
+    expect(request).toEqual({ action });
+    const result = await executeSessionWorktreeControl(f.identity, request!, { ...f.options, prepareContext: async cwd => { prepared.push(cwd); } });
+    if (result.kind !== "completing") throw new Error("expected guarded completion");
+    expect(result.startupRoot).toBe(await realpath(f.home));
+    expect(prepared).toEqual([await realpath(f.home)]);
+    const settled = await settleSessionWorktreeCompletion(f.identity, f.options);
+    expect(settled?.kind).toBe("cleanup-finished");
+    expect(JSON.parse(settled!.detail).cwd.toLowerCase()).toBe((await realpath(f.primary)).toLowerCase());
+    expect(await exists(f.home)).toBe(true);
+    expect(await exists(f.worktree)).toBe(false);
+  });
+
+  it.each(["complete-worktree", "remove-local-worktree"] as const)("%s refuses cleanup when immutable startup is inside the checkout being left", async action => {
+    const f = await attachedFixture(undefined, "task");
+    const prepareContext = vi.fn(async () => {});
+    await expect(executeSessionWorktreeControl(f.identity, { action }, { ...f.options, prepareContext })).rejects.toMatchObject({ code: "worktree-completion-startup" });
+    expect(prepareContext).not.toHaveBeenCalled();
+    expect((await readActiveSessionRepositoryContext(f.identity, f.options))?.cwd).toBe(await realpath(f.worktree));
+  });
   it("ignores a declaration that exists only in the task checkout being left", async () => {
     const fixture = await attachedFixture();
     await mkdir(join(fixture.worktree, ".a1"));

@@ -8,13 +8,35 @@ Response envelope: `{"version":1,"id":"read-1","type":"response","command":"sett
 
 ## Operations
 
-- `capabilities`: installed supported operations, `launchColor`, `terminalIdentity` and bounded snapshots. No target, interactive startup, trust prompt, endpoint or Core probe.
+- `capabilities`: installed supported operations, `launchColor`, `terminalIdentity`, bounded snapshots and `lifecycle` (both lifecycle operations below are implemented). No target, interactive startup, trust prompt, endpoint or Core probe.
 - `settings.list`: `data.settings` contains descriptors for the two supported settings. Choices, labels, descriptions and section derive from A1 declarations; no target required.
 - `settings.get`: requires setting and target; returns target, setting, storedValue, effectiveValue, origin and application.
 - `settings.update`: additionally requires value; returns the same readback plus status `applied` (session) or `stored` (profile).
 - `session.get`: requires a session target; returns its exact target only after the active runtime validates the binding.
+- `session.lifecycle`: requires a session target; returns a read-only exit-readiness snapshot of that exact live session (below). It clears, dismisses and interrupts nothing.
+- `session.exit`: requires a session target; stops that exact session through the same path as `/quit`, but only when its readiness has no blocker at the moment the runtime handles the request. Admitted at most once per session; there is no force option.
 
 Targets are either `{scope:"profile",profileId:"a1"}` or `{scope:"session",sessionId,runtimeId}`. Both live identities must be complete UUIDs. There is no ambient or machine-wide current-session selection, terminal inventory, private-path access or comparison-profile control.
+
+## Graceful exit for supervisors
+
+An external supervisor (for example Firstmate through Herdr Core) retires a finished A1 worker in three steps: read the exact target from the native `a1.session` and `a1.runtime` Core labels, request `session.exit` with a literal argument array, then verify the terminal's program exit through Core before archiving, replacing or tearing anything down. Typing `/quit`, Ctrl+D or Core's escalating kill are not substitutes: they cannot prove the editor was empty or that nothing was queued.
+
+`session.lifecycle` data: `{target, lifecycle, editorEmpty, pendingSubmissions, queuedInput, overlayOpen, exitAdmissible, blockers}`. `lifecycle` is one of `starting`, `ready`, `busy`, `suspended`, `stopping`, `stopped`, `failed`. `blockers` is ordered and drawn from:
+
+| Blocker | Meaning |
+| --- | --- |
+| `session-stopping` | shutdown already admitted or the session is stopping, stopped or failed |
+| `session-busy` | lifecycle is not `ready` (a turn runs, startup is incomplete, or the shell is suspended) |
+| `editor-not-empty` | the editor holds text; whitespace-only drafts count |
+| `pending-input` | a submission is waiting, engine input is queued, or the queue size cannot be read |
+| `overlay-open` | a dialog, selector or overlay is open |
+
+`exitAdmissible` is true exactly when `blockers` is empty. The snapshot is advisory: the runtime re-evaluates readiness inside its serialized request handler with no asynchronous gap before admitting, so a turn that starts between the two calls is still refused.
+
+`session.exit` success data: `{target, status: "admitted", lifecycle: "stopping"}`. Failure uses the first blocker as `error.code`. Admission means shutdown has started in that exact runtime; the acknowledgement is written before teardown proceeds, and later requests answer `session-stopping`. It does **not** mean the process has exited, the terminal is free or a worktree is released: verify those through your own host facts. A timeout or closed connection is an unknown outcome; read `session.lifecycle` (or Core) instead of retrying blindly, and never apply an expired request to a replacement session. Concurrent exit requests admit exactly one. A failed engine quit leaves the shell usable and clears the admission so a later request may try again.
+
+Request example: `{"version":1,"id":"retire-7","type":"session.exit","target":{"scope":"session","sessionId":"SESSION-UUID","runtimeId":"RUNTIME-UUID"}}`.
 
 ## Supported settings
 
@@ -29,7 +51,11 @@ Profile updates are atomic per-key assignments under the existing shared setting
 
 ## Errors and completion
 
-Stable request errors: `invalid-request`, `unsupported-version`, `unsupported-operation`, `target-required`, `invalid-target`, `unsupported-profile`, `unsupported-scope`, `unsupported-setting`, `invalid-value`. Runtime/transport failures include `session-unavailable`, `ambiguous-session`, `request-expired`, `control-boundary`, `control-limit`, `control-failed`, `settings-failed`, `invalid-response`, `response-limit`. Error messages are diagnostics, not machine contracts.
+### Discovery records
+
+Each interactive session publishes one private discovery record for its control endpoint under the runtime directory and removes it on ordinary shutdown. Atomic record replacement retries brief Windows sharing errors for up to 750 ms while preserving the previous complete record; permanent errors or sustained contention still fail closed. Old session identities remain rejected throughout replacement, and request deadlines are unchanged. A session that ends abruptly (closed terminal, Core kill, crash, reboot) leaves its record behind. A1 prunes such records when it can prove the owner process is gone: once, bounded in time and count, when a session starts its endpoint, and opportunistically while a lookup scans the directory. Records of live processes, records that cannot be parsed and records of unknown format are never removed automatically. `control-limit` is raised when more than 256 live candidates are examined or when the directory exceeds a much larger raw ceiling, so a flooded directory still fails closed; a machine with many abruptly ended sessions keeps a working API without manual cleanup.
+
+Stable request errors: `invalid-request`, `unsupported-version`, `unsupported-operation`, `target-required`, `invalid-target`, `unsupported-profile`, `unsupported-scope`, `unsupported-setting`, `invalid-value`. Exit refusals: `session-stopping`, `session-busy`, `editor-not-empty`, `pending-input`, `overlay-open`. Runtime/transport failures include `session-unavailable`, `ambiguous-session`, `request-expired`, `control-boundary`, `control-limit`, `control-failed`, `settings-failed`, `invalid-response`, `response-limit`. Error messages are diagnostics, not machine contracts.
 
 An update is acknowledged only after its owning service applies or durably stores it. Requests retain nonce, process liveness, exact runtime/session, binding-generation, serialization and deadline fencing in private local IPC. Expired/disconnected queued work cannot replay onto a replacement. Lost acknowledgement is an unknown outcome: read back a fresh exact target instead of automatic retry/replay. Client JSON parsing alone is insufficient: validate version, ID, response type, command, target, setting, value and completion status. Structured failures must remain available to callers.
 

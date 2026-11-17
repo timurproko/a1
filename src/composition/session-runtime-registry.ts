@@ -1,4 +1,5 @@
 import type { ProcessIdentity } from "../foundation/lifecycle/model.js";
+import type { SessionWorktreeControlRequest } from "../foundation/lifecycle/session-worktree-control.js";
 
 interface SessionRuntimeRegistryOptions {
   /** Absent outside claim-owning runtimes. */
@@ -110,7 +111,35 @@ export class SessionRuntimeRegistry {
         const { readSessionStartupRoot } = await import("../foundation/lifecycle/session-repository-context.js");
         return await readSessionStartupRoot({ sessionId, sessionFile });
       }, 8_000, signal);
-    }, { settleShell, detach: (sessionId: string, sessionFile: string, signal: AbortSignal) => this.#detach(agentId, sessionId, sessionFile, signal) });
+    }, {
+      settleShell,
+      takeControl: async (sessionId: string, sessionFile: string, signal: AbortSignal) => {
+        const { runtimeId, inspectProcess } = this.#options;
+        if (this.#disposed || runtimeId === undefined || inspectProcess === undefined) throw new Error("worktree runtime is not active");
+        const { takeSessionWorktreeControl } = await import("../foundation/lifecycle/session-worktree-control.js");
+        return await takeSessionWorktreeControl({ sessionId, sessionFile }, { runtimeId, inspectProcess, signal, ...(agentId === undefined ? {} : { agentId }) });
+      },
+      applyControl: async (sessionId: string, sessionFile: string, request: SessionWorktreeControlRequest, prepareContext: (cwd: string) => Promise<void>, signal: AbortSignal) => {
+        const identity = this.#bind(agentId, sessionId, sessionFile);
+        const { runtimeId, inspectProcess } = this.#options;
+        if (this.#disposed || runtimeId === undefined || inspectProcess === undefined) throw new Error("worktree runtime is not active");
+        const owner = await this.#ownerIdentity();
+        if (owner === null || !this.#current(agentId, identity)) throw new Error("worktree session changed before transition");
+        const { registerSessionRepositoryRuntime } = await import("../foundation/lifecycle/session-repository-context.js");
+        const options = { runtimeId, inspectProcess, signal: AbortSignal.any([signal, this.#abort.signal]), ...(agentId === undefined ? {} : { agentId }) };
+        if (this.#activated.get(agentId) !== identity) await this.#enqueue(() => registerSessionRepositoryRuntime(identity, runtimeId, owner, options));
+        const { executeSessionWorktreeControl } = await import("../foundation/lifecycle/session-worktree-control.js");
+        const result = await executeSessionWorktreeControl(identity, request, { ...options, prepareContext: async cwd => {
+          if (!this.#current(agentId, identity)) throw new Error("worktree session changed during transition");
+          await prepareContext(cwd);
+          if (!this.#current(agentId, identity)) throw new Error("worktree session changed during transition");
+        } });
+        this.#activated.set(agentId, identity);
+        this.#released.delete(agentId);
+        return result;
+      },
+      detach: (sessionId: string, sessionFile: string, signal: AbortSignal) => this.#detach(agentId, sessionId, sessionFile, signal),
+    });
   }
 
   // Invariant: explicit recovery verifies the owner, not Git; normal cwd lookup may be broken.

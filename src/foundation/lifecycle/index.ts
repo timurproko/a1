@@ -14,6 +14,7 @@ export {
   listSessionRepositoryWorktrees,
   readActiveSessionRepositoryContext,
   readSessionStartupRoot,
+  readSessionRepositoryRoot,
   readSessionRepositoryContext,
   registerSessionRepositoryRuntime,
   releaseInvalidSessionRepositoryContext,
@@ -23,6 +24,8 @@ export {
 } from "./session-repository-context.js";
 export { retrySessionCoordination } from "./session-context-retry.js";
 export { enterSessionRepositoryWorktree } from "./session-worktree-entry.js";
+export { executeSessionWorktreeControl, requestSessionWorktreeControl, takeSessionWorktreeControl } from "./session-worktree-control.js";
+export type { SessionWorktreeControlRequest, SessionWorktreeControlOutcome } from "./session-worktree-control.js";
 export {
   describeWorktreeCompletion, requestSessionWorktreeCompletion, requestSessionWorktreeLocalRemoval, settleSessionWorktreeCompletion,
 } from "./session-worktree-completion.js";

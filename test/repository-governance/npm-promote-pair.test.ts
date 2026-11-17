@@ -67,6 +67,21 @@ describe("exercised npm channel promotion", () => {
     await expect(promotePublishedPair(input)).rejects.toThrow(/newer/u);
     expect(writes).toEqual([]);
   });
+  it("bounds published-pair jobs and smoke steps while retaining unconditional evidence upload", async () => {
+    const workflow = parse(await readFile(".github/workflows/publish.yml", "utf8"));
+    const smoke = workflow.jobs.post_publish;
+    expect(smoke["timeout-minutes"]).toBe(30);
+    const exercise = smoke.steps.find((step: { run?: string }) => step.run === "node scripts/release/smoke-published-installer.mjs");
+    expect(exercise["timeout-minutes"]).toBe(25);
+    // Rationale: acquisition + fresh install + predecessor install + update + repair can consume 19 minutes.
+    expect(exercise["timeout-minutes"]).toBeGreaterThan(2 + 5 + 5 + 2 + 5);
+    expect(smoke["timeout-minutes"]).toBeGreaterThan(exercise["timeout-minutes"]);
+    expect(exercise["continue-on-error"]).toBeUndefined();
+    const upload = smoke.steps.find((step: { name?: string }) => step.name === "Upload published-pair evidence");
+    expect(smoke.steps.indexOf(upload)).toBeGreaterThan(smoke.steps.indexOf(exercise));
+    expect(upload.if).toBe("always()");
+    expect(upload.with["if-no-files-found"]).toBe("error");
+  });
   it("keeps promotion behind every smoke lane and completion behind promotion", async () => {
     const workflow = parse(await readFile(".github/workflows/publish.yml", "utf8"));
     expect(workflow.concurrency).toEqual({ group: "a1-registry-publication", "cancel-in-progress": false });

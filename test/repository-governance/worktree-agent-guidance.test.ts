@@ -12,6 +12,10 @@ describe("shared worktree agent guidance", () => {
       "docs/local-worktree-cleanup.md", "docs/openspec-archive-automation.md",
     ].map(read));
     expect(agents).toContain(DELIVERY_ROUTE);
+    expect(agents).toContain("A queued shell request is not attachment confirmation");
+    expect(feature).toContain("--repo <absolute-path>");
+    expect(feature).toContain("target trust");
+    expect(feature).toContain("selected repository's verified primary checkout");
     expect(feature).toContain("../delivery-rules.md");
     for (const instructions of [agents, feature, structure, skill]) {
       expect(instructions).not.toMatch(/detach` when handing off or finishing/);

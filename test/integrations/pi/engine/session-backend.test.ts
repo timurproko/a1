@@ -15,7 +15,7 @@ import { PiEngineAdapter } from "../../../../src/integrations/pi/engine/index.js
 const PORT_MEMBERS = {
   identity: ["sessionId", "agentDir", "cwd", "sessionGeneration", "sessionBindingGeneration", "disposed", "currentSessionResumeMetadata", "currentSessionFile", "currentHistorySessionId"],
   session: ["start", "view", "snapshot", "onEvent", "execute", "flushEvents", "dispose"],
-  workflows: ["executeWorkflow", "executeBashWorkflow", "cycleModelWorkflow", "workflowAutocompleteCommands", "clearQueuedWorkflows", "reloadBlockedResult", "copyWorkflowText", "setWorkflowInteractionHost"],
+  workflows: ["executeWorkflow", "executeBashWorkflow", "cycleModelWorkflow", "workflowAutocompleteCommands", "clearQueuedWorkflows", "queuedWorkflowCount", "reloadBlockedResult", "copyWorkflowText", "setWorkflowInteractionHost"],
   settings: ["productMode", "snapshot", "bindOwner", "setDefaultThinkingLevel", "configuredTheme"],
   catalog: [
     "modelsContext", "setSessionModelScope", "persistModelScope", "refreshModels",

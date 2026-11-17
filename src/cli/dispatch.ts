@@ -53,12 +53,13 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "uninstall [--yes] [--purge]",
     "uninstall <source>",
     "list",
-    "worktree enter <branch> [--base <branch>]",
+    "worktree enter <branch> [--repo <absolute-path>] [--base <branch>]",
     "worktree attach <path>",
     "worktree detach",
     "worktree complete [--change <id>] [--pr <number>]",
     "worktree remove-local",
-    "worktree list",
+    "worktree list [--repo <absolute-path>]",
+    "worktree status",
     "api <request-json>",
     "session worktrees",
     "session link-worktree <path>",
@@ -99,15 +100,18 @@ export function cliHelp(capabilities: CliCapabilities): string {
     `  ${command} list`,
     "",
     "Worktrees (successful enter/attach is authoritative; detach preserves files):",
-    `  ${command} worktree enter <branch> [--base <branch>]`,
+    `  ${command} worktree enter <branch> [--repo <absolute-path>] [--base <branch>]`,
     `  ${command} worktree attach <path>`,
     `  ${command} worktree detach`,
     `  ${command} worktree complete [--change <id>] [--pr <number>]`,
     `  ${command} worktree remove-local`,
-    `  ${command} worktree list`,
+    `  ${command} worktree list [--repo <absolute-path>]`,
+    `  ${command} worktree status`,
     "",
     'Integration API: a1 api \'{"version":1,"id":"discovery","type":"capabilities"}\'',
     "  Versioned JSON request/response; exact sessionId and runtimeId required for live operations.",
+    "  Operations: capabilities, settings.list, settings.get, settings.update, session.get, session.lifecycle, session.exit.",
+    "  session.exit stops an idle session through the /quit path only when nothing would be lost; admitted is not exited.",
     "",
     "Session context (compatibility aliases):",
     `  ${command} session worktrees`,
@@ -208,16 +212,28 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
 }
 
 function parseWorktree(rest: readonly string[]): CliCommand {
-  const [action, value, flag, base, extra] = rest;
-  if (action === "enter" && value !== undefined && !value.startsWith("-")
-    && (flag === undefined || (flag === "--base" && base !== undefined && !base.startsWith("-"))) && extra === undefined) {
-    return { kind: "session-context", request: { action: "enter-worktree", branch: value, ...(base === undefined ? {} : { base }) } };
+  const [action, value, flag] = rest;
+  if (action === "enter" && value !== undefined && !value.startsWith("-")) {
+    const flags = rest.slice(2);
+    let base: string | undefined, repo: string | undefined;
+    let valid = flags.length % 2 === 0;
+    for (let index = 0; valid && index < flags.length; index += 2) {
+      const name = flags[index], selected = flags[index + 1];
+      if (!selected || selected.startsWith("-")) valid = false;
+      else if (name === "--base" && base === undefined) base = selected;
+      else if (name === "--repo" && repo === undefined) repo = selected;
+      else valid = false;
+    }
+    if (valid) return { kind: "session-context", request: { action: "enter-worktree", branch: value, ...(base === undefined ? {} : { base }), ...(repo === undefined ? {} : { repo }) } };
   }
   if (action === "attach" && value !== undefined && flag === undefined) {
     return { kind: "session-context", request: { action: "link-worktree", path: value } };
   }
-  if ((action === "detach" || action === "list") && value === undefined) {
-    return { kind: "session-context", request: { action: action === "detach" ? "unlink-worktree" : "worktrees" } };
+  if ((action === "detach" || action === "list" || action === "status") && value === undefined) {
+    return { kind: "session-context", request: { action: action === "detach" ? "unlink-worktree" : action === "list" ? "worktrees" : "worktree-status" } };
+  }
+  if (action === "list" && value === "--repo" && flag && !flag.startsWith("-") && rest.length === 3) {
+    return { kind: "session-context", request: { action: "worktrees", repo: flag } };
   }
   if (action === "remove-local" && value === undefined) {
     return { kind: "session-context", request: { action: "remove-local-worktree" } };
@@ -236,7 +252,7 @@ function parseWorktree(rest: readonly string[]): CliCommand {
       return { kind: "session-context", request: { action: "complete-worktree", ...(change === undefined ? {} : { change }), ...(pr === undefined ? {} : { pr }) } };
     }
   }
-  return { kind: "error", message: PRODUCT_TEXT.diagnostic("worktree accepts enter <branch> [--base <branch>], attach <path>, detach, complete [--change <id>] [--pr <number>], remove-local, or list.") };
+  return { kind: "error", message: PRODUCT_TEXT.diagnostic("worktree accepts enter <branch> [--repo <absolute-path>] [--base <branch>], attach <absolute-path>, detach, status, complete [--change <id>] [--pr <number>], remove-local, or list [--repo <absolute-path>].") };
 }
 
 function parseSessionContext(rest: readonly string[]): CliCommand {

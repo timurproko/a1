@@ -153,6 +153,8 @@ export class Session {
   abortRetry(): void { this.calls.push("abortRetry"); }
   abortCompaction(): void { this.calls.push("abortCompaction"); }
   async compact(): Promise<void> { this.calls.push("compact"); }
+  /** Pinned Pi's read-only pending count; exit readiness reads it instead of clearing the queue. */
+  get pendingMessageCount(): number { return this.queued.length; }
   clearQueue(): { steering: string[]; followUp: string[] } {
     this.calls.push("clearQueue");
     const steering = this.queued.filter(item => item.mode === "steer").map(item => item.text);

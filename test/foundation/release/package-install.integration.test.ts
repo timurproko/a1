@@ -1,5 +1,5 @@
 import crossSpawn from "cross-spawn";
-import { access, copyFile, mkdir, readFile, readdir, realpath, stat, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, readFile, readdir, realpath, stat, symlink, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -51,7 +51,7 @@ describe("clean installation of the exact candidate", () => {
   it("restores the platform launcher set when exact-package replacement is cancelled", async () => {
     const installedRoot = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@timurproko", "a1");
     const releaseModule = await import(pathToFileURL(resolve(installedRoot, "dist", "foundation", "release", "index.js")).href) as typeof import("../../../src/foundation/release/index.js");
-    const fixtureRoot = resolve(root, "cancelled-update");
+    const fixtureRoot = await aliasedRecoveryRoot("cancelled-update");
     const dataDir = resolve(fixtureRoot, "data");
     const globalRoot = process.platform === "win32" ? resolve(fixtureRoot, "npm", "node_modules") : resolve(fixtureRoot, "prefix", "lib", "node_modules");
     const packageRoot = resolve(globalRoot, "@timurproko", "a1");
@@ -138,7 +138,7 @@ describe("clean installation of the exact candidate", () => {
     const installedRoot = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@timurproko", "a1");
     const releaseModuleUrl = pathToFileURL(resolve(installedRoot, "dist", "foundation", "release", "index.js")).href;
     const releaseModule = await import(releaseModuleUrl) as typeof import("../../../src/foundation/release/index.js");
-    const fixtureRoot = resolve(root, "lost-updater");
+    const fixtureRoot = await aliasedRecoveryRoot("lost-updater");
     const dataDir = resolve(fixtureRoot, "data");
     const globalRoot = process.platform === "win32" ? resolve(fixtureRoot, "npm", "node_modules") : resolve(fixtureRoot, "prefix", "lib", "node_modules");
     const packageRoot = resolve(globalRoot, "@timurproko", "a1");
@@ -202,11 +202,21 @@ describe("clean installation of the exact candidate", () => {
       const { runProtectedPackageReplacement } = await import(${JSON.stringify(releaseModuleUrl)});
       await runProtectedPackageReplacement({ ...${JSON.stringify(serializable)}, output: { stderr() {} } });
     `;
-    const updater = crossSpawn(process.execPath, ["--input-type=module", "-e", script], { cwd: root, stdio: "ignore", windowsHide: true });
-    await waitForPath(prepared.capsule.ownerPath, 10_000);
-    updater.kill("SIGKILL");
-    await new Promise(resolvePromise => updater.once("close", resolvePromise));
-    await waitForPath(prepared.capsule.resultPath, 20_000);
+    const updater = crossSpawn(process.execPath, ["--input-type=module", "-e", script], { cwd: root, stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
+    let stderr = "";
+    updater.stderr!.on("data", chunk => { stderr += chunk.toString(); });
+    const closed = new Promise(resolvePromise => updater.once("close", resolvePromise));
+    try {
+      await waitForPath(prepared.capsule.ownerPath, 10_000);
+      updater.kill("SIGKILL");
+      await closed;
+      await waitForPath(prepared.capsule.resultPath, 20_000);
+    } catch (error) {
+      throw new Error(`${String(error)}\nUpdater diagnostics: ${stderr || "none"}`, { cause: error });
+    } finally {
+      if (updater.exitCode === null && updater.signalCode === null) updater.kill("SIGKILL");
+      await closed;
+    }
 
     const result = JSON.parse(await readFile(prepared.capsule.resultPath, "utf8")) as { launcherDisposition: string };
     expect(result.launcherDisposition).toBe("target");
@@ -475,6 +485,14 @@ function runAsync(command: string, arguments_: readonly string[], cwd: string, e
     child.once("error", rejectPromise);
     child.once("close", status => resolvePromise({ status, stdout, stderr }));
   });
+}
+
+async function aliasedRecoveryRoot(name: string): Promise<string> {
+  const canonical = resolve(await realpath(root), `${name}-canonical`);
+  const alias = resolve(root, name);
+  await mkdir(canonical);
+  await symlink(canonical, alias, process.platform === "win32" ? "junction" : "dir");
+  return alias;
 }
 
 async function waitForPath(path: string, timeoutMs: number): Promise<void> {

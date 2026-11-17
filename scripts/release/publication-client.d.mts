@@ -13,14 +13,36 @@ export function resolveDevelopPreview(source: string, options?: {
   commitCount?: string;
 }): Promise<{ source: string; pullRequest: number; version: string; packageName: string }>;
 export function registryVersion(packageName: string, version: string, fetchImpl?: typeof fetch): Promise<Record<string, unknown> | null>;
-export function describePublicationFailure(runId: number | string, options?: { run?: PublicationRunner; repository?: string }): string;
-export function dispatchPublication(channel: "develop", source: string, version: string, options?: {
+export interface PublicationJob {
+  id: number;
+  name: string;
+  status?: string;
+  conclusion: string | null;
+}
+export function describePublicationFailure(runId: number | string, options?: {
+  run?: PublicationRunner;
+  repository?: string;
+  version?: string;
+  jobs?: PublicationJob[];
+  develop?: boolean;
+}): string;
+export interface PublicationOptions {
   run?: PublicationRunner;
   repository?: string;
   requestId?: string;
   write?: (text: string) => void;
   sleep?: (ms: number) => Promise<unknown>;
-}): Promise<number>;
+  signal?: AbortSignal;
+  isTTY?: boolean;
+  environment?: NodeJS.ProcessEnv;
+  /** Read current output dimensions; defaults to stdout. Unknown dimensions disable cursor updates. */
+  terminalSize?: () => { columns: number; rows: number };
+}
+export function dispatchPublication(channel: "develop", source: string, version: string, options?: PublicationOptions): Promise<number>;
+export function publishDevelopmentPreview(preview: Awaited<ReturnType<typeof resolveDevelopPreview>>, installerPackageName: string, options?: PublicationOptions & {
+  fetch?: typeof fetch;
+  log?: (message: string) => void;
+}): Promise<void>;
 export function dispatchStableValidation(candidate: {
   repository: string;
   source: string;

@@ -2,7 +2,7 @@
 
 ### Requirement: Product commands own worktree entry and attachment
 
-A1 SHALL retain enter/attach/detach/list and explicitly support selected existing PR/head branches. Verify repository/ref/head and fetch before adopting remote-only or unoccupied local branches without rewriting tips. Owned dirty checkouts SHALL preserve edits. Divergence/collisions/ownership conflict SHALL fail non-destructively. Success is authoritative; setup and cleanup are separate. Aliases remain compatible.
+A1 SHALL expose worktree enter, attach, detach, status, list, and complete through cwd-independent controls and compatible shell commands. Enter SHALL create or resume a registered task worktree and acquire its editing claim. Shell mutations SHALL queue an exact-session request rather than changing context while their process pins the old cwd. The runtime's final confirmation SHALL return the canonical root and branch after resource reload and claim commit, without requiring a second inventory check. Existing session-context aliases SHALL remain compatible. Detach SHALL preserve worktree files and branches. Creation SHALL support configured or explicit bases without assuming a universal branch name. Selected existing PR/head branches SHALL retain their ancestry: verify repository/ref/head and fetch before adopting remote-only or unoccupied local branches without rewriting tips. Owned dirty checkouts SHALL preserve edits. Divergence/collisions/ownership conflict SHALL fail non-destructively. Setup and cleanup remain separate.
 
 #### Scenario: Create and resume a task
 
@@ -12,8 +12,8 @@ A1 SHALL retain enter/attach/detach/list and explicitly support selected existin
 
 #### Scenario: A selected checkout cannot be acquired
 
-- **WHEN** the selected path is foreign, primary, locked, mismatched, or owned by another live runtime
-- **THEN** the operation SHALL retain existing files and the previous attachment and return a bounded actionable failure
+- **WHEN** the selected checkout is primary, locked, mismatched, or held by another live or unverifiable runtime
+- **THEN** the operation SHALL retain existing files and the prior attachment and return a bounded actionable failure
 - **AND** SHALL NOT force creation, overwrite a branch, or remove a worktree
 
 #### Scenario: Remote-only proposal branch

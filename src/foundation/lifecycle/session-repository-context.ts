@@ -67,6 +67,8 @@ interface SessionRepositoryRecord {
   readonly sessionFile: string;
   readonly startupRoot: string;
   readonly startupCommonDir: string;
+  /** Explicit repository anchor; absent in legacy startup-repository associations. */
+  readonly repositoryRoot?: string;
   readonly revision?: string;
   readonly worktreeRoot: string;
   readonly worktreeCommonDir: string;
@@ -114,6 +116,10 @@ export interface SessionRepositoryContextOptions {
   readonly runtimeIdentity?: ProcessIdentity;
   readonly inspectProcess?: (pid: number) => Promise<ProcessIdentity | null>;
   readonly lockTimeoutMs?: number;
+  /** Explicit repository selector for enter/inventory; never inferred from shell cwd. */
+  readonly repo?: string;
+  /** Host transition barrier, outside the mutation gate with both editing claims retained. */
+  readonly prepareContext?: (cwd: string) => Promise<void>;
 }
 
 /** Publish the exact live runtime that may acquire a delivery worktree. */
@@ -184,22 +190,23 @@ export async function releaseSessionRepositoryRuntime(
   });
 }
 
-/** Persist one explicit same-repository worktree association after atomically claiming it. */
+/** Attach an explicit registered target, retaining the old claim until host context preparation succeeds. */
 export async function setSessionRepositoryContext(
   identity: SessionRepositoryIdentity,
   worktreePath: string,
   options: SessionRepositoryContextOptions = {},
 ): Promise<SessionRepositoryContext> {
   const header = await readSessionHeader(identity);
-  const startup = await readGitWorktreeIdentity(header.cwd, false, options.signal).catch(rethrowStartupGitFailure);
+  if (!isAbsolute(worktreePath)) throw contextError("attach requires an absolute worktree root", "worktree-path-invalid");
   const selected = await readGitWorktreeIdentity(worktreePath, true, options.signal);
-  if (!samePath(startup.commonDir, selected.commonDir)) {
-    throw contextError("associated worktree belongs to a different Git repository", "worktree-foreign-repository");
-  }
   if (samePath(selected.gitDir, selected.commonDir)) {
     throw contextError("task attachment requires a linked worktree, not the primary checkout", "worktree-primary-checkout");
   }
-  const registered = await listGitWorktrees(startup.root, startup.commonDir, options.signal);
+  const registered = await listGitWorktrees(selected.root, selected.commonDir, options.signal);
+  const primary = registered[0];
+  if (primary === undefined || "stale" in primary || !samePath(primary.gitDir, selected.commonDir)) {
+    throw contextError("cannot verify the selected repository's primary checkout", "worktree-repository-invalid");
+  }
   if (!registered.some(entry => !("stale" in entry) && samePath(entry.root, selected.root) && samePath(entry.gitDir, selected.gitDir))) {
     throw contextError("selected path is not a registered worktree", "worktree-not-registered");
   }
@@ -207,7 +214,14 @@ export async function setSessionRepositoryContext(
     throw contextError("selected worktree is locked in Git", "worktree-git-locked");
   }
   const owner = { runtimeId: requireRuntimeId(options), agentId: requireAgentId(options) };
-  return await withClaimLock(options, async () => {
+  const persist = async (record: SessionRepositoryRecord | null) => {
+    const unchanged = record !== null && samePath(record.worktreeGitDir, selected.gitDir)
+      && await validateContextRecord(header, record, options.signal, selected).then(() => true, () => false);
+    await writeContextRecord(header, primary, selected, unchanged ? record.revision ?? randomUUID() : randomUUID(), options);
+    await releaseClaimsOwnedBy(owner, selected.gitDir, options);
+    return { cwd: selected.root, branch: requireBranch(selected) };
+  };
+  const prior = await withClaimLock(options, async () => {
     const runtime = await requireLiveRuntime(header, owner, options);
     const current = await readGitWorktreeIdentity(selected.root, true, options.signal);
     if (!samePath(current.gitDir, selected.gitDir) || !samePath(current.commonDir, selected.commonDir) || current.branch !== selected.branch) {
@@ -219,23 +233,42 @@ export async function setSessionRepositoryContext(
     const status = await claimAvailability(selected, owner, options);
     if (status === "busy") throw contextError("worktree is active in another session", "worktree-active-in-another-session");
     if (status === "unverifiable") throw contextError("worktree ownership cannot be verified", "worktree-owner-unverifiable");
-    const prior = await readContextRecord(header, options);
-    const unchanged = prior !== null && samePath(prior.worktreeGitDir, selected.gitDir)
-      && await validateContextRecord(header, prior, options.signal, current).then(() => true, () => false);
-    const revision = unchanged ? prior.revision ?? randomUUID() : randomUUID();
+    const record = await readContextRecord(header, options);
     await writeClaim(header, selected, owner, processIdentityOf(runtime), options);
-    try {
-      await writeContextRecord(header, startup, selected, revision, options);
-    } catch (error) {
-      if (status !== "current") await removeMatchingClaim(selected, owner, options);
-      throw error;
+    if (options.prepareContext === undefined) {
+      // Performance: callers without a host transition do not need a second gate or duplicate Git identity read.
+      try { await persist(record); }
+      catch (error) { if (status !== "current") await removeMatchingClaim(selected, owner, options); throw error; }
+      return { record, acquired: false, committed: true };
     }
-    await releaseClaimsOwnedBy(owner, selected.gitDir, options);
-    if (prior !== null && !samePath(prior.worktreeGitDir, selected.gitDir)) {
-      await removeClaimByGitDir(prior.worktreeCommonDir, prior.worktreeGitDir, owner, options);
-    }
-    return { cwd: selected.root, branch: requireBranch(selected) };
+    return { record, acquired: status !== "current", committed: false };
   });
+  if (prior.committed) return { cwd: selected.root, branch: requireBranch(selected) };
+  try {
+    await options.prepareContext?.(selected.root);
+    return await withClaimLock(options, async () => {
+      await requireLiveRuntime(header, owner, options);
+      const record = await readContextRecord(header, options);
+      if (JSON.stringify(record) !== JSON.stringify(prior.record)) throw contextError("attachment changed during context preparation", "worktree-context-changed");
+      const current = await readGitWorktreeIdentity(selected.root, true, options.signal);
+      if (!samePath(current.gitDir, selected.gitDir) || !samePath(current.commonDir, selected.commonDir) || current.branch !== selected.branch
+        || await lstat(join(selected.gitDir, "locked")).then(() => true, error => { if (isMissingPathError(error)) return false; throw error; })) {
+        throw contextError("worktree changed during context preparation", "worktree-context-changed");
+      }
+      const claim = await readClaim(selected, options);
+      if (claim === null || claim === undefined || !ownedBy(claim, owner)) throw contextError("prepared editing claim changed", "worktree-context-changed");
+      return await persist(record);
+    });
+  } catch (error) {
+    // Concurrency: roll back only our provisional claim; a concurrent committed successor is protected.
+    const { signal: _signal, ...rollbackOptions } = options;
+    if (prior.acquired) await withClaimLock(rollbackOptions, async () => {
+      const current = await readContextRecord(header, rollbackOptions);
+      const claim = await readClaim(selected, rollbackOptions);
+      if ((current === null || !samePath(current.worktreeGitDir, selected.gitDir)) && claim?.sessionId === header.id) await removeMatchingClaim(selected, owner, rollbackOptions);
+    });
+    throw error;
+  }
 }
 
 /** Remove only the association and live claim belonging to the supplied stable session/runtime. */
@@ -249,10 +282,20 @@ export async function clearSessionRepositoryContext(
     return;
   }
   const owner = { runtimeId: requireRuntimeId(options), agentId: requireAgentId(options) };
-  await withClaimLock(options, async () => {
+  const clear = async () => {
     await requireLiveRuntime(header, owner, options);
     await rm(contextRecordPath(header, options), { force: true });
     await releaseClaimsOwnedBy(owner, null, options);
+  };
+  if (options.prepareContext === undefined) return await withClaimLock(options, clear);
+  const prior = await withClaimLock(options, async () => {
+    await requireLiveRuntime(header, owner, options);
+    return await readContextRecord(header, options);
+  });
+  await options.prepareContext?.(header.cwd);
+  await withClaimLock(options, async () => {
+    if (JSON.stringify(await readContextRecord(header, options)) !== JSON.stringify(prior)) throw contextError("attachment changed during detach", "worktree-context-changed");
+    await clear();
   });
 }
 
@@ -339,6 +382,21 @@ export async function readSessionStartupRoot(identity: SessionRepositoryIdentity
   return (await readSessionHeader(identity)).cwd;
 }
 
+/** Resolve an explicit selector, active repository, or startup repository without shell-directory inference. */
+export async function readSessionRepositoryRoot(
+  identity: SessionRepositoryIdentity,
+  options: SessionRepositoryContextOptions = {},
+): Promise<{ readonly root: string; readonly commonDir: string; readonly worktrees: readonly (GitWorktreeIdentity | StaleGitWorktree)[] }> {
+  const header = await readSessionHeader(identity);
+  if (options.repo !== undefined && !isAbsolute(options.repo)) throw contextError("repository selection requires an absolute path", "worktree-path-invalid");
+  const record = options.repo === undefined ? await readContextRecord(header, options) : null;
+  const selected = await readGitWorktreeIdentity(options.repo ?? record?.repositoryRoot ?? header.cwd, false, options.signal).catch(rethrowStartupGitFailure);
+  const rows = await listGitWorktrees(selected.root, selected.commonDir, options.signal);
+  const primary = rows[0];
+  if (primary === undefined || "stale" in primary || !samePath(primary.gitDir, selected.commonDir)) throw contextError("cannot verify the selected primary checkout", "worktree-repository-invalid");
+  return { root: primary.root, commonDir: primary.commonDir, worktrees: rows };
+}
+
 /** Read a live attachment without activating or rewriting its claim. Invalid state never means detached. */
 export async function readActiveSessionRepositoryContext(
   identity: SessionRepositoryIdentity,
@@ -376,8 +434,8 @@ export async function listSessionRepositoryWorktrees(
   const header = await readSessionHeader(identity);
   const owner = { runtimeId: requireRuntimeId(options), agentId: requireAgentId(options) };
   await requireLiveRuntime(header, owner, options);
-  const startup = await readGitWorktreeIdentity(header.cwd, false, options.signal).catch(rethrowStartupGitFailure);
-  const worktrees = await listGitWorktrees(startup.root, startup.commonDir, options.signal);
+  const repository = await readSessionRepositoryRoot(identity, options);
+  const worktrees = repository.worktrees;
   if (worktrees.length > MAX_WORKTREES) throw contextError("worktree inventory exceeds its bounded limit", "worktree-inventory-limit");
   return await withSessionClaimSnapshot(claimStoreRoot(options), options, async () => {
     const entries: SessionWorktreeInventoryEntry[] = [];
@@ -487,8 +545,9 @@ async function writeContextRecord(
     revision,
     sessionId: header.id,
     sessionFile: header.file,
-    startupRoot: startup.root,
+    startupRoot: header.cwd,
     startupCommonDir: startup.commonDir,
+    repositoryRoot: startup.root,
     worktreeRoot: selected.root,
     worktreeCommonDir: selected.commonDir,
     worktreeGitDir: selected.gitDir,
@@ -579,13 +638,14 @@ async function validateContextRecord(
   observed?: GitWorktreeIdentity,
 ): Promise<GitWorktreeIdentity> {
   if (record.sessionId !== header.id || record.sessionFile !== header.file) throw new Error("associated session identity changed");
-  const startup = await readGitWorktreeIdentity(header.cwd, false, signal);
-  if (!samePath(startup.root, record.startupRoot) || !samePath(startup.commonDir, record.startupCommonDir)) {
-    throw new Error("associated worktree identity changed");
+  const startup = await readGitWorktreeIdentity(record.repositoryRoot ?? header.cwd, false, signal);
+  if (!samePath(startup.root, record.repositoryRoot ?? record.startupRoot) || !samePath(startup.commonDir, record.startupCommonDir)
+    || (record.repositoryRoot !== undefined && !samePath(header.cwd, record.startupRoot))) {
+    throw new Error("associated repository identity changed");
   }
-  // Invariant: only a verified startup checkout makes the attached checkout's absence definitive.
+  // Invariant: only a verified repository anchor makes the attached checkout's absence definitive.
   const invalid = (detail: string) => Object.assign(contextError(
-    `attached worktree ${record.worktreeRoot} ${detail}`, INVALID_ATTACHMENT), { worktreeRoot: record.worktreeRoot, startupRoot: startup.root });
+    `attached worktree ${record.worktreeRoot} ${detail}`, INVALID_ATTACHMENT), { worktreeRoot: record.worktreeRoot, startupRoot: header.cwd });
   const missing = (error: unknown) => { if (isMissingPathError(error)) return null; throw error; };
   const root = await realpath(record.worktreeRoot).catch(missing);
   if (root === null) throw invalid("no longer exists");
@@ -636,6 +696,7 @@ export async function releaseInvalidSessionRepositoryContext(
 /** The checkout a session left for completion, with the verified startup root it continues from. */
 export interface DetachedSessionWorktree {
   readonly startupRoot: string;
+  readonly primaryRoot: string;
   readonly commonDir: string;
   readonly worktreeRoot: string;
   readonly worktreeGitDir: string;
@@ -653,6 +714,7 @@ export async function detachSessionRepositoryContextForCompletion(
 ): Promise<DetachedSessionWorktree> {
   const header = await readSessionHeader(identity);
   const owner = { runtimeId: requireRuntimeId(options), agentId: requireAgentId(options) };
+  await options.prepareContext?.(header.cwd);
   return await withClaimLock(options, async () => {
     await requireLiveRuntime(header, owner, options);
     const stored = await readContextRecord(header, options);
@@ -666,7 +728,7 @@ export async function detachSessionRepositoryContextForCompletion(
       throw contextError("selected worktree is locked in Git", "worktree-git-locked");
     }
     const detached = {
-      startupRoot: stored.startupRoot, commonDir: selected.commonDir, worktreeRoot: selected.root,
+      startupRoot: header.cwd, primaryRoot: stored.repositoryRoot ?? stored.startupRoot, commonDir: selected.commonDir, worktreeRoot: selected.root,
       worktreeGitDir: selected.gitDir, branch: requireBranch(selected),
     };
     await record(detached);
@@ -969,6 +1031,7 @@ function validPath(value: unknown): value is string {
 function isContextRecord(value: unknown): value is SessionRepositoryRecord {
   return isRecord(value) && value.schema === CONTEXT_SCHEMA && validSessionId(value.sessionId)
     && (value.revision === undefined || validSessionId(value.revision))
+    && (value.repositoryRoot === undefined || validPath(value.repositoryRoot))
     && validPath(value.sessionFile) && validPath(value.startupRoot) && validPath(value.startupCommonDir)
     && validPath(value.worktreeRoot) && validPath(value.worktreeCommonDir) && validPath(value.worktreeGitDir)
     && typeof value.updatedAt === "string";

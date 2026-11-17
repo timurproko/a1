@@ -9,7 +9,7 @@ import {
   registerSessionRepositoryRuntime, setSessionRepositoryContext,
 } from "../../../src/foundation/lifecycle/session-repository-context.js";
 import { enterSessionRepositoryWorktree } from "../../../src/foundation/lifecycle/session-worktree-entry.js";
-import { updateSessionRepositoryContext } from "../../../src/features/launch/session-context.js";
+import { executeSessionWorktreeControl } from "../../../src/foundation/lifecycle/session-worktree-control.js";
 import { withSessionClaimLock } from "../../../src/foundation/lifecycle/session-claim-lock.js";
 
 const execute = promisify(execFile);
@@ -36,7 +36,7 @@ async function fixture(base = "develop") {
 describe("self-contained worktree entry", () => {
   it.each(["main", "develop"])("creates from %s, resumes edits, and detaches without deleting", async base => {
     const f = await fixture(base);
-    const result = await updateSessionRepositoryContext(f.identity, { action: "enter-worktree", branch: "fix/example" }, f.options);
+    const result = await executeSessionWorktreeControl(f.identity, { action: "enter-worktree", branch: "fix/example" }, f.options);
     expect(result).toMatchObject({ kind: "linked", branch: "fix/example" });
     if (result.kind !== "linked") throw new Error("expected attachment");
     expect(result.cwd).toBe(await realpath(join(f.primary, ".worktrees", "example")));
@@ -129,14 +129,14 @@ describe("self-contained worktree entry", () => {
     expect(await readdir(join(f.primary, ".worktrees"))).toEqual([]);
   });
 
-  it("preserves the old attachment when a foreign, primary, locked, or busy checkout is requested", async () => {
+  it("preserves the old attachment when a primary, locked, or busy checkout is requested", async () => {
     const f = await fixture(), foreign = join(f.root, "foreign");
     // Performance: a foreign Git identity needs no unrelated session/runtime registration.
     await execute("git", ["clone", "--shared", f.primary, foreign]);
     const first = await enterSessionRepositoryWorktree(f.identity, "fix/first", undefined, f.options);
     const second = await enterSessionRepositoryWorktree(f.identity, "fix/second", undefined, f.options);
     await setSessionRepositoryContext(f.identity, first.cwd, f.options);
-    await expect(setSessionRepositoryContext(f.identity, foreign, f.options)).rejects.toMatchObject({ code: "worktree-foreign-repository" });
+    await expect(setSessionRepositoryContext(f.identity, foreign, f.options)).rejects.toMatchObject({ code: "worktree-primary-checkout" });
     await expect(setSessionRepositoryContext(f.identity, f.primary, f.options)).rejects.toMatchObject({ code: "worktree-primary-checkout" });
     await f.git("worktree", "lock", second.cwd);
     await expect(setSessionRepositoryContext(f.identity, second.cwd, f.options)).rejects.toMatchObject({ code: "worktree-git-locked" });

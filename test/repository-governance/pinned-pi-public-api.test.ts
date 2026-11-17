@@ -29,6 +29,12 @@ describe("pinned Pi public API baseline", () => {
     expect(coding.find(record => record.name === "SettingsManager")).toMatchObject({ kind: "class" });
     expect(coding.find(record => record.name === "SettingsConfig")?.consumers.length).toBeGreaterThan(0);
     expect(value.packages[1]!.exports.find(record => record.name === "Box")?.consumers).toContain("src/integrations/pi/components/upstream/components/tool-execution.ts");
+    const nameDialog = "src/integrations/pi/components/session-name-dialog.ts";
+    expect(coding.filter(record => record.consumers.includes(nameDialog)).map(record => record.name)).toEqual(["DynamicBorder"]);
+    expect(value.packages[1]!.exports.filter(record => record.consumers.includes(nameDialog)).map(record => record.name)).toEqual([
+      "CURSOR_MARKER", "decodeKittyPrintable", "getKeybindings", "matchesKey", "renderFakeCursor", "Spacer", "Text", "truncateToWidth", "visibleWidth",
+    ]);
+    expect(value.packages[1]!.exports.find(record => record.name === "TUI")?.consumers).toContain("src/integrations/pi/components/shell-extension-ui.ts");
   });
 
   it("is what the installed packages and the source tree produce (`--check`)", () => {
@@ -37,10 +43,10 @@ describe("pinned Pi public API baseline", () => {
     expect(result.stdout).toContain("Pinned Pi public API is current");
   }, 30_000);
 
-  it("collects the same surface again from the declaration entries", async () => {
+  it("collects the same declarations and consumers again from the installed packages and source tree", async () => {
     const value = await baseline();
     const collected = await collectPiPublicApi({ packagesRoot: resolve("node_modules"), sourceRoot: resolve("src") }) as Surface;
-    expect(diffPublicApi(value, collected)).toEqual({ added: [], removed: [], changed: [] });
+    expect(collected).toEqual(value);
   }, 30_000);
 });
 

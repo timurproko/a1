@@ -187,6 +187,8 @@ export function createPiShellFooter(view: OwnedUiSessionViewModel, cwd: string, 
   return {
     render: width => footer.render(width),
     setNameReveal: frame => footer.setNameReveal(frame),
+    footerControlSpans: () => footer.footerControlSpans(),
+    setFooterHovered: control => footer.setFooterHovered(control),
     invalidate: () => footer.invalidate(),
     update(next) { view = next; },
     dispose: () => footer.dispose(),

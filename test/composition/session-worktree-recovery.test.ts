@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { afterEach, expect, it, vi } from "vitest";
 import { SessionRuntimeRegistry } from "../../src/composition/session-runtime-registry.js";
 import { updateSessionRepositoryContext } from "../../src/features/launch/session-context.js";
-import { createPiRuntimeIntegration } from "../../src/integrations/pi/engine/runtime-integration.js";
+import { createPiRuntimeIntegration, settlePiWorktreeTransition } from "../../src/integrations/pi/engine/runtime-integration.js";
 import { RepositoryMetadataPoller } from "../../src/integrations/pi/engine/repository-metadata.js";
 import type { ExtensionToolContext } from "../../src/integrations/pi/startup-public.js";
 import { PRODUCT_IDENTITY } from "../../src/product-identity.js";
@@ -34,17 +34,27 @@ async function attachedSession({ cleanup = false } = {}) {
   const runtimeId = "sdk-recovery-fixture";
   const inspectProcess = async (pid: number) => ({ pid, startIdentity: "fixture" });
   const registry = new SessionRuntimeRegistry({ runtimeId, inspectProcess });
-  const runtime = await createPiRuntimeIntegration({ cwd: primary, agentDir, worktreeCwdReader: registry.toolReaderFor(undefined) });
+  const reader = registry.toolReaderFor(undefined), apply = reader.applyControl!;
+  let beforeDetach: (() => Promise<void>) | undefined;
+  const applyControl: NonNullable<typeof reader.applyControl> = async (id, file, request, prepare, signal) => apply(id, file, request, async cwd => {
+    await prepare(cwd);
+    if (request.action === "complete-worktree") await beforeDetach?.();
+  }, signal);
+  const runtime = await createPiRuntimeIntegration({ cwd: primary, agentDir, worktreeCwdReader: Object.assign(reader, { applyControl }), projectTrustPrompt: async () => "trust-session" });
   const manager = runtime.session.sessionManager;
   const identity = { sessionId: manager.getSessionId(), sessionFile: manager.getSessionFile()! };
   const context = { cwd: primary, sessionManager: manager } as unknown as ExtensionToolContext;
   const write = (path: string, content: string) => runtime.session.getToolDefinition("write")!.execute("call", { path, content }, undefined, undefined, context);
   await registry.readerFor(undefined)(identity.sessionId, identity.sessionFile, new AbortController().signal);
-  const entered = await updateSessionRepositoryContext(identity, { action: "enter-worktree", branch: "fix/sdk-task" }, { runtimeId, inspectProcess });
-  if (entered.kind !== "linked") throw new Error("missing attachment");
   const bash = (command: string) => runtime.session.getToolDefinition("bash")!.execute("call", { command }, undefined, undefined, context);
+  await updateSessionRepositoryContext(identity, { action: "enter-worktree", branch: "fix/sdk-task" }, { runtimeId, inspectProcess });
+  await bash("echo request");
+  const settle = () => settlePiWorktreeTransition(runtime, new AbortController().signal);
+  expect(await settle()).toContain("Session worktree attached");
+  const entered = await registry.readerFor(undefined)(identity.sessionId, identity.sessionFile, new AbortController().signal);
+  if (entered === null) throw new Error("missing attachment");
   const complete = () => updateSessionRepositoryContext(identity, { action: "complete-worktree" }, { runtimeId, inspectProcess });
-  return { primary, registry, runtime, identity, write, bash, complete, entered, dispose: async () => { await runtime.dispose(); await registry.dispose(); } };
+  return { primary, registry, runtime, identity, write, bash, complete, entered, settle, beforeDetach: (callback: () => Promise<void>) => { beforeDetach = callback; }, dispose: async () => { await runtime.dispose(); await registry.dispose(); } };
 }
 
 it("fails one tool call and then runs from primary after the attached checkout loses its Git pointer", async () => {
@@ -54,6 +64,7 @@ it("fails one tool call and then runs from primary after the attached checkout l
     await rm(join(session.entered.cwd, ".git"));
     await expect(session.write("lost.txt", "must not land in primary")).rejects.toThrow(/no longer a valid Git worktree.*did not run/su);
     await expect(readFile(join(session.primary, "lost.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await session.settle()).toContain("Session detached");
     await session.write("recovered.txt", "primary");
     expect(await readFile(join(session.primary, "recovered.txt"), "utf8")).toBe("primary");
     expect(await readFile(join(session.entered.cwd, "task.txt"), "utf8")).toBe("attached");
@@ -80,6 +91,7 @@ it("still reports the lost checkout to the next tool call when footer polling re
     await vi.waitFor(() => expect(metadata.branch).toBe("develop"));
     expect(metadata.cwd).toBe(session.primary);
     await expect(session.write("lost.txt", "must not land in primary")).rejects.toThrow(/no longer a valid Git worktree/u);
+    expect(await session.settle()).toContain("Session detached");
     await session.write("recovered.txt", "primary");
     expect(await readFile(join(session.primary, "recovered.txt"), "utf8")).toBe("primary");
   } finally { await metadata.dispose(); await session.dispose(); }
@@ -88,25 +100,28 @@ it("still reports the lost checkout to the next tool call when footer polling re
 it("retains the attachment and later tools when completion has no compatible adapter", async () => {
   const session = await attachedSession();
   try {
-    await expect(session.complete()).rejects.toMatchObject({ code: "worktree-completion-unavailable" });
+    expect(await session.complete()).toMatchObject({ kind: "queued" });
+    await session.bash("echo completion requested");
+    expect(await session.settle()).toContain("no compatible exact preflight/cleanup adapter");
     await session.write("after.txt", "attached");
     expect(await readFile(join(session.entered.cwd, "after.txt"), "utf8")).toBe("attached");
     await expect(readFile(join(session.primary, "after.txt"))).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await session.dispose(); }
 });
 
-it("appends the settled completion to the shell call that requested it and keeps later tools on primary", async () => {
+it("settles completion after shell exit and project reload, refusing a lost primary adapter without task fallback", async () => {
   const session = await attachedSession({ cleanup: true });
   try {
     const quiet = await session.bash("echo attached");
     expect(JSON.stringify(quiet.content)).not.toContain("Worktree completion");
     // Rationale: the issuing shell runs the CLI; the request it leaves is the same one this call writes.
     await session.complete();
-    // Security: only the primary declaration is trusted; the task's valid copy cannot replace it at settlement.
-    await rm(join(session.primary, ".a1", "worktree.json"));
+    // Security: remove primary support after preflight/preparation; the task copy cannot replace it at settlement.
+    session.beforeDetach(() => rm(join(session.primary, ".a1", "worktree.json")));
     const settled = await session.bash("echo done");
-    const text = settled.content.map(part => part.type === "text" ? part.text : "").join("\n");
-    expect(text).toContain("done");
+    expect(settled.terminate).toBe(true);
+    expect(JSON.stringify(settled.content)).toContain("done");
+    const text = await session.settle();
     expect(text).toMatch(/Worktree completion \(cleanup-unavailable\).*\.a1\/worktree\.json/su);
     expect(text).toContain(`left ${session.entered.cwd} (fix/sdk-task)`);
     await session.write("after.txt", "primary");

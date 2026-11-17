@@ -46,9 +46,9 @@ describe("packaged resume trace diagnostics", () => {
     expect(result.phases).toHaveLength(64);
   });
 
-  it("retains only safe shutdown failure classifications and relative owned code locations", () => {
+  it.each(["entry", "uncaughtException", "unhandledRejection"])("retains only safe startup and shutdown evidence for %s", origin => {
     const result = summarizeResumeFatal(JSON.stringify({
-      origin: "unhandledRejection", classification: "Error", cleanupFailed: false,
+      origin, classification: "Error", cleanupFailed: false,
       message: "private-message", token: "secret-token", releaseId: "private-release",
       locations: [
         { file: "foundation/release/update.js", line: 10, column: 2, private: "hidden" },
@@ -57,7 +57,7 @@ describe("packaged resume trace diagnostics", () => {
         { file: "foundation/invalid.js", line: -1, column: 1 },
       ],
     }));
-    expect(result).toEqual({ origin: "unhandledRejection", classification: "Error", cleanupFailed: false,
+    expect(result).toEqual({ origin, classification: "Error", cleanupFailed: false,
       locations: [{ file: "foundation/release/update.js", line: 10, column: 2 }],
     });
     expect(JSON.stringify(result)).not.toMatch(/private|secret|hidden/u);
@@ -77,6 +77,24 @@ describe("packaged resume trace diagnostics", () => {
       expect(await readResumeFatalDiagnostics(root)).toEqual([record]);
       expect(await readResumeFatalDiagnostics(resolve(root, "absent"))).toEqual([]);
     } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it("retains sanitized early-startup evidence after disposable runtime cleanup", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "resume-readiness-evidence-"));
+    const record = {
+      origin: "entry", classification: "Error", cleanupFailed: false,
+      locations: [{ file: "app/settings/profile-document.js", line: 99, column: 7 }],
+    };
+    let evidence: Awaited<ReturnType<typeof readResumeFatalDiagnostics>>;
+    try {
+      await writeFile(resolve(root, "fatal-3-abc.json"), JSON.stringify({
+        ...record, message: "private message", path: "C:/private/profile", credentials: "secret",
+      }));
+      evidence = await readResumeFatalDiagnostics(root);
+    } finally { await rm(root, { recursive: true, force: true }); }
+    expect(evidence!).toEqual([record]);
+    expect(JSON.stringify(evidence!)).not.toMatch(/private|secret/u);
+    expect(await readResumeFatalDiagnostics(root)).toEqual([]);
   });
 
   it("bounds source size without leaking an oversized malformed record", () => {

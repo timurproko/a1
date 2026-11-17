@@ -1,52 +1,77 @@
 # Worktree commands
 
-A1 owns worktree creation, attachment, cooperative editing claims, and ordinary recovery. Repository instructions only guide agents to these commands; they do not implement a second verification or lock-management procedure.
+A1 owns worktree creation, attachment, cooperative editing claims, project-context transitions, and ordinary recovery. Startup location is a fallback directory, not repository authority. A session started at home can attach a task checkout in any repository without restarting.
 
-## Command contract
+## Control API
 
-Run these commands through an active A1 session's shell tool:
+Claim-owning A1 sessions expose the sequential `worktree` agent tool. It does not resolve ordinary tool cwd before dispatch, so attach, detach, and status remain callable when the previous checkout is invalid.
+
+| Action | Inputs | Result |
+| --- | --- | --- |
+| `attach` | Absolute `path` | Select that registered task worktree and its repository. |
+| `enter` | `branch`, optional absolute `repo`, `base` | Create or resume a task checkout and select it. |
+| `detach` | None | Release this session's attachment and restore its original startup directory. |
+| `status` | None | Report startup directory, effective cwd, repository, branch, and attachment health. An invalid context reports no effective cwd. |
+| `list` | Optional absolute `repo` | Informational repository inventory; never an attachment approval gate. |
+| `complete` | Optional `change`, `pr` | After a verified merge, detach and run repository-declared cleanup. |
+
+For example, an agent can request `{"action":"attach","path":"D:/Git/project/.worktrees/task"}` or `{"action":"enter","repo":"D:/Git/project","branch":"fix/task"}`. Tools cannot select another session or runtime. `worktree_detach` remains an argument-free compatibility/recovery tool and uses the same project-context transition in the normal product runtime.
+
+### Shell commands
+
+Run these through the active A1 session's shell tool:
 
 | Command | Result |
 | --- | --- |
-| `a1 worktree enter <type/short-description> [--base <branch>]` | Create or resume the matching task checkout and attach it. |
-| `a1 worktree attach <absolute-path>` | Attach an existing registered task checkout in this session's repository. |
-| `a1 worktree detach` | Release this session's attachment without deleting files or branches. |
-| `a1 worktree complete [--change <id>] [--pr <number>]` | After a verified merge: return this session to the startup checkout, then run the repository's configured cleanup. |
-| `a1 worktree remove-local` | Preflight the attached checkout through its exact local-removal adapter, then detach and execute after the issuing shell exits. |
-| `a1 worktree list` | Informational same-repository inventory; never required after success. |
+| `a1 worktree enter <type/short-description> [--repo <absolute-path>] [--base <branch>]` | Request creation/resumption and attachment. |
+| `a1 worktree attach <absolute-path>` | Request attachment to the target repository's task checkout. |
+| `a1 worktree detach` | Request detach without deleting files or branches. |
+| `a1 worktree status` | Inspect this session's context. |
+| `a1 worktree list [--repo <absolute-path>]` | Informational inventory. |
+| `a1 worktree complete [--change <id>] [--pr <number>]` | Request guarded completion after a verified merge. |
+| `a1 worktree remove-local` | Queue the distinct preflighted local-removal operation. |
 
-Successful enter/attach returns the canonical root and branch after acquiring the editing claim. It is the complete attachment result: agents do not run a second inventory approval gate or implement their own retry loop. Temporary registration/coordination contention is retried within an operation budget. Actual ownership conflicts and uncertain records produce actionable failures rather than unsafe takeovers. A failed switch preserves the prior attachment. No command removes worktrees, branches, user files, or private workspace data itself; `complete` and `remove-local` run the corresponding commands the repository declares.
+Shell mutations queue a request; they do not change context while their own process still pins the old directory. The shell's zero exit code means **requested, not attached**. The runtime resolves the request after that tool batch and reports the final outcome separately. Agents wait for that runtime confirmation, not another inventory check. An unrelated terminal lacks the exact shell-tool session identity and cannot operate on this session.
 
-Enter uses `.worktrees/<short-description>` under the primary checkout. An existing matching checkout is attached without rewriting its edits. Otherwise it fetches an existing origin task branch and starts a missing local branch at that observed proposal head. An unoccupied local branch retains its exact tip, including unpublished commits; divergent local/remote histories block entry. If neither task branch exists, it fetches the selected base before creating the branch. Base selection is explicit `--base`, local Git configuration `a1.worktreeBase`, then the origin default branch; local-only repositories fall back to the primary branch. Path collisions, primary checkouts, foreign repositories, and Git-locked worktrees remain protected. Setup commands, dependency installation, private-clone provisioning, and repository hooks are not executed by A1.
+`a1 session link-worktree`, `unlink-worktree`, and `worktrees` remain compatible aliases. They use the same request/confirmation boundary.
 
-`a1 session link-worktree`, `unlink-worktree`, and `worktrees` remain compatible aliases for attach, detach, and list. They use the same authoritative results and internal retries.
+## Repository selection and safety
 
-Enter/attach use the repository of the session's original startup directory, not a later shell `cd`. Start the session inside that repository; a non-repository startup is rejected with `worktree-startup-not-repository` without changing its association or claims. Explicit-root worktree operations ignore inherited Git repository/storage/discovery overrides such as `GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR`, and `GIT_INDEX_FILE`. They preserve unrelated environment, authentication and ordinary Git configuration and do not modify the parent environment.
+An absolute attachment target intentionally selects its repository, including across repository boundaries. Enter/list use explicit `repo` first, otherwise the active repository, otherwise discovery from the immutable startup directory. When discovery finds no repository, supply a repository path or attach an absolute task checkout; a new session is not required. A later shell `cd` never silently rebinds the session.
 
-## Working directories
+Enter creates `.worktrees/<short-description>` under the selected repository's primary checkout. It fetches the selected origin base before creating a new topic branch. Base selection is explicit `base`, local Git configuration `a1.worktreeBase`, then the origin default branch; local-only repositories fall back to the primary branch. Matching worktrees retain their edits and history. An existing origin task branch is fetched and adopted at its observed proposal head; an unoccupied local branch retains its exact tip, including unpublished commits. Divergent local/remote histories block entry without reset. Path/branch collisions, primary checkouts, detached branches, Git locks, and live or unverifiable ownership remain blockers. A1 never forces takeover, installs dependencies, or runs checkout hooks or repository setup commands.
 
-After successful attachment, subsequent built-in read, bash, edit, write, grep, find, and ls calls resolve relative paths from the verified attached root. Detach returns those tools to the session's startup directory. The already-running shell that issued the attachment finishes in its original cwd; A1 does not rewrite shell commands or call process-global chdir. Explicit absolute paths retain their ordinary meaning. Project resources, settings, custom extensions, and independent terminals keep their own discovery/cwd behavior; use the returned explicit root for those integrations.
+Authoritative Git operations ignore inherited repository/storage/discovery overrides such as `GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR`, and `GIT_INDEX_FILE`. They preserve authentication and unrelated environment and never mutate the parent environment.
 
-Background footer polling activates persisted claims once per session binding, then observes without rewriting healthy runtime registrations or claims. Informational listing waits for a consistent coordination snapshot rather than marking all owners unverifiable because an unrelated mutation happens to be running. Runtime shutdown releases its own claims. Crash recovery preserves durable attachment state and checks recorded process liveness before another runtime can acquire a claim. An abandoned in-flight mutation/execution gate is not reclaimed by age or parent-PID death; uncertain child state remains blocking as described under [the execution interface](#supported-unclaimed-target-execution-interface).
+A transition claims the new checkout provisionally while retaining the previous attachment and claim. Target trust and project resources are prepared outside the mutation gate. The host replaces the Pi runtime only after the issuing tools finish and their results persist; it then commits the new association and releases the old claim. Validation, trust denial/cancellation, resource failures, extension vetoes, or changed session generations do not authorize losing the previous attachment. A failure after runtime teardown recreates the prior project context; if restoration itself fails, ordinary tools remain blocked rather than running with mismatched resources. Explicit attach/detach remain available for recovery.
 
-Attachment and portable handoff policy is [R12](../delivery-rules.md#r12---portable-handoff). Repository cleanup handoff is independent and does not require runtime detach.
+No command removes worktrees, branches, user files, or private workspace data itself; complete only invokes the repository's configured cleanup. Claims coordinate participating A1 sessions, not arbitrary external editors, Git locks, repository cleanup ownership, or permission to merge/delete anything.
+
+## Project resources and working directories
+
+Successful attachment reloads target project settings, AGENTS.md context files, skills, extensions, and tool defaults through Pi's supported runtime lifecycle. Trust is resolved before project resources execute. A session-only trust decision in one project is not inherited by another. Refused or cancelled target trust keeps the prior context. The conversation, session ID, session file, and single-writer ownership stay intact; host subscriptions and extension UI are rebound. Pending user input or bash messages block replacement until consumed, rather than losing queued text or images. The agent then continues its existing task with the runtime's transition result.
+
+Detach reloads startup resources as well as restoring tool cwd. An ordinary tool never executes against a new attachment under stale project resources. Built-in read, bash, edit, write, grep, find, and ls resolve relative paths from the verified current context. Explicit absolute paths retain their meaning. A1 never uses process-global chdir; independent terminals keep their cwd. New extension instances receive the new project cwd; captured contexts from the previous runtime are stale.
+
+Project transitions respect explicit tool exclusions and extension overrides. Comparison sessions and runtimes without worktree ownership do not gain A1's control tool. Controls require a saved persistent conversation.
+
+Background repository polling observes healthy claims without rewriting them. Shutdown releases the runtime's claims; crash recovery checks exact recorded process liveness before acquiring another owner's checkout. Definitively missing/replaced attachments release only this session's association and claim and fail the triggering ordinary tool once. Startup resources reload at the next safe idle boundary before more ordinary work runs. Uncertain identity, timeout, or I/O failures do not silently detach or redirect work. A verified selected-repository anchor, not a Git repository at startup, establishes whether a missing checkout is definitive.
+
+Implementation completion and review handoff do not end the task attachment. Repository cleanup handoff is independent and does not require runtime detach. Attachment/handoff policy is [R12](../delivery-rules.md#r12---portable-handoff).
+
+Informational listing waits for a consistent coordination snapshot. An abandoned in-flight mutation/execution gate is not reclaimed by age or parent-PID death; uncertain children remain blocking under [the execution interface](#supported-unclaimed-target-execution-interface).
 
 ## Completing a merged task
 
-Never run repository cleanup against the checkout a session is attached to. The shell A1 starts for an attached session has that checkout as its working directory, and on Windows that pins the directory until the shell exits even after `cd`, so cleanup issued from it removes part of the checkout and then fails on the directory itself.
+Never run repository cleanup directly against the attached checkout. In particular, a Windows shell started there pins its directory until it exits, even after a shell `cd`.
 
-`a1 worktree complete` sequences the two steps under [R15](../delivery-rules.md#r15---runtime-and-cleanup-boundaries). Before detaching it runs the primary checkout's exact `cleanupPreflight` command and binds the matching `cleanup` command's digest. Both arrays must target `{worktree}`, and execution must include `{snapshot}` for the snapshot-aware protocol. A1 captures the exact HEAD/ref and physical checkout/pointer/admin generations before preflight and rechecks them before detaching. The attachment must remain valid and owned by this session, Git must be unlocked, and `git status` must show no tracked, staged, or untracked content. A blocker leaves the session attached and changes nothing. Otherwise the session returns to its startup checkout. Once that shell has exited, the A1 process runs the configured cleanup from the startup checkout and appends the outcome to the same command's result:
+Completion requires a valid owned attachment, no Git lock, and no tracked, staged, or untracked changes. A blocker leaves the session attached. Completion also refuses when the immutable startup directory lies inside the checkout being completed: detach without cleanup and use the repository's ordinary primary-checkout cleanup instead of removing the session's own fallback directory.
 
-| Outcome | Meaning |
-| --- | --- |
-| `cleanup-finished` | The cleanup command ran. Its report follows and is authoritative; A1 does not claim a removal itself. |
-| `cleanup-failed` | The command exited with an error. The checkout may remain; retry with the repository's cleanup from primary. |
-| `cleanup-unavailable` | The adapter changed or the pending record lacks the supported preflight/snapshot binding. The checkout is retained. |
-| `cleanup-skipped` | Another live session attached the checkout, its claim is unverifiable, or the request was not settled within five minutes. |
+Otherwise completion reloads startup resources, releases the attachment, and runs cleanup after the issuing shell/tool exits. **Tools return to the startup directory; cleanup runs in the selected repository's verified primary checkout.** Those directories need not be the same, and startup may be outside Git.
 
-These settlement outcomes occur after the session returns to startup. Missing adapter support/selectors or a failing preflight instead rejects the request while keeping the attachment. Do not attach a partially removed checkout again.
+Before detaching, both operations run the selected primary checkout's exact preservation preflight and bind the paired execution digest. Both arrays must target `{worktree}`; execution additionally requires `{snapshot}`. A1 captures HEAD/ref and physical checkout/pointer/admin generations before preflight and rechecks before detaching. Missing support/selectors or failed preflight keeps the attachment; execution retains all [R15](../delivery-rules.md#r15---runtime-and-cleanup-boundaries) boundaries.
 
-The cleanup command is declared once in the repository, in a committed `.a1/worktree.json`, so no machine needs any setup:
+The selected repository declares cleanup once in a committed `.a1/worktree.json`:
 
 ```json
 {
@@ -55,13 +80,13 @@ The cleanup command is declared once in the repository, in a committed `.a1/work
 }
 ```
 
-A1 reads the file from the primary checkout the session started in, never from the task checkout being left, so a task branch cannot change what runs until it is merged. The list is run without a shell from the primary checkout, with `{primary}`, `{worktree}`, `{branch}`, `{change}`, `{pr}`, and the opaque base64url `{snapshot}` substituted in each element; the first element must be a real executable such as `node`, not a `.cmd` shim. A repository without the paired declaration reports an explicit unavailable blocker before detaching; its safe standalone cleanup remains available. The command keeps every eligibility and deletion safeguard; A1 adds no deletion of its own. Delivery evidence is the command's to judge, so completing an unmerged task ends detached with the files intact and the command's blocker.
+A1 reads the file from the selected repository's verified primary checkout, never the task checkout being left or an unrelated startup directory, so a task branch cannot change what runs until it is merged. The list is run without a shell from the primary checkout, with `{primary}`, `{worktree}`, `{branch}`, `{change}`, `{pr}`, and the opaque base64url `{snapshot}` substituted in each element; the first element must be a real executable such as `node`, not a `.cmd` shim. A repository without the paired declaration reports an explicit unavailable blocker before detaching; its safe standalone cleanup remains available. The command keeps every eligibility and deletion safeguard; A1 adds no deletion of its own. Delivery evidence is the command's to judge, so completing an unmerged task ends detached with the files intact and the command's blocker.
 
 ## Removing a published local checkout
 
 Policy is [R13-R15](../delivery-rules.md#r13---explicit-published-local-removal). `a1 worktree remove-local` requires the primary checkout's committed `.a1/worktree.json` to declare `localRemoval` with `preflight` and `execute` argument arrays. Each array uses the existing executable/argument and placeholder syntax (`primary`, `worktree`, `branch`); execution additionally requires `{snapshot}`. See this repository's declaration for exact wiring.
 
-Preflight runs from startup while this session still owns its attachment and must report one eligible exact path. Missing, malformed or failing support retains the attachment. After success, A1 records a version-2 request binding the adapter digest and full approved physical/HEAD snapshot, then detaches; settlement occurs only after the issuing shell exits. A changed/recreated checkout or published HEAD is not a new approval. A changed declaration, a new live/unverifiable claim, or an expired request blocks execution. The repository then independently rechecks publication, content and claims. Its report is authoritative; a post-detach blocker leaves the checkout intact and the session usable from startup. Runtime code does not remove checkout files or branch refs itself.
+Preflight runs from the selected primary while this session still owns its attachment and must report one eligible exact path. Missing, malformed or failing support retains the attachment. After success, A1 records a version-2 request binding the adapter digest and full approved physical/HEAD snapshot, then detaches; settlement occurs only after the issuing shell exits. A changed/recreated checkout or published HEAD is not a new approval. A changed declaration, a new live/unverifiable claim, or an expired request blocks execution. The repository then independently rechecks publication, content and claims. Its report is authoritative; a post-detach blocker leaves the checkout intact and the session usable from startup. Runtime code does not remove checkout files or branch refs itself.
 
 This is a separate operation from merged `complete` and confirmed remote-destructive `discard`; it has no sweep fallback. Deploy a compatible A1 release before downstream instruction migration. Source code or a task-branch declaration does not prove installed support is available. Standalone repository removal remains usable without A1 after that repository's tooling integrates.
 
@@ -99,20 +124,19 @@ A suspended/dead holder's gate is not disposable or reclaimable after ten second
 
 Roll out attachment and cleanup support together, stop incompatible older writers before adoption, and rerun the consumer's actual competing-process/suspension/death probes against its pinned released artifact. Merely updating XR's cleanup wrapper while retaining the reviewed lease-based attachment files is not compatible. This PR neither publishes that release nor performs downstream migration; those remain deployment prerequisites.
 
-## Invalid attachments
+## Completion settlement outcomes
 
-If the attached checkout disappears, loses its Git pointer, or is replaced by a different worktree while the startup checkout still verifies, A1 releases this session's own association and editing claim. The built-in tool call that discovers it fails once with `worktree-attachment-invalid`, naming the released path and the startup checkout now in use, so work addressed to the lost checkout is never silently applied elsewhere. The next call runs from the startup checkout, and a resumed session recovers the same way. Uncertain results such as a timeout or an unverifiable startup checkout release nothing. `a1 worktree detach` works without validating the attached checkout. No file, branch, or other session's claim is removed.
+| Outcome | Meaning |
+| --- | --- |
+| `cleanup-finished` | The command ran; its own report follows. A1 does not infer removal. |
+| `cleanup-failed` | The command failed; the checkout may remain. |
+| `cleanup-unavailable` | The adapter changed or the request lacks supported preflight/snapshot binding; the checkout is retained. |
+| `cleanup-skipped` | Repository identity changed, another live/unverifiable claim exists, or the request expired. |
 
-### Explicit recovery when ordinary tools are blocked
-
-A claim-owning bare session also exposes the argument-free `worktree_detach` tool. Ask the agent to use `worktree_detach` when you explicitly want to leave an attachment whose validation prevents even a shell detach command from running. This tool does not resolve the attached cwd or run Git: it verifies the exact bound session/runtime and clears only its association and owner claims through the ordinary mutation gate. It reports the original startup directory, which may be outside Git. Files, branches, history, other agents' claims and cleanup authority are unchanged. Later ordinary tools use that reported directory; the failed operation is never retried automatically elsewhere.
-
-Recovery is sequential and cannot accept a target session, path or shell command. It remains subject to explicit tool exclusions and extension overrides, and is absent from comparison sessions and runtimes without worktree ownership. An unrelated terminal normally lacks the exact shell-tool session identity, so launching a detach CLI there is not a substitute. Ordinary tools still fail closed on uncertain context; use explicit recovery rather than Git environment overrides or manual metadata deletion. After a verified merge, retain the normal `worktree complete` cleanup sequence instead of substituting recovery.
-
-Claims coordinate participating A1 sessions. They are not a sandbox against arbitrary external editors, an editing lock in Git, repository cleanup ownership, or permission to merge/delete anything. Delivery and protected cleanup remain independent.
+In all these cleanup outcomes the session is already detached and remains operational in its startup context. Do not attach a partially removed checkout again. Attachment and completion do not grant merge authority.
 
 ## Shared repository guidance
 
 Read and follow [Shared delivery rules](../delivery-rules.md), using this repository's entry in [Delivery adapters](../delivery-adapters.json). R17 gives the exact repository routing paragraph; this operational reference does not define a second workflow policy.
 
-Install an A1 release exposing this interface before integrating a repository's instruction migration. Older installations only expose the session-context aliases; unknown commands in those older releases may return quietly without performing an operation. A migration PR is not evidence that a compatible installed release is active.
+Install an A1 release exposing this interface before integrating a repository's instruction migration. Older releases may expose only session-context aliases, require startup inside Git, or return quietly for unknown commands. A migration PR does not prove that the installed runtime supports these controls.

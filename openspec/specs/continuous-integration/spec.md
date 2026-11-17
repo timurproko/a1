@@ -1656,11 +1656,11 @@ The published-installer smoke harness SHALL write structured failure evidence at
 
 ### Requirement: User-facing npm tags follow native candidate smoke
 
-Every new application and installer version SHALL first be published under a staging tag that is neither next nor latest. Only after all selected native lanes successfully exercise the exact published candidate's installation, predecessor update, and non-interactive launch SHALL trusted publication promote both packages to the selected user-facing channel. Stable completion SHALL depend on promotion. An existing immutable staged version SHALL remain eligible for smoke and promotion recovery without rebuilding or republishing. Missing, failed, cancelled, or unexpectedly skipped smoke evidence SHALL block public-tag mutation. Promotion SHALL use the existing trusted OIDC identity and fail closed when dist-tag authority is unavailable.
+Every new application and installer version SHALL first be published under a staging tag that is neither next nor latest. Only after all selected native lanes successfully exercise the exact published candidate's installation, predecessor upgrade, and non-interactive launch SHALL trusted publication promote both packages to the selected user-facing channel. The real predecessor update SHALL be attempted. A Windows transaction whose authenticated known legacy recovery worker exits unsuccessfully from its owner.json heartbeat sharing failure MAY instead complete its upgrade through the exact published installer, only after all fixture-owned writers settle. The failed direct attempt and successful installer recovery SHALL remain distinct in evidence; a generic timeout, unknown worker, different error, failed settlement, or failed recovery SHALL NOT qualify. Stable completion SHALL depend on promotion. An existing immutable staged version SHALL remain eligible for smoke and promotion recovery without rebuilding or republishing. Missing, failed, cancelled, or unexpectedly skipped smoke evidence SHALL block public-tag mutation. Promotion SHALL use the existing trusted OIDC identity and fail closed when dist-tag authority is unavailable.
 
 #### Scenario: Published smoke fails
 
-- **WHEN** a newly uploaded candidate fails any selected native installation, update, or launch check
+- **WHEN** a newly uploaded candidate fails any required native installation, declared upgrade path, or launch check
 - **THEN** next and latest SHALL remain unchanged and stable completion SHALL remain blocked
 
 #### Scenario: Staged bytes already exist
@@ -1677,3 +1677,395 @@ Every new application and installer version SHALL first be published under a sta
 
 - **WHEN** one package tag moves but promotion of the other fails
 - **THEN** completion SHALL fail and a retry SHALL reconcile exact existing tags without republishing either package
+
+#### Scenario: A known immutable updater loses its heartbeat owner
+
+- **WHEN** the authenticated legacy Windows worker exits from the observed owner.json sharing failure before publishing a result
+- **THEN** the harness SHALL retain the failed direct attempt and settle its fixture-owned processes before using the exact published installer on the same prefix and data
+- **AND** only successful installer transcript, activation, manifest, and launch checks SHALL establish installer-recovery success, never direct-update success
+
+### Requirement: Development publication reports compact actionable status
+
+The local development-publication command SHALL identify the selected version and Actions log URL, report meaningful job or phase state changes without dumping every job's setup and teardown steps, and avoid repeating unchanged polling snapshots. A failed publication SHALL exit nonzero and provide a bounded deduplicated summary prioritizing concrete primary failures over known derivative aggregate failures. Full diagnostics SHALL remain accessible through the log URL. Presentation SHALL NOT weaken required validation or publication checks.
+
+#### Scenario: Publication is progressing
+- **WHEN** the command observes a running development publication
+- **THEN** it SHALL report changed meaningful job or phase states without repeated full job/step listings
+- **AND** the selected version and full Actions log URL SHALL remain available
+
+#### Scenario: Platform validation blocks publication
+- **WHEN** a platform validation failure causes downstream publication aggregates to fail and npm staging is skipped
+- **THEN** the summary SHALL identify the failing platform and its concrete recorded reasons before downstream consequences
+- **AND** it SHALL state that publication was blocked and direct the maintainer to the full log and a fix before retrying
+
+#### Scenario: Failure evidence is unavailable
+- **WHEN** a completed failed run has unavailable or generic-only annotations
+- **THEN** the command SHALL retain the known failed job or stage identity, state that detailed failure evidence is unavailable, and provide the log URL
+
+#### Scenario: Watching stops before a known final outcome
+- **WHEN** watching is interrupted or an authoritative status read becomes unavailable
+- **THEN** the command SHALL distinguish observation failure from publication failure and SHALL NOT claim that the remote run stopped, succeeded, or published nothing
+
+#### Scenario: Publication fails after npm staging may have started
+- **WHEN** a failed publication has evidence of a started or completed npm staging job
+- **THEN** the summary SHALL NOT claim that no package was published and SHALL identify the known stage state for inspection
+
+### Requirement: Publication status uses aligned labels and dot-only color
+
+Development publication progress SHALL print its version and run identifier in one publication header followed by an unindented full-log link, without repeating the publication prefix on job rows. In capable interactive terminals, each displayed job SHALL retain one visible row whose dot and fixed-width status field update in place as its state changes. Job names SHALL start at the same visible column. Status labels and job names SHALL retain the terminal's default text color. Only the dot MAY be colored: yellow for running, green for passed, red for failed, and gray for skipped. Color opt-outs SHALL disable dot color independently of interactive row updates. Nonterminal output and dumb terminals SHALL use readable append-only state transitions without terminal control sequences. The presentation SHALL preserve state-change deduplication, meaningful skipped-state reporting, diagnostics, and all publication gates without continuous animation. Cursor updates SHALL remain confined to the progress region, accommodate terminal dimensions safely, and leave subsequent success or failure output beneath it.
+
+#### Scenario: A running job passes in an interactive terminal
+- **WHEN** a displayed running job completes successfully
+- **THEN** its existing row SHALL change from Running to Passed and its yellow dot SHALL become green when color is enabled
+- **AND** no stale Running row or second visible row for that job SHALL remain
+
+#### Scenario: Several platform jobs change state
+- **WHEN** multiple platform jobs change state in one status snapshot
+- **THEN** each displayed job SHALL retain its own aligned row with the latest dot and label
+- **AND** no job SHALL be hidden behind a grouped more-count
+
+#### Scenario: Progress is shown in a color-capable terminal
+- **WHEN** the terminal supports color and the user has not disabled it
+- **THEN** only the small dot SHALL receive status color and foreground color SHALL be restored before status text
+- **AND** the publication header SHALL not repeat on each progress line
+
+#### Scenario: Interactive color is disabled
+- **WHEN** NO_COLOR or FORCE_COLOR=0 disables color in an otherwise capable interactive terminal
+- **THEN** existing job rows SHALL still update in place with neutral dots and labels
+- **AND** no color control sequences SHALL be emitted
+
+#### Scenario: Output is redirected or color-disabled
+- **WHEN** output is nonterminal, the terminal is dumb, or NO_COLOR disables color
+- **THEN** status words, dots, alignment, and full-log access SHALL remain without color control sequences
+- **AND** nonterminal output and dumb terminals SHALL use append-only transitions without cursor control sequences
+
+#### Scenario: npm staging is skipped after validation failure
+- **WHEN** npm staging is skipped because validation failed
+- **THEN** the progress SHALL report skipped npm staging with aligned neutral text and a gray dot when color is enabled
+- **AND** inactive-mode optional skips SHALL remain suppressed unless their job previously started
+
+#### Scenario: Terminal geometry changes or observation ends
+- **WHEN** the terminal becomes narrow, resizes, or publication observation finishes or stops
+- **THEN** progress updates SHALL NOT overwrite the publication header or unrelated output
+- **AND** subsequent diagnostics or completion text SHALL start beneath the progress rows
+
+### Requirement: Publication failure summaries use log-first bullet details
+
+The local publication failure description SHALL retain its plain heading without a colored dot, place an unindented full-log link immediately beneath that heading, and follow a blank separator with asterisk bullets whose markers use the same two-space indentation as job-status dots for every detail. The existing development command SHALL retain its develop heading prefix. Job identities, concrete diagnostics or missing-evidence notices, downstream consequences, npm staging state, and retry guidance SHALL retain their meanings and existing diagnostic bounds. Development progress and the completed failure footer SHALL be separated by exactly one blank line through the shared observer-exit boundary. Interrupted or unavailable observation SHALL retain an unindented log link without implying a completed publication outcome.
+
+#### Scenario: A completed publication fails
+- **WHEN** a completed development publication has a failed producer or validation job
+- **THEN** its failure footer SHALL show the develop-prefixed plain heading, unindented full-log link, blank line, and asterisk details aligned with job-status dots
+- **AND** footer text SHALL remain neutral without changing the failed command outcome or publication state
+
+#### Scenario: Failure evidence is missing or several jobs fail
+- **WHEN** a completed failure has unavailable diagnostics, several failed jobs, or downstream gate failures
+- **THEN** every emitted detail SHALL use the same two-space-indented asterisk marker while retaining existing evidence limits and truthfulness
+
+#### Scenario: Alternate publication callers and terminal modes
+- **WHEN** a shared failure description is printed by a development or stable publication caller in an interactive or append-only terminal
+- **THEN** all asterisk markers SHALL retain two leading spaces while headings and full-log links remain unindented
+
+#### Scenario: Status observation is interrupted
+- **WHEN** local waiting is interrupted or authoritative GitHub status cannot be read
+- **THEN** the unknown-outcome message SHALL retain its full-log link at the left edge without claiming that the remote publication stopped
+
+### Requirement: Published installer smoke process settlement
+
+The published-installer smoke harness SHALL settle its fixture-owned process descendants before deleting the fixture after command timeout or failure. Native Windows coverage SHALL include public command-shim execution and detached replacement ownership. Process cleanup SHALL be bounded and SHALL NOT stop unrelated processes. Real published predecessor replacement, exact candidate assertions, and promotion eligibility SHALL remain unchanged.
+
+#### Scenario: Windows predecessor update times out
+
+- **WHEN** the Windows published-predecessor update exceeds its command deadline
+- **THEN** the harness SHALL report the update-predecessor stage and timeout as the primary failure
+- **AND** fixture-owned descendants SHALL be settled before fixture deletion is attempted
+- **AND** the smoke SHALL remain unsuccessful and promotion SHALL remain blocked
+
+### Requirement: Published installer smoke failure precedence
+
+The smoke harness SHALL preserve its primary failure when fixture cleanup also fails. A cleanup-only failure SHALL produce an unsuccessful evidence outcome. The harness SHALL emit bounded sanitized Actions failure annotations naming the failing stage and available primary child failure, with cleanup failure distinguished as secondary when applicable. Evidence collection SHALL remain fixture-scoped and SHALL NOT disclose credentials.
+
+#### Scenario: Cleanup fails after an update failure
+
+- **WHEN** predecessor update fails and fixture deletion also reports a sharing violation
+- **THEN** the original update failure SHALL remain the primary error in evidence and the job diagnostic
+- **AND** the cleanup problem SHALL be reported separately without replacing that error
+
+#### Scenario: Cleanup fails after smoke assertions succeed
+
+- **WHEN** every smoke assertion succeeds but owned process settlement or fixture removal fails
+- **THEN** the harness SHALL report an unsuccessful cleanup outcome and a nonzero exit
+
+#### Scenario: Publication client reads smoke diagnostics
+
+- **WHEN** a published-pair smoke fails in GitHub Actions
+- **THEN** the job SHALL expose a bounded sanitized failure annotation identifying its smoke stage and available primary child failure
+- **AND** the local publication summary SHALL be able to show that annotation without manually downloading artifact archives
+
+### Requirement: Published installer smoke replacement budget
+
+The published-installer smoke harness SHALL bound fresh application installation, predecessor installation, predecessor update, and authenticated installer recovery commands to five minutes on every platform. Installer acquisition SHALL retain its two-minute deadline. Metadata queries and non-interactive launch commands SHALL retain thirty-second deadlines. On timeout it SHALL retain failure evidence and settle fixture-owned descendants within the existing thirty-second settlement budget before removal, without trusting a partially installed target or relaxing promotion assertions. It SHALL print each command's phase and timeout before waiting, phase and elapsed time with the timeout every thirty seconds while waiting, and outcome and elapsed time afterward. Progress timers SHALL stop when the command returns or throws.
+
+#### Scenario: Windows predecessor update runs long
+
+- **WHEN** a published-predecessor update has not finished within five minutes
+- **THEN** the harness SHALL fail that stage, collect bounded diagnostics, and settle the fixture-owned process tree
+- **AND** promotion SHALL remain blocked even if target files already exist
+
+#### Scenario: A phase is running without child output
+
+- **WHEN** the harness starts a smoke command that buffers its child output
+- **THEN** it SHALL print the smoke phase and timeout before awaiting that command and periodic phase, elapsed-time, and timeout progress while waiting
+- **AND** it SHALL print the outcome and duration when the command returns and stop its progress timer on return or exception
+
+#### Scenario: Other platforms and stages keep their budget
+
+- **WHEN** the smoke runs metadata queries or non-interactive launch commands on any platform
+- **THEN** those commands SHALL retain their thirty-second deadlines
+
+#### Scenario: Installation and short commands retain bounded deadlines
+
+- **WHEN** the smoke runs fresh application installation, predecessor installation, predecessor update, or authenticated installer recovery
+- **THEN** that command SHALL have a five-minute deadline
+- **AND** installer acquisition SHALL retain its two-minute deadline while metadata queries and launch commands SHALL retain thirty-second deadlines
+
+#### Scenario: Installation completes beyond the former deadline
+
+- **WHEN** an installation command completes after two minutes but within five minutes
+- **THEN** the harness SHALL continue its existing transcript, manifest, activation, and launcher assertions rather than fail at the former two-minute deadline
+
+#### Scenario: Predecessor update completes beyond the former deadline
+
+- **WHEN** the real predecessor update succeeds after two minutes but within five minutes
+- **THEN** the harness SHALL continue exact-candidate manifest and launcher checks
+- **AND** a live worker, heartbeat, or partial target alone SHALL NOT count as a successful update
+
+### Requirement: Published installer smoke stall evidence
+
+When a published-installer smoke stage fails, the harness SHALL record in its failure evidence the fixture-owned process inventory captured before settlement, bounded sanitized tails of the fixture's update journal and recovery-capsule records with their sizes and modification times, and the identities, sizes, and modification times of the newest fixture npm logs. Success and failure evidence SHALL record the duration of each smoke stage. Evidence collection SHALL remain fixture-scoped and bounded, SHALL NOT disclose credentials, and SHALL redact only credential-like environment values of at least eight characters.
+
+#### Scenario: Predecessor update times out
+
+- **WHEN** the published-predecessor update exceeds its budget
+- **THEN** the evidence SHALL list the fixture-owned processes that were alive before they were stopped, with sanitized arguments
+- **AND** the evidence SHALL include the update journal and any recovery-capsule owner, result, or cancellation records present in the fixture
+- **AND** the evidence SHALL identify the newest fixture npm logs by name, size, and modification time
+
+#### Scenario: Process inventory is unavailable
+
+- **WHEN** fixture-owned process inspection fails during evidence collection
+- **THEN** the evidence SHALL record that inventory error and the primary stage failure SHALL remain authoritative
+
+#### Scenario: A short environment value matches a credential-like key
+
+- **WHEN** an environment variable under a credential-like key holds a value shorter than eight characters
+- **THEN** evidence text equal to that value SHALL remain readable while longer credential values are still redacted
+
+### Requirement: Published installer smoke process history
+
+While a published-installer smoke command with a budget of at least two minutes runs, the harness SHALL sample the fixture-owned process inventory every ten seconds using the same ownership selection as settlement, without stopping any process and without altering the identities settlement later verifies. Failure evidence SHALL record each sampled process's first and last sighting, parent, start identity, and sanitized arguments, along with the number of samples and any sampling errors.
+
+#### Scenario: A detached updater descendant disappears before the deadline
+
+- **WHEN** a fixture-owned process seen during sampling is absent from later samples
+- **THEN** failure evidence SHALL show its last sighting earlier than the command's end so disappearance order is visible
+
+#### Scenario: Sampling fails
+
+- **WHEN** a process inventory sample cannot be read
+- **THEN** the harness SHALL record the sampling error and continue the command and later settlement unchanged
+
+#### Scenario: A two-minute command is running
+
+- **WHEN** an installation or update command has the two-minute budget
+- **THEN** it SHALL remain eligible for process sampling while thirty-second commands SHALL not be sampled
+
+### Requirement: Published installer smoke Windows system records
+
+When a published-installer smoke stage fails on Windows, the harness SHALL record bounded sanitized Windows event records created since the fixture began from the Windows Defender operational log, application crash and error-reporting providers, and service failure or shutdown events, together with the antimalware real-time and behavior-monitoring status. On other platforms this record SHALL be empty. Reading system records SHALL be bounded in time, SHALL NOT change antimalware configuration, and SHALL NOT replace the primary failure when it fails.
+
+#### Scenario: Antimalware remediates a fixture process
+
+- **WHEN** a Windows Defender detection or action event is logged during the smoke
+- **THEN** the failure evidence SHALL include that event's identifier, time, provider, and sanitized message
+
+#### Scenario: System records are unavailable
+
+- **WHEN** the event query fails or times out
+- **THEN** the evidence SHALL record that error and the primary stage failure SHALL remain authoritative
+
+### Requirement: Published installer smoke replacement state
+
+When a published-installer smoke stage fails, the harness SHALL record for each installation prefix the retired package directories present, the installed application manifest version if readable, and the sanitized content of the public launchers, so evidence shows how far package replacement progressed.
+
+#### Scenario: npm replaced the package before its tree vanished
+
+- **WHEN** the installed manifest names the target version while the retired predecessor directory still exists
+- **THEN** the evidence SHALL show both so the failure is attributed to settlement after replacement rather than to installation
+
+### Requirement: Read-only published-pair reproduction
+
+Development validation SHALL provide an explicitly selected diagnostic route that exercises an existing immutable application and installer version on hosted Windows without publishing packages or changing public npm tags. It SHALL capture bounded sanitized detached recovery-worker errors and exit information without changing the installed predecessor's package bytes. Diagnostic success SHALL NOT substitute for finalized-candidate validation or authorize promotion.
+
+#### Scenario: A published recovery worker exits without a result
+
+- **WHEN** an explicitly requested existing-version reproduction loses its recovery worker before result publication
+- **THEN** the diagnostic artifact SHALL retain available worker stderr, uncaught errors, and exit status alongside the primary smoke failure
+
+#### Scenario: Normal development validation is requested
+
+- **WHEN** no published-pair diagnostic version is supplied
+- **THEN** ordinary validation routing SHALL remain unchanged and no registry reproduction SHALL run
+
+#### Scenario: Diagnostic reproduction fails
+
+- **WHEN** a read-only published-pair reproduction fails
+- **THEN** neither package publishing nor public-tag promotion SHALL occur and failure evidence SHALL still be uploaded
+
+### Requirement: Development publication shows per-job workflow-step progress
+
+The development-publication observer SHALL append a compact `(current/total)` workflow-step counter to each visible non-skipped job when GitHub supplies a usable nonempty step list. Total SHALL count the returned steps, including setup and teardown, rather than using potentially noncontiguous step numbers. Pending and queued step statuses SHALL both be recognized as not started and SHALL NOT suppress counters for an otherwise usable list. Current SHALL identify the last returned step position reported in progress or completed, including skipped steps, or zero before any step starts; a successful job SHALL show total/total. Counters SHALL NOT represent passed tests or elapsed-time estimates. Missing, empty, or malformed step metadata and wholly skipped jobs SHALL retain status-only presentation without invented counts.
+
+A change to a displayed counter SHALL refresh that job even while its state remains running, and unchanged state/counter snapshots SHALL remain silent. Capable interactive terminals SHALL retain one row per job and preserve the counter when enough width is available by shortening long job names. Narrow-terminal safety, dot-only color, aligned labels, readable append-only fallback, failure reporting, and publication gates SHALL remain intact.
+
+#### Scenario: Pending future steps do not hide running progress
+
+- **WHEN** GitHub returns completed, in-progress, and pending steps for a running job
+- **THEN** its current/total counter SHALL be displayed before the job completes
+- **AND** advancing into a pending step SHALL refresh the counter while repeated identical snapshots remain silent
+
+#### Scenario: All steps are pending
+
+- **WHEN** a visible running job has a nonempty list of pending steps
+- **THEN** its counter SHALL show zero over the number of returned steps
+
+#### Scenario: Concurrent lanes advance independently
+
+- **WHEN** macOS advances from its first to its second workflow step while Windows stays on its second step
+- **THEN** only the macOS row SHALL refresh its counter and neither row SHALL duplicate in a capable interactive terminal
+- **AND** an unchanged subsequent snapshot SHALL emit no progress
+
+#### Scenario: Metadata is incomplete or step numbers have gaps
+
+- **WHEN** a job has no usable step list or its returned step numbers are noncontiguous
+- **THEN** unavailable metadata SHALL omit the counter and a usable list SHALL count returned positions rather than step numbers
+
+#### Scenario: Jobs complete with distinct outcomes
+
+- **WHEN** jobs finish successfully, fail, or are wholly skipped
+- **THEN** successful jobs with step metadata SHALL show total/total, failed jobs SHALL keep their failed label beside their observed counter, and wholly skipped jobs SHALL omit counters
+
+#### Scenario: Long names share a row with counters
+
+- **WHEN** an interactive job name and counter exceed the terminal width
+- **THEN** the name SHALL shorten to retain the counter where space permits without wrapping into unrelated output
+
+### Requirement: Published pair smoke backstops and failure checkpoint
+
+Each native Published pair job SHALL have a thirty-minute job timeout and a twenty-five-minute exercise-step timeout. Its evidence-upload step SHALL remain unconditional after step failure. Command deadlines SHALL remain the primary failure mechanism, and the outer limits SHALL be emergency backstops with headroom for sequential bounded installation, update, recovery, diagnostics, and settlement. After collecting a stage failure's sanitized diagnostics the smoke SHALL attempt to persist that failure snapshot before process settlement or fixture removal, then write the final cleanup-aware record. A failed checkpoint or final evidence write SHALL NOT replace the primary stage error. Existing authenticated legacy-crash detection, strict recovery eligibility, exact candidate checks, and failure-blocked promotion SHALL remain unchanged.
+
+#### Scenario: Cleanup fails after a command timeout
+
+- **WHEN** a failed command has produced diagnostics and fixture settlement or removal later fails
+- **THEN** a failure checkpoint SHALL already have been attempted before cleanup
+- **AND** the final evidence SHALL retain the primary failure and add the secondary cleanup failure
+
+#### Scenario: A smoke lane exceeds its outer deadline
+
+- **WHEN** a native smoke exercise is still running after twenty-five minutes or its job reaches thirty minutes
+- **THEN** the applicable outer timeout SHALL stop it and promotion SHALL remain blocked
+- **AND** the evidence-upload step SHALL retain its unconditional execution policy subject to runner and job cancellation
+
+#### Scenario: A generic timeout does not qualify for legacy recovery
+
+- **WHEN** the predecessor update times out without an authenticated known legacy heartbeat crash
+- **THEN** the smoke SHALL fail rather than invoke installer recovery or promote the candidate
+
+### Requirement: Development publication recovery and observation
+
+The local develop command SHALL report an already-published preview only when both exact application and installer package versions exist and both dedicated public next tags name that version. An absent or partially present package pair, staged-only pair, or partially promoted pair SHALL dispatch the existing authoritative development publication workflow. Recovery SHALL show explicit intent followed by the same run link, live job statuses and available step counts, and final outcome as a fresh publication. Existing immutable-byte verification, native smoke, promotion prerequisites, newer-tag refusal, and safe interruption behavior SHALL remain unchanged. Workflow success SHALL be followed by verification of both exact versions and both public next tags; registry errors, malformed tag responses, absent versions, or wrong tags SHALL NOT be reported as successful publication. Recovery SHALL NOT overwrite existing package bytes or write npm tags locally.
+
+#### Scenario: Both packages are already promoted
+
+- **WHEN** both exact package versions exist and both next tags name that preview
+- **THEN** the command SHALL report the preview already published without dispatching another workflow
+
+#### Scenario: Staged or partially promoted packages exist
+
+- **WHEN** one or both exact package versions exist but either next tag does not name the preview
+- **THEN** the command SHALL report recovery intent and dispatch the existing development publication workflow
+- **AND** existing registry bytes SHALL be verified and exercised before public promotion rather than overwritten
+
+#### Scenario: No packages exist yet
+
+- **WHEN** neither exact package version exists
+- **THEN** the command SHALL request ordinary publication through the same workflow and observer
+
+#### Scenario: Recovery is running or fails
+
+- **WHEN** the recovery workflow has started
+- **THEN** the terminal SHALL show its run link, live job outcomes and available step counts through the ordinary publication observer
+- **AND** a failed workflow SHALL retain the existing actionable failure summary instead of reporting success because package versions exist
+
+#### Scenario: Successful workflow leaves registry publication incomplete
+
+- **WHEN** the workflow succeeds but an exact package is absent or a next tag names another version
+- **THEN** the command SHALL fail with the affected package or tag instead of claiming publication completed
+
+#### Scenario: Registry state cannot be read safely
+
+- **WHEN** an exact-version or dedicated dist-tag request fails or returns malformed tag data
+- **THEN** the command SHALL surface that failure rather than infer completed publication or silently dispatch recovery from an unknown state
+
+### Requirement: Development publication workflow completion summary
+
+After a successful observed development publication workflow, the observer SHALL print exactly one blank line after the job list, followed by the unindented line `[workflow] passed; verifying npm packages.`. The subsequent develop publication result SHALL retain its existing format without an intervening blank line. Workflow success SHALL NOT replace registry verification or change failure and cancellation behavior.
+
+#### Scenario: A successful workflow enters registry verification
+
+- **WHEN** the observed development publication workflow completes successfully
+- **THEN** both append-only and interactive output SHALL separate the final job row from the bracketed workflow summary by one blank line
+- **AND** the observer SHALL print `[workflow] passed; verifying npm packages.` before registry verification completes
+- **AND** the develop publication result SHALL retain its existing format directly below that summary
+
+### Requirement: Development publication follow-up output has one shared boundary
+
+Whenever development-publication observation finishes or stops, the observer SHALL leave exactly one blank line between the last visible job-status row and subsequent output. A header with no visible job rows SHALL retain its existing single blank separator without adding another. The same contract SHALL apply to successful and unsuccessful workflow conclusions, interruption, unavailable or malformed run/job status, and local waiting failures. Interactive redraws and append-only fallbacks SHALL leave the cursor at the left margin below the progress region, without overwriting prior output or leaking job-row indentation into subsequent messages.
+
+Stopped-watching output SHALL place its reason heading, unknown-remote-outcome and retry guidance, and full-log URL on separate left-aligned lines. An observation failure SHALL NOT imply remote cancellation or a known publication outcome. Successful workflow output SHALL remain distinct from subsequent registry verification, whose failures SHALL remain nonzero and left-aligned.
+
+#### Scenario: Observation stops while a job is running
+- **WHEN** a signal, unavailable or malformed GitHub response, or waiting failure stops observation after a running status row
+- **THEN** exactly one blank line SHALL precede the stopped-watching heading
+- **AND** its reason heading, unknown-outcome guidance, and full-log link SHALL occupy separate lines starting at the left margin
+
+#### Scenario: A workflow completes
+- **WHEN** an observed workflow finishes with success, failure, cancellation, timeout, or another unsuccessful conclusion
+- **THEN** exactly one blank line SHALL precede the appropriate left-aligned workflow summary or failure heading
+- **AND** the remote conclusion, diagnostic bounds, and command exit semantics SHALL remain unchanged
+
+#### Scenario: No visible job rows were observed
+- **WHEN** observation completes or stops before any job qualifies for display
+- **THEN** the publication header's existing blank separator SHALL be reused without an extra blank line
+
+#### Scenario: Live rows or terminal fallbacks precede follow-up output
+- **WHEN** observation exits after an earlier job row was redrawn or after resize, narrow, unknown-dimension, short-terminal, dumb-terminal, or nonterminal fallback
+- **THEN** the following output SHALL remain below the last visible status row with one blank separator and left-margin alignment
+
+#### Scenario: Registry verification fails after workflow success
+- **WHEN** an observed workflow succeeds but subsequent exact-package or public-tag verification fails
+- **THEN** the left-aligned workflow summary SHALL follow the shared progress separator
+- **AND** the subsequent left-aligned error SHALL preserve the registry failure without claiming publication succeeded
+
+### Requirement: Packaged resume readiness failures retain sanitized crash evidence
+
+When a packaged resume process exits before input readiness, the validation fixture SHALL retain available bounded sanitized fatal diagnostics before deleting its disposable runtime. Retained fatal evidence SHALL contain only allowlisted failure classifications and owned source locations, not raw error messages, absolute crash paths, settings, credentials, or conversation content. Missing or unreadable diagnostic files SHALL NOT replace the original readiness failure or make it pass.
+
+#### Scenario: Early launch exception
+- **WHEN** a packaged resume exits before readiness and writes a valid fatal record
+- **THEN** validation SHALL retain the sanitized failure origin, classification, cleanup outcome, and owned code locations before fixture cleanup
+- **AND** the readiness assertion SHALL remain failed
+
+#### Scenario: Unavailable or malformed crash evidence
+- **WHEN** a failing packaged launch has absent, unreadable, oversized, or malformed fatal records
+- **THEN** validation SHALL preserve its original readiness failure without exposing raw record contents

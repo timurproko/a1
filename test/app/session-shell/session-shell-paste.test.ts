@@ -37,6 +37,9 @@ function fakeCursorPayload(row: string): string {
   return start < 0 || end < 0 ? "" : row.slice(start + FAKE_CURSOR_START.length, end);
 }
 
+// Compatibility: editor source keeps the spaced screenshot label; rendered chips compact it (#940).
+const shownChip = (chip: string) => chip.replace("📷 ", "📷");
+
 describe("OwnedUiSessionShell paste and clipboard", () => {
   it("reserves and settles the cold first Ctrl+V exactly once before any mouse paste", async () => {
     let release!: (value: string) => void;
@@ -702,7 +705,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       first({ data: firstData, mimeType: "image/png" });
       await vi.waitFor(() => expect(shell.root.promptChips.hasPending(firstChip)).toBe(false));
       expect(shell.root.editor.getText()).toBe(`${firstChip}${secondChip} tail`);
-      expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain(`${firstChip}${secondChip}`);
+      expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain(`${shownChip(firstChip)}${shownChip(secondChip)}`);
       terminal.input("!");
       await nextImmediate();
       expect(shell.root.editor.getText()).toMatch(/ tail!$/u);
@@ -935,7 +938,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       });
       const rejected = imageTags().at(-1)!;
       expect(rejected).toMatch(/^\[📷 screenshot-/u);
-      expect(shell.root.render(80).join("\n")).toContain(`\u001b[2m${rejected}`);
+      expect(shell.root.render(80).join("\n")).toContain(`\u001b[2m${shownChip(rejected)}`);
 
       shell.root.editor.setText(shell.root.editor.getText().replace(rejected, ""));
       await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain(countMessage));
@@ -1126,8 +1129,8 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
 
     shell.runtime.renderNow();
     const imageFrame = shell.root.render(60).map(row => stripTerminalSequences(row));
-    const imageRow = imageFrame.findIndex(row => row.includes(imageTag)) + 1;
-    const imageColumn = imageFrame[imageRow - 1]!.indexOf(imageTag) + 2;
+    const imageRow = imageFrame.findIndex(row => row.includes(shownChip(imageTag))) + 1;
+    const imageColumn = imageFrame[imageRow - 1]!.indexOf(shownChip(imageTag)) + 2;
     clipboardText = "before-cut";
     terminal.input(`\u001b[<0;${imageColumn};${imageRow}M\u001b[<32;${imageColumn + 1};${imageRow}M\u001b[<0;${imageColumn + 1};${imageRow}m`);
     expect(shell.root.editor.selectedText?.()).toBe(imageTag);

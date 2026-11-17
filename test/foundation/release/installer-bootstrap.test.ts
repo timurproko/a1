@@ -41,6 +41,7 @@ const expectedInstallerHelp = [
   "a1-install --develop",
   "a1-install --develop <preview-or-version>",
   "a1-install --verbose",
+  "a1-install --repair <absolute-recovery-capsule> [--develop [preview-or-version]]",
   "",
 ].join("\n");
 afterEach(async () => {
@@ -142,6 +143,7 @@ describe("installer command contract", () => {
     await Promise.all([
       writeFile(executable, await readFile(resolve("packages/a1-install/bin/a1-install.js"))),
       writeFile(resolve(executable, "..", "progress-palette.js"), await readFile(resolve("packages/a1-install/bin/progress-palette.js"))),
+      writeFile(resolve(executable, "..", "repair-capsule.js"), await readFile(resolve("packages/a1-install/bin/repair-capsule.js"))),
     ]);
     await chmod(executable, 0o755);
     await symlink(executable, launcher, "file");
@@ -861,6 +863,7 @@ describe("installer package manifest", () => {
     expect(manifest.name).toBe("@timurproko/a1-install");
     expect(Object.entries(manifest.bin)).toEqual([["a1-install", "bin/a1-install.js"]]);
     expect(manifest.files).toContain("bin/progress-palette.js");
+    expect(manifest.files).toContain("bin/repair-capsule.js");
     expect(manifest.dependencies).toBeUndefined();
     expect(manifest.optionalDependencies).toBeUndefined();
     expect(manifest.peerDependencies).toBeUndefined();

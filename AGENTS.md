@@ -6,6 +6,8 @@ Read and follow [Shared delivery rules](docs/delivery-rules.md). Use only this r
 
 Command syntax and operational details: [delivery skill](.agents/skills/change-delivery/SKILL.md), [delivery runbook](docs/openspec-archive-automation.md), [worktree protocol](docs/architecture/project-structure.md#development-worktrees), and [local cleanup](docs/local-worktree-cleanup.md).
 
+In A1, prefer the `worktree` tool; `a1 worktree enter <branch> --repo <absolute-path>` and `a1 worktree attach <absolute-path>` remain shell alternatives. A queued shell request is not attachment confirmation: wait for the runtime's result after target trust and project-resource reload. Completion restores startup resources and runs the selected repository's exact cleanup from its verified primary checkout.
+
 ## No AI attribution in git
 
 - Never add `Co-Authored-By` / `Co-authored-by` trailers naming Claude, Anthropic, or any model to commit messages.

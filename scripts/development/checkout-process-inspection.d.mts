@@ -6,6 +6,7 @@ export interface ProcessSnapshot {
   readonly argv: readonly string[];
 }
 export interface CheckoutProcess extends Omit<ProcessSnapshot, "argv"> { readonly script: string; readonly protected: boolean }
+export function terminateSystemProcess(record: ProcessSnapshot, options?: { deadline?: number }): Promise<void>;
 export function commandArguments(line: string): string[];
 export function listSystemProcesses(options?: { deadline?: number }): Promise<ProcessSnapshot[]>;
 export function checkoutProcessInventory(rows: readonly ProcessSnapshot[], root: string, self?: number): CheckoutProcess[];

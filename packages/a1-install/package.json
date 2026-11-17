@@ -9,6 +9,7 @@
   "files": [
     "bin/a1-install.js",
     "bin/progress-palette.js",
+    "bin/repair-capsule.js",
     "README.md",
     "LICENSE"
   ],

@@ -7,6 +7,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { SHARED_PROGRESS_ACCENT_ANSI, SHARED_PROGRESS_PALETTE } from "./progress-palette.js";
+import { validateRepairCapsule } from "./repair-capsule.js";
 
 export { SHARED_PROGRESS_ACCENT_ANSI };
 
@@ -76,12 +77,13 @@ export function isSupportedNodeVersion(version) {
 }
 
 export function parseArguments(argv) {
-  if (!Array.isArray(argv) || argv.length > 8 || argv.some(value => typeof value !== "string" || value.length > 128)) {
+  if (!Array.isArray(argv) || argv.length > 8 || argv.some(value => typeof value !== "string" || value.length > 4096 || value.includes("\0"))) {
     throw new InstallationFailure("invalid command arguments", "", 2);
   }
   let target = { kind: "stable" };
   let verbose = false;
   let help = false;
+  let repairCapsule = null;
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
     if (value === "--help" || value === "-h") {
@@ -91,6 +93,11 @@ export function parseArguments(argv) {
     if (value === "--verbose") {
       if (verbose) throw new InstallationFailure("--verbose was supplied more than once", "", 2);
       verbose = true;
+      continue;
+    }
+    if (value === "--repair") {
+      if (repairCapsule !== null || !argv[index + 1] || !isAbsolute(argv[index + 1])) throw new InstallationFailure("--repair requires one absolute recovery capsule path", "", 2);
+      repairCapsule = argv[++index];
       continue;
     }
     if (value === "--develop") {
@@ -111,7 +118,7 @@ export function parseArguments(argv) {
   if (help && argv.some(value => !["--help", "-h"].includes(value))) {
     throw new InstallationFailure("--help cannot be combined with another option", "", 2);
   }
-  return { target, verbose, help };
+  return { target, verbose, help, repairCapsule };
 }
 
 export function installerHelp() {
@@ -120,6 +127,7 @@ export function installerHelp() {
     "a1-install --develop",
     "a1-install --develop <preview-or-version>",
     "a1-install --verbose",
+    "a1-install --repair <absolute-recovery-capsule> [--develop [preview-or-version]]",
     "",
   ].join("\n");
 }
@@ -827,7 +835,10 @@ export async function runInstaller(argv, options = {}) {
     const activatePath = userBin !== null && !pathIncludes(environment.PATH, userBin, platform);
     const resolutionEnvironment = activatePath ? { ...environment, PATH: [userBin, environment.PATH ?? ""].join(delimiter) } : environment;
     const packageRoot = packageRootFor(installRoot);
-    const existing = await readExistingManifest(packageRoot);
+    const repair = parsed.repairCapsule === null ? null : await validateRepairCapsule(parsed.repairCapsule, {
+      globalRoot: installRoot, packageName: APPLICATION_PACKAGE, targetVersion, platform,
+    });
+    const existing = repair === null ? await readExistingManifest(packageRoot) : null;
     if (existing !== null && existing.name !== APPLICATION_PACKAGE) {
       throw new InstallationFailure("existing installation ownership could not be verified");
     }
@@ -858,11 +869,12 @@ export async function runInstaller(argv, options = {}) {
         throw new InstallationFailure(conciseFailure("update", `${updateResult.stderr}\n${updateResult.stdout}`), `${updateResult.stderr}\n${updateResult.stdout}`, updateResult.code ?? 1);
       }
     } else {
-      await assertLaunchersAbsent(installRoot, platform);
+      if (repair === null) await assertLaunchersAbsent(installRoot, platform);
+      else if (environment.A1_DATA_DIR && (await realpath(environment.A1_DATA_DIR)).toLowerCase() !== repair.dataDir.toLowerCase()) throw new InstallationFailure("repair data directory differs from the recovery capsule");
       let installPhase = "Resolving packages";
       progress.set(24, installPhase, 70);
       const installResult = await runner.npm([
-        "install", "--global", ...(userPrefix === null ? [] : ["--prefix", userPrefix]),
+        "install", "--global", ...(repair !== null ? ["--prefix", repair.prefix] : userPrefix === null ? [] : ["--prefix", userPrefix]),
         "--loglevel=verbose", "--ignore-scripts", "--no-fund", "--no-audit", "--progress=false",
         `${APPLICATION_PACKAGE}@${targetVersion}`,
       ], {
@@ -877,7 +889,9 @@ export async function runInstaller(argv, options = {}) {
       }
       progress.set(72, "Installing", 76);
       await verifyInstalledPackage(packageRoot, targetVersion);
-      await activateInstalled(runner, packageRoot, targetVersion, progress, setActiveChild, () => cancelled);
+      await activateInstalled(repair === null ? runner : {
+        ...runner, node: (entry, args, request) => runner.node(entry, args, { ...request, environment: { ...environment, A1_DATA_DIR: repair.dataDir } }),
+      }, packageRoot, targetVersion, progress, setActiveChild, () => cancelled);
     }
 
     progress.set(98, "Verifying", 99);

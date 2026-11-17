@@ -5,6 +5,12 @@ on:
     branches: [develop]
     types: [opened, edited, synchronize, reopened, ready_for_review, converted_to_draft]
   workflow_dispatch:
+    inputs:
+      published_pair_version:
+        description: 'Read-only Windows reproduction of an existing published pair; skips ordinary diagnostic validation'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -14,9 +20,42 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  published-pair-diagnostic:
+    name: Diagnose existing Windows published pair (${{ matrix.observer }})
+    if: github.event_name == 'workflow_dispatch' && inputs.published_pair_version != ''
+    runs-on: windows-2025
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        observer: [none, events, stderr]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Install diagnostic tooling without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Reproduce existing registry pair without publishing
+        shell: bash
+        env:
+          PUBLISHED_PAIR_DIAGNOSTIC_VERSION: ${{ inputs.published_pair_version }}
+          PUBLISHED_PAIR_OBSERVER_MODE: ${{ matrix.observer }}
+        run: node scripts/release/diagnose-published-pair.mjs
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: windows-published-pair-diagnostic-${{ matrix.observer }}
+          path: .artifacts/validation/published-pair-diagnostic/*.json
+          if-no-files-found: error
+          retention-days: 7
+
   readiness:
     name: Determine validation readiness
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    if: (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && !inputs.published_pair_version
     permissions:
       contents: read
       pull-requests: read

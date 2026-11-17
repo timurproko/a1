@@ -26,6 +26,7 @@ import { UpdateTransactionStore, type UpdateRecoveryState, type UpdateTransactio
 import { acquireUpdateExecutionLease, reclaimDeadLease, type UpdateExecutionOwner } from "./update-execution-lease.js";
 import {
   npmPrefixForGlobalRoot,
+  installedRecoveryIsSettled,
   removeUpdateRecoveryCapsule,
   updateLauncherPaths,
   UpdateRecoveryPendingError,
@@ -754,9 +755,16 @@ async function runUpdateTransaction(plan: UpdatePlan): Promise<number> {
   const { packageRoot, npmCliRoot } = plan.installation;
   const run: UpdateRun = { transaction: await transactionStore.read() };
   try {
+    const targetIsActive = await lifecycle.targetIsActive(targetVersion);
+    if (targetIsActive && run.transaction && await installedRecoveryIsSettled(run.transaction, targetVersion, packageRoot)) {
+      // Invariant: verified external activation is committed truth even if journal persistence fails.
+      run.transaction = { ...run.transaction, phase: "active-reference-committed" };
+      await transactionStore.advance("active-reference-committed");
+      run.transaction = await transactionStore.finish("completed");
+    }
     // Rationale: a settled transaction, even one reported as failed after its commit, leaves nothing
     // to install when its target is already active; reinstalling the same release would only churn.
-    if ((!run.transaction || run.transaction.status !== "active") && await lifecycle.targetIsActive(targetVersion)) {
+    if ((!run.transaction || run.transaction.status !== "active") && targetIsActive) {
       await installer.maintenance();
       await transactionStore.clearCompleted();
       output.stdout(`${PRODUCT_TEXT.commandName} is up to date — no update needed.\n`);

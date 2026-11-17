@@ -1,20 +1,24 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.5.2 (MIT), commit b4afdddf44e059c67ccf5097e5317d913521b470,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
- * Modifications: A1 PR links, model/name priority over stats, level colors, secondary-accent name
- * reveals, dim name/row clipping; Pi intact.
+ * Modifications: A1 PR links, name/model fitting, level colors, name reveals, dim clipping, and
+ * text-only name/model-plus-provider/level hover and direct dialog targets; Pi intact.
  * Deviations: owned-status-level-color, owned-pull-request-badge, owned-footer-ellipsis,
- * owned-footer-model-priority, owned-session-name-reveal.
+ * owned-footer-model-priority, owned-session-name-reveal, owned-footer-direct-controls,
+ * owned-footer-provider-qualifier.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { hyperlink, stripTerminalSequences, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
-import type { OwnedUiSessionViewModel } from "../../../../../contracts/owned-ui/index.js";
+import type { OwnedUiSessionViewModel, OwnedUiShellFooterControl, OwnedUiShellFooterControlSpan } from "../../../../../contracts/owned-ui/index.js";
 import { piTheme } from "../../theme.js";
 import { sessionNameFrame } from "../../../../../ui/components/session-name-frame.js";
+import { backgroundSgrSpan } from "../../../../../ui/components/spans.js";
 
 export class SessionFooter implements Component {
   #reveal: { readonly from: string; readonly elapsed: number } | null = null;
   #nameBudget = Number.MAX_SAFE_INTEGER;
+  #hovered: OwnedUiShellFooterControl | undefined;
+  #controlSpans: OwnedUiShellFooterControlSpan[] = [];
   private readonly getView;
   private readonly cwd;
   private readonly profile;
@@ -24,6 +28,9 @@ export class SessionFooter implements Component {
   }
   invalidate(): void {}
   dispose(): void { this.#reveal = null; }
+
+  footerControlSpans(): readonly OwnedUiShellFooterControlSpan[] { return this.#controlSpans; }
+  setFooterHovered(control: OwnedUiShellFooterControl | undefined): void { this.#hovered = control; }
 
   setNameReveal(frame: { readonly from: string; readonly elapsed: number } | null): boolean {
     this.#reveal = this.profile === "a1" ? frame : null;
@@ -54,6 +61,7 @@ export class SessionFooter implements Component {
   }
 
   render(width: number): string[] {
+    this.#controlSpans = [];
     const view = this.getView();
     const usage = view.status.usage;
     const theme = piTheme();
@@ -105,29 +113,42 @@ export class SessionFooter implements Component {
     if (leftWidth > width) { left = truncateToWidth(left, width, this.profile === "a1" ? dimEllipsis : "..."); leftWidth = visibleWidth(left); }
 
     const modelName = view.activeModel?.modelId ?? "no-model";
-    let rightWithoutProvider = this.profile === "a1"
-      ? view.activeModel === null || !this.show() ? theme.fg("dim", modelName)
-        : theme.fg("dim", `${modelName} • `) + theme.getThinkingBorderColor(view.thinkingLevel)(view.thinkingLevel)
-      : view.activeModel === null || view.thinkingLevel === "off" || !this.show() ? modelName : `${modelName} • ${view.thinkingLevel}`;
+    let levelShown = this.profile === "a1" && view.activeModel !== null && this.show();
+    let providerWidth = 0, modelWidth = visibleWidth(modelName);
+    const modelPart = this.profile === "a1" ? theme.fg("dim", modelName) : modelName;
+    const levelSuffix = this.profile === "a1"
+      ? levelShown ? theme.fg("dim", " • ") + theme.getThinkingBorderColor(view.thinkingLevel)(view.thinkingLevel) : ""
+      : view.activeModel === null || view.thinkingLevel === "off" || !this.show() ? "" : ` • ${view.thinkingLevel}`;
+    let rightWithoutProvider = modelPart + levelSuffix;
     const modelLevel = rightWithoutProvider;
     const routed = view.routedModel;
+    let routeSuffix = "";
     if (routed) {
       const level = routed.thinkingLevel === undefined ? "" : ` • ${routed.thinkingLevel}`;
       const route = ` → ${routed.model.modelId}${level}`;
-      rightWithoutProvider += this.profile === "a1" ? theme.fg("dim", route) : route;
+      routeSuffix = this.profile === "a1" ? theme.fg("dim", route) : route;
+      rightWithoutProvider += routeSuffix;
     }
     const nameWidth = this.profile === "a1" ? visibleWidth(sessionName ?? "") : 0;
     let right = rightWithoutProvider;
     if ((view.status.footer?.availableProviderCount ?? 1) > 1 && view.activeModel) {
-      const provider = `(${view.activeModel.providerId}) `;
-      right = (this.profile === "a1" ? theme.fg("dim", provider) : provider) + rightWithoutProvider;
+      const provider = this.profile === "a1" ? ` [${view.activeModel.providerId}]` : `(${view.activeModel.providerId}) `;
+      right = this.profile === "a1" ? modelPart + theme.fg("dim", provider) + levelSuffix + routeSuffix : provider + rightWithoutProvider;
       if (Math.max(leftWidth, nameWidth) + 2 + visibleWidth(right) > width) right = rightWithoutProvider;
+      else if (this.profile === "a1") providerWidth = visibleWidth(provider);
     }
 
     if (this.profile === "a1" && Math.max(leftWidth, nameWidth) + 2 + visibleWidth(right) > width) {
-      right = [rightWithoutProvider, modelLevel].find(value => visibleWidth(value) + 2 + nameWidth <= width)
-        ?? [rightWithoutProvider, modelLevel].find(value => visibleWidth(value) + 2 <= width)
-        ?? truncateToWidth(theme.fg("dim", modelName), width, dimEllipsis);
+      const fitted = [rightWithoutProvider, modelLevel].find(value => visibleWidth(value) + 2 + nameWidth <= width)
+        ?? [rightWithoutProvider, modelLevel].find(value => visibleWidth(value) + 2 <= width);
+      providerWidth = 0;
+      if (fitted !== undefined) right = fitted;
+      else {
+        const clipped = truncateToWidth(modelName, width, dimEllipsis);
+        right = theme.fg("dim", clipped);
+        modelWidth = visibleWidth(clipped);
+        levelShown = false;
+      }
       left = truncateToWidth(left, Math.max(0, width - visibleWidth(right) - 2), dimEllipsis);
       leftWidth = visibleWidth(left);
     }
@@ -138,10 +159,14 @@ export class SessionFooter implements Component {
       const statsBudget = this.#nameBudget < visibleWidth(sessionName) ? 0
         : Math.max(0, width - rightWidth - 2 - this.#nameBudget - 3);
       left = statsBudget >= 4 ? truncateToWidth(left, statsBudget, dimEllipsis) : "";
-      left = (left ? left + theme.fg("dim", " • ") : "") + this.#nameFrame(sessionName, this.#nameBudget).text;
+      const prefix = left ? left + theme.fg("dim", " • ") : "";
+      const name = this.#nameFrame(sessionName, this.#nameBudget).text;
+      this.#controlSpans.push({ command: "name", row: 1, column: visibleWidth(prefix), width: visibleWidth(name) });
+      left = prefix + name;
       leftWidth = visibleWidth(left);
     }
     let line: string;
+    let drawnRightWidth = rightWidth;
     if (this.profile === "a1" && leftWidth === 0) {
       line = " ".repeat(Math.max(0, width - rightWidth)) + right;
     } else if (leftWidth + 2 + rightWidth <= width) {
@@ -150,14 +175,28 @@ export class SessionFooter implements Component {
       const available = width - leftWidth - 2;
       if (available > 0) {
         const truncated = truncateToWidth(right, available, "");
+        drawnRightWidth = visibleWidth(truncated);
         line = left + " ".repeat(Math.max(0, width - leftWidth - visibleWidth(truncated))) + truncated;
-      } else line = left;
+      } else { line = left; drawnRightWidth = 0; }
     }
 
     const lines = [
       truncateToWidth(pathRow, width, dimEllipsis),
       theme.fg("dim", left) + (this.profile === "a1" ? line.slice(left.length) : theme.fg("dim", line.slice(left.length))),
     ];
+    if (this.profile === "a1" && view.activeModel !== null) {
+      modelWidth += providerWidth;
+      const column = width - drawnRightWidth;
+      if (modelWidth > 0 && modelWidth <= drawnRightWidth) this.#controlSpans.push({ command: "models", row: 1, column, width: modelWidth });
+      const levelWidth = visibleWidth(view.thinkingLevel);
+      const levelOffset = modelWidth + 3;
+      if (levelShown && levelOffset + levelWidth <= drawnRightWidth) {
+        this.#controlSpans.push({ command: "thinking", row: 1, column: column + levelOffset, width: levelWidth });
+      }
+    }
+    const hovered = this.#controlSpans.find(span => span.command === this.#hovered);
+    if (hovered !== undefined) lines[hovered.row] = backgroundSgrSpan(lines[hovered.row]!, hovered.column,
+      hovered.column + hovered.width, theme.getBgAnsi("selectedBg"), "\u001b[49m", visibleWidth);
     const statuses = view.status.footer?.extensionStatuses ?? [];
     if (statuses.length > 0) {
       const status = [...statuses].sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey)).map(([, text]) => sanitize(text)).join(" ");

@@ -108,6 +108,9 @@ export type {
   OwnedUiSessionRequest,
   OwnedUiSessionSettingsPort,
   OwnedUiWorkflowPort,
+  OwnedUiExitBlocker,
+  OwnedUiExitReadiness,
+  OwnedUiSessionLifecyclePort,
 } from "./session-backend.js";
 export type {
   OwnedUiDialogHost,
@@ -276,4 +279,6 @@ export type {
   OwnedUiShellTrustSelectorOptions,
   OwnedUiShellTrustUpdate,
   OwnedUiShellViewComponentPort,
+  OwnedUiShellFooterControl,
+  OwnedUiShellFooterControlSpan,
 } from "./shell-components.js";

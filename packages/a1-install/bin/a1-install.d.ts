@@ -3,7 +3,7 @@ export type InstallerTarget =
   | { kind: "develop" }
   | { kind: "preview"; requested: string };
 
-export function parseArguments(argv: string[]): { target: InstallerTarget; verbose: boolean; help: boolean };
+export function parseArguments(argv: string[]): { target: InstallerTarget; verbose: boolean; help: boolean; repairCapsule: string | null };
 export function installerHelp(): string;
 export const SHARED_PROGRESS_ACCENT_ANSI: string;
 export function resolveInstallerAccentColor(environment?: NodeJS.ProcessEnv, home?: () => string): string;

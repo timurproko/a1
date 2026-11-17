@@ -136,7 +136,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     ...(options.packageVersion === undefined ? {} : { packageVersion: options.packageVersion }),
     ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
   });
-  const sessionColor = createRuntimeApis(backend, bareSettings, host, productPaths.runtimeDir, runtimeContext);
+  const sessionColor = createRuntimeApis(backend, bareSettings, host, productPaths.runtimeDir, runtimeContext, () => presenter); // Rationale: invoked only after shell construction, like the hotkeys route.
   // Rationale: peer refresh shares persisted preferences, never session-local Current color.
   const unwatchSharedSettings = bareSettings === null
     ? () => {}
@@ -260,9 +260,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   return { application, settings };
 }
 
-function createRuntimeApis(backend: ComposedSessionBackend, settings: OwnedSettingsManager | null, host: ComposedEngineHost, runtimeDir: string, context: OwnedRuntimeContext) {
+function createRuntimeApis(backend: ComposedSessionBackend, settings: OwnedSettingsManager | null, host: ComposedEngineHost, runtimeDir: string, context: OwnedRuntimeContext, lifecycle: () => OwnedUiSessionPresenter | null) {
   return settings === null ? null : new RuntimeApiLifecycle(backend, settings, color => host.setAccentColor(color),
-    () => import("./integration-api.js").then(module => module.startIntegrationControl(backend, settings, runtimeDir, context)));
+    () => import("./integration-api.js").then(module => module.startIntegrationControl(backend, settings, runtimeDir, context, undefined, lifecycle)));
 }
 
 async function compositionRuntimeContext(options: OwnedUiCompositionOptions, bare: boolean) {

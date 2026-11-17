@@ -3,7 +3,7 @@
  * never on an engine adapter class, so a per-tab or non-Pi backend can stand behind the shell.
  */
 import type { OwnedUiExtensionUiPort } from "./extension-ui.js";
-import type { OwnedUiCommand, OwnedUiEvent, OwnedUiImageAttachment, OwnedUiSessionViewModel, OwnedUiSnapshot } from "./model.js";
+import type { OwnedUiCommand, OwnedUiEvent, OwnedUiImageAttachment, OwnedUiLifecycle, OwnedUiSessionViewModel, OwnedUiSnapshot } from "./model.js";
 import type {
   OwnedUiAmbientAuthentication,
   OwnedUiAuthenticationProviderOption,
@@ -85,6 +85,29 @@ export interface OwnedUiSessionPort {
   dispose(): Promise<void>;
 }
 
+/** Why one live session cannot stop safely right now, in refusal order. */
+export type OwnedUiExitBlocker = "session-stopping" | "session-busy" | "editor-not-empty" | "pending-input" | "overlay-open";
+
+/** Read-only exit readiness of the owning shell; admission re-evaluates it, a snapshot is never authority. */
+export interface OwnedUiExitReadiness {
+  readonly lifecycle: OwnedUiLifecycle;
+  readonly editorEmpty: boolean;
+  readonly pendingSubmissions: number;
+  readonly queuedInput: number;
+  readonly overlayOpen: boolean;
+  readonly exitAdmissible: boolean;
+  readonly blockers: readonly OwnedUiExitBlocker[];
+}
+
+/**
+ * What an external supervisor may ask the live shell about stopping. requestExit is synchronous: it checks
+ * readiness and admits the ordinary quit path with no await in between, and admits at most once per shell.
+ */
+export interface OwnedUiSessionLifecyclePort {
+  readiness(): OwnedUiExitReadiness;
+  requestExit(): { readonly admitted: true } | { readonly admitted: false; readonly blocker: OwnedUiExitBlocker };
+}
+
 /** Slash-command workflows and the shell-side host their interactive steps call back into. */
 export interface OwnedUiWorkflowPort {
   executeWorkflow(request: OwnedUiWorkflowRequest): Promise<OwnedUiWorkflowResult>;
@@ -93,6 +116,8 @@ export interface OwnedUiWorkflowPort {
   workflowAutocompleteCommands(): readonly OwnedUiWorkflowAutocompleteCommand[];
   /** Clear queued steering and follow-up submissions, returning their texts in order. */
   clearQueuedWorkflows(): readonly string[];
+  /** Pending steering and follow-up count without clearing anything; null when the engine cannot say. */
+  queuedWorkflowCount(): number | null;
   /** The result a blocked `/reload` reported, or null when reload is available. */
   reloadBlockedResult(): OwnedUiWorkflowResult | null;
   /** Copy through the active clipboard owner; true means acknowledged delivery. */
