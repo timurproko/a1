@@ -12,6 +12,7 @@ The maintainer integration decision accepts these scenarios:
 - A new planning-only publication rejects implementation files and completed implementation tasks before remote mutation; approved auxiliary planning/contract artifacts and retry recovery remain supported.
 - A competing A1 attachment cannot acquire a cleanup target during journal/purge/removal, including a holder suspended beyond ten seconds or killed while a destructive child survives; uncertain descendants retain exclusion.
 - Both local removal and merged completion retain a recreated checkout or newly published HEAD after pre-detach approval, including changes after command launch; missing snapshot-aware runtime/adapter support retains the attachment instead of substituting another cleanup.
+- The isolated candidate tarball exposes typed standalone cleanup modules; ordinary-Node probes preserve snapshot and child exclusion, orphan gates remain explicitly blocked, and queued attachment requests never authorize setup before runtime confirmation.
 
 ```openspec-delivery
 {
@@ -32,12 +33,13 @@ The maintainer integration decision accepts these scenarios:
     "Changing a finalized candidate head, base, body or acceptance list invalidates previous integration authority; a missing fresh maintainer request or unverifiable human arm produces a blocker without bot fallback, unrelated-arm cancellation, waiting or queued integration.",
     "A new planning-only publication rejects implementation files and completed implementation tasks before remote mutation; approved auxiliary planning/contract artifacts and retry recovery remain supported.",
     "A competing A1 attachment cannot acquire a cleanup target during journal/purge/removal, including a holder suspended beyond ten seconds or killed while a destructive child survives; uncertain descendants retain exclusion.",
-    "Both local removal and merged completion retain a recreated checkout or newly published HEAD after pre-detach approval, including changes after command launch; missing snapshot-aware runtime/adapter support retains the attachment instead of substituting another cleanup."
+    "Both local removal and merged completion retain a recreated checkout or newly published HEAD after pre-detach approval, including changes after command launch; missing snapshot-aware runtime/adapter support retains the attachment instead of substituting another cleanup.",
+    "The isolated candidate tarball exposes typed standalone cleanup modules; ordinary-Node probes preserve snapshot and child exclusion, orphan gates remain explicitly blocked, and queued attachment requests never authorize setup before runtime confirmation."
   ],
-  "archiveDigest": "fea1551de223ad9a3468ddf6aea7d1351b9738e51269e00c5328211d294a5803",
+  "archiveDigest": "eed6103a9fc9f160f06bf8f75da91fedde7d859ae28428a17843c1601e63d568",
   "specDigest": "5648241e0580ade792509303d13aee87cfd7e78cdb042720a042e5a6c25b995b",
-  "tasksDigest": "8a2316c30f7d247d5439787718788790bb3903bba719220103693ff6baa18505",
-  "evidenceDigest": "11a05c4cfc50f08fcf9ae2e833a42f26bd8363efe4035ae810ebc4884aa5dd25",
+  "tasksDigest": "c7dd259648e9ae7688706f12f28e80c9a95edd69486b1662fac291310ee0aa24",
+  "evidenceDigest": "deda15c43ca49c3e3ea0fa8585c0b129dac9cb87b8772ea5c874853d53d542ca",
   "knownGaps": []
 }
 ```
