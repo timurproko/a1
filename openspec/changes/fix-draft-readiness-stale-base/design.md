@@ -11,7 +11,10 @@ PR #964 at 5b4062fae125b075bdf916fc3862ef7de3d4f62b includes develop at 21d3f606
 ## Evidence
 
 - Direct GitHub reads reproduce the stale base metadata on #964; local merge-base confirms the candidate contains current develop.
-- Focused real-repository fixtures will reproduce the refusal before the fix and cover successful promotion plus stale-target and race refusals afterward.
+- Before the implementation edit, all three new real-repository fixtures failed as intended: a current draft with stale base metadata returned retry, a genuinely behind draft returned retry rather than its visible stale-target blocker, and a draft was incorrectly promoted after develop advanced while PR metadata stayed unchanged.
+- After the fix, `npx vitest run test/repository-governance/openspec-finalization-publication.test.ts` passes all sixteen tests on Windows Node 24.21.0. Existing incomplete-task, malformed-acceptance, body/head race, finalized-redraft, and leased-publication safeguards remain intact; the new cases also assert no branch or body writes and no ready mutation on refusal.
+- `npm run build:core`, `npm run typecheck`, strict OpenSpec validation, and diff whitespace checks pass. The combined command reached its shell deadline after the focused tests and build, so typecheck and the remaining checks were rerun separately and succeeded; no test timeout or budget changed.
+- Pre-finalization #966 inspection shows the expected draft-only skips and successful finalization skip while its Implementation item remains unchecked. Required exact-head CI and live recovery are still pending deployment; no successful validation or recovery is inferred from those skips.
 
 ## Known gaps
 
