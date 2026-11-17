@@ -4,10 +4,18 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { expect, it } from "vitest";
+import { verifyBuildReceipt } from "../../scripts/release/validation-receipt.mjs";
 
 const exec = promisify(execFile), root = fileURLToPath(new URL("../../", import.meta.url));
 it("restores packaged coordination after recoverable crashes without reclaiming live execution", async () => {
-  const receipt = process.env.VALIDATION_BUILD_RECEIPT;
+  let receipt = process.env.VALIDATION_BUILD_RECEIPT;
+  if (receipt) {
+    try { await verifyBuildReceipt(receipt, { repository: root }); }
+    catch {
+      console.info("Regression build hint does not match current inputs/artifacts; selecting a fresh build, not receipt reuse");
+      receipt = undefined;
+    }
+  }
   const args = ["scripts/development/verify-worktree-package.mjs", "--allow-dirty", "--regression-installed-npm"];
   if (receipt) args.push("--verified-build-receipt", receipt);
   const { stdout } = await exec(process.execPath, args, {

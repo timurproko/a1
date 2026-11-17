@@ -1,5 +1,11 @@
 # Implementation observations
 
+## CI reuse-hint correction following 01fecb95
+
+Published source correction `80872831` and trusted refinalization `01fecb95e9e0780413393e8fc36a70a5af8e8b3c` retained the same recovery design. Its **fresh, clean, pinned-npm actual package passed all 23 ordinary-Node probes**, strict declarations and observer checks. Another build-backed run passed **39 outer compatibility tests across five files**, including the unchanged **50 cases/11 hazards** wrapper in about 183 seconds. Required run `44138806493` nevertheless failed before the regression package probes: the reused install-time receipt no longer matched after Vitest generated `src/integrations/pi/engine/pi-settings-metadata.json`. The downloaded receipt proves that input was absent at install-build recording; the existing global test setup generates it. The receipt rejection is correct and remains strict.
+
+The regression wrapper now verifies its environment **hint before selecting reuse**, exactly as the owning runner does. A stale hint logs that choice and selects a real fresh build, never unverified packing; no hint also defaults to a fresh build. A matching hint still undergoes the diagnostic's pre-pack and post-probe checks. An explicitly supplied invalid receipt remains a hard refusal, covered by the negative regression. An actual wrapper invocation with the downloaded stale CI hint logged its rejection, rebuilt and passed all **23 packaged probes**, strict declarations and the original **240/250-second bounds** (about 178 seconds locally). No receipt inventory exemption, release-policy/workflow change, source deletion, larger deadline or gate-code change was introduced. Final candidate verification always remains fresh/pinned; final new-head package and required-CI evidence are separately recorded at handoff.
+
 ## Live-owner release contention following 2cd45e1f
 
 Reproduced the independent defect with production core APIs and a separate isolated process holding the real database's `BEGIN IMMEDIATE`, without fabricated gate records. At the reviewed source: release threw `database is locked`; after the blocker committed, a second release silently returned, the original nonce remained, reacquisition was blocked and inspection reported `live`. The reproduction's assertion failed as expected; its log is retained, not counted as success.
