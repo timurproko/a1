@@ -28,10 +28,10 @@ The maintainer integration decision accepts these scenarios:
     "Vanilla A1-to-Herdr name updates remain unchanged even when the plugin or sidebar renaming is disabled.",
     "Applied manual names persist through the existing naming owner and are protected from automatic renaming."
   ],
-  "archiveDigest": "9b2881ebadf8c3602f27219bf69d30e8ccd6545a6d93247f9108c621c634e0d5",
+  "archiveDigest": "b02000038e7243765434867cda8026f1570f88ce2ecc650b7b1d1ef6636fdd35",
   "specDigest": "98ac5f24a8d620caa0fc7ed08b4332e82186ebe15c7b15d340c2fa1c3ca2908c",
   "tasksDigest": "ed74f53a31b1109c7bb9e4bcb14e9888c693ccc083ddbeb96d540b67ddc4496e",
-  "evidenceDigest": "95b04ff97055fc2642a0de975dec8fcb04092421401d076ae139dcb5b6b4a6e5",
+  "evidenceDigest": "a44b9f745eca8b2f759171a32ec0355a1432da3977cf3da11fcdb0258d7203e0",
   "knownGaps": []
 }
 ```
