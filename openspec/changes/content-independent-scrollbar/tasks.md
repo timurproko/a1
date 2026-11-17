@@ -1,0 +1,12 @@
+## 1. Make transcript row geometry safe and consistent
+
+- [ ] Align measurement, clipping, padding, and styled-span grapheme boundaries for invisible Unicode and ANSI-interrupted clusters without importing Pi into neutral UI components.
+- [ ] Normalize row-moving content controls before transcript paint while preserving source/copy mapping, supported styles, links, and image payloads.
+- [ ] Add focused geometry and terminal-cell regressions for word joiners, tabs, carriage returns, style-split emoji, ordinary steering markers, and unchanged supported content.
+
+## 2. Anchor scrollbar paint independently of transcript content
+
+- [ ] Carry bounded rail placement and resolved cell styling through owned frame metadata and the neutral terminal presentation contract.
+- [ ] Paint exposed rail/gutter cells at their physical column inside the existing synchronized terminal transaction, preserving cursor state, modal occlusion, comparison behavior, and image transport.
+- [ ] Integrate fixed rail painting with full and differential writes, regional scroll, row caches, stale-frame rejection, presentation resets, hyperlink cleanup, visibility changes, and geometry changes.
+- [ ] Add emitted-terminal-cell regressions for content replacement, scrolling, steering lifecycle, resize, dock changes, selection/backgrounds, rail styles/appearance, occlusion, and cached/damage-aware repainting.
