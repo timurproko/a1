@@ -34,10 +34,10 @@ The maintainer integration decision accepts these scenarios:
     "A competing A1 attachment cannot acquire a cleanup target during journal/purge/removal, including a holder suspended beyond ten seconds or killed while a destructive child survives; uncertain descendants retain exclusion.",
     "Both local removal and merged completion retain a recreated checkout or newly published HEAD after pre-detach approval, including changes after command launch; missing snapshot-aware runtime/adapter support retains the attachment instead of substituting another cleanup."
   ],
-  "archiveDigest": "04e9981664e07471ce74e8edf91e8897ea24b1a2a80fbd6d828254547f0d6e9e",
+  "archiveDigest": "fea1551de223ad9a3468ddf6aea7d1351b9738e51269e00c5328211d294a5803",
   "specDigest": "5648241e0580ade792509303d13aee87cfd7e78cdb042720a042e5a6c25b995b",
   "tasksDigest": "8a2316c30f7d247d5439787718788790bb3903bba719220103693ff6baa18505",
-  "evidenceDigest": "490b1be38dfbdc222d6057527a6363772226269efe463d8518071dd8783d655e",
+  "evidenceDigest": "11a05c4cfc50f08fcf9ae2e833a42f26bd8363efe4035ae810ebc4884aa5dd25",
   "knownGaps": []
 }
 ```
