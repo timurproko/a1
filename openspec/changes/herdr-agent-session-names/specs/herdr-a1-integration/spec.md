@@ -2,16 +2,17 @@
 
 ### Requirement: Generic A1 integration has independent feature switches
 
-The private Herdr customization SHALL present one A1 plugin with a master enable switch and independent Match space color and Sync session name toggle settings. Existing stable plugin identifiers and explicit legacy color choices SHALL remain compatible. An explicitly disabled legacy plugin SHALL stay disabled. No saved unrelated preference or already-applied color/name SHALL be removed by disabling a feature. Runtime/session identity SHALL NOT be exported as a portable preference.
+The private Herdr customization SHALL present one A1 plugin with a master enable switch and independent Match space color and Sidebar rename toggle settings. These switches SHALL NOT gate existing vanilla A1 → Herdr name reporting or display updates. Existing stable plugin identifiers and explicit legacy color choices SHALL remain compatible. An explicitly disabled legacy plugin SHALL stay disabled. No saved unrelated preference or already-applied color/name SHALL be removed by disabling a feature. Runtime/session identity SHALL NOT be exported as a portable preference.
 
-#### Scenario: Names enabled while colors disabled
-- **WHEN** the A1 plugin and name synchronization are enabled but color matching is disabled
-- **THEN** supported sidebar Rename and authoritative name updates remain available
+#### Scenario: Sidebar renaming enabled while colors disabled
+- **WHEN** the A1 plugin and sidebar renaming are enabled but color matching is disabled
+- **THEN** supported sidebar Rename remains available
 - **AND** neither startup nor live matching changes A1 colors
 
-#### Scenario: Colors enabled while names disabled
-- **WHEN** the A1 plugin and color matching are enabled but name synchronization is disabled
-- **THEN** existing color matching remains available and the plugin offers no Rename action or new name-sync work
+#### Scenario: Colors enabled while sidebar renaming disabled
+- **WHEN** the A1 plugin and color matching are enabled but sidebar renaming is disabled
+- **THEN** existing color matching remains available and the plugin offers no Rename action
+- **AND** vanilla A1 → Herdr name updates continue unchanged
 
 #### Scenario: Preserve an existing disabled choice
 - **WHEN** an installation has only the previous explicit disabled color-plugin preference
@@ -24,7 +25,7 @@ The private Herdr customization SHALL present one A1 plugin with a master enable
 
 ### Requirement: Sidebar Rename targets the clicked A1 session
 
-The Agents context menu SHALL accept generic plugin-owned action contributions. The A1 plugin SHALL contribute Rename only for an eligible live A1 agent with fresh complete native session/runtime identity and name synchronization enabled. Rename SHALL use a native private input UI prefilled from authoritative API readback, capture the clicked terminal/machine/runtime/session and revision, and revalidate lifetime, expiry, enable state and identity before submitting a literal shared-client request. Local and remote requests SHALL use supported host execution routing. Unsupported agents SHALL retain existing menu behavior. No terminal input, private endpoint discovery, shipped mod edits, native patch or permanent local alias SHALL be used.
+The Agents context menu SHALL accept generic plugin-owned action contributions. The A1 plugin SHALL contribute Rename only for an eligible live A1 agent with fresh complete native session/runtime identity and sidebar renaming enabled. Rename SHALL use a native private input UI prefilled from authoritative API readback, capture the clicked terminal/machine/runtime/session and revision, and revalidate lifetime, expiry, enable state and identity before submitting a literal shared-client request. Local and remote requests SHALL use supported host execution routing. Unsupported agents SHALL retain existing menu behavior. No terminal input, private endpoint discovery, shipped mod edits, native patch or permanent local alias SHALL be used.
 
 #### Scenario: Click a different agent from the focused one
 - **WHEN** a person opens Rename on an eligible nonfocused A1 agent and submits a new name
@@ -32,7 +33,7 @@ The Agents context menu SHALL accept generic plugin-owned action contributions. 
 - **AND** focus and terminal topology remain unchanged
 
 #### Scenario: Cancel or replace the target
-- **WHEN** the person cancels, closes the overlay, disables name sync or the captured runtime/session is replaced
+- **WHEN** the person cancels, closes the overlay, disables sidebar renaming or the captured runtime/session is replaced
 - **THEN** the pending UI cannot submit a rename against any current or replacement agent
 
 #### Scenario: Old runtime or concurrent rename refuses the write
@@ -40,13 +41,17 @@ The Agents context menu SHALL accept generic plugin-owned action contributions. 
 - **THEN** the UI reports failure/conflict without inventing a local success or overwriting the authoritative name
 - **AND** any retry requires an explicit fresh read and user submission
 
-### Requirement: Session name propagation is bidirectional and loop-free
+### Requirement: Preserve vanilla name updates without a second sync path
 
-Manual or automatic A1-origin name changes SHALL update Herdr's agent display through authoritative reporting or a read-only runtime-bound projection. An acknowledged sidebar rename SHALL persist as the same manual A1 session name and update A1 and Herdr. Display updates SHALL NOT be reinterpreted as new rename commands. Any temporary display projection SHALL be binding-scoped and discarded when stale or disabled, not a second durable name database.
+Existing vanilla A1 → Herdr name reporting and display behavior SHALL remain unchanged for manual and automatic naming, regardless of plugin master or feature settings. An acknowledged sidebar rename SHALL persist through the ordinary manual A1 naming authority and its existing notifications, allowing the native reporting path to update Herdr. The plugin SHALL NOT add name polling, display projections, terminal-title overrides, a second name database or echo rename commands.
 
 #### Scenario: Rename inside A1
-- **WHEN** a live A1 session changes its name through its own naming authority while synchronization is enabled
-- **THEN** Herdr displays the new authoritative name without submitting an echo rename
+- **WHEN** a live A1 session changes its name through its own naming authority
+- **THEN** vanilla Herdr continues displaying the new authoritative name without a plugin sync path or echo rename
+
+#### Scenario: Plugin disabled leaves native updates intact
+- **WHEN** the plugin master switch or Sidebar rename setting is off and A1 changes its session name
+- **THEN** the existing vanilla A1 → Herdr name update still occurs unchanged
 
 #### Scenario: Rename inside Herdr
 - **WHEN** a sidebar rename is applied by A1

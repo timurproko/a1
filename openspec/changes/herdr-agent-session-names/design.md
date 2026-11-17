@@ -6,14 +6,14 @@ Herdr's `src/plugins/a1-colors/` owns color policy. `src/plugins/api.cjs` owns t
 
 ## Goals
 
-- A generic A1 plugin with independently enabled color matching and name synchronization.
-- One persisted session name, immediately reflected in A1 and propagated to Herdr for local and remote agents.
+- A generic A1 plugin with independently enabled color matching and sidebar renaming.
+- One persisted session name, using the already-working vanilla A1 → Herdr name reporting for local and remote agents. Preserve this native behavior regardless of plugin settings.
 - Safe sidebar renames that cannot land on the focused agent by mistake, overwrite a concurrently changed name or replay against a replacement session.
 - Additive protocol support preserving current color/lifecycle consumers.
 
 ## Non-goals
 
-Renaming non-A1 agents, tab/space renaming, permanent Herdr aliases, changing session UUIDs or history paths, bulk rename, clearing names, background companions and native binary/source patches are excluded. Disabling synchronization does not undo completed renames.
+Renaming non-A1 agents, tab/space renaming, permanent Herdr aliases, changing session UUIDs or history paths, bulk rename, clearing names, background companions and native binary/source patches are excluded. Reimplementing, replacing or gating vanilla A1 → Herdr name reporting is explicitly out of scope. Disabling sidebar renaming does not undo completed renames or stop native name updates.
 
 ## 1. Session-name API and authority
 
@@ -29,27 +29,27 @@ Composition binds a neutral manual-rename port to the owning engine service. Its
 
 Display **A1**, not **A1 session colors**. Retain the stable `a1-colors` registry/package ID for compatibility with stored preferences and plugin links; display metadata no longer constrains features. No duplicated generic plugin is added.
 
-Use declared toggle settings `matchSpaceColor` and `syncSessionName`, plus the existing generic master switch. Resolve legacy `custom.match-agent-session-color` as the initial color setting and initial master enabled state only when the corresponding generic preference is absent. An explicitly disabled legacy installation stays disabled. For installations with no prior choice, preserve existing color defaults and default name syncing on. Subsequent explicit settings use versioned/allowlisted plugin state; do not rewrite unrelated shared state, export runtime identities or destructively migrate legacy records. Preference snapshot validation/import must preserve both feature toggles and old exports.
+Use declared toggle settings `matchSpaceColor` (**Match space color**) and `renameSession` (**Sidebar rename**), plus the existing generic master switch. Resolve legacy `custom.match-agent-session-color` as the initial color setting and initial master enabled state only when the corresponding generic preference is absent. An explicitly disabled legacy installation stays disabled. For installations with no prior choice, preserve existing color defaults and default sidebar renaming on. Subsequent explicit settings use versioned/allowlisted plugin state; do not rewrite unrelated shared state, export runtime identities or destructively migrate legacy records. Preference snapshot validation/import must preserve both feature toggles and old exports.
 
-Every launch/live color boundary checks both master enable and the color toggle, including stale async continuations. Name syncing and Rename eligibility check master enable and the name toggle independently. Turning colors off must not disable Rename; turning names off must not disable colors. Already-applied values remain intact.
+Every launch/live color boundary checks both master enable and the color toggle, including stale async continuations. Rename eligibility and submissions check master enable and the sidebar-rename toggle independently. Turning colors off must not disable Rename; turning sidebar renaming off must not disable colors. Neither toggle nor the plugin master switch may suppress vanilla A1 → Herdr name updates. Already-applied values remain intact.
 
-## 3. Sidebar Rename and two-way propagation
+## 3. Sidebar Rename with preserved native name reporting
 
-Expose a generic plugin contribution/moment for agent context actions so core menu code does not import A1 helpers or special-case plugin IDs. Keep Pin and Close and all non-A1 behavior unchanged. Contribute Rename only for a live A1 agent with complete fresh native `a1.session`, `a1.runtime`, `a1.at` identity and name syncing enabled. Do not advertise unsupported renaming for other agents.
+Expose a generic plugin contribution/moment for agent context actions so core menu code does not import A1 helpers or special-case plugin IDs. Keep Pin and Close and all non-A1 behavior unchanged. Contribute Rename only for a live A1 agent with complete fresh native `a1.session`, `a1.runtime`, `a1.at` identity and sidebar renaming enabled. Do not advertise unsupported renaming for other agents.
 
 Open a private native GPUI input overlay prefilled from an authoritative `session.get`, using existing UI primitives. Capture the clicked terminal address, machine and exact session/runtime when the action opens. After every async boundary, revalidate enabled state, overlay lifetime, expiry, native identity and supported explicit A1 installation hint. Remote requests run through existing supported `exec({on})` routing. The worker rechecks the captured terminal identity before mutation. No terminal text/input is sent.
 
 Submit a literal `session.rename` request with the captured revision. Close/Enter/Escape semantics use the shared input/overlay conventions; duplicate Submit is guarded. A conflict or unavailable API keeps the current authoritative name, reports an actionable error and permits an explicit fresh read; it never silently overwrites or installs a local alias. Cancelling has no effects. A timed-out mutation has unknown outcome: read state to reconcile, never replay the write automatically.
 
-Both A1-local naming (manual or automatic) and API renames must publish the authoritative name through the existing program-status/name reporting path used by Herdr's agent title. Inspect that path during implementation and update the A1-owned projection if necessary; do not patch shipped/native reporter code. If a plugin-side display projection is required, keep it runtime-only, keyed by exact binding, read-only from A1, and gated by the name toggle. Herdr display updates are never interpreted as independent rename requests, preventing feedback loops. A late reply from a replaced agent cannot restore an old title. Clearing/replacing a session invalidates its prior projection. No second name database or polling daemon.
+A1-local naming (manual or automatic) already updates vanilla Herdr's agent name. Preserve that existing reporting/display path unchanged; the new API rename must enter the ordinary manual naming authority so its existing notifications produce the same native update. Do not add plugin name polling, display projections, title overrides, reporting gates or a second name database. Plugin settings control only the new Herdr → A1 Rename action, not native A1 → Herdr updates. Herdr display updates never submit rename requests. A late API read may not change a terminal title or authorize a write after its captured binding changes.
 
 ## Rollout and validation
 
 Implement A1 API first, then the generic Herdr settings, then sidebar integration. Old A1 installations retain colors but reject the new operation safely; Rename errors must be visible, without compatibility retries or automatic restarts. Build/deploy only canonical Custom sources through its conflict-safe tools after fixture checks; no live-session mutation tests or injected terminal input.
 
-A1 focused fixtures cover parser/size validation, exact-target and expiry fences, revision conflicts, manual persistence/reload, duplicate idempotence, auto-name ownership, UI/reporting changes and additive capabilities. Run targeted tests, typecheck and strict OpenSpec validation, not broad repository suites.
+A1 focused fixtures cover parser/size validation, exact-target and expiry fences, revision conflicts, manual persistence/reload, duplicate idempotence, auto-name ownership, unchanged native UI/reporting behavior and additive capabilities. Run targeted tests, typecheck and strict OpenSpec validation, not broad repository suites.
 
-Herdr disposable fixtures cover old preferences, all master/feature-toggle combinations, command/readback validation, local/remote routing, clicked-not-focused targets, cancellation, stale overlays, replaced identity, conflict/error feedback, A1-origin updates and unchanged Pin/Close. Run Custom's required test/build/host checks and guarded deploy/doctor/native checks according to its contract. Native eager checks do not prove interactions; any remaining real-UI inspection is reported separately.
+Herdr disposable fixtures cover old preferences, all master/feature-toggle combinations, command/readback validation, local/remote routing, clicked-not-focused targets, cancellation, stale overlays, replaced identity, conflict/error feedback, preserved vanilla A1-origin updates with the plugin and either feature disabled, and unchanged Pin/Close. Run Custom's required test/build/host checks and guarded deploy/doctor/native checks according to its contract. Native eager checks do not prove interactions; any remaining real-UI inspection is reported separately.
 
 ## Delivery boundaries and known gaps
 
