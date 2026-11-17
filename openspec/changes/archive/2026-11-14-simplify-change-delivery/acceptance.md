@@ -36,10 +36,10 @@ The maintainer integration decision accepts these scenarios:
     "Both local removal and merged completion retain a recreated checkout or newly published HEAD after pre-detach approval, including changes after command launch; missing snapshot-aware runtime/adapter support retains the attachment instead of substituting another cleanup.",
     "A typed standalone tarball preserves snapshots/child exclusion. Windows v2 recovery refuses live jobs/unknown state and restores only proven-stopped generations despite recovery crashes/races. Queued attachment never authorizes setup before runtime confirmation."
   ],
-  "archiveDigest": "b25bb08447f871245a25ba8e8d8f860b1c14fb1dd9e73b7fb4c4de1ec90c26d7",
+  "archiveDigest": "581e9ccbbb7c4695237b806a92b760366838afdbb25f0aa107114bed4b187741",
   "specDigest": "1a8cdf184fe72535510d86b58b96f4fa0f7e9f2d3f5644f89967fc376de6efda",
   "tasksDigest": "124d7add10a7940acb56356a29a68e451cc2918635a74ceda9dafc46a068c2ad",
-  "evidenceDigest": "632710cbcb218db9be47d36e6076442fddc1689aa9ef6786e01c64c4301c9810",
+  "evidenceDigest": "120e5554e49a5a6fb0ae566700eaf6caef6ed6cc421afeb819182e195f525e4b",
   "knownGaps": []
 }
 ```
