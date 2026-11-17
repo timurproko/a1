@@ -64,3 +64,23 @@ A1 SHALL support an explicit local-only adapter separate from merged completion.
 #### Scenario: Operation unavailable
 - **WHEN** no trusted local-only declaration exists
 - **THEN** the runtime SHALL report unavailable support without substituting complete/discard
+
+### Requirement: Recover only positively stopped gate generations
+
+New Windows x64/local-NTFS authority gates SHALL support explicit inspection and recovery of a positively stopped generation. Recovery SHALL serialize with acquisition, binding, release and competing recovery through persistent kernel-locked transactional storage. It SHALL preserve claims, sessions, checkout/private content, Git refs, unrelated targets and cleanup journals. It SHALL NOT grant cleanup approval or recapture a changed HEAD/recreated checkout. Historical gates without the new lifetime evidence and unsupported platforms SHALL remain explicitly incompatible rather than silently reclaimed.
+
+#### Scenario: Holder crashes without surviving work
+- **WHEN** a new supported gate's holder and its complete contained descendant Job terminate and the observer publishes positive completion evidence
+- **THEN** exact-identity/generation recovery SHALL restore usable coordination in that same namespace/target
+- **AND** interrupted recovery SHALL be retryable without a partially granted successor
+
+#### Scenario: Suspension or surviving destructive descendant
+- **WHEN** the holder is suspended or any contained descendant remains live
+- **THEN** recovery SHALL refuse, regardless of timeout, age or parent-PID absence
+- **AND** an absent Job name without a completion receipt SHALL remain unverifiable in the same boot
+
+#### Scenario: Lost observer or replaced gate
+- **WHEN** the observer is lost without a receipt, or inspected storage/generation is replaced
+- **THEN** same-boot absence or stale approval SHALL NOT transfer authority
+- **AND** only a verified different kernel boot MAY supply execution-stop evidence for an otherwise valid supported gate
+- **AND** malformed/linked/historical state SHALL remain blocked, even across reboot

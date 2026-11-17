@@ -5,7 +5,7 @@ import { lstat, mkdir, readFile, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { trackClaimGateChild, tryAcquireClaimGate } from "./claim-gate-core.mjs";
+import { readClaimGate, trackClaimGateChild, tryAcquireClaimGate } from "./claim-gate-core.mjs";
 import { assertWorktreeCleanupSnapshot, captureWorktreeCleanupSnapshot } from "./worktree-cleanup-snapshot.mjs";
 
 // Compatibility: standalone repository cleanup reads the same identity data without requiring compiled TypeScript or an installed runtime.
@@ -71,9 +71,9 @@ async function delegated(directory, expected, environment) {
   if (reservation.authority !== join(directory, `${digest(key(expected.path))}.gate`)) throw failure("worktree-cleanup-reservation", "cleanup authority belongs to another claim store");
   assertWorktreeCleanupSnapshot(reservation.expected, expected);
   const stat = await lstat(reservation.authority);
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096) throw failure("worktree-cleanup-reservation", "cleanup authority is unavailable; files were retained");
-  const stored = parseReservation(await readFile(reservation.authority, "utf8"));
-  if (stored.nonce !== reservation.nonce || stored.binding !== reservationBinding(reservation)) throw failure("worktree-cleanup-reservation", "cleanup approval or claim namespace changed; files were retained");
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024 * 1024) throw failure("worktree-cleanup-reservation", "cleanup authority is unavailable; files were retained");
+  const stored = readClaimGate(reservation.authority);
+  if (stored?.nonce !== reservation.nonce || stored.binding !== reservationBinding(reservation)) throw failure("worktree-cleanup-reservation", "cleanup approval or claim namespace changed; files were retained");
   return reservation;
 }
 
@@ -120,7 +120,7 @@ async function withTargetExclusion(expected, options, operation, borrow) {
       options.signal?.throwIfAborted();
       gate = tryAcquireClaimGate(join(directory, digest(key(expected.path))));
       if (gate) break;
-      if (Date.now() >= deadline) throw failure("worktree-claim-busy", "target attachment/cleanup authority is busy or orphaned; no lease is reclaimed. Retain its gate/child intent: supported in-place crash recovery is unavailable even after parent death; consult the worktree recovery guide");
+      if (Date.now() >= deadline) throw failure("worktree-claim-busy", "target gate is busy; inspect/recover through the supported gate recovery command. Never delete gates or infer death from a PID/timeout");
       await delay(20, undefined, { signal: options.signal });
     }
   }

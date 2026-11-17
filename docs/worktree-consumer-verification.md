@@ -46,17 +46,58 @@ XR must preserve this yield/confirmation boundary in its orchestration. A host t
 
 ## Crash gates and supported recovery limits
 
-Do not confuse editing records, diagnostic metadata, the legacy barrier, and modern authority gates:
+### Windows v2 recovery boundary and safety argument
 
-| State | Scope and supported behavior |
+Newly created gates on **Windows x64, local fixed NTFS**, use transactional v2 authority. Windows PowerShell with full-language `Add-Type`, Windows Job/handle/boot-information APIs and Node's built-in SQLite must be available. Network/removable/unknown volumes or unavailable native evidence refuse before granting new authority. Non-Windows and other architectures retain conservative v1 exclusion: **no recovery support is claimed there**.
+
+Each process establishes a separate native observer **before acquiring any v2 authority**. It assigns the holder to a non-breakaway Job, so subsequently created children and descendants, including detached commands, remain contained. It retains references to the holder's existing Jobs (notably libuv's self-containing kill-on-close Job), preventing holder death from killing that observer or silently changing descendant lifetime. It never terminates processes. A live or suspended member remains live regardless of elapsed time. The observer publishes a flushed, identity-bound completion receipt only after `QueryInformationJobObject` reports **zero processes**, then closes its handles. Job/name absence alone is never sufficient. A missing observer/receipt remains blocked in the same boot; a **different kernel boot GUID**, read through Windows' boot-environment API, proves old local execution cannot resume and provides the supported boundary after observer loss. Sleep, restart of A1, PID reuse/absence, logoff or a user's assertion are not reboot evidence. The reboot branch is a kernel-evidence boundary, not a claim that this diagnostic rebooted the host.
+
+- **Global `mutation.authority.gate`:** recovery requires that complete holder Job stopped, not merely that the parent PID vanished. It changes only that namespace's active authority record and matching pending intents, never claims/sessions. Existing claim files remain protected and normal claim reconciliation resumes under the next acquisition.
+- **Target `<Git common>/worktree-claim-gates/<target digest>.gate`:** the same proof includes all contained destructive descendants. Recovery retires only that target's original authority and verified matching intent files; other targets, checkout contents, refs, cleanup journals and original snapshot approval are untouched. A changed HEAD/recreated checkout **still invalidates the old cleanup snapshot after recovery**. Retrying cleanup requires the original controller's independent preservation/publication/approval rules; recovering a gate does not approve deletion or reapprove replacements.
+
+SQLite's Windows byte locks serialize acquire/bind/release/recovery, and crash rollback protects interrupted recovery. Recovery rechecks positive lifetime evidence **inside** that transaction, then compares the inspected storage identity and nonce. A stale approval cannot clear a replacement/successor; an old handle's delayed release also compares its original nonce. Storage is persistent, including when idle: the database and its **tool-created identity anchor** are exactly two names for one file. Unknown extra hardlinks, symlinks/junctions, changed anchors, malformed databases/records/intent files and unverifiable witness directories are refused. Never remove/rename either storage name or SQLite journals. Unpublished initialization drafts contain no execution authority; published state is always a complete transactional database. Recovery interrupted after removing some verified intent metadata can retry: old execution is already proven stopped, and the authority transaction either commits or rolls back.
+
+### Supported inspection and recovery commands
+
+Use a trusted compatible checkout/package, **not an older copied private module**, and explicitly select the existing scope. The source commands below are reproducible from this task checkout; a packaged consumer uses the same entry point at `<compatible-package>/dist/foundation/lifecycle/claim-gate-recovery.mjs`. No runtime session/profile initialization, hosting, cleanup or namespace migration is performed. In actual use substitute the real existing namespace or common directory/target; **these examples do not authorize recovery of production gates**.
+
+Inspect one configured global namespace and save its exact generation approval (the output file must not already exist):
+
+```bash
+cd /d/Git/a1/.worktrees/simplify-change-delivery && node src/foundation/lifecycle/claim-gate-recovery.mjs inspect --scope global --data-dir /d/isolated-fixture/data --output .artifacts/agent/global-recovery-approval.json
+```
+
+Or inspect one target, even if its checkout has already disappeared. Supply its canonical original path and the repository's verified Git common directory; this does not capture/replace a cleanup snapshot:
+
+```bash
+cd /d/Git/a1/.worktrees/simplify-change-delivery && node src/foundation/lifecycle/claim-gate-recovery.mjs inspect --scope target --common-dir /d/isolated-fixture/primary/.git --worktree /d/isolated-fixture/task --output .artifacts/agent/target-recovery-approval.json
+```
+
+Only an inspection reporting `recoverable` can be used. Recover that exact saved approval; for a target use its target approval file instead:
+
+```bash
+cd /d/Git/a1/.worktrees/simplify-change-delivery && node src/foundation/lifecycle/claim-gate-recovery.mjs recover --approval .artifacts/agent/global-recovery-approval.json
+```
+
+| Result | Meaning / next action |
 | --- | --- |
-| Dead editing claim, no held/orphaned gate | Existing SDK liveness/ownership validation can retire the dead claim under the normal mutation gate. It does not infer cleanup or acceptance authority. |
-| `mutation.lock/owner.json` diagnostic remnants, **no** `mutation.authority.gate` | The normal global mutation acquisition can clean these diagnostics after obtaining exclusive authority. Diagnostic metadata is not ownership. |
-| Regular **legacy** `session-worktree-claims/mutation.lock` | Existing compatibility diagnostic requires a fully quiescent stop of **all** old/new claim writers and related cleanup descendants. Preserve a backup of only that verified regular legacy file while no writer can restart, then start the compatible runtime. Never move a link, unknown state, claim/session files or modern gate using this procedure. The package fixture tests this with one controlled legacy writer and no descendants; it does not prove quiescence of a real installation. |
-| Modern global `<configured claim store>/mutation.authority.gate` | An orphan blocks claim mutations/consistent snapshots across targets in that data-directory namespace. **No supported in-place crash recovery/reclaimer exists.** Restart and old mtime/PID death do not clear it. Keep it and the claim store; bounded retries do not repair the orphan. |
-| Modern target `<Git common>/worktree-claim-gates/<target digest>.gate` and `.children/` intents | An orphan blocks that exact target, even when a parent dies, its tracked descendants subsequently exit, or the path is recreated. Other target gates can remain usable. **No supported in-place crash recovery/reclaimer exists.** Retain gate and child intents; do not recursively clean or rename them away. |
+| `live` | Holder Job still includes the holder. Suspension is live; wait for its normal release/termination. No takeover. |
+| `surviving-descendant` | Holder is gone but its Job still contains descendants. Let the separately controlled work finish; recovery cannot stop it. |
+| `contended` | Another kernel-serialized transaction is in progress. Retry inspection later; this is not orphan evidence. |
+| `recoverable` | Positive completion receipt or verified changed boot; recovery will revalidate both proof and exact generation. |
+| `recovered` | Exact authority retired. Retry the original operation, which repeats all normal claim/snapshot/preservation checks. |
+| `idle` / `absent` | No active authority/no published storage; no recovery necessary. Idle database/anchor files remain deliberately. |
+| `unverifiable` / `refused` | Incompatible format/platform, lost same-boot observer, invalid proof/storage, changed identity/generation or malformed intent. Retain everything. Missing observer receipt may be transient; if lost, a verified reboot is the supported v2 execution-stop boundary. Malformed/legacy state is **not** made recoverable by reboot. |
 
-A global gate is not itself an editing claim; safe standalone inspection/execution still has its own claim/target checks. A fresh disposable namespace/target succeeding is **not recovery of the original gate**. The fixture verifies this distinction. No age threshold, parent-PID absence, `owner.json`, clean status or version string proves that destructive descendants have stopped. A reboot alone does not remove persistent authority files either. Modern orphan recovery remains an explicit operational blocker requiring a separately supported, generation/descendant-safe procedure; this PR does not claim seamless recovery or supply an unsafe manual deletion recipe.
+Busy/unverifiable inspection and refused recovery exit nonzero; JSON reports the reason. No `force`, PID/age takeover, manual gate deletion or silent namespace/target recreation escape exists. Approvals are evidence for one generation, not reusable blanket authority. Protect approval files as local coordination metadata; never print/persist `WORKTREE_CLEANUP_RESERVATION`.
+
+### Historical compatibility and rollout
+
+The supported four cleanup APIs and opaque snapshot version stay unchanged, but persistent **v2 gate storage is intentionally incompatible with older writers**. Their exclusive-create acquisition cannot enter it, including idle storage. Old JSON wx `.gate` generations have **no reliable lifetime witness and cannot be upgraded/recovered automatically, even after reboot**. Inspection refuses them without alteration. Do not copy a v2 completion receipt onto historical state or delete a v1 gate to claim migration. Existing historical orphan namespaces/targets need a separately justified migration mechanism; this correction does not claim all old orphans recoverable. A regular historical `mutation.lock` barrier remains a different compatibility case with the already documented fully quiescent backup boundary, never a procedure for `.gate` files.
+
+Before first v2 acquisition, stop all incompatible writers/controllers and descendants and prevent restart; deploy attachment and cleanup from the **same compatible released package** in the existing namespace. Do not roll back an old writer against initialized v2 storage. Observer/Job/handle inspection requires Windows API access; hardened hosts that prohibit it fail closed and need their environment made compatible, not an exemption. Do not erase observer directories while retained gates may refer to them; absence on the same boot remains blocking. A fresh namespace/target succeeding is not original-gate recovery. Candidate extraction and fixtures perform no real upgrade/restart, reboot or production recovery.
+
+Dead editing claims remain subject to normal ownership validation; diagnostic `mutation.lock/owner.json` remnants can still reconcile only after obtaining authority. Neither diagnostic files nor clean Git status prove lifetime or approve cleanup.
 
 ## Windows diagnostic reproduction
 
@@ -76,4 +117,4 @@ Do not globally relocate all tests' TEMP into the checkout: a test intentionally
 
 For a real downstream adoption, first stop accepting new context/cleanup requests; let issuing batches and already tracked destructive descendants finish. Separately identify and gracefully stop **all incompatible older writers and repository cleanup controllers**, including suspended processes and descendants, and prevent auto-restart during the change. Do not treat stopping only the parent as quiescence. Retain unknown/live/orphaned state and user data.
 
-Only after that independently verified stop deploy the **same compatible released** attachment/cleanup implementation and snapshot-aware declarations. Restart the compatible writers in the same intended claim namespace and rerun the consumer's actual probes. Modern orphan gates remain blockers through restart; do not bypass them by silently choosing an empty data directory for the same live resources. Candidate tarball verification here performs none of these deployment steps and does not certify a release or authorize process termination/cleanup.
+Only after that independently verified stop deploy the **same compatible released** attachment/cleanup implementation and snapshot-aware declarations. Restart the compatible writers in the same intended claim namespace and rerun the consumer's actual probes. Old unwitnessed orphan gates remain blockers; v2 orphans use the explicit generation-bound recovery procedure above after positive lifetime evidence. Restart alone is not that evidence; do not bypass either format by silently choosing an empty data directory for the same live resources. Candidate tarball verification here performs none of these deployment steps and does not certify a release or authorize process termination/cleanup.

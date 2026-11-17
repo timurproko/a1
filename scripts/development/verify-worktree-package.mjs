@@ -64,6 +64,9 @@ try {
     assert(bytes.equals(await readFile(join(root,`src/foundation/lifecycle/${name}.d.mts`))),'shipped public declarations drifted');
     report.declarations[name] = hash(bytes);
   }
+  const witness = await readFile(join(packageRoot,'dist/foundation/lifecycle/claim-gate-witness.ps1'));
+  assert(witness.equals(await readFile(join(root,'src/foundation/lifecycle/claim-gate-witness.ps1'))),'shipped Windows lifetime observer drifted');
+  report.witnessSha256 = hash(witness);
   await copyFile(join(root,'test/fixtures/worktree-package-consumer.mjs'),join(consumer,'consumer.mjs'));
   await copyFile(join(root,'test/fixtures/worktree-package-worker.mjs'),join(consumer,'worker.mjs'));
   await writeFile(join(consumer,'usage.mts'),`import { captureWorktreeCleanupSnapshot, type WorktreeCleanupSnapshot } from '${manifest.name}/dist/foundation/lifecycle/worktree-cleanup-snapshot.mjs';

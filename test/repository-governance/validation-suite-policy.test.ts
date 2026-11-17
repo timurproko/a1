@@ -130,6 +130,7 @@ describe("validation suite ownership", () => {
       "test/repository-governance/portable-delivery-cases.test.ts",
       "test/foundation/lifecycle/worktree-cleanup-execution.test.ts",
       "test/repository-governance/worktree-cleanup-package.test.ts",
+      "test/repository-governance/worktree-gate-recovery.test.ts",
       "test/foundation/release/release-state.test.ts",
       "test/foundation/release/release-gc.test.ts",
       "test/features/prompt-history/concurrency.integration.test.ts",

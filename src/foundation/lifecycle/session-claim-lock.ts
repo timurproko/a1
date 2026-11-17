@@ -6,7 +6,7 @@ import { tryAcquireClaimGate } from "./claim-gate.js";
 
 interface ClaimLockOptions { readonly signal?: AbortSignal; readonly lockTimeoutMs?: number }
 const FILES = new Set(["owner.json", "owner.next", "recovery.json", "recovery.next"]);
-const BUSY_GATE = "global mutation.authority.gate is busy/orphaned; no age/PID reclaim or supported in-place crash recovery. Retain claims; see docs/worktree-consumer-verification.md";
+const BUSY_GATE = "global gate is busy; use supported gate inspect/recover, never PID/age eviction. See docs/worktree-consumer-verification.md";
 
 /** Read a consistent claim snapshot without publishing or repairing mutation metadata. */
 export async function withSessionClaimSnapshot<T>(directory: string, options: ClaimLockOptions, operation: () => Promise<T>): Promise<T> {

@@ -3,6 +3,7 @@ import lockfile from "proper-lockfile";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { readClaimGate } from "../../../src/foundation/lifecycle/claim-gate-core.mjs";
 import { tryAcquireClaimGate } from "../../../src/foundation/lifecycle/claim-gate.js";
 import { PID_LIVENESS_IDENTITY, inspectLiveProcess } from "../../../src/foundation/lifecycle/process-liveness.js";
 
@@ -41,7 +42,7 @@ it("seals one approval binding per gate generation", async () => {
   try {
     held.bind("a".repeat(64));
     expect(() => held.bind("b".repeat(64))).toThrow("binding is unavailable");
-    expect(JSON.parse(await readFile(`${authority}.gate`, "utf8")).binding).toBe("a".repeat(64));
+    expect(readClaimGate(`${authority}.gate`)!.binding).toBe("a".repeat(64));
     expect(tryAcquireClaimGate(authority)).toBeNull();
   } finally { held.release(); }
   const next = tryAcquireClaimGate(authority)!;
@@ -53,7 +54,7 @@ it("retains authority rather than following linked child metadata", async () => 
   const authority = join(root, "mutation.authority"), external = join(root, "external"), held = tryAcquireClaimGate(authority)!;
   await mkdir(external); await writeFile(join(external, "sentinel"), "retain");
   await symlink(external, `${authority}.gate.children`, process.platform === "win32" ? "junction" : "dir");
-  expect(() => held.release()).toThrow(expect.objectContaining({ code: "worktree-coordination-boundary" }));
+  expect(() => held.release()).toThrow(expect.objectContaining({ code: process.platform === "win32" ? "worktree-gate-unverifiable" : "worktree-coordination-boundary" }));
   expect(tryAcquireClaimGate(authority)).toBeNull(); expect(await readFile(join(external, "sentinel"), "utf8")).toBe("retain");
 });
 

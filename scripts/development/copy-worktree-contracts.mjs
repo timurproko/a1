@@ -14,4 +14,5 @@ for (const name of ["claim-gate-core", "worktree-cleanup-snapshot", "worktree-cl
   }
   await copyFile(source, target);
 }
+await copyFile(join(root, "src/foundation/lifecycle/claim-gate-witness.ps1"), join(root, "dist/foundation/lifecycle/claim-gate-witness.ps1"));
 console.log("Public worktree execution declarations copied");

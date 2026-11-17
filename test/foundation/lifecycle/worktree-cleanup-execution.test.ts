@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 import { expect, it, vi } from "vitest";
+import { readClaimGate } from "../../../src/foundation/lifecycle/claim-gate-core.mjs";
 import { assertWorktreeCleanupSnapshot, captureWorktreeCleanupSnapshot } from "../../../src/foundation/lifecycle/worktree-cleanup-snapshot.mjs";
 import { executeCleanupCommand, executeUnclaimedWorktreeCleanup, withUnclaimedWorktree } from "../../../src/foundation/lifecycle/worktree-claim-boundary.mjs";
 
@@ -16,6 +17,7 @@ vi.setConfig({ testTimeout: 60_000 });
 const exec = promisify(execFile), repo = fileURLToPath(new URL("../../../", import.meta.url));
 const worker = fileURLToPath(new URL("../../fixtures/worktree-cleanup-process.mjs", import.meta.url));
 const exists = (path: string) => access(path).then(() => true, () => false);
+const gateActive = (path: string) => process.platform === "win32" ? readClaimGate(path) !== null : exists(path);
 async function wait(path: string) {
   const deadline = Date.now() + 20_000;
   while (!await exists(path)) { if (Date.now() > deadline) throw new Error(`fixture did not publish ${path}`); await delay(25); }
@@ -75,7 +77,7 @@ it("rejects incomplete child output and releases only after the child closes", a
     await expect(executeUnclaimedWorktreeCleanup(f.snapshot, process.execPath, ["-e", "process.stdout.write('x'.repeat(1024));setTimeout(()=>{},1000)"], {
       dataDir: f.dataDir, maxBuffer: 32,
     })).rejects.toMatchObject({ code: "worktree-cleanup-output-limit" });
-    expect(await exists(f.gate)).toBe(false); expect(await exists(f.path)).toBe(true);
+    expect(await gateActive(f.gate)).toBe(false); expect(await exists(f.path)).toBe(true);
     expect(await f.attempt()).toMatchObject({ attached: true });
   } finally { await f.dispose(); }
 });
@@ -162,7 +164,7 @@ it("excludes a real attachment while the holder is suspended beyond the former l
     await suspend(holder.pid!, false); stopped = false;
     const finished = once(holder, "message"); await writeFile(f.release, "continue");
     expect((await finished)[0]).toMatchObject({ finished: true });
-    await wait(f.done); expect(await exists(f.path)).toBe(false); expect(await exists(f.gate)).toBe(false);
+    await wait(f.done); expect(await exists(f.path)).toBe(false); expect(await gateActive(f.gate)).toBe(false);
   } finally { if (stopped && holder?.pid) await suspend(holder.pid, false); await f.dispose(); }
 });
 

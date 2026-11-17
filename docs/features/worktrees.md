@@ -107,7 +107,7 @@ The declaration is read from trusted primary, and repository cleanup still reche
 
 ## Supported unclaimed-target execution interface
 
-For exact-package reproduction, XR's queued-confirmation sequencing, stop/upgrade/restart prerequisites and the explicit **unsupported modern orphan recovery** limitation, see [consumer verification and recovery limits](../worktree-consumer-verification.md).
+For exact-package reproduction, XR's queued-confirmation sequencing, stop/upgrade/restart prerequisites and supported **Windows v2 orphan recovery** and explicit historical/platform limits, see [consumer verification and recovery limits](../worktree-consumer-verification.md).
 
 Repository consumers such as XR should use these public modules from one pinned, compatible **released** A1 package, not copy private runtime files:
 
@@ -122,7 +122,7 @@ Attachment/activation publication and cleanup use the same non-expiring target g
 
 `WORKTREE_CLEANUP_RESERVATION` is a private generation-bound delegation from the gate holder to participating cleanup descendants. The held gate seals the exact target snapshot and configured claim namespace, so keeping its nonce cannot reapprove a changed HEAD or redirect claim inspection to an empty data directory. Nested controllers use that sealed namespace rather than the invoking shell's unrelated defaults. It is neither a user setting nor a substitute for repository eligibility checks. Never print, persist as agent evidence or manually fabricate its value. The A1 repository's `--approved-snapshot` selector carries the pre-detach approval into journal/purge/removal and rechecks it before destructive launch.
 
-A suspended/dead holder's gate is not disposable or reclaimable after ten seconds (or any longer lease). `worktree-claim-busy` and `worktree-cleanup-child-unverifiable` preserve exclusion; uncertain state needs separately verified recovery after all related descendants are proven stopped. There is no automatic orphan eviction or unrelated-process termination in this interface. Ordinary dead editing claims remain inspectable through existing liveness rules when no in-flight gate blocks mutation.
+A suspended/dead holder's gate is not disposable or reclaimable after ten seconds (or any longer lease). `worktree-claim-busy` and `worktree-cleanup-child-unverifiable` preserve exclusion; uncertain state needs separately verified recovery after all related descendants are proven stopped. There is no automatic orphan eviction or unrelated-process termination in this interface. The supported Windows v2 inspection/recovery command requires positive kernel-backed execution-stop evidence and compares the exact gate storage/generation; it does not refresh cleanup snapshot approval. Historical gates without that witness remain incompatible. Ordinary dead editing claims remain inspectable through existing liveness rules when no in-flight gate blocks mutation.
 
 Roll out attachment and cleanup support together, stop incompatible older writers before adoption, and rerun the consumer's actual competing-process/suspension/death probes against its pinned released artifact. Merely updating XR's cleanup wrapper while retaining the reviewed lease-based attachment files is not compatible. This PR neither publishes that release nor performs downstream migration; those remain deployment prerequisites.
 
