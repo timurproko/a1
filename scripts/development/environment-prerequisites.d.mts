@@ -13,6 +13,7 @@ export interface DependencyObservation {
   readonly present: boolean;
   readonly declared: number;
   readonly missing: readonly string[];
+  readonly incomplete?: readonly string[];
   readonly mismatched: readonly { readonly name: string; readonly expected: string; readonly actual: string }[];
 }
 export interface EnvironmentObservation {
