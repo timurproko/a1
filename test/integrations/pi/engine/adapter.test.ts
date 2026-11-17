@@ -283,6 +283,31 @@ describe("Pi session naming", () => {
     await adapter.dispose();
   });
 
+  it("applies external names as manual edits through existing notifications, persists on rebind and rejects stale state", async () => {
+    const { adapter, entries, session } = await namingFixture();
+    const events: OwnedUiEvent[] = [];
+    const unsubscribe = adapter.onEvent(event => events.push(event));
+    expect(adapter.naming.apply(adapter.naming.state()!, "Automatic name", "context")).toBe(true);
+    const nameEntries = entries.filter(entry => entry.type === "session_info").length;
+    expect(adapter.naming.rename(adapter.naming.state()!, "Automatic name")).toBe(true);
+    expect(adapter.naming.state()?.source).toBe("user");
+    expect(entries.filter(entry => entry.type === "session_info")).toHaveLength(nameEntries);
+    const before = adapter.naming.state()!;
+    expect(adapter.naming.rename(before, "Sidebar name")).toBe(true);
+    expect(adapter.naming.state()).toMatchObject({ name: "Sidebar name", source: "user" });
+    expect(adapter.view().status.footer?.sessionName).toBe("Sidebar name");
+    await adapter.flushEvents();
+    expect(events.some(event => event.type === "session-view" && event.view.status.footer?.sessionName === "Sidebar name")).toBe(true);
+    const count = entries.length;
+    expect(adapter.naming.rename(adapter.naming.state()!, "Sidebar name")).toBe(true);
+    expect(entries).toHaveLength(count);
+    expect(adapter.naming.rename(before, "Stale")).toBe(false);
+    expect(adapter.naming.apply(adapter.naming.state()!, "Auto overwrite", "context")).toBe(false);
+    const rebound = await adapterWithRuntime(new FakeRuntime(session));
+    expect(rebound.adapter.naming.state()).toMatchObject({ name: "Sidebar name", source: "user" });
+    unsubscribe(); await rebound.adapter.dispose(); await adapter.dispose();
+  });
+
   it("recognizes persisted provenance without replay and preserves legacy or partial-write names", async () => {
     const { adapter, entries, session, rename } = await namingFixture();
     rename("legacy-name"); expect(adapter.naming.state()?.source).toBe("user");

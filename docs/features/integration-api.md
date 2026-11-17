@@ -12,11 +12,20 @@ Response envelope: `{"version":1,"id":"read-1","type":"response","command":"sett
 - `settings.list`: `data.settings` contains descriptors for the two supported settings. Choices, labels, descriptions and section derive from A1 declarations; no target required.
 - `settings.get`: requires setting and target; returns target, setting, storedValue, effectiveValue, origin and application.
 - `settings.update`: additionally requires value; returns the same readback plus status `applied` (session) or `stored` (profile).
-- `session.get`: requires a session target; returns its exact target only after the active runtime validates the binding.
+- `session.get`: requires a session target; returns `{target,name,nameRevision}` only after the active runtime validates the binding. Name is the authoritative durable name or null; the revision is opaque.
+- `session.rename`: requires a session target, `name` and `expectedNameRevision` from `session.get`; returns `{target,name,nameRevision,status:"applied"}` after the ordinary manual naming owner applies it.
 - `session.lifecycle`: requires a session target; returns a read-only exit-readiness snapshot of that exact live session (below). It clears, dismisses and interrupts nothing.
 - `session.exit`: requires a session target; stops that exact session through the same path as `/quit`, but only when its readiness has no blocker at the moment the runtime handles the request. Admitted at most once per session; there is no force option.
 
 Targets are either `{scope:"profile",profileId:"a1"}` or `{scope:"session",sessionId,runtimeId}`. Both live identities must be complete UUIDs. There is no ambient or machine-wide current-session selection, terminal inventory, private-path access or comparison-profile control.
+
+## Sidebar / external manual renaming
+
+Read `session.get`, then submit `session.rename` with its `nameRevision` as `expectedNameRevision`. A name is trimmed, nonempty, single-line, at most 256 Unicode code points and within the request byte limit; controls and Unicode line/paragraph separators are rejected. A stale revision fails with `name-conflict`, never overwriting a newer local or external edit. A current same-name request is a no-op, without duplicate history. Manual edits persist through the same engine owner as `/name` and automatic naming preserves them. In-memory/nonpersistent sessions cannot provide durable name control and return `session-unavailable`.
+
+Existing A1-to-Herdr program-status/name reporting remains unchanged. API renames use ordinary name-change notifications; they do not add polling, title overrides or another display database. Herdr plugin feature switches gate only plugin actions, not vanilla native reporting. A missing reply means unknown completion: read again; do not replay a rename automatically.
+
+Request example: `{"version":1,"id":"rename-1","type":"session.rename","target":{"scope":"session","sessionId":"SESSION-UUID","runtimeId":"RUNTIME-UUID"},"name":"Fix cache","expectedNameRevision":"64-LOWERCASE-HEX-CHARACTERS-FROM-SESSION-GET"}`.
 
 ## Graceful exit for supervisors
 
@@ -55,7 +64,7 @@ Profile updates are atomic per-key assignments under the existing shared setting
 
 Each interactive session publishes one private discovery record for its control endpoint under the runtime directory and removes it on ordinary shutdown. Atomic record replacement retries brief Windows sharing errors for up to 750 ms while preserving the previous complete record; permanent errors or sustained contention still fail closed. Old session identities remain rejected throughout replacement, and request deadlines are unchanged. A session that ends abruptly (closed terminal, Core kill, crash, reboot) leaves its record behind. A1 prunes such records when it can prove the owner process is gone: once, bounded in time and count, when a session starts its endpoint, and opportunistically while a lookup scans the directory. Records of live processes, records that cannot be parsed and records of unknown format are never removed automatically. `control-limit` is raised when more than 256 live candidates are examined or when the directory exceeds a much larger raw ceiling, so a flooded directory still fails closed; a machine with many abruptly ended sessions keeps a working API without manual cleanup.
 
-Stable request errors: `invalid-request`, `unsupported-version`, `unsupported-operation`, `target-required`, `invalid-target`, `unsupported-profile`, `unsupported-scope`, `unsupported-setting`, `invalid-value`. Exit refusals: `session-stopping`, `session-busy`, `editor-not-empty`, `pending-input`, `overlay-open`. Runtime/transport failures include `session-unavailable`, `ambiguous-session`, `request-expired`, `control-boundary`, `control-limit`, `control-failed`, `settings-failed`, `invalid-response`, `response-limit`. Error messages are diagnostics, not machine contracts.
+Stable request errors: `invalid-request`, `unsupported-version`, `unsupported-operation`, `target-required`, `invalid-target`, `unsupported-profile`, `unsupported-scope`, `unsupported-setting`, `invalid-value`. Name concurrency refusal: `name-conflict`. Exit refusals: `session-stopping`, `session-busy`, `editor-not-empty`, `pending-input`, `overlay-open`. Runtime/transport failures include `session-unavailable`, `ambiguous-session`, `request-expired`, `control-boundary`, `control-limit`, `control-failed`, `settings-failed`, `invalid-response`, `response-limit`. Error messages are diagnostics, not machine contracts.
 
 An update is acknowledged only after its owning service applies or durably stores it. Requests retain nonce, process liveness, exact runtime/session, binding-generation, serialization and deadline fencing in private local IPC. Expired/disconnected queued work cannot replay onto a replacement. Lost acknowledgement is an unknown outcome: read back a fresh exact target instead of automatic retry/replay. Client JSON parsing alone is insufficient: validate version, ID, response type, command, target, setting, value and completion status. Structured failures must remain available to callers.
 
