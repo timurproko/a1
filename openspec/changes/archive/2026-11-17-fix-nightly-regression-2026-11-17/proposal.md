@@ -6,6 +6,7 @@ The Full regression run of 2026-11-17 failed on `develop` at `7c146a8` (https://
 
 - Reproduce the failure on the failed lane from the listed tests or commands and identify the introducing change among the suspect commits.
 - Fix the cause without weakening assertions, budgets, timeouts, or coverage, and add regression evidence where the failure exposed a gap.
+- Repair the deferred-footer fixture race and bounded atomic Windows registration replacement exposed by selected PR validation.
 
 ## Capabilities
 
@@ -15,7 +16,7 @@ None.
 
 ### Modified Capabilities
 
-None. The repair synchronizes stale reviewed inventories with already implemented artifact retention and Pi API consumers; no behavior or requirement changes. Keep `skip_specs: true`.
+None. The repair synchronizes reviewed inventories and restores the existing detached-presenter and atomic session-publication contracts exposed by selected PR validation. No specification requirement changes; keep `skip_specs: true`.
 
 ## Impact
 

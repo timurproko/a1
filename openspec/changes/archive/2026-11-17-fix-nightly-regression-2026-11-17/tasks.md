@@ -11,4 +11,6 @@
 
 - [x] 2.4 Settle deferred footer initialization before shell-host frame checkpoints without weakening exact detached-presenter assertions.
 
+- [x] 2.5 Preserve atomic session registration replacement through brief Windows reader contention with bounded retries and fail-closed regression fixtures.
+
 After finalization, the exact-head PR Full regression lanes and Development validation required must pass before manual handoff. Report final run/head/selection in Actions and handoff, not another committed design edit. Standalone dispatch is diagnostic, not a replacement for selected PR checks. Numbered-package nightly recovery remains independent.

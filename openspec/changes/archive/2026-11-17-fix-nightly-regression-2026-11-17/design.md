@@ -4,7 +4,7 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- The cause is deterministic reviewed-metadata drift, not an environmental failure or a published-installer failure. Update only the stale workflow retention inventory and Pi API consumer inventory, and add focused assertions identifying the newly inventoried surface. Preserve workflow behavior, API declarations, assertions, budgets, timeouts, and coverage.
+- The original nightly cause is deterministic reviewed-metadata drift, not an environmental failure or a published-installer failure. Update the stale workflow retention inventory and Pi API consumer inventory, and add focused assertions identifying the newly inventoried surface. Later selected PR validation exposed a deferred-footer fixture race and Windows registration-replacement contention; repair those causes without weakening assertions, budgets, timeouts, or coverage.
 - No product or governance requirement changes: the diagnostic artifacts already retain seven days, ordinary validation artifacts retain fourteen days, and the Pi dependencies remain pinned to 1.5.2. No specification delta is required.
 
 ## Evidence
@@ -30,6 +30,15 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 - The fixture's forty-millisecond sleep does not await deferred footer initialization introduced by #960. Controlled frame timers reproduce the exact unexpected cursor write locally; tracing identifies the active presenter's asynchronous `lazyFooterNameEditing` import callback in `dialog-coordinator.ts`, not the detached presenter's render gate.
 - The test file now awaits dynamic-import settlement before advancing the real TUI's throttle through the same forty-millisecond window. Real next-tick/immediate scheduling and all exact terminal-write, redraw, attach, and detached-presenter assertions remain intact. No production behavior, assertions, budgets, timeouts, or coverage were weakened.
 - All five shell-host tests and typecheck pass locally on Windows Node 24.21.0. This repair is a new commit against the archived form; trusted automation must re-finalize it and native exact-head CI must run again. No old successful evidence is reused for the new candidate.
+
+### Repair after finalized-head Windows validation
+
+- Selected run 44042014994 on finalized head fbf91a4167ba75e30446d3e6c53dae3b2dd79bf6 fails Windows Node 24 core at `session-colors.integration.test.ts:58`: the replacement session remains unavailable. Windows Node 22 core and Ubuntu pass. The isolated integration test passes locally, so merely rerunning it does not establish a repair.
+- A bounded native Windows reproduction runs fifty session replacements, each concurrent with eight discovery reads, through the real foundation public entry. Before the fix all fifty publications fail with EPERM. Discovery readers briefly hold the destination file; the one-shot atomic rename fails, and the readiness layer conservatively withholds the unpublished binding rather than advertising it. No session or nonce bytes are printed by the diagnostic.
+- Session-control publication now retries only Windows EPERM, EACCES, and EBUSY within a 750 ms publication budget, with bounded backoff. It reuses the same temporary file and atomic rename, never removes the prior destination first, and retains the serialized publication/disposal queue. Permanent errors and persistent sharing violations still reject and remove only the temporary file. Client request deadlines, exact runtime/session/binding checks, and native reporter readiness are unchanged.
+- Added deterministic foundation fixtures for the three retryable error codes, permanent-error refusal, persistent contention exhaustion, preservation of the prior complete record, temporary-file removal, and rejection of old identities. The four retry-specific fixtures fail against the old one-shot rename. Windows-only retry fixtures explicitly skip on other platforms rather than claiming native coverage there.
+- After the fix the same native reproduction publishes all fifty replacements with zero failures. All twenty-three tests across session-control, independent-runtime color integration, and runtime API lifecycle pass locally on Windows Node 24.21.0; typecheck passes. An initial timer-driven exhaustion fixture incorrectly advanced the clock before asynchronous filesystem setup completed; it was replaced with a deterministic elapsed-clock model of three failed rename attempts, without changing any test timeout.
+- No specification requirement changes: this restores the existing atomic-publication and replacement-identity contract in session-color-control. Known implementation gaps remain none; fresh trusted re-finalization and exact-head native validation are required for this new repair.
 
 ### Original triage evidence
 
