@@ -1,8 +1,8 @@
 ## 1. Publish the active A1 project directory
 
-- [ ] 1.1 Extend the existing endpoint-ready native reporter with the active committed backend cwd and preserve identity-only ownership compatibility.
-- [ ] 1.2 Refresh the directory on successful context replacement and heartbeat, and clear only the exact owned publication.
-- [ ] 1.3 Add focused reporter/readiness fixtures for worktree transitions, stale callbacks, path handling and foreign ownership; document the native label contract.
+- [x] 1.1 Extend the existing endpoint-ready native reporter with the active committed backend cwd and preserve identity-only ownership compatibility.
+- [x] 1.2 Refresh the directory on successful context replacement and heartbeat, and clear only the exact owned publication.
+- [x] 1.3 Add focused reporter/readiness fixtures for worktree transitions, stale callbacks, path handling and foreign ownership; document the native label contract.
 
 ## 2. Resolve Herdr Git against the active worktree
 
