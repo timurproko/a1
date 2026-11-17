@@ -26,6 +26,11 @@ const fixtureJobs = [
 ];
 const jobsResponse = JSON.stringify([{ jobs: fixtureJobs }]);
 const annotationPages = (...messages: string[]) => JSON.stringify([messages.map(message => ({ annotation_level: "failure", message }))]);
+const runnerAllocationMessage = "The job was not acquired by Runner of type hosted even after multiple attempts";
+const runnerAllocationJob = {
+  id: 1, name: "Develop / Validate sequential (darwin-node24, macos-15, 24)",
+  status: "completed", conclusion: "cancelled", steps: [],
+};
 const annotationsResponse = annotationPages(
   "startup budget failed for pi warm: 2438ms exceeds 2000ms; dominant phases: ui-entry 741ms\nsecond line is dropped",
   "Process completed with exit code 1.",
@@ -136,6 +141,101 @@ describe("publication failure reporting", () => {
     expect(message).toContain("Publication blocked before npm staging.");
     expect(queried).toHaveLength(2);
     expect(queried.some(path => /\/(9|10)\//u.test(path))).toBe(false);
+  });
+
+  it.each([true, false])("recommends manual retry for confirmed runner allocation failures (develop=%s)", develop => {
+    const { run, calls } = fakeRunner(() => annotationPages(runnerAllocationMessage));
+    const message = describePublicationFailure(42, { repository: "owner/app", develop, jobs: [
+      runnerAllocationJob,
+      { id: 2, name: "Develop / Validate sequential (win32-node24, windows-2025, 24)", conclusion: "success" },
+      { id: 3, name: "Develop / Stage 0.2.7-dev.1342 on npm", conclusion: "skipped" },
+      { id: 9, name: "Develop / Validate publication lanes", conclusion: "failure" },
+      { id: 10, name: "Develop / Publication result", conclusion: "failure" },
+    ], run });
+    expect(message).toContain(`macOS validation (Node 24) [cancelled]\n  * ${runnerAllocationMessage}`);
+    expect(message).toContain("GitHub could not allocate a hosted runner; affected jobs ran no steps. This is an infrastructure failure, not a test failure.");
+    expect(message).toContain("Downstream lane/result checks also failed.");
+    expect(message).toContain("Publication blocked before npm staging.");
+    expect(message).toContain(`Next: retry ${develop ? "npm run develop" : "the workflow"} after checking the run above.`);
+    expect(message).toContain("No code fix is indicated; if this persists, check GitHub Actions runner availability.");
+    expect(message).not.toContain("fix the failure");
+    expect(message.split("\n").slice(3).every(line => line.startsWith("  * "))).toBe(true);
+    expect(calls.map(call => call.args[1])).toEqual(["repos/owner/app/check-runs/1/annotations"]);
+  });
+
+  it.each([
+    { name: "missing steps", job: { steps: undefined }, annotations: annotationPages(runnerAllocationMessage) },
+    { name: "malformed steps", job: { steps: {} }, annotations: annotationPages(runnerAllocationMessage) },
+    { name: "started steps", job: { steps: publicationSteps("completed") }, annotations: annotationPages(runnerAllocationMessage) },
+    { name: "ordinary cancellation", job: {}, annotations: annotationPages("The operation was canceled.") },
+    { name: "ordinary timeout", job: { conclusion: "timed_out" }, annotations: annotationPages("The job exceeded its timeout.") },
+    { name: "unexplained startup failure", job: { conclusion: "startup_failure" }, annotations: "[]" },
+    { name: "unavailable annotations", job: {}, annotations: new Error("offline") },
+    { name: "malformed annotations", job: {}, annotations: "{}" },
+    { name: "conflicting annotation", job: {}, annotations: annotationPages(runnerAllocationMessage, "Assertion failed") },
+    { name: "multiline conflicting annotation", job: {}, annotations: annotationPages(`${runnerAllocationMessage}\nAssertion failed`) },
+    { name: "merely mentioning runner acquisition", job: {}, annotations: annotationPages(`Assertion failed: ${runnerAllocationMessage}`) },
+  ])("retains fix guidance for $name rather than infer an allocation-only cause", ({ job, annotations }) => {
+    const message = describePublicationFailure(42, { repository: "owner/app", develop: true,
+      jobs: [{ ...runnerAllocationJob, ...job }], run: () => {
+        if (annotations instanceof Error) throw annotations;
+        return annotations;
+      },
+    });
+    expect(message).toContain("Next: fix the failure, then rerun npm run develop");
+    expect(message).not.toContain("No code fix is indicated");
+    expect(message).not.toContain("infrastructure failure, not a test failure");
+  });
+
+  it("retains fix guidance when another primary failure needs attention", () => {
+    const { run, calls } = fakeRunner(({ args }) => args[1]!.includes("/1/")
+      ? annotationPages(runnerAllocationMessage) : annotationPages("Assertion failed"));
+    const message = describePublicationFailure(42, { repository: "owner/app", develop: true, jobs: [
+      runnerAllocationJob,
+      { id: 2, name: "Linux validation", conclusion: "failure", steps: publicationSteps("completed") },
+    ], run });
+    expect(message).toContain(runnerAllocationMessage);
+    expect(message).toContain("Assertion failed");
+    expect(message).toContain("Next: fix the failure");
+    expect(message).not.toContain("No code fix is indicated");
+    expect(calls).toHaveLength(2);
+  });
+
+  it.each([1, 4, 5])("requires confirmed allocation evidence for every primary job within the diagnostic limit (%s jobs)", count => {
+    const { run, calls } = fakeRunner(() => annotationPages(runnerAllocationMessage, `${runnerAllocationMessage}.`));
+    const message = describePublicationFailure(42, { repository: "owner/app", develop: true,
+      jobs: Array.from({ length: count }, (_unused, index) => ({ ...runnerAllocationJob, id: index + 1 })), run,
+    });
+    expect(message.includes("No code fix is indicated")).toBe(count <= 4);
+    expect(message.includes("Next: fix the failure")).toBe(count > 4);
+    expect(calls).toHaveLength(Math.min(count, 4));
+    if (count > 4) expect(message).toContain("1 additional failed jobs in the full log.");
+  });
+
+  it("keeps registry inspection warnings when runner allocation fails after npm staging", () => {
+    const message = describePublicationFailure(42, { repository: "owner/app", develop: true, jobs: [
+      runnerAllocationJob,
+      { id: 3, name: "Develop / Stage 0.2.7-dev.1342 on npm", conclusion: "success" },
+    ], run: () => annotationPages(runnerAllocationMessage) });
+    expect(message).toContain("npm staging: success. Packages may already exist; inspect the registry before retrying.");
+    expect(message).toContain("Next: retry npm run develop");
+    expect(message).not.toContain("blocked before npm");
+  });
+
+  it("rejects development publication with allocation guidance without automatically retrying", async () => {
+    const { run, calls } = developmentRunner([{ status: "completed", conclusion: "failure", jobs: [
+      runnerAllocationJob,
+      { id: 3, name: "Develop / Stage 0.2.7-dev.1342 on npm", conclusion: "skipped" },
+      { id: 9, name: "Develop / Validate publication lanes", conclusion: "failure" },
+    ] }], annotationPages(runnerAllocationMessage));
+    const output: string[] = [];
+    await expect(dispatchPublication("develop", "a".repeat(40), "0.2.7-dev.1342", {
+      ...developmentOptions, run, write: text => { output.push(text); },
+    })).rejects.toThrow(/Publication failed: 0\.2\.7-dev\.1342[\s\S]*infrastructure failure, not a test failure[\s\S]*Next: retry npm run develop/u);
+    expect(output.join("")).toContain("  ● Failed:  macOS validation (Node 24)\n");
+    expect(output.join("")).not.toContain("[workflow] passed");
+    expect(calls.filter(call => call.args[0] === "workflow" && call.args[1] === "run")).toHaveLength(1);
+    expect(calls.every(call => !call.args.includes("rerun") && !call.args.includes("cancel"))).toBe(true);
   });
 
   it.each(["failure", "cancelled", "success"])("does not claim nothing was published after npm staging %s", conclusion => {

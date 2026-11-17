@@ -18,6 +18,8 @@ export interface PublicationJob {
   name: string;
   status?: string;
   conclusion: string | null;
+  /** Untrusted Actions metadata; only an explicit empty array proves no steps ran. */
+  steps?: unknown;
 }
 export function describePublicationFailure(runId: number | string, options?: {
   run?: PublicationRunner;

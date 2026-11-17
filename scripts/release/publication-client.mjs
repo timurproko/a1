@@ -143,6 +143,12 @@ function readPublicationJobs(execute, repository, runId) {
   return pages.flatMap(page => page.jobs);
 }
 
+function isRunnerAllocationFailure(job, annotations) {
+  return Array.isArray(job.steps) && job.steps.length === 0 && annotations.length > 0
+    && annotations.every(message => typeof message === "string"
+      && /^The job was not acquired by Runner of type hosted even after multiple attempts\.?$/iu.test(message.trim()));
+}
+
 function publicationState(jobs) {
   const staging = jobs.filter(job => shortJobName(job.name) === "npm staging");
   if (staging.length > 0 && staging.every(job => job.conclusion === "skipped")) return "Publication blocked before npm staging.";
@@ -164,6 +170,7 @@ export function describePublicationFailure(runId, options = {}) {
   const heading = `Publication failed${options.version ? `: ${plainText(options.version, 80)}` : ""} (run ${runId})`;
   const lines = [];
   let remaining = MAX_FAILURE_LINES;
+  let runnerAllocationOnly = primary.length > 0 && primary.length <= MAX_FAILURE_JOBS;
   for (const job of selected.slice(0, MAX_FAILURE_JOBS)) {
     let annotations;
     try {
@@ -172,6 +179,7 @@ export function describePublicationFailure(runId, options = {}) {
       ], QUIET_READ));
       annotations = pages.flat().filter(annotation => annotation.annotation_level === "failure").map(annotation => annotation.message);
     } catch { annotations = []; }
+    runnerAllocationOnly &&= isRunnerAllocationFailure(job, annotations);
     const messages = [...new Set((Array.isArray(annotations) ? annotations : []).map(message => plainText(message)))]
       .filter(text => text && !/^Process completed with exit code \d+\.?$/u.test(text));
     lines.push(`${shortJobName(job.name)} [${plainText(job.conclusion, 40)}]`);
@@ -182,8 +190,11 @@ export function describePublicationFailure(runId, options = {}) {
   if (selected.length > MAX_FAILURE_JOBS) lines.push(`${selected.length - MAX_FAILURE_JOBS} additional failed jobs in the full log.`);
   if (selected.length === 0) lines.push("Failed job details unavailable; see the full log.");
   if (primary.length > 0 && failed.some(isAggregate)) lines.push("Downstream lane/result checks also failed.");
+  if (runnerAllocationOnly) lines.push("GitHub could not allocate a hosted runner; affected jobs ran no steps. This is an infrastructure failure, not a test failure.");
   lines.push(publicationState(jobs));
-  lines.push(options.develop ? "Next: fix the failure, then rerun npm run develop after checking the run above." : "Next: inspect the full log and fix the failure before retrying.");
+  lines.push(runnerAllocationOnly
+    ? `Next: ${options.develop ? "retry npm run develop" : "retry the workflow"} after checking the run above. No code fix is indicated; if this persists, check GitHub Actions runner availability.`
+    : options.develop ? "Next: fix the failure, then rerun npm run develop after checking the run above." : "Next: inspect the full log and fix the failure before retrying.");
   return [heading, `Full log: ${url}`, "", ...lines.map(line => `  * ${line}`)].join("\n");
 }
 
