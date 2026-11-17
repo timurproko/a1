@@ -1,5 +1,9 @@
 # Contract reconciliation
 
+## CI-only packing prerequisite after da98f947
+
+Under R06/R12/R19, repair the new regression wrapper's undeclared hosted cache dependency rather than enlarging deadlines or changing workflows: record/use its installed npm 11 offline, refuse npm 10, and retain every packaged assertion. Final candidate verification still uses the pinned npm prerequisite. Required run `44120774860` failed on `ENOTCACHED` before recovery probes; later exact-head checks/package evidence must be separately recorded. Source task 5.8 remains written; its failing broad-run prerequisite is repaired in a new commit, not hidden by unchecking completed source tasks.
+
 ## Supported orphan recovery requested after d900bcc4
 
 The maintainer explicitly authorizes fixing the remaining orphan-gate limitation in PR #923, not restarting ownership/snapshot/planning work. Refreshed and fast-forwarded the topic from reviewed `d900bcc4` through `310883aa`, preserving #969; subsequently preserved concurrent #970 through `e46c0d0e` and #971 through `47aad9bc`. Existing completed tasks stay checked; add only group-5 task 5.8 and corresponding project-owned recovery delta. R14/R15/R19 require positive lifetime/exclusion evidence rather than age, PID absence or force assertions. New Windows x64/NTFS gates use persistent transactional authority plus a native contained-execution observer; exact-generation recovery restores their original coordination namespace/target after proven termination. Unwitnessed legacy gates and unsupported platforms remain explicitly incompatible. The same supported cleanup APIs, original snapshot approval, frozen bytes/cases/adapters, release eligibility and OpenSpec framework/lifecycle remain unchanged. Trusted finalization alone regenerates canonical specs/manifest. No production recovery, user-process stop, merge, release, install, activation or XR adoption is authorized/performed.

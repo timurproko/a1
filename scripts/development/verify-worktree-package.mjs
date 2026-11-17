@@ -21,7 +21,9 @@ const run = (command, args, cwd = root, timeout = 300_000) => {
 const manifest = JSON.parse(await readFile(join(root,'package.json'),'utf8'));
 assert(/^npm@\d+\.\d+\.\d+$/u.test(manifest.packageManager),'unknown package manager pin');
 const installedNpm = run('npm',['--version']).trim();
-const packing = args => installedNpm === manifest.packageManager.slice(4) ? run('npm',args)
+const installedPacking = process.argv.includes('--regression-installed-npm');
+if (installedPacking) assert(/^11\.\d+\.\d+$/u.test(installedNpm),'regression packing requires installed npm 11; npm 10 does not reliably honor --ignore-scripts');
+const packing = args => installedPacking || installedNpm === manifest.packageManager.slice(4) ? run('npm',args)
   : run('npm',['exec','--offline',`--package=${manifest.packageManager}`,'--','npm',...args]);
 const sourceSha = run('git', ['rev-parse','HEAD']).trim();
 const dirty = run('git', ['status','--porcelain','--untracked-files=normal']).trim();
@@ -38,7 +40,7 @@ console.log(`Candidate diagnostic: ${relative(root,output).replaceAll('\\','/')}
 const report = { schema:'worktree-candidate-diagnostic-v1', sourceSha, sourceTree:run('git',['rev-parse','HEAD^{tree}']).trim(), sourceClean:!dirty,
   dirtyDiffSha256:dirty ? hash(run('git',['diff','HEAD','--binary'])) : null,
   environment:{platform:process.platform,architecture:process.arch,node:process.version,npm:packing(['--version']).trim(),git:run('git',['--version']).trim()},
-  authority:'offline-candidate-only', liveInstallation:false, releaseCertification:false,
+  authority:'offline-candidate-only', packingPolicy:installedPacking ? 'regression-installed-npm11' : 'pinned-npm', liveInstallation:false, releaseCertification:false,
   commands:['npm run build:core','npm pack --ignore-scripts --json --pack-destination <isolated-output>',
     'node --test --test-concurrency=1 <isolated-consumer>/consumer.mjs','node node_modules/typescript/lib/tsc.js --noEmit --strict --module NodeNext --moduleResolution NodeNext --target ES2024 --types node --typeRoots <repository>/node_modules/@types <isolated-consumer>/usage.mts'] };
 try {
@@ -93,5 +95,5 @@ void version; void one; void two;
   throw error;
 } finally {
   await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');
-  console.log(JSON.stringify({report:relative(root,join(output,'report.json')).replaceAll('\\','/'),sourceSha,sourceClean:report.sourceClean,package:report.package,consumerPassed:report.consumerPassed}));
+  console.log(JSON.stringify({report:relative(root,join(output,'report.json')).replaceAll('\\','/'),sourceSha,sourceClean:report.sourceClean,package:report.package,packingPolicy:report.packingPolicy,consumerPassed:report.consumerPassed}));
 }

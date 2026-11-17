@@ -1,5 +1,11 @@
 # Implementation observations
 
+## CI packing prerequisite repair following da98f947
+
+Trusted finalization succeeded at `da98f947aca26acbd8fc2db9de29a96deb5a791c` after combining overlapping package/recovery Acceptance scenarios within the deployed ten-item limit; no policy was changed. Its clean pinned actual candidate passed all **19** packaged probes and strict declarations. Exact-head Development run `44120774860` then failed the new mandatory wrapper before probing recovery: its Node-24 runner had a different npm 11 and no offline cache entry for pinned `npm@11.13.0` (`ENOTCACHED`). This is recorded as a failed required run, not reinterpreted as a green recovery result.
+
+The regression wrapper now explicitly selects its already-installed npm **11** and records both that version and `packingPolicy: regression-installed-npm11`, retaining every actual-tarball, exact-declaration and process assertion. npm 10 is explicitly rejected because `--ignore-scripts` is insufficient there. No network installation, workflow change, test omission, timeout increase or release-policy relaxation was introduced. The ordinary final-candidate command is unchanged: pinned offline npm with its documented prerequisite and `packingPolicy: pinned-npm`. The standard build-backed wrapper passed with installed `npm 11.19.0`: **19 ordinary-Node consumer probes, zero skips**, strict external declarations and identical shipped observer; the wrapper finished within its unchanged 240/250-second bounds (about 166 seconds including packing/build work). Typecheck, architecture, documentation, naming, frozen scope/contract and whitespace checks passed. A fresh clean immutable-head pinned package and exact-head required CI remain distinct handoff evidence after this correction.
+
 ## Supported orphan recovery following d900bcc4
 
 This new checkpoint supersedes the unsupported-*new*-Windows-orphan limitation recorded historically below; it does not retroactively grant recovery authority to unwitnessed formats. Refreshed topic/base and preserved concurrent #969/#970 work through `e46c0d0e`, then #971 through `47aad9bc` before publication. Group-5 task 5.8 is written, with its process tests and project-owned recovery delta. No earlier correction is restarted.

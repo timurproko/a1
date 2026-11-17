@@ -14,6 +14,8 @@ The verifier performs a fresh `build:core`, then **offline** `npm pack --ignore-
 
 The generated `report.json` records exact source SHA/clean status, OS/architecture/Node/Git/npm versions, package version/size/SHA-256/SHA-512 integrity, declaration hashes, commands, and consumer result. Keep that report with its tarball, `consumer.log`, `types.log`, `consumer/consumer.mjs`, `consumer/worker.mjs` and `consumer/usage.mts`. Consumer execution uses ordinary `node --test`, with loader/Git/session overrides removed; it imports the extracted package by name, never private source files. Strict external TypeScript checking does not use `skipLibCheck`.
 
+The mandatory serial regression wrapper uses `--regression-installed-npm`: it requires already-installed **npm 11**, records `packingPolicy: regression-installed-npm11` and the actual version, and runs all the same tarball/declaration/process assertions offline. This avoids assuming a hosted runner has the pinned npm package cached; npm 10 is refused because it can run prepare despite `--ignore-scripts`. The ordinary command above remains pinned and requires that explicit prerequisite; the regression mode neither certifies a release nor substitutes for the final recorded pinned candidate.
+
 `--allow-dirty` is only for developing the verifier. Such reports explicitly say `sourceClean: false` and cannot establish exact-head evidence. A source/head change during the run fails verification. Rebuild a separately identified tarball after any candidate change; do not reuse an old digest as release or acceptance evidence. Final head/package identities belong in the PR handoff/diagnostic artifact, not a self-referential recording commit.
 
 ## Supported consumer interface
