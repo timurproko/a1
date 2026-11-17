@@ -15,7 +15,7 @@ None.
 
 ### Modified Capabilities
 
-None identified yet. When the cause is known and the fix changes a requirement, add the delta under `specs/<capability>/spec.md` and remove `skip_specs: true` from `.openspec.yaml`; when the fix changes no requirement, leave both as scaffolded.
+None. The repair synchronizes stale reviewed inventories with already implemented artifact retention and Pi API consumers; no behavior or requirement changes. Keep `skip_specs: true`.
 
 ## Impact
 
