@@ -65,7 +65,7 @@ async function fixture() {
     "src/app.txt": "feature\n",
   });
   await git(seed, ["push", "--quiet", "origin", "feature/example"]);
-  const state = { body: body(), draft: false, state: "open", bodyReads: [] as string[], readyCalls: 0 };
+  const state = { body: body(), draft: false, state: "open", baseSha: null as string | null, bodyReads: [] as string[], readyCalls: 0 };
   const mutations: { path: string; method: string; body: { body: string } }[] = [];
   const reader = { repository: "owner/repo", prefix: "/repos/owner/repo",
     async get(path: string) {
@@ -73,7 +73,7 @@ async function fixture() {
       if (path.endsWith("/pulls/7")) {
         state.bodyReads.push(state.body);
         return { number: 7, node_id: "PR_example", state: state.state, draft: state.draft, body: state.body,
-          base: { ref: "develop", sha: await git(root, ["--git-dir", remote, "rev-parse", "refs/heads/develop"]),
+          base: { ref: "develop", sha: state.baseSha ?? await git(root, ["--git-dir", remote, "rev-parse", "refs/heads/develop"]),
             repo: { full_name: "owner/repo" } },
           head: { ref: "feature/example", sha: await git(root, ["--git-dir", remote, "rev-parse", "refs/heads/feature/example"]), repo: { full_name: "owner/repo" } } };
       }
@@ -117,6 +117,60 @@ describe("trusted finalization publication", () => {
     await expect(f.reconcile()).resolves.toMatchObject({ disposition: "finalized" });
     expect(await f.remoteHead()).not.toBe(before);
     expect(f.state.readyCalls).toBe(1);
+  }, 120_000);
+
+  it("promotes a current completed draft despite a stale PR base SHA", async () => {
+    const f = await fixture();
+    f.state.draft = true;
+    f.state.baseSha = (await f.reader.get(`${f.reader.prefix}/git/ref/heads/develop`)).object!.sha;
+    await git(f.seed, ["checkout", "--quiet", "develop"]);
+    const target = await commit(f.seed, "feat: advance target", { "src/other.txt": "other\n" });
+    await git(f.seed, ["push", "--quiet", "origin", "develop"]);
+    await git(f.seed, ["checkout", "--quiet", "feature/example"]);
+    await git(f.seed, ["-c", "user.name=Developer", "-c", "user.email=dev@example.test", "merge", "--quiet", "--no-edit", target]);
+    await git(f.seed, ["push", "--quiet", "origin", "feature/example"]);
+    const before = await f.remoteHead();
+    expect(f.state.baseSha).not.toBe(target);
+
+    await expect(f.reconcile()).resolves.toMatchObject({ disposition: "promoted", head: before, commits: [] });
+    expect(f.state).toMatchObject({ draft: false, readyCalls: 1 });
+    expect(await f.remoteHead()).toBe(before);
+    expect(f.mutations).toHaveLength(0);
+  }, 120_000);
+
+  it("blocks a completed draft genuinely behind develop even when the PR base SHA is stale", async () => {
+    const f = await fixture();
+    f.state.draft = true;
+    f.state.baseSha = (await f.reader.get(`${f.reader.prefix}/git/ref/heads/develop`)).object!.sha;
+    const before = await f.remoteHead();
+    await git(f.seed, ["checkout", "--quiet", "develop"]);
+    await commit(f.seed, "feat: advance target", { "src/other.txt": "other\n" });
+    await git(f.seed, ["push", "--quiet", "origin", "develop"]);
+
+    await expect(f.reconcile()).resolves.toMatchObject({ disposition: "blocked", reason: "draft-delivery-target-stale", commits: [] });
+    expect(f.state).toMatchObject({ draft: true, readyCalls: 0 });
+    expect(await f.remoteHead()).toBe(before);
+    expect(f.mutations).toHaveLength(0);
+  }, 120_000);
+
+  it("refuses promotion when develop moves after inspection while PR metadata stays unchanged", async () => {
+    const f = await fixture();
+    f.state.draft = true;
+    f.state.baseSha = (await f.reader.get(`${f.reader.prefix}/git/ref/heads/develop`)).object!.sha;
+    const before = await f.remoteHead();
+    const reader = { ...f.reader, async get(path: string) {
+      if (path.endsWith("/pulls/7") && f.state.bodyReads.length === 1) {
+        await git(f.seed, ["checkout", "--quiet", "develop"]);
+        await commit(f.seed, "feat: race target", { "src/other.txt": "other\n" });
+        await git(f.seed, ["push", "--quiet", "origin", "develop"]);
+      }
+      return await f.reader.get(path);
+    } };
+
+    await expect(f.reconcile({ reader })).resolves.toMatchObject({ disposition: "retry", reason: "draft-target-changed", commits: [] });
+    expect(f.state).toMatchObject({ draft: true, readyCalls: 0 });
+    expect(await f.remoteHead()).toBe(before);
+    expect(f.mutations).toHaveLength(0);
   }, 120_000);
 
   it("promotes a finalized head returned to draft without rewriting it, and refuses a draft whose tree lost that form", async () => {
