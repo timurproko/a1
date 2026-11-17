@@ -1,8 +1,11 @@
-import type { OwnedUiSessionNamingPort } from "../../contracts/owned-ui/index.js";
 import { integrationFailure, integrationResponse, parseIntegrationRequest, type IntegrationResponse } from "./protocol.js";
 
+/** Minimal policy authority; engine and UI contracts remain outside the public API owner. */
+interface PolicyState { readonly sessionFile: string; readonly binding: number; readonly autoName?: boolean | null }
+interface PolicyOwner<S extends PolicyState> { state(): S | null; setAutoName?(expected: S, enabled: boolean): boolean }
+
 /** Synchronous durable policy control inside the existing exact-target serialized runtime handler. */
-export function applySessionAutoName(input: unknown, naming: OwnedUiSessionNamingPort | undefined, profileEnabled: boolean): IntegrationResponse {
+export function applySessionAutoName<S extends PolicyState>(input: unknown, naming: PolicyOwner<S> | undefined, profileEnabled: boolean): IntegrationResponse {
   try {
     const request = parseIntegrationRequest(input);
     if ((request.type !== "settings.get" && request.type !== "settings.update") || request.setting !== "sessionAutoName") {

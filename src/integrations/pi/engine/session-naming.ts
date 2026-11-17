@@ -81,7 +81,7 @@ export class PiSessionNaming implements OwnedUiSessionNamingPort {
     const current = this.state(), session = this.#ports.session();
     if (!current || !session || current.sessionFile !== expected.sessionFile || current.binding !== expected.binding
       || !existsSync(current.sessionFile)) return false;
-    // Pi defers setup-only sessions until a conversation exists; never acknowledge an in-memory-only write.
+    // Rationale: Pi defers setup-only sessions until conversation; never acknowledge an in-memory-only write.
     if (current.autoName === enabled) return true;
     session.sessionManager.appendCustomEntry(POLICY_TYPE, { version: 1, enabled });
     for (const listener of this.#policyListeners) listener();

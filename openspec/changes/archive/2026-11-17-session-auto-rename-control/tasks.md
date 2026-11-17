@@ -4,6 +4,7 @@
 - [x] 1.2 Persist independent session overrides through the naming owner and resolve inherited profile policy without cross-session leakage.
 - [x] 1.3 Cancel pending naming on disable and fence late results; preserve current names and manual ownership on both toggle directions.
 - [x] 1.4 Add focused API, persistence/resume, replacement, idempotence and cancellation fixtures; document external disable/readback/rename usage.
+- [x] 1.5 Keep the API's policy authority structural, bind naming only for the owning product profile, and retain required archive metadata without broadening architecture or startup budgets.
 
 ## 2. Remove Herdr sidebar renaming
 
