@@ -22,7 +22,7 @@ Interactive A1 under a valid local Herdr terminal identity SHALL publish its com
 
 ### Requirement: Herdr directory selection follows a fresh A1 project report
 
-The private Herdr customization SHALL prefer a valid complete fresh identity-bound A1 project directory for the exact selected terminal over its foreground process or shell launch directory. Git repository and branch lookup SHALL use that directory on the terminal's machine. Unsupported, incomplete, malformed, expired or implausibly future reports SHALL use the existing safe directory fallbacks. Runtime paths and identities SHALL NOT become portable preferences or control authority.
+The private Herdr customization SHALL resolve project directories through an agent-agnostic capability registry with separately registered provider adapters. Shared directory and Git repository UI code SHALL NOT identify specific agents or parse their labels. A1 and Claude Code providers SHALL normalize their supported fresh project reports, preferring that validated directory for the exact selected terminal over its foreground process or shell launch directory. Unsupported, failing or ambiguous providers SHALL preserve generic fallbacks, and passive directory reporting SHALL remain independent of optional feature switches. Git repository and branch lookup SHALL use that directory on the terminal's machine. Unsupported, incomplete, malformed, expired or implausibly future reports SHALL use the existing safe directory fallbacks. Runtime paths and identities SHALL NOT become portable preferences or control authority.
 
 #### Scenario: Foreground Node remains in home
 - **WHEN** the selected terminal reports a fresh active A1 worktree while its foreground Node process remains in home
@@ -44,6 +44,18 @@ The private Herdr customization SHALL prefer a valid complete fresh identity-bou
 - **WHEN** the selected A1 terminal belongs to a remote machine
 - **THEN** its reported path is resolved on that machine and never against the local filesystem
 
+#### Scenario: Claude Code reports its session root
+- **WHEN** a live Claude Code terminal has a fresh session-bound project-root report while its process or shell remains elsewhere
+- **THEN** the Claude provider supplies that root through the same generic capability used by A1
+
+#### Scenario: Another provider is registered
+- **WHEN** a new agent provider implements the project-directory capability
+- **THEN** its valid report works without adding agent conditions to shared directory or Git repository UI code
+
+#### Scenario: Provider unavailable or ambiguous
+- **WHEN** a provider throws, has no valid report, or multiple providers claim the terminal
+- **THEN** the shared resolver preserves generic foreground, shell and terminal fallbacks
+
 #### Scenario: Other programs remain unchanged
-- **WHEN** the selected terminal has no eligible A1 directory report
+- **WHEN** the selected terminal has no eligible project-directory provider report
 - **THEN** ordinary shell and other-agent directory resolution retain their established priority and behavior

@@ -4,8 +4,8 @@
 - [x] 1.2 Refresh the directory on successful context replacement and heartbeat, and clear only the exact owned publication.
 - [x] 1.3 Add focused reporter/readiness fixtures for worktree transitions, stale callbacks, path handling and foreign ownership; document the native label contract.
 
-## 2. Resolve Herdr Git against the active worktree
+## 2. Resolve Herdr Git through agent-agnostic project providers
 
-- [x] 2.1 Update the external canonical shared directory resolver and packaging to prefer fresh identity-bound A1 cwd over process and shell launch directories.
-- [x] 2.2 Preserve local/remote routing and ordinary directory fallbacks; add disposable fixtures for stale reports, agent switches and old Git responses.
-- [x] 2.3 Record the external source revision/diff, build/deployment status and any explicit rollout gaps in implementation evidence.
+- [ ] 2.1 Add a generic project-directory provider contract and package its registry and isolated A1/Claude Code adapters without agent-specific directory or panel conditions.
+- [ ] 2.2 Preserve local/remote routing and native/shell fallbacks; cover both agents, unsupported/throwing/ambiguous providers, future provider injection and stale Git replies in disposable fixtures.
+- [ ] 2.3 Record the external source revision/diff, build/deployment status and rollout gaps, and repair the existing comment-format CI failure.
