@@ -10,8 +10,18 @@ export const HERDR_IDENTITY_LABELS = Object.freeze({
   at: `${PRODUCT_IDENTITY.protocol.namespace}.at`,
 });
 
+export const HERDR_DIRECTORY_LABEL = `${PRODUCT_IDENTITY.protocol.namespace}.cwd`;
+export const HERDR_DIRECTORY_BINDING_LABEL = `${HERDR_DIRECTORY_LABEL}.binding`;
+
+/** Display/routing metadata only; never pass relative or control-bearing paths to Core. */
+export function validHerdrProjectDirectory(value: unknown): value is string {
+  return typeof value === "string" && Buffer.byteLength(value, "utf8") <= 4096
+    && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(value)
+    && /^(?:[A-Za-z]:[\\/]|\/|\\\\[^\\]+\\[^\\]+)/u.test(value);
+}
+
 const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
-export interface HerdrPublishedBinding { readonly runtimeId: string; readonly sessionId: string; readonly at: string }
+export interface HerdrPublishedBinding { readonly runtimeId: string; readonly sessionId: string; readonly at: string; readonly cwd?: string }
 interface BindingState { version: 1; generation: number; runtimeId: string; published?: HerdrPublishedBinding }
 interface BindingIntent { version: 1; generation: number; runtimeId: string; baseGeneration: number; baseRuntimeId?: string }
 export interface HerdrBindingReservation { readonly terminalId: string; readonly runtimeId: string; readonly generation: number; readonly file: string; readonly intent?: true }
@@ -110,10 +120,12 @@ async function lock(file: string): Promise<(() => Promise<void>) | undefined> {
 async function readState(file: string): Promise<BindingState | undefined> {
   try {
     const stat = await lstat(file);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096) throw new Error("Unsafe binding record");
+    // Protocol: JSON escaping can expand a bounded 4 KiB directory; intent records retain their smaller bound.
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 32_768) throw new Error("Unsafe binding record");
     const value = JSON.parse(await readFile(file, "utf8")) as BindingState;
     if (value.version !== 1 || !Number.isSafeInteger(value.generation) || value.generation < 1 || !UUID.test(value.runtimeId)) throw new Error("Invalid binding fence");
-    if (value.published && (!UUID.test(value.published.runtimeId) || !UUID.test(value.published.sessionId) || !/^\d{1,16}$/u.test(value.published.at))) throw new Error("Invalid publication record");
+    if (value.published && (!UUID.test(value.published.runtimeId) || !UUID.test(value.published.sessionId) || !/^\d{1,16}$/u.test(value.published.at)
+      || (value.published.cwd !== undefined && !validHerdrProjectDirectory(value.published.cwd)))) throw new Error("Invalid publication record");
     return value;
   } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error; }
 }
