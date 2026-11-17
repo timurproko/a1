@@ -1,5 +1,9 @@
 # Contract reconciliation
 
+## Operational verification requested at e86f628b
+
+Fetched PR #923 and `develop` before further work: topic `e86f628b08d56070bb61845b8f15ba122cf5cfb1`, target `a8fcf44b5ff573798c386236229de3347c942793`; no newer topic commits were present. The planning restriction, child-lifetime exclusion and pre-detach physical/HEAD binding remain implemented and are not restarted. Preserve their completed tasks and every unrelated outcome. Add group-5 verification work for the actual tarball consumer, Windows wrapper/footer diagnosis, precise crash limitations and queued runtime-confirmation handoff. R06/R07/R12–R16/R19/R20 apply; package extraction/fixtures are offline evidence, not release, installation or downstream adoption. No frozen payload/framework changes, merge or activation are authorized.
+
 ## Follow-up CI repair at 163108fc
 
 The conflict resolution was published as `8bd3d2b6`; trusted finalization produced `163108fc36e4d6ff90cde8c4a1c52eea609437f2` with the combined canonical recovery requirements. Development run `44065622970` exposed one worker-backed history composition wait in the ordinary parallel partition. Under R06, move that suite to its existing serial resource-sensitive scheduling mechanism without dropping cases, changing required gates or extending deadlines. Pin its original five-second default; preserve its five-second waits and explicit fifteen-second cases. All 38 focused history/ownership checks passed through the standard build-backed runner. Completed implementation ticks and the frozen contract stay unchanged; new exact-head CI is still required. No PR merge is authorized.

@@ -107,6 +107,8 @@ The declaration is read from trusted primary, and repository cleanup still reche
 
 ## Supported unclaimed-target execution interface
 
+For exact-package reproduction, XR's queued-confirmation sequencing, stop/upgrade/restart prerequisites and the explicit **unsupported modern orphan recovery** limitation, see [consumer verification and recovery limits](../worktree-consumer-verification.md).
+
 Repository consumers such as XR should use these public modules from one pinned, compatible **released** A1 package, not copy private runtime files:
 
 - `@timurproko/a1/dist/foundation/lifecycle/worktree-cleanup-snapshot.mjs`: `captureWorktreeCleanupSnapshot(path)` returns the opaque version-1 approval snapshot; `assertWorktreeCleanupSnapshot()` compares all bound fields.

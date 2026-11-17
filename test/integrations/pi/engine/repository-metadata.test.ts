@@ -28,6 +28,19 @@ function poller(branchReader: (cwd: string) => Promise<string | null>) {
 }
 
 describe("RepositoryMetadataPoller", () => {
+  it("replaces the scheduled poll on explicit refresh instead of accumulating background Git probes", async () => {
+    vi.useFakeTimers();
+    const reader = vi.fn(async () => "main"), { instance } = poller(reader);
+    try {
+      instance.start(); await vi.advanceTimersByTimeAsync(0);
+      for (let index = 0; index < 4; index++) { instance.refresh(); await vi.advanceTimersByTimeAsync(0); }
+      expect(reader).toHaveBeenCalledTimes(5);
+      expect(vi.getTimerCount()).toBe(1);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(reader).toHaveBeenCalledTimes(6);
+      expect(vi.getTimerCount()).toBe(1);
+    } finally { await instance.dispose(); vi.useRealTimers(); }
+  });
   it("publishes same-path association revisions and retains verified context on observation failure", async () => {
     let revision = "first";
     let unavailable = false;

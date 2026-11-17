@@ -92,6 +92,7 @@ export class RepositoryMetadataPoller {
   /** Probe now while polling is enabled; a request made during a probe runs once it settles. */
   refresh(): void {
     if (!this.#enabled || this.#ports.disposed()) return;
+    this.#clearPoll();
     if (this.#task !== undefined) {
       this.#pending = true;
       return;
@@ -109,8 +110,7 @@ export class RepositoryMetadataPoller {
 
   /** Abort the running probe and forget the previous binding's metadata. */
   reset(): void {
-    if (this.#timer !== undefined) clearTimeout(this.#timer);
-    this.#timer = undefined;
+    this.#clearPoll();
     this.#abort?.abort();
     this.#cwd = this.#ports.fallbackCwd();
     this.#selection = { branch: null, revision: null };
@@ -121,12 +121,13 @@ export class RepositoryMetadataPoller {
   /** Stop polling; resolves once the running probe has settled. */
   async dispose(): Promise<void> {
     this.#enabled = false;
-    if (this.#timer !== undefined) clearTimeout(this.#timer);
-    this.#timer = undefined;
+    this.#clearPoll();
     this.#pending = false;
     this.#abort?.abort();
     await this.#task;
   }
+
+  #clearPoll(): void { clearTimeout(this.#timer); this.#timer = undefined; }
 
   #current(controller: AbortController, generation: number): boolean {
     return !controller.signal.aborted && generation === this.#ports.bindingGeneration() && this.#enabled && !this.#ports.disposed();

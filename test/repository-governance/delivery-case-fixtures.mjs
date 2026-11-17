@@ -11,6 +11,7 @@ import { discoverRepository, gitRunner } from "../../scripts/governance/local-cl
 import { createStateStore } from "../../scripts/governance/local-cleanup-state.mjs";
 import { cleanupPreflight } from "../../scripts/governance/local-cleanup-preflight.mjs";
 import { archiveReaderFromGet } from "../../scripts/governance/openspec-archive-github.mjs";
+import { cloneFixtureRepository } from "../support/delivery-git-template.mjs";
 import { conditionalAcceptanceBytes, deliveryContentDigest } from "../../scripts/governance/openspec-delivery-policy.mjs";
 
 // Security: these dedicated fixture workers must never inherit a caller's Git repository/index binding.
@@ -49,17 +50,14 @@ export function planningFixture() {
 export async function gitFixture(t, { declaration = true } = {}) {
   const root = await temporary(t), primary = join(root, "primary"), remote = join(root, "remote.git");
   const git = async (cwd, args) => (await execute("git", ["-c", "core.hooksPath=/dev/null", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "-C", cwd, ...args], { encoding: "utf8" })).stdout.trim();
-  await execute("git", ["init", "-b", "develop", primary]); await git(primary, ["config", "core.autocrlf", "false"]);
-  await writeFile(join(primary, "README.md"), "published content\n");
-  await writeFile(join(primary, ".gitignore"), ".worktrees/\n.artifacts/\nnode_modules/\n.private/\nunknown.log\n");
+  const files = new Map([["README.md", "published content\n"], [".gitignore", ".worktrees/\n.artifacts/\nnode_modules/\n.private/\nunknown.log\n"]]);
   if (declaration) {
-    await mkdir(join(primary, ".a1"));
     const preflight = "console.log(JSON.stringify({operation:'remove-local',preflight:true,results:[{path:process.argv[1],disposition:'eligible'}]}))";
     const script = fileURLToPath(new URL("../../scripts/governance/local-worktree-cleanup.mjs", import.meta.url));
-    await writeFile(join(primary, ".a1/worktree.json"), JSON.stringify({ localRemoval: { preflight: ["node", "-e", preflight, "{worktree}"],
+    files.set(".a1/worktree.json", JSON.stringify({ localRemoval: { preflight: ["node", "-e", preflight, "{worktree}"],
       execute: ["node", script, "remove-local", "--repo", "{primary}", "--path", "{worktree}", "--confirm-local-removal", "--approved-snapshot", "{snapshot}"] } }));
   }
-  await git(primary, ["add", "."]); await git(primary, ["commit", "-m", "base"]);
+  await cloneFixtureRepository(primary, files);
   await execute("git", ["clone", "--bare", primary, remote]);
   await git(primary, ["remote", "add", "origin", `https://github.com/${repository}.git`]);
   await git(primary, ["config", `url.${remote.replaceAll("\\", "/")}.insteadOf`, `https://github.com/${repository}.git`]);

@@ -4,8 +4,18 @@ import { relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { expect, it } from "vitest";
+import { ownedFixtureRoot, fixtureEnvironment } from "../support/owned-fixture-root.js";
 
 const root = fileURLToPath(new URL("../../", import.meta.url)), exec = promisify(execFile);
+it("isolates worker TEMP on the owning checkout without mutating the caller environment", async () => {
+  const original = { TEMP: process.env.TEMP, TMP: process.env.TMP, TMPDIR: process.env.TMPDIR };
+  const directory = await ownedFixtureRoot("environment-contract-");
+  try {
+    expect(relative(resolve(root, ".artifacts/test"), directory)).not.toMatch(/^\.\./u);
+    expect(fixtureEnvironment(directory)).toMatchObject({ TEMP: directory, TMP: directory, TMPDIR: directory });
+    expect({ TEMP: process.env.TEMP, TMP: process.env.TMP, TMPDIR: process.env.TMPDIR }).toEqual(original);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
 it("ships the supported standalone worktree modules and exact public declarations", async () => {
   const manifest = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
   expect(manifest.files).toContain("dist");

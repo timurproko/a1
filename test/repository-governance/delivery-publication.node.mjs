@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, test } from "node:test";
+import { cloneFixtureRepository } from "../support/delivery-git-template.mjs";
 import { captureWorktree, gitRunner } from "../../scripts/governance/local-cleanup-git.mjs";
 import { inspectPublication, inspectDeliveryHandoff } from "../../scripts/governance/delivery-publication.mjs";
 
@@ -16,9 +17,7 @@ async function fixture() {
   const root = await realpath(await mkdtemp(join(tmpdir(), "a1-publication-"))); roots.push(root);
   const primary = join(root, "primary"), remote = join(root, "remote.git");
   const git = async (cwd, args) => (await execute("git", ["-c", "core.hooksPath=/dev/null", "-c", "user.name=Test", "-c", "user.email=test@example.com", "-C", cwd, ...args], { encoding: "utf8" })).stdout.trim();
-  await execute("git", ["init", "-b", "develop", primary]);
-  await writeFile(join(primary, "README.md"), "base\n");
-  await git(primary, ["add", "."]); await git(primary, ["commit", "-m", "base"]);
+  await cloneFixtureRepository(primary, { "README.md": "base\n" });
   await execute("git", ["clone", "--bare", primary, remote]);
   await git(primary, ["remote", "add", "origin", remote]);
   const path = join(primary, ".worktrees", "task").replaceAll("\\", "/");

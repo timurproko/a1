@@ -120,7 +120,7 @@ async function withTargetExclusion(expected, options, operation, borrow) {
       options.signal?.throwIfAborted();
       gate = tryAcquireClaimGate(join(directory, digest(key(expected.path))));
       if (gate) break;
-      if (Date.now() >= deadline) throw failure("worktree-claim-busy", "attachment/cleanup authority is busy or abandoned; no lease is reclaimed");
+      if (Date.now() >= deadline) throw failure("worktree-claim-busy", "target attachment/cleanup authority is busy or orphaned; no lease is reclaimed. Retain its gate/child intent: supported in-place crash recovery is unavailable even after parent death; consult the worktree recovery guide");
       await delay(20, undefined, { signal: options.signal });
     }
   }
