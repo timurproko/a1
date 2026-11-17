@@ -29,6 +29,7 @@ function contextKey(context: SessionNamingContext): string {
 export class SessionNamingController {
   readonly #options: NamingOptions;
   readonly #unsubscribe: () => void;
+  readonly #unsubscribePolicy: () => void;
   #binding: number;
   #seen = new Set<string>();
   #signature: string | undefined;
@@ -43,6 +44,7 @@ export class SessionNamingController {
     this.#binding = options.backend.identity.sessionBindingGeneration;
     this.#rememberTranscript();
     this.#unsubscribe = options.backend.session.onEvent(event => this.#event(event));
+    this.#unsubscribePolicy = options.naming.onAutoNameChange?.(() => this.settingsChanged()) ?? (() => {});
   }
 
   settingsChanged(): void { if (!this.#options.enabled()) this.#invalidate(); }
@@ -51,6 +53,7 @@ export class SessionNamingController {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#unsubscribe();
+    this.#unsubscribePolicy();
     this.#invalidate();
   }
 
