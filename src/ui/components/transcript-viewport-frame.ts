@@ -1,6 +1,7 @@
 import { isThumbRow, scrollbarGeometry, scrollbarPresentation, type ScrollbarGeometry } from "./scrollbar.js";
 import { overlaySpan } from "./spans.js";
-import { displayWidth, truncateToWidth } from "./text.js";
+import { displayWidth, styledTextTokens, textSequences, truncateToWidth } from "./text.js";
+import { normalizeTranscriptRow } from "./transcript-row.js";
 import type {
   TranscriptViewportConfig,
   TranscriptViewportFrameDescriptor,
@@ -164,11 +165,12 @@ export class ViewportRowCaches {
   readonly #base = new Map<string, string>();
   readonly #selected = new Map<string, string>();
   readonly #final = new Map<string, string>();
+  readonly #rail = new Map<string, string>();
   readonly #functionIds = new WeakMap<Function, number>();
   #nextFunctionId = 1;
 
   get entries(): number {
-    return this.#painted.size + this.#base.size + this.#selected.size + this.#final.size;
+    return this.#painted.size + this.#base.size + this.#selected.size + this.#final.size + this.#rail.size;
   }
 
   clear(): void {
@@ -176,13 +178,15 @@ export class ViewportRowCaches {
     this.#base.clear();
     this.#selected.clear();
     this.#final.clear();
+    this.#rail.clear();
   }
 
   trim(limit: number): void {
     trimCache(this.#painted, limit);
     trimCache(this.#base, limit);
     trimCache(this.#selected, limit);
-    trimCache(this.#final, limit);
+    trimCache(this.#final, limit * 2);
+    trimCache(this.#rail, limit);
   }
 
   /** A stable id for a painter function, so cache keys change when the painter does. */
@@ -210,7 +214,7 @@ export class ViewportRowCaches {
     painted: string,
     range: { readonly from: number; readonly to: number } | null,
     paintRecomputed: boolean,
-  ): { readonly text: string; readonly recomputed: boolean; readonly state: string } {
+  ): { readonly text: string; readonly terminalText: string; readonly railText?: string; readonly recomputed: boolean; readonly state: string } {
     const { width, contentWidth, viewportHeight, cacheLimit, theme, geometry, presentation } = frame;
     // Invariant: the reserved rail gutter is not a semantic selection or copy cell,
     // but a range that reaches the content boundary paints through it so the rail
@@ -243,7 +247,7 @@ export class ViewportRowCaches {
     // Invariant: paint the rail after selection over the gutter's continued row
     // background. Source content and selection still end at the preceding cell.
     let railCell = "";
-    if (row > 0 && row < viewportHeight && presentation.visible && geometry !== null) {
+    if (contentWidth < width && row > 0 && row < viewportHeight && presentation.visible && geometry !== null) {
       const trackRow = row - 1;
       const thumb = isThumbRow(geometry, trackRow);
       const glyph = thumb ? presentation.thumbGlyph : presentation.trackGlyph;
@@ -258,16 +262,13 @@ export class ViewportRowCaches {
     const rowControl = control?.row === row
       ? { left: control.left, right: control.hit.columnEnd, text: control.text }
       : null;
-    const final = cachedString(
-      this.#final,
-      `${width}\u0000${railCell}\u0000${overlayText}\u0000${rowControl?.text ?? ""}\u0000${selected.value}`,
-      cacheLimit,
-      () => {
-        const withRail = railCell.length === 0 ? selected.value : overlaySpan(
+    const key = `${width}\u0000${railCell}\u0000${overlayText}\u0000${rowControl?.text ?? ""}\u0000${selected.value}`;
+    const finish = (cell: string): string => {
+        const withRail = cell.length === 0 ? selected.value : overlaySpan(
           selected.value,
           width - 1,
           width,
-          `${GUTTER_DECORATION_RESET}${railCell}`,
+          `${GUTTER_DECORATION_RESET}${cell}`,
           { inheritStartStyle: true },
         );
         // Invariant: floating control styling is applied only after the row and
@@ -285,11 +286,19 @@ export class ViewportRowCaches {
           `${GUTTER_DECORATION_RESET}${overlayText}`,
           { inheritStartStyle: true },
         );
-      },
-    );
+    };
+    const final = cachedString(this.#final, key, cacheLimit * 2, () => finish(railCell));
+    const terminal = railCell.length === 0 ? final
+      : cachedString(this.#final, `${key}\u0000terminal`, cacheLimit * 2, () => finish(""));
+    const rail = row < viewportHeight && contentWidth < width
+      ? cachedString(this.#rail, `${width}\u0000${railCell}\u0000${selected.value}`, cacheLimit,
+          () => resolvedGutterCell(selected.value, width, railCell || " "))
+      : undefined;
     recomputed ||= !final.reused;
     const state = `${width}\u0000${row}\u0000${painted}\u0000${rangeKey}\u0000${range === null ? "" : frame.selectionPainterId}\u0000${railCell}\u0000${overlayText}\u0000${rowControl?.text ?? ""}`;
-    return { text: final.value.replace(VIEWPORT_PROMPT_ZONES, ""), recomputed, state };
+    return { text: final.value.replace(VIEWPORT_PROMPT_ZONES, ""),
+      terminalText: terminal.value.replace(VIEWPORT_PROMPT_ZONES, ""),
+      ...(rail === undefined ? {} : { railText: rail.value }), recomputed, state };
   }
 }
 
@@ -442,9 +451,23 @@ function visibleLiveTailRows(
   return Math.max(0, visibleEnd - visibleStart);
 }
 
+function resolvedGutterCell(line: string, width: number, cell: string): string {
+  let column = 0, style = "";
+  for (const token of styledTextTokens(line)) {
+    if (token.ansi) {
+      if (/^\u001b\[[0-9;:]*m$/u.test(token.text)) style += token.text;
+    } else {
+      if (column >= width - 1) break;
+      style += textSequences(token.text).filter(sequence => /^\u001b\[[0-9;:]*m$/u.test(sequence)).join("");
+      column += token.width;
+    }
+  }
+  return `${CONTROL_STYLE_RESET}${style}${GUTTER_DECORATION_RESET}${cell}\u001b[0m`;
+}
+
 function padViewportRowWithGutter(line: string, contentWidth: number, frameWidth: number): string {
   const boundedContentWidth = Math.min(Math.max(1, contentWidth), frameWidth);
-  const content = padRowPreservingBackground(line, boundedContentWidth);
+  const content = padRowPreservingBackground(normalizeTranscriptRow(line), boundedContentWidth);
   const gutterWidth = frameWidth - boundedContentWidth;
   if (gutterWidth === 0) return content;
   // Invariant: render no source glyph beyond contentWidth, but reuse the established
