@@ -6,9 +6,9 @@
 
 ## 2. Generic A1 plugin feature settings
 
-- [ ] 2.1 Present the external canonical Herdr plugin as A1 with a master switch and independent Match space color / Sidebar rename toggles, retaining stable IDs and legacy preference behavior.
-- [ ] 2.2 Gate startup/live color work and sidebar renaming independently without gating native A1 → Herdr name updates, including stale callbacks, and extend preference snapshot validation without exporting runtime state.
-- [ ] 2.3 Add external plugin/preference fixtures and record canonical source ownership and actual diff separately from this repository.
+- [x] 2.1 Present the external canonical Herdr plugin as A1 with a master switch and independent Match space color / Sidebar rename toggles, retaining stable IDs and legacy preference behavior.
+- [x] 2.2 Gate startup/live color work and sidebar renaming independently without gating native A1 → Herdr name updates, including stale callbacks, and extend preference snapshot validation without exporting runtime state.
+- [x] 2.3 Add external plugin/preference fixtures and record canonical source ownership and actual diff separately from this repository.
 
 ## 3. Sidebar renaming with preserved native name updates
 
