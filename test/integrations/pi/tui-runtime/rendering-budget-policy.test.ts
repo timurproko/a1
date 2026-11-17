@@ -12,6 +12,7 @@ function paint(overrides: Partial<TerminalPaintClassification> = {}): TerminalPa
     fullScreenClears: 0,
     rowClears: 0,
     addressedRowWrites: [],
+    addressedCellWrites: [],
     scrollRegions: [],
     scrollUpRows: 0,
     scrollDownRows: 0,
@@ -98,6 +99,21 @@ describe("code-streaming rendering budgets", () => {
       expect(result.violations.some(value => value.includes("unexpected full-screen clear"))).toBe(true);
       expect(result.violations.some(value => value.includes(`(${reason})`))).toBe(true);
     }
+  });
+
+  it("audits every one-cell paint separately without exempting undeclared or full-row damage", () => {
+    const cells = [{ row: 3, column: 50 }];
+    const classified = paint({ rowClears: 1, addressedRowWrites: [8], scrollUpRows: 1, addressedCellWrites: cells });
+    expect(evaluateRenderingBudgets(codeMatrix({ paint: classified, damageDecision: { ...transformed, paintedCells: cells } })).passed).toBe(true);
+    for (const paintedCells of [undefined, [], [{ row: 3, column: 49 }]]) {
+      const decision = paintedCells === undefined ? transformed : { ...transformed, paintedCells };
+      expect(evaluateRenderingBudgets(codeMatrix({ paint: classified, damageDecision: decision })).violations
+        .some(value => value.includes("cells disagree with declared cell damage"))).toBe(true);
+    }
+    expect(evaluateRenderingBudgets(codeMatrix({
+      paint: { ...classified, rowClears: 2, addressedRowWrites: [8, 3] },
+      damageDecision: { ...transformed, paintedCells: cells },
+    })).violations.some(value => value.includes("undeclared rows"))).toBe(true);
   });
 
   it("rejects repaint of a settled row even when the row count fits the allowance", () => {

@@ -168,6 +168,7 @@ describe("transcript viewport", () => {
       safeVerticalShift: false,
       selectionRevision: 0,
       selectionDamagedRows: [1, 2, 3, 4, 5, 6, 7],
+      railCells: Array.from({ length: 5 }, (_, index) => ({ row: index + 1, column: 30, text: expect.any(String) })),
       cause: "initial",
     });
 

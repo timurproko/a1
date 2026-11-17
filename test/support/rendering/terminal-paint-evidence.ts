@@ -23,6 +23,8 @@ export interface TerminalPaintClassification {
   readonly fullScreenClears: number;
   readonly rowClears: number;
   readonly addressedRowWrites: readonly number[];
+  /** Strictly one-cell non-leading-column paints, audited separately from whole-row rewrites. */
+  readonly addressedCellWrites: readonly { readonly row: number; readonly column: number }[];
   readonly scrollRegions: readonly { readonly top: number; readonly bottom: number }[];
   readonly scrollUpRows: number;
   readonly scrollDownRows: number;
@@ -94,6 +96,7 @@ export function classifyTerminalPaint(
   let syncDepth = 0;
   let frames = 0;
   const addressedRowWrites: number[] = [];
+  const addressedCellWrites: { row: number; column: number }[] = [];
   const scrollRegions: Array<{ top: number; bottom: number }> = [];
   const cursorPositions: Array<{ row: number; column: number }> = [];
   const causes: Record<string, number> = {};
@@ -131,7 +134,11 @@ export function classifyTerminalPaint(
       else if (final === "H" || final === "f") {
         const position = { row: values[0] ?? 1, column: values[1] ?? 1 };
         cursorPositions.push(position);
-        if (hasRowPaintAfter(write.data, match.index! + match[0].length)) addressedRowWrites.push(position.row);
+        const from = match.index! + match[0].length;
+        if (hasRowPaintAfter(write.data, from)) {
+          if (position.column > 1 && hasSingleCellPaintAfter(write.data, from)) addressedCellWrites.push(position);
+          else addressedRowWrites.push(position.row);
+        }
       } else if (final === "r" && parameters.length > 0 && values.length >= 2) {
         scrollRegions.push({ top: values[0] ?? 1, bottom: values[1] ?? 1 });
       } else if (final === "S") scrollUpRows += values[0] ?? 1;
@@ -162,6 +169,7 @@ export function classifyTerminalPaint(
     fullScreenClears,
     rowClears,
     addressedRowWrites,
+    addressedCellWrites,
     scrollRegions,
     scrollUpRows,
     scrollDownRows,
@@ -319,7 +327,7 @@ function terminalWrite(terminal: HeadlessTerminal, data: string): Promise<void> 
 
 function paintTokens(data: string): readonly string[] {
   return data
-    .split(/(\u001b\[\?2026[hl]|\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)|\u001b_[^\u0007]*(?:\u0007|$))/gu)
+    .split(/(\u001b\[\?2026[hl]|\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)|\u001b_[^\u0007\u001b]*(?:\u0007|\u001b\\|$))/gu)
     .filter(Boolean);
 }
 
@@ -339,8 +347,9 @@ function numericParameters(parameters: string): number[] {
 function hasVisiblePaint(data: string): boolean {
   const withoutControls = data
     .replace(/\u001b\[[0-?]*[ -/]*[@-~]/gu, "")
+    .replace(/\u001b[78]/gu, "")
     .replace(/\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/gu, "")
-    .replace(/\u001b_[^\u0007]*(?:\u0007|$)/gu, "");
+    .replace(/\u001b_[^\u0007\u001b]*(?:\u0007|\u001b\\|$)/gu, "");
   return withoutControls.length > 0 || /\u001b\[(?:2J|2K|[0-9;]*[ST])/u.test(data);
 }
 
@@ -352,6 +361,16 @@ function hasRowPaintAfter(data: string, from: number): boolean {
   // not an addressed row repaint.
   if (/^\u001b\[(?:\d+)?[ST]/u.test(segment)) return false;
   return hasVisiblePaint(segment);
+}
+
+function hasSingleCellPaintAfter(data: string, from: number): boolean {
+  const tail = data.slice(from);
+  const nextCursor = tail.search(/\u001b\[[0-9;]*[Hf]/u);
+  const segment = nextCursor < 0 ? tail : tail.slice(0, nextCursor);
+  // Invariant: only a literal narrow glyph/blank plus formatting and cursor restoration qualifies.
+  // Multi-cell spans, images, erases, and unrecognized controls remain full-row damage, never exemptions.
+  const plain = segment.replace(/\u001b\[(?:[0-9:;]*m|\?25[hl]|\?2026l)|\u001b\]8;[^\u0007\u001b]*(?:\u0007|\u001b\\)|\u001b8/gu, "");
+  return /^[\x20-\x7e┃▐]$/u.test(plain);
 }
 
 function count(data: string, token: string): number {

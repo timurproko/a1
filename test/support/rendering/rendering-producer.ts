@@ -28,6 +28,7 @@ export interface RenderingDamageDecision {
   readonly reason: string;
   readonly shiftRows: number;
   readonly paintedRows: readonly number[];
+  readonly paintedCells?: readonly { readonly row: number; readonly column: number }[];
 }
 
 export interface RenderingProducerWrite extends TimedTerminalWrite {
@@ -269,7 +270,10 @@ export function isRenderingDamageDecision(value: unknown): value is RenderingDam
   return (decision.frameId === null || Number.isSafeInteger(decision.frameId))
     && typeof decision.transformed === "boolean" && typeof decision.reason === "string"
     && Number.isSafeInteger(decision.shiftRows) && Array.isArray(decision.paintedRows)
-    && decision.paintedRows.every(row => Number.isSafeInteger(row) && row > 0);
+    && decision.paintedRows.every(row => Number.isSafeInteger(row) && row > 0)
+    && (decision.paintedCells === undefined || Array.isArray(decision.paintedCells)
+      && decision.paintedCells.every(cell => cell !== null && typeof cell === "object"
+        && Number.isSafeInteger(cell.row) && cell.row > 0 && Number.isSafeInteger(cell.column) && cell.column > 0));
 }
 
 function isReadyMessage(value: unknown): value is { readonly type: "ready" } {
