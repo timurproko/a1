@@ -6,10 +6,10 @@
 
 ## 2. Anchor scrollbar paint independently of transcript content
 
-- [ ] Carry bounded rail placement and resolved cell styling through owned frame metadata and the neutral terminal presentation contract.
-- [ ] Paint exposed rail/gutter cells at their physical column inside the existing synchronized terminal transaction, preserving cursor state, modal occlusion, comparison behavior, and image transport.
-- [ ] Integrate fixed rail painting with full and differential writes, regional scroll, row caches, stale-frame rejection, presentation resets, hyperlink cleanup, visibility changes, and geometry changes.
-- [ ] Add emitted-terminal-cell regressions for content replacement, scrolling, steering lifecycle, resize, dock changes, selection/backgrounds, rail styles/appearance, occlusion, and cached/damage-aware repainting.
+- [x] Carry bounded rail placement and resolved cell styling through owned frame metadata and the neutral terminal presentation contract.
+- [x] Paint exposed rail/gutter cells at their physical column inside the existing synchronized terminal transaction, preserving cursor state, modal occlusion, comparison behavior, and image transport.
+- [x] Integrate fixed rail painting with full and differential writes, regional scroll, row caches, stale-frame rejection, presentation resets, hyperlink cleanup, visibility changes, and geometry changes.
+- [x] Add emitted-terminal-cell regressions for content replacement, scrolling, steering lifecycle, resize, dock changes, selection/backgrounds, rail styles/appearance, occlusion, and cached/damage-aware repainting.
 
 ## 3. Keep tool-block backgrounds continuous through nested resets
 

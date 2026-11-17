@@ -506,6 +506,8 @@ export class TranscriptViewport {
       width, contentWidth, viewportHeight, cacheLimit, theme, selectionPainterId: this.#rowCaches.functionId(theme.selection),
       geometry, presentation, railActive: this.#railHovered || this.#railDragging, overlay: input.frameOverlay, control,
     };
+    const terminalRows: string[] = [];
+    const railCells: NonNullable<TranscriptViewportFrameDescriptor["railCells"]>[number][] = [];
     const recomputedRows: number[] = [];
     const reusedRows: number[] = [];
     const selectionDamagedRows: number[] = [];
@@ -514,18 +516,23 @@ export class TranscriptViewport {
       const range = selectionRangeForLine(orderedSelection, row, this.#selectionRows.length, row < viewportHeight ? contentWidth : width);
       const painted = this.#rowCaches.paintRow(rowPaint, row, frameRows[row] ?? "", range, paintRecomputedRows.has(row));
       frameRows[row] = painted.text;
+      terminalRows.push(painted.terminalText);
+      if (painted.railText !== undefined && input.railOccluded !== true
+        && !input.coveredCells?.some(cell => cell.row === row + 1 && cell.columnStart <= width && cell.columnEnd >= width)) {
+        railCells.push({ row: row + 1, column: width, text: painted.railText });
+      }
       (painted.recomputed ? recomputedRows : reusedRows).push(row + 1);
       visibleStates.push(painted.state);
       if (this.#previousVisibleStates[row] !== painted.state) selectionDamagedRows.push(row + 1);
     }
     this.#previousVisibleStates = visibleStates;
-    const descriptor = frameDescriptor({
+    const descriptor: TranscriptViewportFrameDescriptor = { ...frameDescriptor({
       frameId: ++this.#frameId, previous: previousDescriptor, width, height, viewportHeight, dockRowCount: dock.length,
       documentRowCount: documentRows.length, selectableDocumentRowCount: this.#selectableDocumentRowCount,
       scrollTop: this.#scrollTop, followingEnd: this.#followingEnd, selecting: this.#selection !== undefined,
       transientAlignmentGapRows, bottomAlignedTailRowCount, liveTailStartRow: input.liveTailStartRow,
       selectionRevision: composingSelectionRevision, selectionDamagedRows,
-    });
+    }), railCells };
     assertTranscriptViewportFrameDescriptor(descriptor);
     const hits = hitRegions({
       width, contentWidth, viewportHeight, documentRowCount: documentRows.length,
@@ -534,6 +541,7 @@ export class TranscriptViewport {
     });
     const frame: TranscriptViewportFrame = {
       rows: frameRows,
+      terminalRows,
       contentWidth,
       scrollTop: this.#scrollTop,
       maxScroll: this.#maxScroll,
@@ -615,6 +623,7 @@ export class TranscriptViewport {
     const frame: TranscriptViewportFrame = {
       ...previous,
       rows: [...previous.rows.slice(0, viewportHeight), ...dock.map(row => row.replace(VIEWPORT_PROMPT_ZONES, ""))].slice(0, boundedHeight),
+      terminalRows: [...(previous.terminalRows ?? previous.rows).slice(0, viewportHeight), ...dock.map(row => row.replace(VIEWPORT_PROMPT_ZONES, ""))].slice(0, boundedHeight),
       descriptor,
       selectionDamage: {
         revision: this.#selectionRevision,

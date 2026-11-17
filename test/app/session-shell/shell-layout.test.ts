@@ -69,6 +69,14 @@ describe("shell layouts", () => {
     expect(layout.composed()).toMatchObject({ viewportRevision: 1 });
   });
 
+  it("retains separate runtime rows without changing logical frame evidence", () => {
+    const { ports, viewport, onFrame } = harness();
+    const result = { rows: ["logical ┃"], terminalRows: ["runtime  "], descriptor: { selectionRevision: 0 }, scrollTop: 0, hits: { viewportHeight: 10 } };
+    viewport.compose.mockReturnValueOnce(result);
+    expect(new ViewportLayout(ports).render(20)).toEqual(["logical ┃"]);
+    expect(onFrame).toHaveBeenCalledWith(result);
+  });
+
   it("reuses the last frame for a safe keystroke only while nothing else changed", () => {
     const { ports, viewport, setCandidate } = harness();
     const layout = new ViewportLayout(ports);

@@ -1,4 +1,6 @@
-import type { TerminalPort } from "../../../contracts/presentation/index.js";
+import { sliceByColumn } from "@earendil-works/pi-tui";
+import type { TerminalPort, TerminalRailCell } from "../../../contracts/presentation/index.js";
+import { paintScrollbarCells, validRailCells } from "./scrollbar-paint.js";
 
 export const PINNED_PI_TUI_DAMAGE_GRAMMAR = "@earendil-works/pi-tui@1.5.2:tui-alt-screen-one-write-v1";
 
@@ -69,6 +71,7 @@ const SGR_SEQUENCE = /\u001b\[([0-9:;]*)m/gu;
  */
 export class DamageAwareTerminalAdapter implements TerminalPort {
   readonly #rows = new Map<number, string>();
+  #railCells: readonly TerminalRailCell[] = [];
   readonly #links = new Map<number, ReturnType<DamageAwareTerminalOptions["inspectHyperlinks"]>>();
   #cleanupRevision = 0;
   readonly #cleanupRows = new Set<number>();
@@ -132,7 +135,12 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
    */
   presentedRows(): readonly string[] {
     const presented: string[] = [];
-    for (let row = 1; row <= this.rows; row += 1) presented.push(this.#rows.get(row) ?? "");
+    const cells = new Map(this.#railCells.map(cell => [cell.row, cell]));
+    for (let row = 1; row <= this.rows; row += 1) {
+      const content = this.#rows.get(row) ?? "";
+      const cell = cells.get(row);
+      presented.push(cell === undefined ? content : `${sliceByColumn(content, 0, cell.column - 1, true)}${cell.text}`);
+    }
     return presented;
   }
 
@@ -220,6 +228,18 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
         output = buildDamageWrite(parsed, armed.descriptor, new Set(decision.paintedRows), this.#rows);
       }
     }
+    const railDescriptor = armed?.descriptor;
+    const railFrame = railDescriptor !== undefined && railDescriptor.width === this.columns
+      && railDescriptor.height === this.rows && validRailCells(railDescriptor)
+      && output.startsWith(BEGIN_SYNCHRONIZED_OUTPUT) && CURSOR_SUFFIX.test(output);
+    if (railFrame) {
+      const painted = parsePinnedFullscreenWrite(output);
+      const desiredRows = new Map(this.#rows);
+      for (const row of parsed?.rows ?? []) desiredRows.set(row.row, row.content);
+      output = paintScrollbarCells(output, railDescriptor, this.#railCells, desiredRows,
+        painted === null ? null : new Set(painted.rows.map(row => row.row)),
+        decision.reason === "transformed" || output.includes("\u001b[2J"));
+    }
     const forwarded = this.#canvasBackgroundAnsi === null
       ? output
       : paintTerminalCanvasFrame(output, this.#canvasBackgroundAnsi);
@@ -250,6 +270,7 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
     // Invariant: cache invalidation follows forwarded bytes, not a suppressed clear.
     // A bounded cleanup preserves prior rows and publishes all changed or invalidated rows.
     this.#rememberFrame(armed?.descriptor, cleanup ?? parsed, output);
+    if (railFrame) this.#railCells = railDescriptor.railCells!;
     if (cleanup !== null) {
       this.#cleanedRevision = Math.max(this.#cleanedRevision, coveredRevision);
       if (this.#cleanupRevision === coveredRevision) {
@@ -447,6 +468,7 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
   }
 
   #invalidatePresentation(): void {
+    this.#railCells = [];
     if ([...this.#links.values()].some(state => state.ranges.length > 0) && !this.hyperlinkCleanupPending) {
       this.requestHyperlinkCleanup();
     }

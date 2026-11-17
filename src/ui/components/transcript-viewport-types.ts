@@ -1,3 +1,4 @@
+import type { TerminalRailCell } from "../../contracts/presentation/index.js";
 import type { ScrollbarAppearance, ScrollbarGeometry, ScrollbarStyle } from "./scrollbar.js";
 
 export interface TranscriptPromptAnchor {
@@ -64,6 +65,8 @@ export interface TranscriptViewportFrameInput {
     readonly columnEnd: number;
   }[];
   /** Transient paint-only text that must not participate in frame allocation or copying. */
+  /** Overlay geometry is pending, so no independent rail paint is safe yet. */
+  readonly railOccluded?: boolean;
   readonly frameOverlay?: {
     /** One-based terminal row. */
     readonly row: number;
@@ -112,11 +115,14 @@ export interface TranscriptViewportFrameDescriptor {
   readonly selectionRevision: number;
   /** One-based terminal rows whose source or normalized selection range changed. */
   readonly selectionDamagedRows: readonly number[];
+  readonly railCells?: readonly TerminalRailCell[];
   readonly cause: "initial" | "steady" | "dock-input" | "follow-shift" | "detached" | "geometry-change";
 }
 
 export interface TranscriptViewportFrame {
   readonly rows: readonly string[];
+  /** Runtime row content omits rail glyphs; descriptor railCells owns physical gutter paint. */
+  readonly terminalRows?: readonly string[];
   readonly contentWidth: number;
   readonly scrollTop: number;
   readonly maxScroll: number;

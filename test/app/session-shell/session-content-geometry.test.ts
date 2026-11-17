@@ -80,7 +80,7 @@ function fixture(childRows: number) {
     onSubmit() {}, onInterrupt() {}, onExit() {}, onModelSelect() {}, onThinkingCycle() {},
   }, { quiet: true }, undefined, undefined, "custom-viewport");
   runtime = new PiTuiRuntimeAdapter({
-    root: { render: width => { composed = root.render(width); return composed; },
+    root: { render: width => { composed = root.render(width); return root.viewport.frame?.terminalRows ?? composed; },
       invalidate: () => root.invalidate(), handleInput: data => root.handleInput(data) },
     terminal: damage, mode: "fullscreen", mouse: false,
   });
