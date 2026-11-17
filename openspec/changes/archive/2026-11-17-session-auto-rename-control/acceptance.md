@@ -18,7 +18,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-17-session-auto-rename-control/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-17-session-auto-rename-control/acceptance.md",
   "finalizedDate": "2026-11-17",
-  "specBaseSha": "73058d664224c916bbfd358855175ad829a67c80",
+  "specBaseSha": "4d5f2086d7bd18e6b3476bff82117fd0ccfc9351",
   "acceptanceScenarios": [
     "External applications can persist a per-session automatic-name override without changing the profile or peer sessions.",
     "Disabling automatic naming cancels pending work and preserves the current name; enabling retains ordinary manual-name protection.",
