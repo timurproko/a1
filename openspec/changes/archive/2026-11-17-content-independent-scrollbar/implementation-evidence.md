@@ -14,6 +14,14 @@
 - Source and bin typechecks passed after building the checkout. The full product build passed. Architecture boundaries, session writer protection, product identity, and pinned source provenance passed.
 - Regenerated source-port provenance, public API consumer evidence, and measured startup reachability using the owning tools. The added focused row/painter modules increase eager owned reachability by one net file and about 11 KiB versus the baseline; the pinned Pi public artifact is unchanged. No unit-size limit was raised: cached width/height now share one geometry field, preserving the adapter field-count ceiling.
 
+## CI repair for run 44065961440, attempt 1
+
+The requested failed run was current at finalized head `702f56321a3c7c968b548465d85b394075136cc5`. Its failed jobs exposed missing `.openspec.yaml` archive metadata and a paint-evidence accounting mismatch: the new independently positioned one-cell gutter writes were counted as full-row rewrites. That produced undeclared-row budget failures and duplicate row entries in two hover checkpoints, rather than incorrect physical rendering.
+
+The archive now includes its required spec-driven schema/date metadata. Production damage decisions report the exact independently painted cell coordinates. Terminal evidence distinguishes strictly one-cell narrow paints from whole-row paint; the budget compares every such cell against write-local declared damage, while retaining the existing exact full-row/clear checks. Multi-cell spans, erases, unknown controls, omitted declarations, wrong coordinates, and malformed cell evidence remain failures. Regression coverage includes those negative controls; hover checkpoints still require exactly one full-row update and independently constrain any cell paint to the current gutter.
+
+Local reproduction passed the failing rendering stability file (all 11 workloads and 66 isolated producers), all six hover-checkpoint combinations, 80 focused terminal/damage/budget tests, four producer protocol tests, source/bin typechecks, and changed-code documentation checks. Finalization inspection reports `would-refinalize`; trusted automation regenerates the conditional manifest after the repair push.
+
 ## Known gaps and disposition
 
 - The supplied PNGs contain no original terminal bytes. The exact first screenshot trigger and physical Herdr behavior have not been captured from this environment. Disposition: retain the independent word-joiner/reset counterexamples and emitted-cell regressions as implementation evidence; offer the built candidate for optional Herdr inspection and do not claim a physical-host test or universal behavior from a nonconforming renderer.

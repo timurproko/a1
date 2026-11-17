@@ -237,9 +237,10 @@ export class DamageAwareTerminalAdapter implements TerminalPort {
       const painted = parsePinnedFullscreenWrite(output);
       const desiredRows = new Map(this.#rows);
       for (const row of parsed?.rows ?? []) desiredRows.set(row.row, row.content);
-      output = paintScrollbarCells(output, railDescriptor, this.#railCells, desiredRows,
-        painted === null ? null : new Set(painted.rows.map(row => row.row)),
-        decision.reason === "transformed" || output.includes("\u001b[2J"));
+      const railPaint = paintScrollbarCells(output, railDescriptor, this.#railCells, desiredRows,
+        painted === null ? null : new Set(painted.rows.map(row => row.row)), decision.reason === "transformed" || output.includes("\u001b[2J"));
+      output = railPaint.output;
+      this.#decision = { ...this.#decision, paintedCells: railPaint.cells };
     }
     const forwarded = this.#canvasBackgroundAnsi === null
       ? output

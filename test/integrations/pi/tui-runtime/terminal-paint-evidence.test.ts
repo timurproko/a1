@@ -38,6 +38,21 @@ describe("terminal paint evidence", () => {
     expect(result.cursorPositions.at(-1)).toEqual({ row: 9, column: 4 });
   });
 
+  it("separates strict one-cell chrome from full rows without hiding spans, erases, or unknown controls", () => {
+    const result = classifyTerminalPaint([frame(
+      "\u001b[10;1H\u001b[2Khover\u001b7\u001b[10;60H\u001b[31m┃\u001b[0m\u001b8\u001b[12;4H\u001b[?25l",
+    )]);
+    expect(result.addressedRowWrites).toEqual([10]);
+    expect(result.addressedCellWrites).toEqual([{ row: 10, column: 60 }]);
+    expect(result.rowClears).toBe(1);
+    for (const content of ["two", "\u001b[2K┃", "\u001b[2C┃", "\u001b_Ga=T;AQID\u001b\\┃"]) {
+      const rejected = classifyTerminalPaint([frame(`\u001b[10;60H${content}`)]);
+      expect(rejected.addressedRowWrites).toEqual([10]);
+      expect(rejected.addressedCellWrites).toEqual([]);
+    }
+    expect(classifyTerminalPaint([frame("\u001b[12;4H\u001b7\u001b8\u001b[?25l")]).addressedRowWrites).toEqual([]);
+  });
+
   it("honors synchronized output as one state and exposes intermediate erase states when ignored", async () => {
     const writes = [
       frame("\u001b[2J\u001b[1;1H\u001b[2Kstable\u001b[2;1H\u001b[2Kold"),

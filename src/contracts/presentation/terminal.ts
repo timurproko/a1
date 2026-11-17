@@ -275,6 +275,8 @@ export interface TerminalDamageDecision {
   readonly reason: TerminalDamageDecisionReason;
   readonly shiftRows: number;
   readonly paintedRows: readonly number[];
+  /** Exact independently addressed one-cell paints; separate from full-row rewrites and clears. */
+  readonly paintedCells?: readonly { readonly row: number; readonly column: number }[];
 }
 
 /** What the shell's hyperlink analysis reports for one visible row. */

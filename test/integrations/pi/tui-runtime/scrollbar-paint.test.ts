@@ -205,7 +205,7 @@ describe("physical content-independent scrollbar paint", () => {
       expect(h.terminal.writes).toHaveLength(count);
       const bad = { ...frame.descriptor, railCells: [{ row: 2, column: 40, text: `${ESC}[2J┃` }] };
       expect(validRailCells(bad)).toBe(false);
-      expect(paintScrollbarCells(bytes, bad, [], new Map(), null, false)).toBe(bytes);
+      expect(paintScrollbarCells(bytes, bad, [], new Map(), null, false)).toEqual({ output: bytes, cells: [] });
     } finally { h.screen.dispose(); }
   });
 

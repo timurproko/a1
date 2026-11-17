@@ -38,10 +38,11 @@ export function paintScrollbarCells(
   rows: ReadonlyMap<number, string>,
   dirtyRows: ReadonlySet<number> | null,
   shifted: boolean,
-): string {
-  if (!output.startsWith("\u001b[?2026h") || !output.endsWith(SYNC_END) || !validRailCells(descriptor)) return output;
+): { readonly output: string; readonly cells: readonly Pick<TerminalRailCell, "row" | "column">[] } {
+  const cells: Pick<TerminalRailCell, "row" | "column">[] = [];
+  if (!output.startsWith("\u001b[?2026h") || !output.endsWith(SYNC_END) || !validRailCells(descriptor)) return { output, cells };
   const suffix = output.match(CURSOR_SUFFIX);
-  if (suffix?.index === undefined) return output;
+  if (suffix?.index === undefined) return { output, cells };
   const prior = new Map(previous.map(cell => [cell.row, cell]));
   const next = new Set<number>();
   let paint = "";
@@ -50,14 +51,17 @@ export function paintScrollbarCells(
     const old = prior.get(cell.row);
     if (shifted || dirtyRows === null || dirtyRows.has(cell.row) || old?.column !== cell.column || old.text !== cell.text) {
       paint += `\u001b[${cell.row};${cell.column}H${cell.text}`;
+      cells.push({ row: cell.row, column: cell.column });
     }
   }
   for (const cell of previous) {
     if (next.has(cell.row) || cell.row > descriptor.height || cell.column > descriptor.width
       || dirtyRows === null || dirtyRows.has(cell.row)) continue;
     const content = rows.get(cell.row);
-    if (content !== undefined) paint += `\u001b[${cell.row};${cell.column}H${rowCell(content, cell.column)}`;
+    if (content !== undefined) {
+      paint += `\u001b[${cell.row};${cell.column}H${rowCell(content, cell.column)}`;
+      cells.push({ row: cell.row, column: cell.column });
+    }
   }
-  if (!paint) return output;
-  return `${output.slice(0, suffix.index)}\u001b7${paint}\u001b8${output.slice(suffix.index)}`;
+  return { output: paint ? `${output.slice(0, suffix.index)}\u001b7${paint}\u001b8${output.slice(suffix.index)}` : output, cells };
 }
