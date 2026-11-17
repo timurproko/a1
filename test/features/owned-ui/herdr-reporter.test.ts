@@ -3,7 +3,7 @@ import { mkdtemp, readdir, rm, mkdir, readFile, writeFile, rmdir } from "node:fs
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { HERDR_IDENTITY_LABELS as LABELS, reserveHerdrBinding } from "../../../src/features/owned-ui/herdr-binding.js";
+import { HERDR_DIRECTORY_BINDING_LABEL as CWD_BINDING, HERDR_DIRECTORY_LABEL as CWD, HERDR_IDENTITY_LABELS as LABELS, reserveHerdrBinding } from "../../../src/features/owned-ui/herdr-binding.js";
 import { createHerdrReporter } from "../../../src/features/owned-ui/herdr-reporter.js";
 import type { HerdrCommandPort } from "../../../src/features/owned-ui/herdr-command.js";
 const fixtureSessionId = randomUUID();
@@ -46,14 +46,83 @@ describe("endpoint-ready fenced Core reporting", () => {
     await reporter.dispose(); heartbeat(); reporter.request();
     expect(cancelled).toHaveBeenCalledOnce();
     expect(f.labels()).toEqual({ [`custom.${LABELS.runtime}`]: "legacy", unrelated: "keep" });
-    expect(f.calls.filter(args => args[0] === "label").every(args => args.length === 6)).toBe(true);
+    expect(f.calls.filter(args => args[0] === "label").every(args => args.length === 8)).toBe(true);
+  });
+  it("reports active project replacements and heartbeat without using the process launch directory", async () => {
+    const f = await fixture(), reservation = await f.reserve();
+    let cwd = "C:/Users/me", binding = 1, heartbeat = () => {};
+    const reporter = own({ reservation, identity: () => ({ sessionId: fixtureSessionId, binding, cwd }), command: f.command,
+      schedule(callback) { heartbeat = callback; return () => {}; } });
+    await vi.waitFor(() => expect(f.labels()[CWD]).toBe(cwd)); await tick();
+    for (const next of ["D:/Git/repo/.worktrees/first", "D:/Git/repo/.worktrees/other space # é", "C:/Users/me"]) {
+      cwd = next; binding++; reporter.request();
+      await vi.waitFor(() => expect(f.labels()[CWD]).toBe(next)); await tick();
+    }
+    cwd = "/work/remote/项目"; heartbeat();
+    await vi.waitFor(() => expect(f.labels()[CWD]).toBe(cwd)); await tick();
+    expect(f.calls.filter(args => args[0] === "label").every(args => args.some(arg => arg.startsWith(`${CWD}=`)))).toBe(true);
+    await reporter.dispose(); expect(f.labels()[CWD]).toBeUndefined();
+  });
+  it.each(["D:\\Git\\repo space\\项目", "\\\\server\\share\\project", "/work/project", "/"])("publishes absolute path literally: %s", async cwd => {
+    const f = await fixture(), reservation = await f.reserve();
+    own({ reservation, identity: () => ({ sessionId: fixtureSessionId, binding: 1, cwd }), command: f.command, schedule: () => () => {} });
+    await vi.waitFor(() => expect(f.labels()[CWD]).toBe(cwd));
+    expect(f.calls.find(args => args[0] === "label")).toContain(`${CWD}=${cwd}`);
+    expect(f.labels()[CWD_BINDING]).toBe(`${reservation.runtimeId}/${fixtureSessionId}/${f.labels()[LABELS.at]}`);
+  });
+  it.each([undefined, "", "relative/path", "C:relative", "\\root-relative", "/bad\u001bpath", "/bad\u0085path", "/bad\u2028path", `/${"é".repeat(2048)}`])("omits invalid directory without withholding identity: %j", async cwd => {
+    const f = await fixture(), reservation = await f.reserve();
+    own({ reservation, identity: () => ({ sessionId: fixtureSessionId, binding: 1, ...(cwd === undefined ? {} : { cwd }) }), command: f.command, schedule: () => () => {} });
+    await vi.waitFor(() => expect(f.labels()[LABELS.session]).toBe(fixtureSessionId));
+    expect(f.labels()[CWD]).toBeUndefined(); expect(f.labels()[CWD_BINDING]).toBeUndefined();
+  });
+  it("does not publish a directory captured before a binding replacement during the Core read", async () => {
+    const f = await fixture(), reservation = await f.reserve();
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    let cwd = "/work/old", binding = 1;
+    const reporter = own({ reservation, identity: () => ({ sessionId: fixtureSessionId, binding, cwd }), command: async args => {
+      if (args[0] === "get") { entered.resolve(); await release.promise; }
+      return f.command(args);
+    }, schedule: () => () => {} });
+    await entered.promise; cwd = "/work/new"; binding++; release.resolve(); await tick();
+    expect(f.calls.some(args => args[0] === "label")).toBe(false);
+    reporter.request(); await vi.waitFor(() => expect(f.labels()[CWD]).toBe(cwd));
+  });
+  it("preserves a foreign directory edit even when the identity triple still matches", async () => {
+    const f = await fixture(), reservation = await f.reserve();
+    const reporter = own({ reservation, identity: () => ({ sessionId: fixtureSessionId, binding: 1, cwd: "/work/owned" }), command: f.command, schedule: () => () => {} });
+    await vi.waitFor(() => expect(f.labels()[CWD]).toBe("/work/owned")); await tick();
+    f.labels()[CWD] = "/work/foreign"; const before = JSON.stringify(f.labels());
+    reporter.request(); await tick(); await reporter.dispose();
+    expect(JSON.stringify(f.labels())).toBe(before);
+  });
+  it("preserves foreign directory publication tokens during refresh and cleanup", async () => {
+    const f = await fixture(), reservation = await f.reserve();
+    const reporter = own({ reservation, identity: () => ({ sessionId: fixtureSessionId, binding: 1, cwd: "/work/owned" }), command: f.command, schedule: () => () => {} });
+    await vi.waitFor(() => expect(f.labels()[CWD_BINDING]).toBeDefined()); await tick();
+    f.labels()[CWD_BINDING] = "foreign"; const before = JSON.stringify(f.labels());
+    reporter.request(); await tick(); await reporter.dispose(); expect(JSON.stringify(f.labels())).toBe(before);
+  });
+  it("does not adopt an orphan directory label", async () => {
+    const f = await fixture(), reservation = await f.reserve(); f.labels()[CWD] = "/work/foreign";
+    const reporter = own({ reservation, identity: () => ({ sessionId: fixtureSessionId, binding: 1, cwd: "/work/owned" }), command: f.command, schedule: () => () => {} });
+    await tick(); await reporter.dispose(); expect(f.calls.some(args => args[0] === "label")).toBe(false);
+  });
+  it("upgrades an acknowledged identity-only predecessor publication", async () => {
+    const f = await fixture(), old = await f.reserve();
+    own({ reservation: old, identity: () => ({ sessionId: fixtureSessionId, binding: 1 }), command: f.command, schedule: () => () => {} });
+    await vi.waitFor(() => expect(f.labels()[LABELS.runtime]).toBe(old.runtimeId)); await tick();
+    const next = await f.reserve();
+    own({ reservation: next, identity: () => ({ sessionId: fixtureSessionId, binding: 1, cwd: "/work/new" }), command: f.command, schedule: () => () => {} });
+    await vi.waitFor(() => expect(f.labels()[CWD]).toBe("/work/new"));
+    expect(f.labels()[LABELS.runtime]).toBe(next.runtimeId);
   });
   it("fences a delayed older start, all older callbacks, and stale reclaim after successor exit", async () => {
     const f = await fixture(), old = await f.reserve(), newer = await f.reserve();
-    const next = own({ reservation: newer, identity: () => ({ sessionId: fixtureSessionId, binding: 1 }), command: f.command, schedule: () => () => {} });
+    const next = own({ reservation: newer, identity: () => ({ sessionId: fixtureSessionId, binding: 1, cwd: "/work/new" }), command: f.command, schedule: () => () => {} });
     await vi.waitFor(() => expect(f.labels()[LABELS.runtime]).toBe(newer.runtimeId)); await tick();
     const before = JSON.stringify(f.labels());
-    const stale = own({ reservation: old, identity: () => ({ sessionId: fixtureSessionId, binding: 99 }), command: f.command, schedule: () => () => {} });
+    const stale = own({ reservation: old, identity: () => ({ sessionId: fixtureSessionId, binding: 99, cwd: "/work/old" }), command: f.command, schedule: () => () => {} });
     stale.request(); await tick(); await stale.dispose();
     expect(JSON.stringify(f.labels())).toBe(before);
     await next.dispose(); stale.request(); await tick();
