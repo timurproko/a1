@@ -5,7 +5,7 @@ import { lstat, mkdir, readFile, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { readClaimGate, trackClaimGateChild, tryAcquireClaimGate } from "./claim-gate-core.mjs";
+import { readClaimGate, retryClaimGateContention, trackClaimGateChild, tryAcquireClaimGate } from "./claim-gate-core.mjs";
 import { assertWorktreeCleanupSnapshot, captureWorktreeCleanupSnapshot } from "./worktree-cleanup-snapshot.mjs";
 
 // Compatibility: standalone repository cleanup reads the same identity data without requiring compiled TypeScript or an installed runtime.
@@ -63,7 +63,7 @@ async function requireUnclaimed(directory, snapshot) {
 }
 
 /** Validate a delegated capability against the still-present non-expiring gate, never against a timer or parent PID. */
-async function delegated(directory, expected, environment) {
+async function delegated(directory, expected, environment, signal) {
   const local = active.getStore(), serialized = environment[ENVIRONMENT_KEY];
   const reservation = local ?? (serialized ? parseReservation(serialized) : null);
   if (!reservation) return null;
@@ -72,7 +72,7 @@ async function delegated(directory, expected, environment) {
   assertWorktreeCleanupSnapshot(reservation.expected, expected);
   const stat = await lstat(reservation.authority);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024 * 1024) throw failure("worktree-cleanup-reservation", "cleanup authority is unavailable; files were retained");
-  const stored = readClaimGate(reservation.authority);
+  const stored = await retryClaimGateContention(() => readClaimGate(reservation.authority), { signal });
   if (stored?.nonce !== reservation.nonce || stored.binding !== reservationBinding(reservation)) throw failure("worktree-cleanup-reservation", "cleanup approval or claim namespace changed; files were retained");
   return reservation;
 }
@@ -111,7 +111,7 @@ async function withTargetExclusion(expected, options, operation, borrow) {
   const metadata = await lstat(location), directory = await realpath(location);
   if (!metadata.isDirectory() || metadata.isSymbolicLink() || key(directory) !== key(location)) throw failure("worktree-coordination-boundary", "the target gate directory is linked or replaced");
   const environment = options.environment ?? process.env;
-  const borrowed = borrow ? await delegated(directory, expected, environment) : null;
+  const borrowed = borrow ? await delegated(directory, expected, environment, options.signal) : null;
   if (borrowed && options.dataDir !== undefined && key(options.dataDir) !== key(borrowed.dataDir)) throw failure("worktree-cleanup-reservation", "cleanup claim namespace differs from its approval");
   let gate;
   if (!borrowed) {
@@ -128,9 +128,9 @@ async function withTargetExclusion(expected, options, operation, borrow) {
     options.signal?.throwIfAborted();
     if (borrow) await assertApprovedCleanupTarget(expected, { environment });
     const reservation = borrowed ?? Object.freeze({ authority: gate.path, nonce: gate.nonce, expected, dataDir: dirname(cleanupClaimDirectory(options)) });
-    if (gate) gate.bind(reservationBinding(reservation));
+    if (gate) await retryClaimGateContention(() => gate.bind(reservationBinding(reservation)), { signal: options.signal });
     return await active.run(reservation, operation);
-  } finally { gate?.release(); }
+  } finally { if (gate) await retryClaimGateContention(() => gate.release()); }
 }
 
 /** Check the original runtime approval as well as the current repository caller's captured target. */
@@ -161,7 +161,7 @@ export async function executeCleanupCommand(command, args, options = {}) {
   try {
     // Concurrency: reserve synchronously before any await, so an enclosing callback's error cannot release ahead of a pending spawn.
     if (local) closed = trackClaimGateChild(reservation);
-    if (reservation) await delegated(join(reservation.expected.commonDir, "worktree-claim-gates"), reservation.expected, environment);
+    if (reservation) await delegated(join(reservation.expected.commonDir, "worktree-claim-gates"), reservation.expected, environment, options.signal);
     if (options.protectTarget) {
       if (!reservation) throw failure("worktree-cleanup-reservation", "destructive work requires an unclaimed-target reservation");
       await assertApprovedCleanupTarget(reservation.expected, { environment });

@@ -1,5 +1,9 @@
 # Contract reconciliation
 
+## Release contention correction requested at 2cd45e1f
+
+Fetched the same current topic/base before editing; no newer commits were present. The maintainer authorizes a bounded correction to premature release completion, preserving the existing recovery design and all previous completed outcomes. R14/R15/R19 still forbid timer/PID/force recovery. Keep synchronous handles retryable until committed retirement; global/target finally paths must retain and await those exact handles through temporary native SQLite contention, with matching bind/delegation treatment. Add only group-5 task 5.9 and its project-owned scenario/evidence. Kernel proof, gate format, original snapshot binding, child exclusion, frozen bytes/cases/adapters and release/OpenSpec framework policies remain unchanged. Trusted refinalization owns canonical regeneration. No merge, publication, live installation, production recovery, user-process stop or XR change is authorized.
+
 ## CI-only packing prerequisite after da98f947
 
 Under R06/R12/R19, repair the new regression wrapper's undeclared hosted cache dependency rather than enlarging deadlines or changing workflows: record/use its installed npm 11 offline, refuse npm 10, and retain every packaged assertion. Final candidate verification still uses the pinned npm prerequisite. Required run `44120774860` failed on `ENOTCACHED` before recovery probes; later exact-head checks/package evidence must be separately recorded. Source task 5.8 remains written; its failing broad-run prerequisite is repaired in a new commit, not hidden by unchecking completed source tasks.

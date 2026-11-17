@@ -31,6 +31,16 @@ it("ships the supported standalone worktree modules and exact public declaration
   expect(typeof execution.executeCleanupCommand).toBe("function");
 });
 
+it("refuses an unverified regression build receipt instead of packing stale output", async () => {
+  const directory = await ownedFixtureRoot("invalid-worktree-build-receipt-");
+  try {
+    const receipt = resolve(directory, "receipt.json"); await writeFile(receipt, "{}");
+    await expect(exec(process.execPath, ["scripts/development/verify-worktree-package.mjs", "--allow-dirty", "--regression-installed-npm", "--verified-build-receipt", receipt], {
+      cwd: root, timeout: 25_000, maxBuffer: 2 * 1024 * 1024,
+    })).rejects.toMatchObject({ stderr: expect.stringContaining("validation prerequisite receipt is malformed") });
+  } finally { await rm(directory, { recursive: true, force: true }); }
+}, 30_000);
+
 it("type-checks an external consumer against built declarations without skipping library validation", async () => {
   const parent = resolve(root, ".artifacts/test"); await mkdir(parent, { recursive: true });
   const directory = await mkdtemp(resolve(parent, "worktree-public-contract-"));

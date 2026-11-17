@@ -7,6 +7,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { walkTarEntries } from '../release/packed-tar.mjs';
+import { verifyBuildReceipt } from '../release/validation-receipt.mjs';
 
 // Provenance: diagnostic-only fresh candidate build, local tarball/extraction, no npm install/publish or live runtime.
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -22,6 +23,9 @@ const manifest = JSON.parse(await readFile(join(root,'package.json'),'utf8'));
 assert(/^npm@\d+\.\d+\.\d+$/u.test(manifest.packageManager),'unknown package manager pin');
 const installedNpm = run('npm',['--version']).trim();
 const installedPacking = process.argv.includes('--regression-installed-npm');
+const receiptIndex = process.argv.indexOf('--verified-build-receipt');
+const buildReceipt = receiptIndex < 0 ? null : process.argv[receiptIndex+1];
+if (receiptIndex >= 0) assert(installedPacking && buildReceipt && !buildReceipt.startsWith('--'),'verified build reuse is explicit and regression-only');
 if (installedPacking) assert(/^11\.\d+\.\d+$/u.test(installedNpm),'regression packing requires installed npm 11; npm 10 does not reliably honor --ignore-scripts');
 const packing = args => installedPacking || installedNpm === manifest.packageManager.slice(4) ? run('npm',args)
   : run('npm',['exec','--offline',`--package=${manifest.packageManager}`,'--','npm',...args]);
@@ -44,7 +48,15 @@ const report = { schema:'worktree-candidate-diagnostic-v1', sourceSha, sourceTre
   commands:['npm run build:core','npm pack --ignore-scripts --json --pack-destination <isolated-output>',
     'node --test --test-concurrency=1 <isolated-consumer>/consumer.mjs','node node_modules/typescript/lib/tsc.js --noEmit --strict --module NodeNext --moduleResolution NodeNext --target ES2024 --types node --typeRoots <repository>/node_modules/@types <isolated-consumer>/usage.mts'] };
 try {
-  await writeFile(join(output,'build.log'),run('npm',['run','build:core']));
+  if (buildReceipt) {
+    const receipt = await verifyBuildReceipt(resolve(buildReceipt),{repository:root});
+    report.build = {mode:'verified-existing-build',receiptId:receipt.receiptId};
+    report.commands[0] = 'verifyBuildReceipt(<explicit-receipt>, {repository})';
+    await writeFile(join(output,'build.log'),JSON.stringify(report.build)+'\n');
+  } else {
+    await writeFile(join(output,'build.log'),run('npm',['run','build:core']));
+    report.build = {mode:'fresh-build'};
+  }
   const metadata = JSON.parse(packing(['pack','--ignore-scripts','--json','--pack-destination',output]))[0];
   assert.equal(metadata.name,manifest.name); assert.equal(metadata.version,manifest.version);
   assert(/^[A-Za-z0-9._-]+\.tgz$/u.test(metadata.filename),'unsafe candidate filename');
@@ -71,6 +83,7 @@ try {
   report.witnessSha256 = hash(witness);
   await copyFile(join(root,'test/fixtures/worktree-package-consumer.mjs'),join(consumer,'consumer.mjs'));
   await copyFile(join(root,'test/fixtures/worktree-package-worker.mjs'),join(consumer,'worker.mjs'));
+  await copyFile(join(root,'test/fixtures/claim-gate-contention-worker.mjs'),join(consumer,'database-worker.mjs'));
   await writeFile(join(consumer,'usage.mts'),`import { captureWorktreeCleanupSnapshot, type WorktreeCleanupSnapshot } from '${manifest.name}/dist/foundation/lifecycle/worktree-cleanup-snapshot.mjs';
 import { executeUnclaimedWorktreeCleanup, withUnclaimedWorktree, executeCleanupCommand, type CleanupExecutionOptions } from '${manifest.name}/dist/foundation/lifecycle/worktree-claim-boundary.mjs';
 const approved: WorktreeCleanupSnapshot = await captureWorktreeCleanupSnapshot('typecheck-only');
@@ -84,6 +97,7 @@ void version; void one; void two;
   const log = run(process.execPath,['--test','--test-concurrency=1',join(consumer,'consumer.mjs')],consumer,600_000);
   await writeFile(join(output,'consumer.log'),log);
   assert(/(?:# fail 0|ℹ fail 0)/u.test(log),'consumer did not report zero failures');
+  if (buildReceipt) await verifyBuildReceipt(resolve(buildReceipt),{repository:root});
   report.consumerPassed = true;
   report.consumerLogSha256 = hash(log);
   // Provenance: metadata-only changes by trusted finalization still require a separately named package/head.

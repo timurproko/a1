@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { lstat, mkdir, open, readdir, realpath, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { tryAcquireClaimGate } from "./claim-gate.js";
+import type { ClaimGateHandle } from "./claim-gate-core.mjs";
+import { retryClaimGateContention, tryAcquireClaimGate } from "./claim-gate.js";
 
 interface ClaimLockOptions { readonly signal?: AbortSignal; readonly lockTimeoutMs?: number }
 const FILES = new Set(["owner.json", "owner.next", "recovery.json", "recovery.next"]);
@@ -34,7 +35,7 @@ export async function withSessionClaimSnapshot<T>(directory: string, options: Cl
       } catch (error) {
         if (error instanceof Error && (error.name === "AbortError" || ("code" in error && String(error.code).startsWith("worktree-")))) throw error;
         throw failure("worktree-coordination-io", "cannot read worktree coordination; check permissions and filesystem availability", error);
-      } finally { gate.release(); }
+      } finally { await retryClaimGateContention(() => gate.release()); }
     }
     if (Date.now() >= deadline) throw failure("worktree-claim-busy", BUSY_GATE);
     await delay(20, undefined, { signal: options.signal });
@@ -58,7 +59,7 @@ export async function withSessionClaimLock<T>(directory: string, options: ClaimL
   const authority = join(canonical, "mutation.authority");
   const barrier = join(canonical, "mutation.lock");
   const deadline = Date.now() + (options.lockTimeoutMs ?? 2_000);
-  let gate;
+  let gate: ClaimGateHandle | undefined;
   while (gate === undefined) {
     options.signal?.throwIfAborted();
     const acquired = tryAcquireClaimGate(authority);
@@ -66,6 +67,7 @@ export async function withSessionClaimLock<T>(directory: string, options: ClaimL
     if (Date.now() >= deadline) throw failure("worktree-claim-busy", BUSY_GATE);
     await delay(Math.min(20, Math.max(1, deadline - Date.now())), undefined, { signal: options.signal });
   }
+  const heldGate = gate;
   let operationStarted = false;
   try {
     options.signal?.throwIfAborted();
@@ -108,7 +110,7 @@ export async function withSessionClaimLock<T>(directory: string, options: ClaimL
     if (error instanceof Error && (error.name === "AbortError" || ("code" in error && String(error.code).startsWith("worktree-")))) throw error;
     throw failure("worktree-coordination-io", "worktree coordination I/O failed; check A1 data-directory permissions and filesystem availability, then retry", error);
   } finally {
-    gate.release();
+    await retryClaimGateContention(() => heldGate.release());
   }
 }
 

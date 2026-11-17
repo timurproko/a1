@@ -1,3 +1,4 @@
+export function retryClaimGateContention<T>(operation: () => T, options?: { readonly signal?: AbortSignal }): Promise<T>;
 export interface ClaimGateInspection { readonly path: string; readonly state: string; readonly nonce?: string | null; readonly physical?: string; readonly detail?: string }
 export function readClaimGate(path: string): { nonce: string; binding?: string } | null;
 export function inspectClaimGate(path: string): ClaimGateInspection;

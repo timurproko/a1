@@ -11,6 +11,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { captureWorktreeCleanupSnapshot } from '@timurproko/a1/dist/foundation/lifecycle/worktree-cleanup-snapshot.mjs';
 import { executeUnclaimedWorktreeCleanup, withUnclaimedWorktree, executeCleanupCommand } from '@timurproko/a1/dist/foundation/lifecycle/worktree-claim-boundary.mjs';
 // Provenance: these imports only exercise the packaged claim producer and compatibility; XR consumes the two modules above.
+import { withWorktreeClaimExclusion } from '@timurproko/a1/dist/foundation/lifecycle/worktree-claim-boundary.mjs';
 import * as context from '@timurproko/a1/dist/foundation/lifecycle/session-repository-context.js';
 import { withSessionClaimSnapshot, withSessionClaimLock } from '@timurproko/a1/dist/foundation/lifecycle/session-claim-lock.js';
 import { requestSessionWorktreeCompletion, requestSessionWorktreeLocalRemoval, settleSessionWorktreeCompletion } from '@timurproko/a1/dist/foundation/lifecycle/session-worktree-completion.js';
@@ -40,6 +41,11 @@ async function fixture(t, extra = {}) {
   const file = join(directory,'input.json'); await writeFile(file,JSON.stringify(data));
   const handles = [], pids = new Set();
   const start = mode => { const child = spawn(process.execPath,[worker,mode,file],{cwd:directory,stdio:['ignore','pipe','pipe','ipc']}); handles.push(child); child.stderr.resume(); child.stdout.resume(); return child; };
+  const contend = (mode, gate, protectedPath = '', stopPath = '') => {
+    const child=spawn(process.execPath,[fileURLToPath(new URL('./database-worker.mjs',import.meta.url)),mode,gate,
+      import.meta.resolve('@timurproko/a1/dist/foundation/lifecycle/claim-gate-core.mjs'),protectedPath,stopPath],{cwd:directory,stdio:['ignore','pipe','pipe','ipc']});
+    handles.push(child);child.stderr.resume();child.stdout.resume();return child;
+  };
   const actor = async () => { const child = start('attach'); await once(child,'message'); return async command => { const reply = once(child,'message'); child.send(command); return (await reply)[0]; }; };
   const leaf = async () => { await wait(data.ready); const value = JSON.parse(await readFile(data.ready,'utf8')); pids.add(value.pid); return value; };
   t.after(async () => {
@@ -49,7 +55,7 @@ async function fixture(t, extra = {}) {
     await rm(directory,{recursive:true,force:true,maxRetries:10,retryDelay:100});
   });
   const normalized = process.platform === 'win32' ? resolve(path).toLowerCase() : resolve(path);
-  return { ...data, directory, file, git, start, actor, leaf, gate: join(snapshot.commonDir,'worktree-claim-gates',createHash('sha256').update(normalized).digest('hex')+'.gate') };
+  return { ...data, directory, file, git, start, contend, actor, leaf, gate: join(snapshot.commonDir,'worktree-claim-gates',createHash('sha256').update(normalized).digest('hex')+'.gate') };
 }
 const probe = (name, fn) => test(name,{timeout:60_000},fn);
 const gateActive = path => process.platform === 'win32' ? readClaimGate(path) !== null : exists(path);
@@ -57,6 +63,59 @@ async function recoverable(path) {
   const until = Date.now()+20_000;
   for (;;) { const value=inspectClaimGate(path); if(value.state==='recoverable') return value; assert(Date.now()<until,JSON.stringify(value)); await delay(50); }
 }
+probe('packaged lifecycle retirement waits for temporary BEGIN/COMMIT contention while its owner stays alive', async t => {
+  if(process.platform!=='win32' || process.arch!=='x64'){t.skip('Windows SQLite authority only');return;}
+  const f=await fixture(t), directory=join(f.dataDir,'session-worktree-claims');
+  const global=join(directory,'mutation.authority.gate');
+  const abort=new AbortController();
+  const cases=[
+    ['global mutation',global,'hold',run=>withSessionClaimLock(directory,{signal:abort.signal},run)],
+    ['global snapshot',global,'read',run=>withSessionClaimSnapshot(directory,{},run)],
+    ['target cleanup',f.gate,'hold',run=>withUnclaimedWorktree(f.snapshot,{dataDir:f.dataDir},run)],
+    ['target attachment',f.gate,'read',run=>withWorktreeClaimExclusion(f.snapshot,{dataDir:f.dataDir},run)],
+  ];
+  for(const [name,gate,mode,run] of cases){
+    let blocker, settled=false, entered;const ready=new Promise(resolve=>{entered=resolve;});
+    const outcome=run(async()=>{blocker=f.contend(mode,gate);assert.deepEqual((await once(blocker,'message'))[0],{locked:true});entered();})
+      .then(()=>{settled=true;return {ok:true};},error=>{settled=true;return {error};});
+    await ready;if(name==='global mutation')abort.abort();await delay(50);assert.equal(settled,false,`${name} lost its handle instead of awaiting retirement`);
+    const closed=once(blocker,'close');blocker.send('commit');await closed;
+    assert.deepEqual(await outcome,{ok:true});assert.equal(readClaimGate(gate),null);
+    const successor=tryAcquireClaimGate(gate.slice(0,-5));assert(successor,`${name} stranded live authority`);successor.release();
+  }
+  await withSessionClaimLock(directory,{},async()=>{});await withUnclaimedWorktree(f.snapshot,{dataDir:f.dataDir},async()=>{});
+  assert.equal(await exists(f.path),true);assert.equal(await f.git(f.primary,['rev-parse','fix/task']),f.snapshot.head);
+});
+probe('packaged delegation retains its pending intent through database contention before destructive spawn', async t => {
+  if(process.platform!=='win32' || process.arch!=='x64'){t.skip('Windows SQLite authority only');return;}
+  const f=await fixture(t), spawned=join(f.directory,'spawned');
+  await withUnclaimedWorktree(f.snapshot,{dataDir:f.dataDir},async()=>{
+    const blocker=f.contend('hold',f.gate);assert.deepEqual((await once(blocker,'message'))[0],{locked:true});
+    let settled=false;const issued=executeCleanupCommand(process.execPath,['-e',"require('node:fs').writeFileSync(process.argv[1],'done')",spawned],{cwd:f.primary,protectTarget:true})
+      .then(()=>{settled=true;return {ok:true};},error=>{settled=true;return {error};});
+    await delay(50);assert.equal(settled,false);assert.equal(await exists(spawned),false);
+    assert.equal((await (await import('node:fs/promises')).readdir(f.gate+'.children')).length,1);
+    const closed=once(blocker,'close');blocker.send('commit');await closed;assert.deepEqual(await issued,{ok:true});
+  });
+  assert.equal(await readFile(spawned,'utf8'),'done');assert.equal(readClaimGate(f.gate),null);
+});
+probe('packaged production acquisition contention never overlaps protected work or strands a live owner', async t => {
+  if(process.platform!=='win32' || process.arch!=='x64'){t.skip('Windows SQLite authority only');return;}
+  const f=await fixture(t), directory=join(f.dataDir,'session-worktree-claims');
+  for(const [name,gate,run] of [
+    ['global',join(directory,'mutation.authority.gate'),operation=>withSessionClaimLock(directory,{},operation)],
+    ['target',f.gate,operation=>withUnclaimedWorktree(f.snapshot,{dataDir:f.dataDir},operation)],
+  ]){
+    const protectedPath=join(f.directory,name+'.protected'),stopPath=join(f.directory,name+'.stop');let contender,stats;
+    for(let round=0;round<3;round++)await run(async()=>{
+      await writeFile(protectedPath,'protected work');
+      if(!contender){contender=f.contend('compete',gate,protectedPath,stopPath);assert.deepEqual((await once(contender,'message'))[0],{ready:true});stats=once(contender,'message');}
+      await delay(10);await rm(protectedPath);
+    });
+    const closed=once(contender,'close');await writeFile(stopPath,'stop');const [result]=await stats;assert(result.attempts>0);assert.equal(result.overlaps,0);assert.equal((await closed)[0],0);
+    await run(async()=>{});assert.equal(readClaimGate(gate),null);
+  }
+});
 probe('packaged attach/detach/resume retains owned dirty work and blocks cleanup of a live claim', async t => {
   const f = await fixture(t), actor = await f.actor();
   assert.equal((await actor('attach')).attached,true); await writeFile(join(f.path,'dirty.txt'),'owned work');

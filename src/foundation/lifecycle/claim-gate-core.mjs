@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, linkSync, unlinkSync } from "node:fs";
 import { dirname, join, resolve, toNamespacedPath } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { setTimeout as delay } from "node:timers/promises";
 import { tryAcquireClaimGate as legacyAcquire, trackClaimGateChild } from "./claim-gate-legacy.mjs";
 import { assertClaimGateVolume, claimGateLifetime, inspectClaimGateLifetime } from "./claim-gate-witness.mjs";
 
@@ -55,7 +56,26 @@ function transaction(path, create, operation) {
   try { const result = operation(store); store.check(); store.db.exec("COMMIT"); return result; }
   finally { store.db.close(); }
 }
-const busy = error => String(error?.message).includes("database is locked");
+const busy = error => error?.code === "ERR_SQLITE_ERROR" && [5, 6].includes(error.errcode & 0xff);
+
+/** Retain the caller's exact capability through temporary SQLite contention, never retry identity/child/proof failures. */
+export async function retryClaimGateContention(operation, { signal } = {}) {
+  for (;;) {
+    signal?.throwIfAborted();
+    try { return operation(); }
+    catch (error) { if (!busy(error)) throw error; }
+    await delay(20, undefined, { signal });
+  }
+}
+function ownedTransaction(path, nonce, physical, operation) {
+  const committed = transaction(path, false, store => {
+    assertGeneration(store, nonce);
+    if (store.physical !== physical) throw fail("gate identity changed; stale authority cannot mutate its successor");
+    operation(store);
+    return true;
+  });
+  if (committed !== true) throw fail("gate authority disappeared; retirement is unverifiable");
+}
 function assertGeneration(store, nonce) {
   if (store.value?.nonce !== nonce) throw fail("gate generation changed; stale authority cannot mutate its successor");
 }
@@ -81,22 +101,22 @@ export function tryAcquireClaimGate(path) {
     return transaction(gate, true, store => {
       if (store.value) return null;
       if (childPaths(gate, null).length) throw fail("orphan child intents lack authority; retained");
-      const nonce = randomUUID(), value = { schema, nonce, pid: process.pid, lifetime };
+      const nonce = randomUUID(), physical = store.physical, value = { schema, nonce, pid: process.pid, lifetime };
       store.db.prepare("INSERT INTO authority VALUES (1, ?)").run(JSON.stringify(value));
       let released = false, bound = false;
       return { path: gate, nonce,
         bind(binding) {
           if (released || bound || !/^[a-f0-9]{64}$/u.test(binding)) throw fail("worktree gate binding is unavailable");
-          transaction(gate, false, current => { assertGeneration(current, nonce); current.db.prepare("UPDATE authority SET value=? WHERE id=1").run(JSON.stringify({ ...current.value, binding })); }); bound = true;
+          ownedTransaction(gate, nonce, physical, current => { current.db.prepare("UPDATE authority SET value=? WHERE id=1").run(JSON.stringify({ ...current.value, binding })); });
+          bound = true;
         },
         release() {
           if (released) return;
-          released = true;
-          transaction(gate, false, current => {
-            assertGeneration(current, nonce);
+          ownedTransaction(gate, nonce, physical, current => {
             if (childPaths(gate, nonce).length) throw Object.assign(new Error("cleanup descendants are not proven stopped; gate retained"), { code: "worktree-cleanup-child-unverifiable" });
             current.db.exec("DELETE FROM authority");
           });
+          released = true;
         },
       };
     });

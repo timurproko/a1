@@ -55,3 +55,4 @@ The maintainer-approved paired R11 clarification in `r11-clarification.md` resol
 - [x] 5.6 Add reproducible isolated candidate-package/ordinary-Node consumer verification, recording source/package identities and compatibility/crash limitations without release or live adoption claims.
 - [x] 5.7 Reproduce the Windows wrapper/footer gaps, correct evidenced defects or resource causes without larger deadlines, and publish supported XR runtime-confirmation/stop-upgrade-restart sequencing.
 - [x] 5.8 Add generation-bound Windows orphan recovery with kernel-backed holder/descendant lifetime evidence, crash-safe serialization, packaged process regressions and explicit historical/platform compatibility boundaries.
+- [x] 5.9 Keep exact gate handles retryable until committed retirement and await transient SQLite contention in global/target finally, binding and delegation paths; retain fail-closed identity/child/proof errors and add real-process contention regressions.
