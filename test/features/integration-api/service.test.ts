@@ -18,7 +18,7 @@ describe("shared integration application authority", () => {
     const services = { profile: vi.fn(), session: vi.fn() };
     const capabilities = await executeIntegrationRequest(request("capabilities"), services);
     expect(capabilities).toMatchObject({ version: 1, id: "request-1", type: "response", command: "capabilities", success: true,
-      data: { operations: ["capabilities", "settings.list", "settings.get", "settings.update", "session.get", "session.lifecycle", "session.exit"], launchColor: true, terminalIdentity: true, lifecycle: true } });
+      data: { operations: ["capabilities", "settings.list", "settings.get", "settings.update", "session.get", "session.lifecycle", "session.exit", "session.rename"], launchColor: true, terminalIdentity: true, lifecycle: true } });
     const descriptors = await executeIntegrationRequest(request("settings.list"), services);
     expect(descriptors.data).toMatchObject({ settings: [
       { id: "defaultAccentColor", scope: "profile", application: "next-session" },

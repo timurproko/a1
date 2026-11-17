@@ -18,6 +18,8 @@ export interface OwnedUiSessionNameCompletion {
 /** Engine operations; repository coordination and product policy belong to the caller. */
 export interface OwnedUiSessionNamingPort {
   state(): OwnedUiSessionNameState | null;
+  /** Manual compare-and-apply through the ordinary name owner; false means the captured state no longer applies. */
+  rename?(expected: OwnedUiSessionNameState, name: string): boolean;
   complete(request: OwnedUiSessionNameCompletion): Promise<string | null>;
   /** Synchronous compare-and-apply, called only inside the caller's repository-context guard. */
   apply(expected: OwnedUiSessionNameState, name: string, context: string): boolean;
