@@ -23,7 +23,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-14-simplify-change-delivery/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-14-simplify-change-delivery/acceptance.md",
   "finalizedDate": "2026-11-14",
-  "specBaseSha": "ec189803f98bb65776866de9676a53de8154ed17",
+  "specBaseSha": "73058d664224c916bbfd358855175ad829a67c80",
   "acceptanceScenarios": [
     "A planner publishing from outside a checkout creates only the selected change artifacts and an unchecked draft; retrying a lost response reuses the same branch and PR, while a stale expected head preserves existing remote work.",
     "With compatible A1 support, resuming an existing proposal retains its branch history and owned dirty edits; a failed attachment or foreign live owner prevents implementation edits without falling back to primary or running dependency setup.",
