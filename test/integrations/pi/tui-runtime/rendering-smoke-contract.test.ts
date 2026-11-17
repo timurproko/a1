@@ -42,7 +42,7 @@ function corruptCheckpoint(matrix: RenderingMatrixResult, transform: (checkpoint
 function fixtureMatrix(): RenderingMatrixResult {
   const checkpoint = {
     name: "chunk",
-    paint: { writes: 1, frames: 1, bytes: 1, durationMs: 0, fullScreenClears: 0, rowClears: 0, addressedRowWrites: [],
+    paint: { writes: 1, frames: 1, bytes: 1, durationMs: 0, fullScreenClears: 0, rowClears: 0, addressedRowWrites: [], addressedCellWrites: [],
       scrollRegions: [], scrollUpRows: 0, scrollDownRows: 0, synchronizedUpdates: { begins: 1, ends: 1, balanced: true },
       cursorPositions: [], causes: {}, capturedWrites: [], captureTruncated: false },
     cellFrame: { rows: ["x"], cursor: { row: 1, column: 1 } },

@@ -42,6 +42,9 @@ export function evaluateRenderingBudgets(matrix: RenderingMatrixResult): Renderi
             if (write.damageDecision?.reason === "suppressed-redundant-clear" && write.paint.fullScreenClears > 0) {
               violations.push(`${writeLabel}: redundant clear was not suppressed`);
             }
+            if (JSON.stringify(write.paint.addressedCellWrites) !== JSON.stringify(write.damageDecision?.paintedCells ?? [])) {
+              violations.push(`${writeLabel}: independently addressed cells disagree with declared cell damage`);
+            }
             if (write.damageDecision?.reason === "transformed") {
               if (write.paint.scrollUpRows !== write.damageDecision.shiftRows) {
                 violations.push(`${writeLabel}: transformed shift disagrees with terminal movement`);
@@ -166,7 +169,8 @@ function hasCompleteWriteEvidence(checkpoint: RenderingMatrixCheckpoint, firstWr
       const field = key as "begins" | "ends";
       return writes.reduce((sum, write) => sum + write.paint.synchronizedUpdates[field], 0) === checkpoint.paint.synchronizedUpdates[field];
     })
-    && JSON.stringify(writes.flatMap(write => write.paint.addressedRowWrites)) === JSON.stringify(checkpoint.paint.addressedRowWrites);
+    && JSON.stringify(writes.flatMap(write => write.paint.addressedRowWrites)) === JSON.stringify(checkpoint.paint.addressedRowWrites)
+    && JSON.stringify(writes.flatMap(write => write.paint.addressedCellWrites)) === JSON.stringify(checkpoint.paint.addressedCellWrites);
 }
 
 export function assertRenderingBudgets(matrix: RenderingMatrixResult): void {

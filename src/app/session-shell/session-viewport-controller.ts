@@ -190,6 +190,7 @@ export class SessionViewportController {
       })));
     const frame = this.#viewport.compose({
       ...input,
+      ...(this.#overlays === null ? { railOccluded: true } : {}),
       ...(this.#gestures.position === undefined ? {} : { pointerPosition: this.#gestures.position }),
       ...(coveredCells.length === 0 ? {} : { coveredCells }),
     });

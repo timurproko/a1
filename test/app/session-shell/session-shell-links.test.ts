@@ -277,7 +277,10 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
         if (point.name.startsWith("hover-")) {
           expect(damage.fullScreenClears, point.name).toBe(0);
           // Concurrency: damage from changing transcript/status rows is independent of hover.
-          if (stream === "none") expect(damage.addressedRowWrites, point.name).toEqual([point.state.bottom!.row]);
+          if (stream === "none") {
+            expect(damage.addressedRowWrites, point.name).toEqual([point.state.bottom!.row]);
+            expect(damage.addressedCellWrites.every(cell => cell.column === columns && cell.row === point.state.bottom!.row), point.name).toBe(true);
+          }
         }
         const [text] = await replayTerminalCheckpoints(prefix, [{ columns, rows, writeEnd: prefix.length }]);
         if (point.expected === null) expect(text!.rows.join("\n")).not.toContain("Jump to bottom");
