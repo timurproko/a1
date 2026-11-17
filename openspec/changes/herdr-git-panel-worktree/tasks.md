@@ -6,6 +6,6 @@
 
 ## 2. Resolve Herdr Git against the active worktree
 
-- [ ] 2.1 Update the external canonical shared directory resolver and packaging to prefer fresh identity-bound A1 cwd over process and shell launch directories.
-- [ ] 2.2 Preserve local/remote routing and ordinary directory fallbacks; add disposable fixtures for stale reports, agent switches and old Git responses.
-- [ ] 2.3 Record the external source revision/diff, build/deployment status and any explicit rollout gaps in implementation evidence.
+- [x] 2.1 Update the external canonical shared directory resolver and packaging to prefer fresh identity-bound A1 cwd over process and shell launch directories.
+- [x] 2.2 Preserve local/remote routing and ordinary directory fallbacks; add disposable fixtures for stale reports, agent switches and old Git responses.
+- [x] 2.3 Record the external source revision/diff, build/deployment status and any explicit rollout gaps in implementation evidence.
