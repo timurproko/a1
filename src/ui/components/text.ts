@@ -1,6 +1,7 @@
 /** Terminal-column geometry: preserve graphemes, Unicode cell widths and ANSI styling. */
 
-const ANSI_PATTERN = /\[[0-9;:?]*[ -/]*[@-~]|[\]_][^]*(?:|\\)|[@-Z\\-_]/g;
+const ANSI_PATTERN = /\u001b(?:\[[0-?]*[ -/]*[@-~]|[P\]_^][^\u0007\u001b]*(?:\u0007|\u001b\\)|[ -/]*[0-~])/g;
+const ZERO_WIDTH = /^[\p{Mark}\p{Default_Ignorable_Code_Point}]$/u;
 const SEGMENTER = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 const WORD_SEGMENTER = new Intl.Segmenter(undefined, { granularity: "word" });
 
@@ -18,15 +19,8 @@ export function stripAnsi(text: string): string {
 }
 
 function codePointWidth(codePoint: number): number {
-  // Protocol: zero-width includes combining marks, joiners, variation selectors, and format characters.
-  if (codePoint === 0x200d || codePoint === 0xfeff) return 0;
-  if (codePoint >= 0x0300 && codePoint <= 0x036f) return 0;
-  if (codePoint >= 0x200b && codePoint <= 0x200f) return 0;
-  if (codePoint >= 0xfe00 && codePoint <= 0xfe0f) return 0;
-  if (codePoint >= 0x20d0 && codePoint <= 0x20f0) return 0;
-  if (codePoint >= 0x1ab0 && codePoint <= 0x1aff) return 0;
-  if (codePoint >= 0x1dc0 && codePoint <= 0x1dff) return 0;
-  if (codePoint >= 0xe0100 && codePoint <= 0xe01ef) return 0;
+  // Unicode properties cover non-advancing marks and format characters outside the common blocks.
+  if (codePoint > 0x7f && ZERO_WIDTH.test(String.fromCodePoint(codePoint))) return 0;
   // Protocol: East Asian wide/fullwidth ranges remain independent of emoji presentation.
   if (codePoint >= 0x1100 && codePoint <= 0x115f) return 2;
   if (codePoint >= 0x2e80 && codePoint <= 0xa4cf && codePoint !== 0x303f) return 2;
@@ -126,6 +120,48 @@ export function displayWidth(text: string): number {
   return width;
 }
 
+/** A complete visible grapheme (including intervening ANSI), or a standalone terminal sequence. */
+export interface StyledTextToken {
+  readonly text: string;
+  readonly ansi: boolean;
+  readonly width: number;
+}
+
+/** Segments visible text once, so styling cannot split an emoji, combining sequence, or ZWJ cluster. */
+export function* styledTextTokens(text: string): Generator<StyledTextToken> {
+  const escapes = [...text.matchAll(ANSI_PATTERN)];
+  if (escapes.length === 0) {
+    for (const { segment } of SEGMENTER.segment(text)) yield { text: segment, ansi: false, width: graphemeWidth(segment) };
+    return;
+  }
+  const plain = stripAnsi(text);
+  let raw = 0, visible = 0, escape = 0;
+  for (const { segment } of SEGMENTER.segment(plain)) {
+    while (escapes[escape]?.index === raw) {
+      const sequence = escapes[escape++]![0];
+      raw += sequence.length;
+      yield { text: sequence, ansi: true, width: 0 };
+    }
+    const start = raw;
+    const end = visible + segment.length;
+    while (visible < end) {
+      if (escapes[escape]?.index === raw) raw += escapes[escape++]![0].length;
+      else { raw++; visible++; }
+    }
+    yield { text: text.slice(start, raw), ansi: false, width: graphemeWidth(segment) };
+  }
+  while (raw < text.length) {
+    const sequence = escapes[escape++]![0];
+    raw += sequence.length;
+    yield { text: sequence, ansi: true, width: 0 };
+  }
+}
+
+/** Complete terminal formatting sequences carried by a styled grapheme. */
+export function textSequences(text: string): readonly string[] {
+  return text.includes("\u001b") ? text.match(ANSI_PATTERN) ?? [] : [];
+}
+
 /**
  * Truncates to a column budget without splitting a grapheme. Styling sequences
  * are carried through and a reset is appended when any style was opened, so a
@@ -138,24 +174,11 @@ export function truncateToWidth(text: string, maxWidth: number): string {
   let out = "";
   let width = 0;
   let styled = false;
-  let index = 0;
-  while (index < text.length) {
-    ANSI_PATTERN.lastIndex = index;
-    const match = ANSI_PATTERN.exec(text);
-    if (match && match.index === index) {
-      out += match[0];
-      styled = true;
-      index += match[0].length;
-      continue;
-    }
-    const nextEscape = match ? match.index : text.length;
-    for (const { segment } of SEGMENTER.segment(text.slice(index, nextEscape))) {
-      const segmentWidth = graphemeWidth(segment);
-      if (width + segmentWidth > maxWidth) return styled ? `${out}[0m` : out;
-      out += segment;
-      width += segmentWidth;
-    }
-    index = nextEscape;
+  for (const token of styledTextTokens(text)) {
+    if (width + token.width > maxWidth) return styled ? `${out}\u001b[0m` : out;
+    out += token.text;
+    width += token.width;
+    styled ||= token.text.includes("\u001b");
   }
   return styled ? `${out}[0m` : out;
 }

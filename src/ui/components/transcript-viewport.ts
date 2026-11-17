@@ -9,6 +9,7 @@ import type {
   TranscriptViewportFrame,
 } from "./transcript-viewport-types.js";
 import { faint, truncateToWidth, stripAnsi } from "./text.js";
+import { normalizeTranscriptRow } from "./transcript-row.js";
 import {
   alignTailRows,
   frameDescriptor,
@@ -283,7 +284,7 @@ export class TranscriptViewport {
     const controlLine = (this.#frame?.hits.bottom?.row ?? 0) - 1;
     const pushDocumentRow = (row: number): void => {
       const source = this.#document.documentRows[row] ?? "";
-      selectionRows.push(truncateToWidth(source, this.#contentWidth));
+      selectionRows.push(truncateToWidth(normalizeTranscriptRow(source), this.#contentWidth));
       rowAnchors.push(documentSelectionAnchor(row, source));
     };
     const pushBelow = (): void => {
@@ -484,7 +485,7 @@ export class TranscriptViewport {
     const cacheLimit = Math.max(32, viewportHeight * 6);
     this.#rowCaches.trim(cacheLimit);
     const { visible, visibleSource, paintRecomputedRows, governing } = this.#paintVisibleRows(input, theme, cacheLimit);
-    this.#selectionRows = [...visibleSource.map(row => truncateToWidth(row, contentWidth)), ...dock].slice(0, height);
+    this.#selectionRows = [...visibleSource.map(row => truncateToWidth(normalizeTranscriptRow(row), contentWidth)), ...dock].slice(0, height);
     this.#firstSelectableRow = governing !== null && viewportHeight > 0 ? 1 : 0;
     this.#selectionRowAnchors = [
       ...visibleSelectionAnchors(documentRows, this.#scrollTop, viewportHeight, this.#selectableDocumentRowCount, this.#selectionRows),

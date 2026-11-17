@@ -1,8 +1,8 @@
 ## 1. Make transcript row geometry safe and consistent
 
-- [ ] Align measurement, clipping, padding, and styled-span grapheme boundaries for invisible Unicode and ANSI-interrupted clusters without importing Pi into neutral UI components.
-- [ ] Normalize row-moving content controls before transcript paint while preserving source/copy mapping, supported styles, links, and image payloads.
-- [ ] Add focused geometry and terminal-cell regressions for word joiners, tabs, carriage returns, style-split emoji, ordinary steering markers, and unchanged supported content.
+- [x] Align measurement, clipping, padding, and styled-span grapheme boundaries for invisible Unicode and ANSI-interrupted clusters without importing Pi into neutral UI components.
+- [x] Normalize row-moving content controls before transcript paint while preserving source/copy mapping, supported styles, links, and image payloads.
+- [x] Add focused geometry and terminal-cell regressions for word joiners, tabs, carriage returns, style-split emoji, ordinary steering markers, and unchanged supported content.
 
 ## 2. Anchor scrollbar paint independently of transcript content
 

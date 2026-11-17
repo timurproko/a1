@@ -1,6 +1,7 @@
 import { isThumbRow, scrollbarGeometry, scrollbarPresentation, type ScrollbarGeometry } from "./scrollbar.js";
 import { overlaySpan } from "./spans.js";
 import { displayWidth, truncateToWidth } from "./text.js";
+import { normalizeTranscriptRow } from "./transcript-row.js";
 import type {
   TranscriptViewportConfig,
   TranscriptViewportFrameDescriptor,
@@ -444,7 +445,7 @@ function visibleLiveTailRows(
 
 function padViewportRowWithGutter(line: string, contentWidth: number, frameWidth: number): string {
   const boundedContentWidth = Math.min(Math.max(1, contentWidth), frameWidth);
-  const content = padRowPreservingBackground(line, boundedContentWidth);
+  const content = padRowPreservingBackground(normalizeTranscriptRow(line), boundedContentWidth);
   const gutterWidth = frameWidth - boundedContentWidth;
   if (gutterWidth === 0) return content;
   // Invariant: render no source glyph beyond contentWidth, but reuse the established

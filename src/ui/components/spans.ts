@@ -1,5 +1,5 @@
 import type { PresentationPointerSurface } from "../../contracts/presentation/index.js";
-import { displayWidth, graphemeWidth, padToWidth } from "./text.js";
+import { displayWidth, padToWidth, styledTextTokens, textSequences } from "./text.js";
 
 /**
  * Ported from the A1 UI reference implementation (`core/presentation/spans.ts`).
@@ -15,7 +15,6 @@ const HYPERLINK_OFF = "]8;;\\";
 const SGR = /^\[[0-9;]*m$/;
 const BARE_URL = /https?:\/\/[^\s\u0000-\u001f\u007f<>"']+/giu;
 const TRAILING_URL_PUNCTUATION = /[.,;:!?]/u;
-const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 /**
  * Replaces the visible columns `[from, to)` of `line` with `span`, preserving
@@ -37,9 +36,9 @@ export function overlaySpan(
   let column = 0;
   let hyperlinkOpen = false;
 
-  for (const token of line.split(ANSI_SPLIT)) {
-    if (!token) continue;
-    if (token.startsWith("")) {
+  for (const part of styledTextTokens(line)) {
+    const token = part.text;
+    if (part.ansi) {
       // Protocol: image transfers are one-shot commands, not styling to replay after an overlay.
       if (token.startsWith("\u001b_G") || token.startsWith("\u001b]1337;File=")) {
         if (column >= to) tail += token;
@@ -59,14 +58,21 @@ export function overlaySpan(
       replay += token;
       continue;
     }
-    for (const { segment } of GRAPHEMES.segment(token)) {
-      const width = graphemeWidth(segment);
-      if (column + width <= from) head += segment;
-      else if (column >= to) tail += segment;
-      else if (column < from) head += " ".repeat(from - column);
-      else if (column + width > to) tail += " ".repeat(column + width - to);
-      column += width;
+    const width = part.width;
+    if (column + width <= from) head += token;
+    else if (column >= to) tail += token;
+    else {
+      if (column < from) head += " ".repeat(from - column);
+      if (column + width > to) tail += " ".repeat(column + width - to);
     }
+    if (column < to) replay += textSequences(token).join("");
+    if (column + width <= from) {
+      for (const sequence of textSequences(token)) {
+        const link = HYPERLINK.exec(sequence);
+        if (link) hyperlinkOpen = (link[1] ?? "").length > 0;
+      }
+    }
+    column += width;
   }
   if (column < from) head += " ".repeat(from - column);
   return head + (hyperlinkOpen ? HYPERLINK_OFF : "") + span + replay + tail;
@@ -78,20 +84,20 @@ function sliceStyledColumns(line: string, from: number, to: number): string {
   let styles = "";
   let output = "";
   let started = false;
-  for (const token of line.split(ANSI_SPLIT)) {
-    if (token.startsWith("\u001b")) {
+  for (const part of styledTextTokens(line)) {
+    const token = part.text;
+    if (part.ansi) {
       if (column < from) styles += token;
       else if (column < to) output += token;
       continue;
     }
-    for (const { segment } of GRAPHEMES.segment(token)) {
-      const end = column + graphemeWidth(segment);
-      if (end > from && column < to) {
-        if (!started) { output = styles + output; started = true; }
-        output += column >= from && end <= to ? segment : " ".repeat(Math.min(to, end) - Math.max(from, column));
-      }
-      column = end;
+    const end = column + part.width;
+    if (end > from && column < to) {
+      if (!started) { output = styles + output; started = true; }
+      output += column >= from && end <= to ? token : " ".repeat(Math.min(to, end) - Math.max(from, column));
     }
+    if (column < from) styles += textSequences(token).join("");
+    column = end;
   }
   return `${output}\u001b[0m${HYPERLINK_OFF}`;
 }
@@ -144,21 +150,19 @@ export function hyperlinkSgrSpan(
   let output = "";
   let column = 0;
   let inside = false;
-  for (const token of line.split(ANSI_SPLIT)) {
-    if (!token) continue;
-    if (token.startsWith("\u001b")) {
+  for (const part of styledTextTokens(line)) {
+    const token = part.text;
+    if (part.ansi) {
       output += token;
       continue;
     }
-    for (const { segment } of GRAPHEMES.segment(token)) {
-      const shouldBeInside = column >= from && column < to;
-      if (shouldBeInside !== inside) {
-        output += shouldBeInside ? on : off;
-        inside = shouldBeInside;
-      }
-      output += segment;
-      column += widthOf(segment);
+    const shouldBeInside = column >= from && column < to;
+    if (shouldBeInside !== inside) {
+      output += shouldBeInside ? on : off;
+      inside = shouldBeInside;
     }
+    output += token;
+    column += widthOf(token);
   }
   if (inside) output += off;
   return output;
@@ -173,19 +177,20 @@ export function hyperlinkTargetAtColumn(
   if (targetColumn < 0) return undefined;
   let hyperlinkTarget: string | undefined;
   let column = 0;
-  for (const token of line.split(ANSI_SPLIT)) {
-    if (!token) continue;
-    const link = HYPERLINK.exec(token);
-    if (link) {
-      hyperlinkTarget = (link[1] ?? "") || undefined;
+  for (const part of styledTextTokens(line)) {
+    const token = part.text;
+    if (part.ansi) {
+      const link = HYPERLINK.exec(token);
+      if (link) hyperlinkTarget = (link[1] ?? "") || undefined;
       continue;
     }
-    if (token.startsWith("\u001b")) continue;
-    for (const { segment } of GRAPHEMES.segment(token)) {
-      const width = widthOf(segment);
-      if (targetColumn >= column && targetColumn < column + width) return hyperlinkTarget;
-      column += width;
+    const width = widthOf(token);
+    if (targetColumn >= column && targetColumn < column + width) return hyperlinkTarget;
+    for (const sequence of textSequences(token)) {
+      const link = HYPERLINK.exec(sequence);
+      if (link) hyperlinkTarget = (link[1] ?? "") || undefined;
     }
+    column += width;
   }
   return undefined;
 }
@@ -317,23 +322,22 @@ export function backgroundSgrSpan(
   let seen = "";
   let column = 0;
   let inside = false;
-  for (const token of line.split(ANSI_SPLIT)) {
-    if (!token) continue;
-    if (token.startsWith("\u001b")) {
+  for (const part of styledTextTokens(line)) {
+    const token = part.text;
+    if (part.ansi) {
       output += token;
       if (SGR.test(token)) seen += token;
       if (inside) output += on;
       continue;
     }
-    for (const { segment } of GRAPHEMES.segment(token)) {
-      const shouldBeInside = column >= from && column < to;
-      if (shouldBeInside !== inside) {
-        output += shouldBeInside ? on : off + seen;
-        inside = shouldBeInside;
-      }
-      output += segment;
-      column += widthOf(segment);
+    const shouldBeInside = column >= from && column < to;
+    if (shouldBeInside !== inside) {
+      output += shouldBeInside ? on : off + seen;
+      inside = shouldBeInside;
     }
+    output += inside ? token.replace(/\u001b\[[0-9;]*m/gu, sequence => sequence + on) : token;
+    seen += textSequences(token).filter(sequence => SGR.test(sequence)).join("");
+    column += widthOf(token);
   }
   if (inside) output += off;
   return output;
