@@ -1,14 +1,24 @@
 import { createHash, randomUUID } from "node:crypto";
-import { lstat, mkdtemp, rm, readdir, realpath, writeFile, mkdir, symlink, unlink } from "node:fs/promises";
+import { lstat, mkdtemp, rm, readdir, readFile, realpath, rename, writeFile, mkdir, symlink, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("node:fs/promises", async importOriginal => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return { ...actual, rename: vi.fn(actual.rename) };
+});
 import { requestSessionControl, serveSessionControl } from "../../../src/foundation/lifecycle/index.js";
 
 let runtimeDir: string;
 const hosts: Array<{ dispose(): Promise<void> }> = [];
 beforeEach(async () => { runtimeDir = await mkdtemp(join(tmpdir(), "session-control-")); });
-afterEach(async () => { await Promise.all(hosts.splice(0).map(host => host.dispose())); await rm(runtimeDir, { recursive: true, force: true }); });
+afterEach(async () => {
+  vi.restoreAllMocks();
+  vi.mocked(rename).mockReset();
+  await Promise.all(hosts.splice(0).map(host => host.dispose()));
+  await rm(runtimeDir, { recursive: true, force: true });
+});
 
 async function host(sessionId = randomUUID(), handle: (payload: unknown) => Promise<unknown> = async value => value) {
   const state = { sessionId, binding: 1 };
@@ -161,6 +171,66 @@ describe("bounded local session control", () => {
     await mkdir(external);
     await symlink(external, join(runtimeDir, "session-controls"), process.platform === "win32" ? "junction" : "dir");
     await expect(serveSessionControl({ runtimeDir, runtimeId: randomUUID(), identity: () => ({ sessionId: randomUUID(), binding: 1 }), handle: async () => null })).rejects.toMatchObject({ code: "control-boundary" });
+  });
+
+  it.skipIf(process.platform !== "win32").each(["EPERM", "EACCES", "EBUSY"])("retries a Windows %s while atomically publishing a replacement", async code => {
+    const target = await host();
+    const directory = join(runtimeDir, "session-controls");
+    const [name] = await readdir(directory);
+    const file = join(directory, name!);
+    const previous = await readFile(file, "utf8");
+    const oldSession = target.state.sessionId;
+    target.state.sessionId = randomUUID(); target.state.binding++;
+    vi.mocked(rename).mockClear();
+    vi.mocked(rename).mockImplementationOnce(async () => {
+      expect(await readFile(file, "utf8")).toBe(previous);
+      throw Object.assign(new Error("discovery reader holds the registration"), { code });
+    });
+
+    await target.publish();
+    expect(rename).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(rename).mock.calls[0]).toEqual(vi.mocked(rename).mock.calls[1]);
+    expect(await readdir(directory)).toEqual([name]);
+    expect(JSON.parse(await readFile(file, "utf8"))).toMatchObject(target.state);
+    await expect(requestSessionControl({ runtimeDir, sessionId: oldSession, payload: null })).rejects.toMatchObject({ code: "session-unavailable" });
+    expect(await requestSessionControl({ runtimeDir, sessionId: target.state.sessionId, payload: "new" })).toBe("new");
+  });
+
+  it("does not retry permanent publication errors or remove the previous registration", async () => {
+    const target = await host();
+    const directory = join(runtimeDir, "session-controls");
+    const initialFiles = (await readdir(directory)).sort();
+    const name = initialFiles.find(name => name.endsWith(".json"))!;
+    const file = join(directory, name);
+    const previous = await readFile(file, "utf8");
+    target.state.sessionId = randomUUID(); target.state.binding++;
+    const error = Object.assign(new Error("publication refused"), { code: "EINVAL" });
+    vi.mocked(rename).mockClear();
+    vi.mocked(rename).mockRejectedValueOnce(error);
+
+    await expect(target.publish()).rejects.toBe(error);
+    expect(rename).toHaveBeenCalledOnce();
+    expect(await readFile(file, "utf8")).toBe(previous);
+    expect((await readdir(directory)).sort()).toEqual(initialFiles);
+    await expect(requestSessionControl({ runtimeDir, sessionId: target.state.sessionId, payload: null })).rejects.toMatchObject({ code: "session-unavailable" });
+  });
+
+  it.skipIf(process.platform !== "win32")("bounds persistent Windows publication contention and removes its temporary file", async () => {
+    const target = await host();
+    const directory = join(runtimeDir, "session-controls");
+    const [name] = await readdir(directory);
+    const previous = await readFile(join(directory, name!), "utf8");
+    target.state.sessionId = randomUUID(); target.state.binding++;
+    const error = Object.assign(new Error("registration remains locked"), { code: "EPERM" });
+    vi.mocked(rename).mockClear();
+    let elapsed = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => elapsed);
+    vi.mocked(rename).mockImplementation(async () => { elapsed += 250; throw error; });
+    await expect(target.publish()).rejects.toBe(error);
+    expect(elapsed).toBe(750);
+    expect(rename).toHaveBeenCalledTimes(3);
+    expect(await readFile(join(directory, name!), "utf8")).toBe(previous);
+    expect(await readdir(directory)).toEqual([name]);
   });
 
   it("rejects old identity requests after replacement even before the new record publishes", async () => {

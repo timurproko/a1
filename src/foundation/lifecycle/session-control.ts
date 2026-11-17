@@ -34,7 +34,7 @@ export interface SessionControlRequestOptions extends ControlOptions {
 
 const LIMIT = 8192;
 // Rationale: the live-candidate bound keeps lookups cheap; the raw ceiling still fails a flooded directory closed.
-const LIVE_LIMIT = 256, RAW_LIMIT = 4096, SWEEP_BUDGET_MS = 750;
+const LIVE_LIMIT = 256, RAW_LIMIT = 4096, SWEEP_BUDGET_MS = 750, PUBLICATION_BUDGET_MS = 750;
 const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
 const SLUG = /^[a-z0-9-]{1,128}$/iu;
 const fail = (code: string, message: string) => Object.assign(new Error(message), { code });
@@ -120,6 +120,19 @@ async function pruneStaleRegistrations(directory: string, inspect: (pid: number)
   return pruned;
 }
 
+/** Preserve the last complete registration while brief Windows discovery readers release its file. */
+async function publishRegistration(temporary: string, file: string): Promise<void> {
+  const deadline = Date.now() + PUBLICATION_BUDGET_MS;
+  for (let pause = 10; ; pause = Math.min(pause * 2, 100)) {
+    try { await rename(temporary, file); return; }
+    catch (error) {
+      const code = error instanceof Error && "code" in error ? error.code : undefined;
+      if (process.platform !== "win32" || !["EPERM", "EACCES", "EBUSY"].includes(String(code)) || Date.now() >= deadline) throw error;
+      await new Promise(done => setTimeout(done, Math.min(pause, Math.max(1, deadline - Date.now()))));
+    }
+  }
+}
+
 function receive(socket: Socket, consume: (value: unknown) => void): void {
   let data = "", complete = false;
   socket.setEncoding("utf8");
@@ -186,7 +199,7 @@ export async function serveSessionControl(options: SessionControlHostOptions): P
       const temporary = join(directory, `${id}.${randomUUID()}.tmp`);
       try {
         await writeFile(temporary, JSON.stringify({ version: 1, id, nonce, runtimeId: options.runtimeId, owner, ...identity }), { mode: 0o600, flag: "wx" });
-        await rename(temporary, file);
+        await publishRegistration(temporary, file);
       } finally { await unlink(temporary).catch(() => {}); }
     });
     return publication;
