@@ -332,6 +332,41 @@ The former `a1 update:<selector>` commands are removed without compatibility
 aliases or redirects. Unsupported forms exit quietly without registry or runtime
 work.
 
+## Automatic publication-command dependency setup
+
+`npm run develop` and valid `npm run release -- <target>` invocations establish local
+dependency readiness before importing publication modules. The shared read-only doctor
+inspection detects missing/stale direct packages and missing declared entry files;
+an offline npm tree inspection also detects invalid/missing transitive dependencies.
+This is an observable readiness check, not a hash scan of every installed file.
+A healthy checkout performs no install or registry request for setup.
+
+If repair is needed, the command explains why and runs the existing lockfile's
+`npm ci --include=dev --no-audit --no-fund` in that checkout. This is an ordinary npm
+installation with normal lifecycle scripts, including this repository's prepare/core
+build, so the first repair may need network/registry access and take longer. Versions,
+manifest declarations and lockfile pins are not rewritten. Git, gh, Node/npm versions
+and authentication are not installed or changed. Doctor and ordinary builds remain
+diagnostic-only; they do not automatically install anything. Invalid/missing release
+targets remain mutation-free usage errors before dependency setup.
+
+Repairs serialize through `.artifacts/publication-dependencies/repair.lock`, recheck
+after acquiring ownership, and continue the original command only after installation
+and another readiness check succeed. Waiting for another repair is bounded to three
+minutes, dependency-tree queries to thirty seconds and an installation to ten minutes.
+Cancel or failure prevents publication. Cancellation settles the owned npm process
+tree before releasing its lock; uncertain settlement retains the lock and reports
+that fact. Inspect any retained/busy lock and the installer before manual recovery;
+there is no automatic lock stealing. Avoid running a separate manual npm installation
+concurrently with these commands. Another checkout has its own lock and dependencies.
+
+Automatic repair refuses a linked/non-directory node_modules or linked setup directory
+rather than risking a shared external dependency tree. Correct that checkout's ownership
+or perform an intentional manual setup instead. An unreadable/out-of-sync lockfile,
+failed installer or still-incomplete tree exits with a concise diagnostic, without
+creating release artifacts or retrying publication. Once setup succeeds, all ordinary
+source selection, release target validation, CI and human publication gates still apply.
+
 ## Cutting a stable release
 
 From the repository root on clean `develop` matching `origin/develop`:

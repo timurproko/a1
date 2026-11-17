@@ -5,11 +5,12 @@
  * error, and runs standalone as `npm run doctor`. It imports nothing outside `node:` builtins
  * because the condition it most needs to diagnose is an absent `node_modules`.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { advisories, blockingFailures, evaluatePrerequisites, formatFailures, formatReport } from "./environment-prerequisites.mjs";
 import { locateExecutable, probeVersion } from "./environment-probe.mjs";
+import { inspectDependencies } from "./dependency-inspection.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const environment = process.env;
@@ -29,29 +30,6 @@ function npmVersion() {
   return /\bnpm\/(\d+\.\d+\.\d+)/u.exec(environment.npm_config_user_agent ?? "")?.[1] ?? probe("npm");
 }
 
-function inspectDependencies(manifest) {
-  const declared = { ...manifest.dependencies, ...manifest.devDependencies };
-  const names = Object.keys(declared);
-  if (!existsSync(resolve(root, "node_modules"))) return { present: false, declared: names.length, missing: names, mismatched: [] };
-  const missing = [];
-  const mismatched = [];
-  for (const name of names) {
-    let installed = null;
-    try {
-      installed = JSON.parse(readFileSync(resolve(root, "node_modules", name, "package.json"), "utf8"));
-    } catch {
-      missing.push(name);
-      continue;
-    }
-    // Invariant: every non-optional dependency is pinned exactly, so a differing installed version
-    // means node_modules predates the current lockfile rather than legitimately satisfying a range.
-    if (/^\d/u.test(declared[name]) && installed.version !== declared[name]) {
-      mismatched.push({ name, expected: declared[name], actual: installed.version });
-    }
-  }
-  return { present: true, declared: names.length, missing, mismatched };
-}
-
 const manifest = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 const checks = evaluatePrerequisites({
   platform: process.platform,
@@ -61,7 +39,7 @@ const checks = evaluatePrerequisites({
   npm: npmVersion(),
   git: probe("git"),
   githubCli: probe("gh"),
-  dependencies: inspectDependencies(manifest),
+  dependencies: inspectDependencies(root, manifest),
   probes,
 });
 
