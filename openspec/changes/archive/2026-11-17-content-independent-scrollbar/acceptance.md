@@ -24,10 +24,10 @@ The maintainer integration decision accepts these scenarios:
     "Supported links, source copy, image transport, cursor state, and comparison-profile presentation retain their existing behavior.",
     "Green edit-result blocks retain their owning background after nested ANSI resets without flattening deliberate nested colors."
   ],
-  "archiveDigest": "a63f6ec62f0aff699574888edcd0d1b70b78f6cd8ba75473cbea5c704d42dbc7",
+  "archiveDigest": "32b9b66a73e757295833cd828ec547f2157ae16f5dfcfc290c1f8964ee59d302",
   "specDigest": "3ffc21fed7e7513f4c9e3010db36a82dd40e1b157efa9d7771656cff5a687041",
   "tasksDigest": "3c98f3e2052e2cb59908dcf8fd68e6f9956c5c30e5a62398e07dd8ff454167c2",
-  "evidenceDigest": "7e6ea3511cfb99fd60cd2b633e68e049aa7b6ea57e6008a768563c5d31086ba7",
+  "evidenceDigest": "a27e5ec46479656595904ce0a09de34aae77567116c6106b42cdf157605804b9",
   "knownGaps": []
 }
 ```
