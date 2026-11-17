@@ -1,0 +1,100 @@
+## Context
+
+Opened by the nightly regression triage from the failed run's evidence artifacts and logs; the triage re-ran nothing and edited nothing on `develop`. Every later failure with the same failed scope set appends its run below while this change is open.
+
+## Decisions
+
+- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+
+## Evidence
+
+- Run [Full regression #96](https://github.com/timurproko/a1/actions/runs/44022764568) (attempt 1, schedule) on `7c146a8` at 2026-11-17T05:15:03Z:
+  - `vitest-full-without-isolated` (`architecture`, `dependency-policy`, `dist-integration`, `documentation-full`, `fast-remainder`, `fast-resource-sensitive`, `history-compatibility`, `image-compatibility`, `launch-integration`, `naming-full`, `package-contracts`, `package-smoke`, `package-startup`, `pi-engine-conformance`, `release-update`, `rendering-stability`, `typecheck`, `unix-release`, `update-performance`, `update-predecessor`) failed on macos-15-node24, ubuntu-24.04-node24, windows-2025-node22 (core shard), windows-2025-node24 (core shard) with exit 1.
+    - Command: `npx vitest run --exclude test/foundation/release/package-surface.test.ts --exclude test/foundation/release/session-resume.integration.test.ts --exclude test/foundation/release/package-install.integ...`
+    - Log excerpt:
+
+      ```text
+      Published installer smoke: acquire-installer: npm failed [redacted]
+      Published installer smoke: install-application: npm failed [redacted]
+      Published installer smoke: verify-manifest: published installer selected the wrong application package
+      Published installer smoke: launch-application: npm failed [redacted]
+      Published installer smoke: install-application: published installer transcript is invalid
+      Published installer smoke: update-predecessor: replacement failed
+      Published installer smoke: update-predecessor: replacement failed
+      Published installer smoke passed on darwin/arm64.
+      Published installer smoke passed on darwin/arm64.
+      Published installer smoke passed on darwin/arm64.
+      Published installer smoke passed on darwin/arm64.
+      Published installer smoke: update-predecessor: replacement failed
+      [published installer] acquire-installer started (timeout=120000ms)
+      [published installer] acquire-installer passed (0ms)
+      [published installer] install-application started (timeout=300000ms)
+      [published installer] install-application passed (1ms)
+      Published installer smoke: update-predecessor: published smoke command timed out after 1200000ms
+      [published installer] resolve-predecessor started (timeout=30000ms)
+      [published installer] resolve-predecessor passed (0ms)
+      Published installer smoke: update-predecessor: replacement failed
+      [published installer] install-predecessor started (timeout=300000ms)
+      [published installer] install-predecessor passed (1ms)
+      [published installer] update-predecessor started (timeout=300000ms)
+      [published installer] update-predecessor failed (0ms)
+      [published installer] acquire-installer started (timeout=120000ms)
+      [published installer] acquire-installer passed (0ms)
+      [published installer] install-application started (timeout=300000ms)
+      [published installer] install-application passed (0ms)
+      Published installer smoke: update-predecessor: replacement failed
+      [published installer] launch-application started (timeout=30000ms)
+      [published installer] launch-application passed (0ms)
+      ... 151 more lines in the run log
+      ```
+
+  - Lane Full regression / Complete regression required failed in job `Full regression / Complete regression required` before producing owner outcomes (orchestration failure).
+    - Log excerpt:
+
+      ```text
+        if (jobsResult !== "success" || records.length !== FULL_LANES.length) throw new Error("complete-regression jobs or evidence are incomplete");
+                                                                                    ^
+      Error: complete-regression jobs or evidence are incomplete
+          at requireFullLanes (file:///home/runner/work/a1/a1/scripts/release/full-regression-evidence.mjs:131:79)
+          at file:///home/runner/work/a1/a1/scripts/release/full-regression-evidence.mjs:174:20
+          at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+          at async node:internal/modules/esm/loader:647:26
+      ##[error]Process completed with exit code 1.
+      Post job cleanup.
+      [command]/usr/bin/git version
+      git version 2.56.1
+      Temporarily overriding HOME='/home/runner/work/_temp/bf6f19e1-5e88-4f96-a5e9-098d1efaf045' before making global git config changes
+      ```
+
+  - Last successful Full regression run: [#93](https://github.com/timurproko/a1/actions/runs/43552568568) on `c362c4e`; 38 `develop` commits since:
+    - `7c146a8` fix(ci): unify publication output boundaries (#962)
+    - `fe2e7e0` fix(naming): improve session name dialog editing (#960)
+    - `9c97455` fix(lifecycle): confirm Windows process liveness against the process table (#961)
+    - `fb28fb8` fix(api): prune stale session control records (#959)
+    - `8dc9767` fix(ci): separate publication workflow summary (#958)
+    - `1b04aa6` fix(ci): budget published predecessor replacement (#957)
+    - `74fd89e` fix(ci): recover develop publication with status (#956)
+    - `2871e19` fix(ci): separate published install deadlines (#955)
+    - `1188a5b` fix(release): include installer repair helper (#954)
+    - `7a79a75` fix(ci): update publication counters while running (#953)
+    - `26618ed` fix(release): fail stalled publication smoke faster (#952)
+    - `a3e89fc` feat(release): show publication step progress (#951)
+    - `e449cc6` fix(release): diagnose Windows publication regression (#949)
+    - `cf8884d` chore(regression): repair the 2026-11-16 full regression failure (#950)
+    - `5801865` fix(release): forensics for the Windows published-pair stall (#948)
+    - `52ddae3` feat(api): session lifecycle and graceful exit control (#946)
+    - `a87e847` fix(release): budget and evidence for Windows published-pair stall (#947)
+    - `64709ce` fix(release): update publication status in place (#945)
+    - `e8c7249` fix(release): repair Windows published-pair smoke (#943)
+    - `af9d8e9` fix(release): align publication failure summaries (#944)
+    - `5b0c7ff` fix(release): align publication status dots (#942)
+    - `3f2ed26` fix(release): restore recovery and clarify publish output (#941)
+    - `59da042` feat(worktrees): attach from any location (#938)
+    - `28787a4` refactor(api): unify settings integration and colors (#939)
+    - `0460ab3` fix(ui): compact screenshot chip labels (#940)
+    - `9893a86` fix(release): verify published tarball readiness (#936)
+    - `18f387a` chore(regression): repair the 2026-11-15 full regression failure (#937)
+    - `74b2e6f` fix(ui): hide attachment chip identity metadata (#934)
+    - `98631e3` fix(selection): omit prompt chrome in bulk copy (#935)
+    - `e7de9ab` feat(cli): make A1 Pi-compatible by default (#928)
+    - ... 8 more
