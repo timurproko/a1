@@ -1,4 +1,4 @@
-import type { OwnedUiSessionBackend, OwnedUiSessionLifecyclePort } from "../contracts/owned-ui/index.js";
+import type { OwnedUiSessionBackend, OwnedUiSessionLifecyclePort, OwnedUiSessionNamingPort } from "../contracts/owned-ui/index.js";
 import { serveSessionControl } from "../foundation/lifecycle/session-control.js";
 import { ReadySessionBinding } from "../features/owned-ui/ready-session-binding.js";
 import { createOwnedRuntimeContext, type OwnedRuntimeContext } from "../features/owned-ui/runtime-context.js";
@@ -11,7 +11,8 @@ import { applyIntegrationSettings, applySessionLifecycle, integrationFailure, pa
  * lifecycle operations is constructed after this control starts, so it arrives through a late-bound provider;
  * until it exists, and after disposal, lifecycle operations report session-unavailable.
  */
-export async function startIntegrationControl(backend: OwnedUiSessionBackend, settings: ApplicationSettings, runtimeDir: string, runtime: string | OwnedRuntimeContext = createOwnedRuntimeContext(), herdrBinding?: HerdrBindingReservation, lifecycle: () => OwnedUiSessionLifecyclePort | null = () => null) {
+export async function startIntegrationControl(backend: OwnedUiSessionBackend & { readonly naming?: OwnedUiSessionNamingPort }, settings: ApplicationSettings, runtimeDir: string, runtime: string | OwnedRuntimeContext = createOwnedRuntimeContext(), herdrBinding?: HerdrBindingReservation, lifecycle: () => OwnedUiSessionLifecyclePort | null = () => null) {
+  const { applySessionName } = await import("../features/integration-api/session-names.js");
   const context = typeof runtime === "string" ? createOwnedRuntimeContext(runtime, herdrBinding) : runtime;
   const publishedBinding = backend.identity.sessionBindingGeneration;
   const identity = () => ({ sessionId: backend.identity.currentHistorySessionId() ?? backend.identity.sessionId, binding: backend.identity.sessionBindingGeneration });
@@ -23,6 +24,7 @@ export async function startIntegrationControl(backend: OwnedUiSessionBackend, se
     }
     // Invariant: lifecycle work stays synchronous inside this serialized handler (readiness and admission share one turn).
     if (request.type === "session.lifecycle" || request.type === "session.exit") return applySessionLifecycle(request, lifecycle());
+    if (request.type === "session.get" || request.type === "session.rename") return applySessionName(request, backend.naming);
     return await applyIntegrationSettings(request, settings);
   } });
   return new ReadySessionBinding(backend, control, context, publishedBinding);

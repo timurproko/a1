@@ -60,7 +60,6 @@ export async function executeIntegrationRequest(input: unknown, services: Integr
 export async function applyIntegrationSettings(input: unknown, settings: ApplicationSettings): Promise<IntegrationResponse> {
   try {
     const request = parseIntegrationRequest(input);
-    if (request.type === "session.get") return integrationResponse(request, { target: request.target });
     if (request.type !== "settings.get" && request.type !== "settings.update") throw integrationFailure("unsupported-operation", "Not a settings operation.");
     const id = request.setting!;
     settings.refresh();
