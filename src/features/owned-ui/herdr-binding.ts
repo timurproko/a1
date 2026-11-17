@@ -11,6 +11,7 @@ export const HERDR_IDENTITY_LABELS = Object.freeze({
 });
 
 export const HERDR_DIRECTORY_LABEL = `${PRODUCT_IDENTITY.protocol.namespace}.cwd`;
+export const HERDR_DIRECTORY_BINDING_LABEL = `${HERDR_DIRECTORY_LABEL}.binding`;
 
 /** Display/routing metadata only; never pass relative or control-bearing paths to Core. */
 export function validHerdrProjectDirectory(value: unknown): value is string {

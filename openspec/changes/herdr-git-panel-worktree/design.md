@@ -6,7 +6,7 @@ The private Git panel's `location.js` delegates to shared `ui/directory.js`. Tha
 
 ## Decision
 
-Add `a1.cwd` to the existing native reporter snapshot, sourcing it from the current backend's active project identity rather than `process.cwd()`, a transcript/footer parser, a pending request or the session-history storage directory. Keep publication endpoint-ready and recheck binding/ownership after asynchronous Core reads. Publish directory and identity together; heartbeat and successful context replacement refresh that snapshot. Preserve bounded literal-argv execution and existing failure behavior.
+Add `a1.cwd` to the existing native reporter snapshot, sourcing it from the current backend's active project identity rather than `process.cwd()`, a transcript/footer parser, a pending request or the session-history storage directory. Keep publication endpoint-ready and recheck binding/ownership after asynchronous Core reads. Publish directory and identity together; heartbeat and successful context replacement refresh that snapshot. Include `a1.cwd.binding` as the exact `runtime/session/at` token and require it to match all three native identity labels, preventing an older identity-only producer from refreshing a leftover directory into apparent freshness. Preserve bounded literal-argv execution and existing failure behavior.
 
 Keep ownership comparisons compatible with prior identity-only publications. Missing directory data must not prevent ordinary session identity publication or permit adoption of another runtime's labels. Shutdown clears directory metadata only while the reporter still owns the exact publication; delayed old reporters cannot clear a newer one.
 

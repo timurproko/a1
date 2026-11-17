@@ -1,5 +1,5 @@
 import { createHerdrCommand, type HerdrCommandPort } from "./herdr-command.js";
-import { HERDR_DIRECTORY_LABEL, HERDR_IDENTITY_LABELS, validHerdrIdentity, validHerdrProjectDirectory, withHerdrBinding, type HerdrBindingReservation, type HerdrPublishedBinding } from "./herdr-binding.js";
+import { HERDR_DIRECTORY_BINDING_LABEL, HERDR_DIRECTORY_LABEL, HERDR_IDENTITY_LABELS, validHerdrIdentity, validHerdrProjectDirectory, withHerdrBinding, type HerdrBindingReservation, type HerdrPublishedBinding } from "./herdr-binding.js";
 
 interface ReporterOptions {
   readonly reservation: HerdrBindingReservation;
@@ -40,7 +40,7 @@ export function createHerdrReporter(options: ReporterOptions) {
       if (!Number.isSafeInteger(time) || time < 0) return;
       const published = { runtimeId: options.reservation.runtimeId, sessionId: identity.sessionId, at: String(time),
         ...(validHerdrProjectDirectory(identity.cwd) ? { cwd: identity.cwd } : {}) };
-      if (await invoke(["label", options.reservation.terminalId, `${HERDR_IDENTITY_LABELS.session}=${published.sessionId}`, `${HERDR_IDENTITY_LABELS.runtime}=${published.runtimeId}`, `${HERDR_IDENTITY_LABELS.at}=${published.at}`, `${HERDR_DIRECTORY_LABEL}=${published.cwd ?? ""}`, "--json"]) !== undefined) state.published = published;
+      if (await invoke(["label", options.reservation.terminalId, `${HERDR_IDENTITY_LABELS.session}=${published.sessionId}`, `${HERDR_IDENTITY_LABELS.runtime}=${published.runtimeId}`, `${HERDR_IDENTITY_LABELS.at}=${published.at}`, `${HERDR_DIRECTORY_LABEL}=${published.cwd ?? ""}`, `${HERDR_DIRECTORY_BINDING_LABEL}=${directoryBinding(published) ?? ""}`, "--json"]) !== undefined) state.published = published;
     });
   }
   async function invoke(arguments_: string[]): Promise<string | undefined> {
@@ -64,17 +64,22 @@ export function createHerdrReporter(options: ReporterOptions) {
       if (state.published?.runtimeId !== options.reservation.runtimeId) return;
       const labels = await readLabels();
       if (!labels || !matches(labels, state.published) || !await owns()) return;
-      if (await invoke(["label", options.reservation.terminalId, `${HERDR_IDENTITY_LABELS.session}=`, `${HERDR_IDENTITY_LABELS.runtime}=`, `${HERDR_IDENTITY_LABELS.at}=`, `${HERDR_DIRECTORY_LABEL}=`, "--json"]) !== undefined) delete state.published;
+      if (await invoke(["label", options.reservation.terminalId, `${HERDR_IDENTITY_LABELS.session}=`, `${HERDR_IDENTITY_LABELS.runtime}=`, `${HERDR_IDENTITY_LABELS.at}=`, `${HERDR_DIRECTORY_LABEL}=`, `${HERDR_DIRECTORY_BINDING_LABEL}=`, "--json"]) !== undefined) delete state.published;
     }, false);
   }
   return { request, dispose() { return disposal ??= shutdown(); } };
 }
+/** Older identity-only producers cannot refresh an orphan directory into apparent freshness. */
+function directoryBinding(published: HerdrPublishedBinding): string | undefined {
+  return published.cwd === undefined ? undefined : `${published.runtimeId}/${published.sessionId}/${published.at}`;
+}
 function matches(labels: Record<string, unknown>, published: HerdrPublishedBinding): boolean {
   return labels[HERDR_IDENTITY_LABELS.runtime] === published.runtimeId && labels[HERDR_IDENTITY_LABELS.session] === published.sessionId && labels[HERDR_IDENTITY_LABELS.at] === published.at
-    && labels[HERDR_DIRECTORY_LABEL] === published.cwd;
+    && labels[HERDR_DIRECTORY_LABEL] === published.cwd
+    && labels[HERDR_DIRECTORY_BINDING_LABEL] === directoryBinding(published);
 }
 function canOwn(labels: Record<string, unknown>, published?: HerdrPublishedBinding): boolean {
-  const absent = [...Object.values(HERDR_IDENTITY_LABELS), HERDR_DIRECTORY_LABEL].every(key => !Object.hasOwn(labels, key));
+  const absent = [...Object.values(HERDR_IDENTITY_LABELS), HERDR_DIRECTORY_LABEL, HERDR_DIRECTORY_BINDING_LABEL].every(key => !Object.hasOwn(labels, key));
   return absent || (published !== undefined && matches(labels, published));
 }
 function scheduleHeartbeat(callback: () => void, milliseconds: number): () => void {

@@ -2,7 +2,7 @@
 
 ### Requirement: A1 reports its active project directory with native identity
 
-Interactive A1 under a valid local Herdr terminal identity SHALL publish its committed active project directory as `a1.cwd` alongside the existing endpoint-ready session/runtime identity and heartbeat. The directory SHALL derive from the active project context rather than the process launch directory or a pending transition. Existing reporting ownership and replacement fences SHALL apply to directory publication and cleanup. Native reporting SHALL remain independent of optional plugin switches.
+Interactive A1 under a valid local Herdr terminal identity SHALL publish its committed active project directory as `a1.cwd` alongside the existing endpoint-ready session/runtime identity and heartbeat. The directory SHALL derive from the active project context rather than the process launch directory or a pending transition. The `a1.cwd.binding` token SHALL bind the directory to the exact native runtime/session/timestamp publication. Existing reporting ownership and replacement fences SHALL apply to directory publication and cleanup. Native reporting SHALL remain independent of optional plugin switches.
 
 #### Scenario: Attach from home to a repository worktree
 - **WHEN** an A1 session launched from home successfully attaches to a repository worktree and publishes its current endpoint binding
@@ -35,6 +35,10 @@ The private Herdr customization SHALL prefer a valid complete fresh identity-bou
 #### Scenario: Missing or stale report
 - **WHEN** A1 directory metadata is missing, invalid or outside the existing freshness window
 - **THEN** directory selection preserves existing foreground, shell and terminal fallbacks without inventing a repository
+
+#### Scenario: Older producer refreshes leftover directory labels
+- **WHEN** an identity-only producer changes the native session, runtime or heartbeat while directory labels remain from a prior publication
+- **THEN** the mismatching directory token prevents the stale path from overriding ordinary directory fallbacks
 
 #### Scenario: Remote agent directory
 - **WHEN** the selected A1 terminal belongs to a remote machine
