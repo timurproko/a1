@@ -30,6 +30,20 @@ SHA-256 of the canonical external files at `d2e05b50`:
 51091924ce2bbeda8eb33261b1e1264df94d5f7730f20d26c6d4ee5b07294785 docs/A1-PROJECT-DIRECTORY.md
 ```
 
+## Approved agent-agnostic refinement
+
+The maintainer requested that shared Herdr directory/UI logic not identify A1 or any other agent. Consumer source commit `69b409eb5846a47a68f63090ac85fd3117b985e6` on the existing MyConfigs PR 3 implements that refinement:
+
+- `src/integration/agent-context/context.js` exposes a pure generic project-directory capability registry. Registration is separate in `providers.js`; shared directory selection and the shell-report facade contain no A1/Claude names, conditions or protocol labels. They consume normalized capability data and preserve native/shell/terminal fallbacks.
+- Isolated A1 and Claude Code adapters read their respective supported public/native signals. The Claude companion already reports `session.root()` with its live session identity and heartbeat, so no Claude producer/API change is needed. The existing A1 producer addition supplies the missing equivalent report; no further A1 RPC, private API discovery or polling was introduced.
+- Common validation bounds and normalizes paths and checks freshness. Missing, failing, invalid or ambiguous providers fall back safely. Capability reads are terminal-local and independent of optional color/name plugin switches.
+- Provider extension is proved with a synthetic third agent registered through the same contract, without directory or Git repository UI edits. Source architecture assertions prohibit agent names in the generic registry, directory resolver and shell facade. Existing session-PR footer parsing and optional color/name features remain separate capabilities outside this focused directory refactor.
+- The build injects one canonical provider tree into each sandbox and runtime lib with exact source ownership. Existing directory regression VM loaders were updated for the dependency graph, preserving assertions. The existing wrapped-Claude fixture now supplies the actual producer's current-app and session labels instead of an unbound path/timestamp-only mock.
+- Custom unit suite, both-agent packaged Git/directory fixtures, architecture/packaging tests, reviewed host API checks, disposable native fixtures, doctor and all 17 installed native mod checks passed. The external integration suite still stops at the previously recorded unrelated legacy-color assertion at line 823; it is not claimed green.
+- Scoped deployment selected only the provider tree, shared shell facade and directory resolver: 122 outputs changed, 846 preserved, none removed; backup `1794925228016-41060`. Doctor reports no issues, 968 owned files, reviewed Herdr 0.1.16. No native binary, layout/preference, terminal topology, Core or agent restart/input was used.
+- A concurrent task advanced shared yadm main to unrelated Crew work. This refinement was committed with a task-private alternate Git index and `commit-tree` against the previous consumer topic head, then pushed normally to its existing branch. Shared main, its index and unrelated edits were left unchanged. Only the exact provider-dependency loader hunk from the already-dirty Agents-grouping fixture is included; its unrelated edits remain uncommitted. Unit checks ran in canonical live source with those separately owned changes present; focused capability/packaging fixtures cover the published provider bytes, not acceptance of unrelated work.
+- PR 969's earlier CI failure was three DOC005 implementation-comment prefixes, not runtime behavior. Those prefixes are repaired; the same changed-file documentation governance now passes. The 43 focused A1 tests and typecheck also pass after the repair. The pinned strict OpenSpec Validator passes the archived proposal and delta specs with no issues. Direct strict validation of the existing canonical capability reports its inherited placeholder Purpose warning; no canonical spec was hand-edited to hide that baseline issue.
+
 ## Known gaps and disposition
 
 No unfinished product implementation tasks. The following bounded validation/rollout limitations remain explicit:

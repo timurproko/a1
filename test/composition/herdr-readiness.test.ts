@@ -28,14 +28,14 @@ describe("reporting readiness and replacement publication ordering", () => {
     const control = await startIntegrationControl(f.backend, {} as OwnedSettingsManager, "unused", f.runtimeId, f.reservation);
     const options = observed.reporter.mock.calls[0]![0] as { identity: () => unknown };
     expect(options.identity()).toMatchObject({ sessionId: f.identity.sessionId, binding: 1, cwd: "C:/Users/me" });
-    // A queued/rejected target never changes the active backend identity.
+    // Invariant: a queued/rejected target never changes the active backend identity.
     f.emit(); expect(options.identity()).toMatchObject({ cwd: "C:/Users/me" });
     f.identity.cwd = "D:/Git/repo/.worktrees/attached";
     f.identity.sessionId = randomUUID(); f.identity.sessionBindingGeneration++; f.emit();
     expect(options.identity()).toBeUndefined(); expect(observed.request).not.toHaveBeenCalled();
     await new Promise(done => setImmediate(done)); observed.release!(); await new Promise(done => setImmediate(done));
     expect(options.identity()).toMatchObject({ sessionId: f.identity.sessionId, binding: 2, cwd: f.identity.cwd }); expect(observed.request).toHaveBeenCalledOnce();
-    // Worktree switches, detach and completion all replace the context of this same conversation.
+    // Protocol: worktree switches, detach and completion all replace the context of this same conversation.
     for (const cwd of ["D:/Git/repo/.worktrees/other", "C:/Users/me", "D:/Git/repo"]) {
       f.identity.cwd = cwd; f.identity.sessionBindingGeneration++; f.emit();
       expect(options.identity()).toBeUndefined();

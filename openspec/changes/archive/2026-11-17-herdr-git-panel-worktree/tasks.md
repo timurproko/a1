@@ -6,6 +6,6 @@
 
 ## 2. Resolve Herdr Git through agent-agnostic project providers
 
-- [ ] 2.1 Add a generic project-directory provider contract and package its registry and isolated A1/Claude Code adapters without agent-specific directory or panel conditions.
-- [ ] 2.2 Preserve local/remote routing and native/shell fallbacks; cover both agents, unsupported/throwing/ambiguous providers, future provider injection and stale Git replies in disposable fixtures.
-- [ ] 2.3 Record the external source revision/diff, build/deployment status and rollout gaps, and repair the existing comment-format CI failure.
+- [x] 2.1 Add a generic project-directory provider contract and package its registry and isolated A1/Claude Code adapters without agent-specific directory or panel conditions.
+- [x] 2.2 Preserve local/remote routing and native/shell fallbacks; cover both agents, unsupported/throwing/ambiguous providers, future provider injection and stale Git replies in disposable fixtures.
+- [x] 2.3 Record the external source revision/diff, build/deployment status and rollout gaps, and repair the existing comment-format CI failure.

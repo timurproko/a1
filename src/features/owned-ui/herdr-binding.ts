@@ -120,7 +120,7 @@ async function lock(file: string): Promise<(() => Promise<void>) | undefined> {
 async function readState(file: string): Promise<BindingState | undefined> {
   try {
     const stat = await lstat(file);
-    // JSON escaping can expand a bounded 4 KiB directory; intent records retain their smaller bound.
+    // Protocol: JSON escaping can expand a bounded 4 KiB directory; intent records retain their smaller bound.
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 32_768) throw new Error("Unsafe binding record");
     const value = JSON.parse(await readFile(file, "utf8")) as BindingState;
     if (value.version !== 1 || !Number.isSafeInteger(value.generation) || value.generation < 1 || !UUID.test(value.runtimeId)) throw new Error("Invalid binding fence");
