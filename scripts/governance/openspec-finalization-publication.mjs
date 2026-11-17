@@ -110,7 +110,7 @@ async function promoteCompletedDraft({ reader, publisher, pull, implementation, 
   if (typeof pull.node_id !== "string" || !pull.node_id) throw archiveFailure("finalization-candidate-identity");
   const target = (await reader.get(`${reader.prefix}/git/ref/heads/develop`)).object?.sha;
   if (!SHA.test(target ?? "")) throw archiveFailure("target-identity");
-  if (pull.base?.sha !== target) return { disposition: "retry", reason: "draft-target-changed", head: pull.head.sha, commits: [] };
+  // Rationale: PR base metadata can lag develop; fetched ancestry below establishes current-target readiness.
   const root = await realpath(await mkdtemp(join(tmpdir(), "openspec-readiness-")));
   const checkout = join(root, "checkout");
   await mkdir(checkout);
@@ -156,6 +156,9 @@ async function promoteCompletedDraft({ reader, publisher, pull, implementation, 
   if (!samePromotionSnapshot(current, pull, reader.repository)) {
     return { disposition: "retry", reason: "draft-changed-before-ready", head: pull.head.sha, commits: [] };
   }
+  const currentTarget = (await reader.get(`${reader.prefix}/git/ref/heads/develop`)).object?.sha;
+  if (!SHA.test(currentTarget ?? "")) throw archiveFailure("target-identity");
+  if (currentTarget !== target) return { disposition: "retry", reason: "draft-target-changed", head: pull.head.sha, commits: [] };
   await publisher.ready(number, pull.node_id);
   return { disposition: "promoted", head: pull.head.sha, promoted: true, commits: [] };
 }
