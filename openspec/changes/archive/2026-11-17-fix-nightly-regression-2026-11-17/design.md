@@ -40,6 +40,13 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 - After the fix the same native reproduction publishes all fifty replacements with zero failures. All twenty-three tests across session-control, independent-runtime color integration, and runtime API lifecycle pass locally on Windows Node 24.21.0; typecheck passes. An initial timer-driven exhaustion fixture incorrectly advanced the clock before asynchronous filesystem setup completed; it was replaced with a deterministic elapsed-clock model of three failed rename attempts, without changing any test timeout.
 - No specification requirement changes: this restores the existing atomic-publication and replacement-identity contract in session-color-control. Known implementation gaps remain none; fresh trusted re-finalization and exact-head native validation are required for this new repair.
 
+### Repair after finalized-head Ubuntu validation
+
+- Confirmed PR #964 still names expected head ac9a8a90881b5981709f441391aba3b657c04803 and run 44045463826 attempt 1 is the latest non-superseded Development validation before editing. Read the failed Ubuntu job 133910524303 and both failed aggregate jobs 133918647631 and 133918741027 directly. The aggregate failures follow the single Ubuntu test failure and need no independent change.
+- The permanent-publication-error fixture expects only a JSON file in the discovery directory. Ubuntu correctly also retains the live Unix socket, so the new test's Windows-only inventory assumption fails at line 213. Production cleanup and transport behavior are correct.
+- The fixture now selects the JSON registration explicitly and compares the entire sorted post-failure directory inventory to its pre-failure inventory. Exact prior-registration byte equality, a single failed rename, no temporary-file leakage, no removal of any existing entry, and rejection of the unpublished identity remain asserted. No production code, timeout, budget, or safety assertion changes.
+- All sixteen session-control tests and typecheck pass locally on Windows Node 24.21.0. No local Linux environment is installed; the native Unix socket path remains subject to fresh selected Ubuntu/macOS CI rather than being represented as locally validated. Finalization inspection and fresh exact-head CI apply to the repair head.
+
 ### Original triage evidence
 
 - Run [Full regression #96](https://github.com/timurproko/a1/actions/runs/44022764568) (attempt 1, schedule) on `7c146a8` at 2026-11-17T05:15:03Z:

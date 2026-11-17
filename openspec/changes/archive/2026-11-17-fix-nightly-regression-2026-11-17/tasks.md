@@ -13,4 +13,6 @@
 
 - [x] 2.5 Preserve atomic session registration replacement through brief Windows reader contention with bounded retries and fail-closed regression fixtures.
 
+- [x] 2.6 Preserve the native Unix socket in the permanent-publication-error fixture's exact before-and-after directory inventory.
+
 After finalization, the exact-head PR Full regression lanes and Development validation required must pass before manual handoff. Report final run/head/selection in Actions and handoff, not another committed design edit. Standalone dispatch is diagnostic, not a replacement for selected PR checks. Numbered-package nightly recovery remains independent.

@@ -199,8 +199,9 @@ describe("bounded local session control", () => {
   it("does not retry permanent publication errors or remove the previous registration", async () => {
     const target = await host();
     const directory = join(runtimeDir, "session-controls");
-    const [name] = await readdir(directory);
-    const file = join(directory, name!);
+    const initialFiles = (await readdir(directory)).sort();
+    const name = initialFiles.find(name => name.endsWith(".json"))!;
+    const file = join(directory, name);
     const previous = await readFile(file, "utf8");
     target.state.sessionId = randomUUID(); target.state.binding++;
     const error = Object.assign(new Error("publication refused"), { code: "EINVAL" });
@@ -210,7 +211,7 @@ describe("bounded local session control", () => {
     await expect(target.publish()).rejects.toBe(error);
     expect(rename).toHaveBeenCalledOnce();
     expect(await readFile(file, "utf8")).toBe(previous);
-    expect(await readdir(directory)).toEqual([name]);
+    expect((await readdir(directory)).sort()).toEqual(initialFiles);
     await expect(requestSessionControl({ runtimeDir, sessionId: target.state.sessionId, payload: null })).rejects.toMatchObject({ code: "session-unavailable" });
   });
 
