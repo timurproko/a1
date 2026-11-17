@@ -144,13 +144,13 @@ function assertLifecycleReadback(data: Record<string, unknown>, type: "session.l
 }
 
 /** Manual names are single-line user data, never terminal control sequences. */
-export function validSessionName(value: unknown): value is string {
+function validSessionName(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0 && [...value.trim()].length <= 256
     && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(value);
 }
 
 /** Opaque compare token; deliberately not a path or a private discovery record. */
-export function validNameRevision(value: unknown): value is string {
+function validNameRevision(value: unknown): value is string {
   return typeof value === "string" && /^[a-f0-9]{64}$/u.test(value);
 }
 

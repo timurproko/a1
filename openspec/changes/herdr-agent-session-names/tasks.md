@@ -12,7 +12,7 @@
 
 ## 3. Sidebar renaming with preserved native name updates
 
-- [ ] 3.1 Add a generic plugin-owned agent-menu contribution and native Rename input UI for eligible A1 agents, preserving existing Pin/Close behavior.
-- [ ] 3.2 Extend the shared client and bounded worker for authoritative name reads and guarded local/remote renames, with captured identity, revision, expiry and error handling.
-- [ ] 3.3 Route API renames through existing manual-name notifications without adding a second name-sync/display path; add native-update regression checks with plugin/features disabled and stale/conflict/cancel/routing fixtures.
-- [ ] 3.4 Document coordinated rollout and actual source/build/deployment state, including explicit remaining compatibility or UI-inspection gaps.
+- [x] 3.1 Add a generic plugin-owned agent-menu contribution and in-place Agents-row editor matching Spaces/Tabs save/cancel UX, with no modal and unchanged Pin/Close behavior.
+- [x] 3.2 Extend the shared client and bounded worker for authoritative name reads and guarded local/remote renames, with captured identity, revision, expiry and error handling.
+- [x] 3.3 Route API renames through existing manual-name notifications without adding a second name-sync/display path; add native-update regression checks with plugin/features disabled and stale/conflict/cancel/routing fixtures.
+- [x] 3.4 Document coordinated rollout and actual source/build/deployment state, including explicit remaining compatibility or UI-inspection gaps.

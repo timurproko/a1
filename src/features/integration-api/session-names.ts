@@ -1,14 +1,16 @@
 import { createHash } from "node:crypto";
-import type { OwnedUiSessionNameState, OwnedUiSessionNamingPort } from "../../contracts/owned-ui/index.js";
 import { integrationFailure, integrationResponse, parseIntegrationRequest, type IntegrationResponse } from "./protocol.js";
 
-/** A name-specific compare token exposes neither history paths nor engine provenance. */
-function revision(state: OwnedUiSessionNameState): string {
+/** Minimal owner state for optimistic manual edits; paths never leave this service. */
+interface NameState { readonly sessionFile: string; readonly binding: number; readonly nameEntryId: string | null; readonly name: string | null }
+interface NameOwner<S extends NameState> { state(): S | null; rename?(expected: S, name: string): boolean }
+
+function revision(state: NameState): string {
   return createHash("sha256").update(JSON.stringify([state.binding, state.nameEntryId, state.name])).digest("hex");
 }
 
 /** Runs synchronously inside the exact-target runtime fence; manual edits never use automatic naming's apply. */
-export function applySessionName(input: unknown, naming: OwnedUiSessionNamingPort | undefined): IntegrationResponse {
+export function applySessionName<S extends NameState>(input: unknown, naming: NameOwner<S> | undefined): IntegrationResponse {
   try {
     const request = parseIntegrationRequest(input);
     if (request.type !== "session.get" && request.type !== "session.rename") throw integrationFailure("unsupported-operation", "Not a name operation.");

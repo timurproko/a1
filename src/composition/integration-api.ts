@@ -4,7 +4,7 @@ import { ReadySessionBinding } from "../features/owned-ui/ready-session-binding.
 import { createOwnedRuntimeContext, type OwnedRuntimeContext } from "../features/owned-ui/runtime-context.js";
 import type { HerdrBindingReservation } from "../features/owned-ui/herdr-binding.js";
 import type { ApplicationSettings } from "../app/settings/index.js";
-import { applyIntegrationSettings, applySessionLifecycle, applySessionName, integrationFailure, parseIntegrationRequest } from "../features/integration-api/index.js";
+import { applyIntegrationSettings, applySessionLifecycle, integrationFailure, parseIntegrationRequest } from "../features/integration-api/index.js";
 
 /**
  * Binds the shared public protocol to the existing fenced private runtime transport. The shell that answers
@@ -12,6 +12,7 @@ import { applyIntegrationSettings, applySessionLifecycle, applySessionName, inte
  * until it exists, and after disposal, lifecycle operations report session-unavailable.
  */
 export async function startIntegrationControl(backend: OwnedUiSessionBackend & { readonly naming?: OwnedUiSessionNamingPort }, settings: ApplicationSettings, runtimeDir: string, runtime: string | OwnedRuntimeContext = createOwnedRuntimeContext(), herdrBinding?: HerdrBindingReservation, lifecycle: () => OwnedUiSessionLifecyclePort | null = () => null) {
+  const { applySessionName } = await import("../features/integration-api/session-names.js");
   const context = typeof runtime === "string" ? createOwnedRuntimeContext(runtime, herdrBinding) : runtime;
   const publishedBinding = backend.identity.sessionBindingGeneration;
   const identity = () => ({ sessionId: backend.identity.currentHistorySessionId() ?? backend.identity.sessionId, binding: backend.identity.sessionBindingGeneration });

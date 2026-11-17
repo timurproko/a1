@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { applySessionName, assertIntegrationResponse, executeIntegrationRequest, parseIntegrationRequest } from "../../../src/features/integration-api/index.js";
+import { applySessionName } from "../../../src/features/integration-api/session-names.js";
+import { assertIntegrationResponse, executeIntegrationRequest, parseIntegrationRequest } from "../../../src/features/integration-api/index.js";
 import type { OwnedUiSessionNameState } from "../../../src/contracts/owned-ui/index.js";
 
 const target = { scope: "session", sessionId: "11111111-1111-4111-8111-111111111111", runtimeId: "22222222-2222-4222-8222-222222222222" };

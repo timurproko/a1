@@ -19,13 +19,13 @@ The private Herdr customization SHALL present one A1 plugin with a master enable
 - **THEN** the generic plugin initially stays disabled without changing stored names or colors
 
 #### Scenario: Master switch gates both features
-- **WHEN** the plugin is disabled after a popup or async read starts
+- **WHEN** the plugin is disabled after a context menu, inline editor or async read starts
 - **THEN** stale continuations cannot submit a new rename or color update
 - **AND** completed changes are not undone
 
 ### Requirement: Sidebar Rename targets the clicked A1 session
 
-The Agents context menu SHALL accept generic plugin-owned action contributions. The A1 plugin SHALL contribute Rename only for an eligible live A1 agent with fresh complete native session/runtime identity and sidebar renaming enabled. Rename SHALL use a native private input UI prefilled from authoritative API readback, capture the clicked terminal/machine/runtime/session and revision, and revalidate lifetime, expiry, enable state and identity before submitting a literal shared-client request. Local and remote requests SHALL use supported host execution routing. Unsupported agents SHALL retain existing menu behavior. No terminal input, private endpoint discovery, shipped mod edits, native patch or permanent local alias SHALL be used.
+The Agents context menu SHALL accept generic plugin-owned action contributions. The A1 plugin SHALL contribute Rename only for an eligible live A1 agent with fresh complete native session/runtime identity and sidebar renaming enabled. Rename SHALL edit the name in-place in the Agents row, matching Spaces and Tabs with selected existing text, compact save/cancel controls, Enter to save and Escape/blur to cancel. It SHALL NOT open a modal. The mounted Agents view SHALL consume only an ephemeral expiring edit request, expand a compact sidebar if needed, and allocate/focus native input state outside render. The editor SHALL prefill from authoritative API readback, capture the clicked terminal/machine/runtime/session and revision, and revalidate editor lifetime, expiry, enable state and identity before submitting a literal shared-client request. Local and remote requests SHALL use supported host execution routing. Unsupported agents SHALL retain existing menu behavior. No terminal input, private endpoint discovery, shipped mod edits, native patch or permanent local alias SHALL be used.
 
 #### Scenario: Click a different agent from the focused one
 - **WHEN** a person opens Rename on an eligible nonfocused A1 agent and submits a new name
@@ -33,8 +33,13 @@ The Agents context menu SHALL accept generic plugin-owned action contributions. 
 - **AND** focus and terminal topology remain unchanged
 
 #### Scenario: Cancel or replace the target
-- **WHEN** the person cancels, closes the overlay, disables sidebar renaming or the captured runtime/session is replaced
+- **WHEN** the person cancels, blurs the inline editor, disables sidebar renaming or the captured runtime/session is replaced
 - **THEN** the pending UI cannot submit a rename against any current or replacement agent
+
+#### Scenario: Rename uses the same in-place UX as Spaces and Tabs
+- **WHEN** a person chooses Rename from an eligible agent's context menu
+- **THEN** its Agents row shows a focused native name input with the existing name selected and compact save/cancel controls
+- **AND** no rename modal or dialog opens
 
 #### Scenario: Old runtime or concurrent rename refuses the write
 - **WHEN** the target lacks session.rename support, becomes unavailable or changes name revision

@@ -287,6 +287,11 @@ describe("Pi session naming", () => {
     const { adapter, entries, session } = await namingFixture();
     const events: OwnedUiEvent[] = [];
     const unsubscribe = adapter.onEvent(event => events.push(event));
+    expect(adapter.naming.apply(adapter.naming.state()!, "Automatic name", "context")).toBe(true);
+    const nameEntries = entries.filter(entry => entry.type === "session_info").length;
+    expect(adapter.naming.rename(adapter.naming.state()!, "Automatic name")).toBe(true);
+    expect(adapter.naming.state()?.source).toBe("user");
+    expect(entries.filter(entry => entry.type === "session_info")).toHaveLength(nameEntries);
     const before = adapter.naming.state()!;
     expect(adapter.naming.rename(before, "Sidebar name")).toBe(true);
     expect(adapter.naming.state()).toMatchObject({ name: "Sidebar name", source: "user" });
