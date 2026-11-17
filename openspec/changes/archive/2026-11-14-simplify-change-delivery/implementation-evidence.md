@@ -1,5 +1,9 @@
 # Implementation observations
 
+## Explicit composed recovery race following ce7ce0a3
+
+Trusted refinalization at `ce7ce0a378df509b82405a3702a51ba5a8a823e2` and its required Development run `44123241850` succeeded, including the mandatory packaged recovery wrapper. Its clean pinned package independently passed all 19 existing probes. Added one explicit real-process composition case to avoid conflating the separately covered races: a target recovery process now competes simultaneously with the shipped attachment producer and cleanup acquisition. Each acquisition must either serialize successfully or return its precise busy/claimed blocker; after recovery, attachment must succeed, cleanup must reject the committed claim, and detach must restore successful guarded execution while preserving target/ref. The unchanged standard wrapper passed **20 packaged probes, zero skips**, strict declarations and all existing liveness/snapshot/crash assertions within its original 240/250-second bounds (about 228 seconds locally). This is an additive test/evidence correction, not a gate implementation or deadline change. Its final immutable source/package and required-CI identities are recorded separately at handoff.
+
 ## CI packing prerequisite repair following da98f947
 
 Trusted finalization succeeded at `da98f947aca26acbd8fc2db9de29a96deb5a791c` after combining overlapping package/recovery Acceptance scenarios within the deployed ten-item limit; no policy was changed. Its clean pinned actual candidate passed all **19** packaged probes and strict declarations. Exact-head Development run `44120774860` then failed the new mandatory wrapper before probing recovery: its Node-24 runner had a different npm 11 and no offline cache entry for pinned `npm@11.13.0` (`ENOTCACHED`). This is recorded as a failed required run, not reinterpreted as a green recovery result.

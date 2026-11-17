@@ -181,6 +181,25 @@ probe('packaged recovery interruption rolls back and concurrent retries cannot c
   assert.throws(()=>recoverClaimGate(approval),/generation changed/); assert.equal(readClaimGate(gate).nonce,successor.nonce); successor.release();
   let ran=false; await withSessionClaimLock(directory,{},async()=>{ran=true;}); assert(ran);
 });
+probe('packaged target recovery serializes with simultaneous attachment and cleanup acquisition', async t => {
+  if(process.platform!=='win32'){t.skip('Windows v2 recovery only');return;}
+  const f=await fixture(t,{noRemove:true}), actor=await f.actor(),holder=f.start('holder');const child=await f.leaf();
+  const ended=once(holder,'close');holder.kill('SIGKILL');await ended;
+  await writeFile(f.release,'finish without removal');await wait(f.done);await stopped(child.pid);
+  const approval=await recoverable(f.gate);await writeFile(f.file,JSON.stringify({...f,approval}));
+  const recovering=f.start('recover');await once(recovering,'message');
+  const recovered=once(recovering,'message').then(([result])=>result);
+  let protectedRuns=0;
+  const cleanup=withUnclaimedWorktree(f.snapshot,{dataDir:f.dataDir,lockTimeoutMs:150},async()=>{protectedRuns++;return 'protected';})
+    .catch(error=>{assert(['worktree-claim-busy','attached-session'].includes(error.code),String(error));return error.code;});
+  const [recovery,attachment,execution]=await Promise.all([recovered,actor('attach'),cleanup]);
+  assert.equal(recovery.state,'recovered');assert(attachment.attached || attachment.code==='worktree-claim-busy');
+  assert(['protected','worktree-claim-busy','attached-session'].includes(execution));assert.equal(protectedRuns,execution==='protected'?1:0);
+  if(!attachment.attached)assert.equal((await actor('attach')).attached,true);
+  await assert.rejects(withUnclaimedWorktree(f.snapshot,{dataDir:f.dataDir},async()=>assert.fail('cleanup overlapped a committed editing claim')),{code:'attached-session'});
+  assert.equal((await actor('detach')).detached,true);await withUnclaimedWorktree(f.snapshot,{dataDir:f.dataDir},async()=>{});
+  assert.equal(await exists(f.path),true);assert.equal(await f.git(f.primary,['rev-parse','fix/task']),f.snapshot.head);
+});
 probe('packaged replacement, malformed, linked and legacy gates never receive stale recovery', async t => {
   if (process.platform !== 'win32') { t.skip('Windows v2 lifetime evidence only'); return; }
   const f=await fixture(t), holder=f.start('global'); await wait(f.ready);
