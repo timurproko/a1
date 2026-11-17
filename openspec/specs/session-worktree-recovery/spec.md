@@ -374,3 +374,9 @@ New Windows x64/local-NTFS authority gates SHALL support explicit inspection and
 - **THEN** same-boot absence or stale approval SHALL NOT transfer authority
 - **AND** only a verified different kernel boot MAY supply execution-stop evidence for an otherwise valid supported gate
 - **AND** malformed/linked/historical state SHALL remain blocked, even across reboot
+
+#### Scenario: Temporary transaction contention is not an orphan
+- **WHEN** another transaction temporarily blocks a live holder's binding, delegation or retirement
+- **THEN** lifecycle callers SHALL retain the exact capability and await native SQLite contention without marking retirement complete before commit
+- **AND** once contention ends global and target coordination SHALL become usable while the original owner remains alive
+- **AND** stale identity/generation, surviving-child and genuine unverifiable errors SHALL remain blocking rather than being retried as contention
