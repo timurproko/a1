@@ -21,6 +21,10 @@ Canonical root: `C:/Users/tprokopiev/.config/herdr-app/customizations/`, tracked
 - Latest deployment backup: `1794920102369-29772`. Doctor reports Herdr 0.1.16, reviewed compatibility, no issues; post-preview live status has no errors or overlays. Layouts, preferences, native reporting, terminal topology and running A1/Core processes were not replaced or restarted by deployment.
 - The existing yadm push hook independently reported restarting AutoHotkey and logi-mouse-follow helpers; herdr-shell was already current and Paseo autostart was excluded. No manual process-management action was taken.
 
+## Delivery metadata repair
+
+The first finalized-delivery check rejected the archive with `delivery-artifact-missing`: the original manually created proposal omitted `.openspec.yaml`. Added the required spec-driven schema and creation date to the existing archive. Product code, acceptance scenarios and validation requirements are unchanged; trusted automation regenerates the acceptance manifest for the repaired archive.
+
 ## Known gaps and disposition
 
 No unresolved implementation gaps. Rollout and optional real-agent interaction remain separate from source completion:
