@@ -41,6 +41,27 @@ async function api(type: string, session: { sessionId: string; runtimeId: string
 }
 
 describe("external color control across independent runtimes", () => {
+  it("routes name reads and guarded renames through exact-runtime transport without peer or replacement writes", async () => {
+    root = await mkdtemp(join(tmpdir(), "session-name-api-"));
+    const one = await host(), two = await host();
+    const names = async (session: { sessionId: string; runtimeId: string }, fields: Record<string, unknown> = {}) => {
+      const output: string[] = [];
+      const code = await runApiCommand([JSON.stringify({ version: 1, id: randomUUID(), type: "session.get", target: { scope: "session", sessionId: session.sessionId, runtimeId: session.runtimeId }, ...fields })],
+        { environment: { [PRODUCT_IDENTITY.environment.runtimeDir]: join(root, "runtime") }, stdout: line => output.push(line) });
+      return { code, response: JSON.parse(output[0]!) };
+    };
+    const before = await names(one);
+    const rename = { type: "session.rename", name: "Sidebar", expectedNameRevision: before.response.data.nameRevision };
+    expect(await names(one, rename)).toMatchObject({ code: 0, response: { data: { name: "Sidebar", status: "applied" } } });
+    expect(await names(two)).toMatchObject({ response: { data: { name: null } } });
+    expect(await names(one, { ...rename, name: "Stale" })).toMatchObject({ code: 1, response: { error: { code: "name-conflict" } } });
+    const replacement = randomUUID();
+    await one.send({ action: "replace", sessionId: replacement });
+    await vi.waitFor(async () => expect(await names({ sessionId: replacement, runtimeId: one.runtimeId })).toMatchObject({ code: 0, response: { data: { name: null } } }));
+    expect(await names(one, rename)).toMatchObject({ code: 1, response: { error: { code: "session-unavailable" } } });
+    expect(await names({ sessionId: replacement, runtimeId: two.runtimeId })).toMatchObject({ code: 1 });
+  });
+
   it("targets current colors without peer/default propagation and honors default on replacement", async () => {
     root = await mkdtemp(join(tmpdir(), "session-color-api-"));
     const one = await host(), two = await host();

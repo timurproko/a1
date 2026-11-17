@@ -48,6 +48,17 @@ export class PiSessionNaming implements OwnedUiSessionNamingPort {
     };
   }
 
+  /** External edits have ordinary manual ownership and use Pi's existing session-info event/reporting path. */
+  rename(expected: OwnedUiSessionNameState, name: string): boolean {
+    const current = this.state(), session = this.#ports.session();
+    if (!current || !session || current.sessionFile !== expected.sessionFile || current.binding !== expected.binding
+      || current.nameEntryId !== expected.nameEntryId || current.name !== expected.name) return false;
+    if (current.name === name) return true;
+    session.setSessionName(name);
+    this.#ports.changed();
+    return this.state()?.name === name;
+  }
+
   async complete(request: OwnedUiSessionNameCompletion): Promise<string | null> {
     const session = this.#ports.session();
     const runtime = this.#ports.runtime();

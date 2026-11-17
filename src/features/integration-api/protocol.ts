@@ -3,7 +3,7 @@ import { OWNED_SETTING_DECLARATIONS } from "../../app/settings/index.js";
 export const INTEGRATION_VERSION = 1;
 export const INTEGRATION_LIMIT = 8192;
 const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
-const OPERATIONS = ["capabilities", "settings.list", "settings.get", "settings.update", "session.get", "session.lifecycle", "session.exit"] as const;
+const OPERATIONS = ["capabilities", "settings.list", "settings.get", "settings.update", "session.get", "session.lifecycle", "session.exit", "session.rename"] as const;
 /** Why one exact live session cannot stop safely right now; the first listed blocker is the refusal code. */
 export const EXIT_BLOCKERS = ["session-stopping", "session-busy", "editor-not-empty", "pending-input", "overlay-open"] as const;
 export type ExitBlocker = typeof EXIT_BLOCKERS[number];
@@ -18,7 +18,7 @@ export interface SessionLifecycleSnapshot {
   readonly exitAdmissible: boolean;
   readonly blockers: readonly ExitBlocker[];
 }
-const LIFECYCLE_OPERATIONS = new Set<string>(["session.get", "session.lifecycle", "session.exit"]);
+const LIFECYCLE_OPERATIONS = new Set<string>(["session.get", "session.lifecycle", "session.exit", "session.rename"]);
 export type IntegrationOperation = typeof OPERATIONS[number];
 export type IntegrationTarget = { readonly scope: "profile"; readonly profileId: "a1" }
   | { readonly scope: "session"; readonly sessionId: string; readonly runtimeId: string };
@@ -29,6 +29,8 @@ export interface IntegrationRequest {
   readonly target?: IntegrationTarget;
   readonly setting?: "accentColor" | "defaultAccentColor";
   readonly value?: string;
+  readonly name?: string;
+  readonly expectedNameRevision?: string;
 }
 export interface IntegrationResponse {
   readonly version: 1;
@@ -51,7 +53,7 @@ export function parseIntegrationRequest(value: unknown): IntegrationRequest {
   if (!OPERATIONS.includes(value.type as IntegrationOperation)) throw integrationFailure("unsupported-operation", "Unknown integration operation.");
   const type = value.type as IntegrationOperation;
   const discovery = type === "capabilities" || type === "settings.list";
-  const keys = discovery ? ["version", "id", "type"] : LIFECYCLE_OPERATIONS.has(type) ? ["version", "id", "type", "target"]
+  const keys = discovery ? ["version", "id", "type"] : type === "session.rename" ? ["version", "id", "type", "target", "name", "expectedNameRevision"] : LIFECYCLE_OPERATIONS.has(type) ? ["version", "id", "type", "target"]
     : ["version", "id", "type", "target", "setting", ...(type === "settings.update" ? ["value"] : [])];
   if (!only(value, keys)) throw integrationFailure("invalid-request", "Unexpected request fields.");
   if (discovery) return value as unknown as IntegrationRequest;
@@ -65,6 +67,11 @@ export function parseIntegrationRequest(value: unknown): IntegrationRequest {
   } else throw integrationFailure("unsupported-scope", "Only profile and session scopes are supported.");
   if (LIFECYCLE_OPERATIONS.has(type)) {
     if (target.scope !== "session") throw integrationFailure("unsupported-scope", "Session operations require a session target.");
+    if (type === "session.rename") {
+      if (!validSessionName(value.name)) throw integrationFailure("invalid-value", "Supply a nonempty single-line name of at most 256 characters without controls.");
+      if (!validNameRevision(value.expectedNameRevision)) throw integrationFailure("invalid-request", "Supply the name revision from session.get.");
+      return { ...value, name: value.name.trim() } as unknown as IntegrationRequest;
+    }
   } else {
     if (value.setting !== "accentColor" && value.setting !== "defaultAccentColor") throw integrationFailure("unsupported-setting", "This setting is not exposed.");
     if ((value.setting === "accentColor") !== (target.scope === "session")) throw integrationFailure("unsupported-scope", "Setting is not supported in this scope.");
@@ -102,6 +109,13 @@ export function assertIntegrationResponse(value: unknown, request: IntegrationRe
       || Object.entries(request.target).some(([key, expected]) => target[key] !== expected)) throw integrationFailure("invalid-response", "Integration result target did not match.");
   }
   if (request.type === "session.lifecycle" || request.type === "session.exit") assertLifecycleReadback(value.data, request.type);
+  if (request.type === "session.get" || request.type === "session.rename") {
+    const data = value.data;
+    if ((data.name !== null && (typeof data.name !== "string" || Buffer.byteLength(data.name) > 4096)) || !validNameRevision(data.nameRevision)
+      || (request.type === "session.rename" && (data.status !== "applied" || data.name !== request.name?.trim()))) {
+      throw integrationFailure("invalid-response", "Session name application was not acknowledged.");
+    }
+  }
   if (request.setting !== undefined) {
     const data = value.data;
     const choices = OWNED_SETTING_DECLARATIONS[request.setting].allowedValues;
@@ -127,6 +141,17 @@ function assertLifecycleReadback(data: Record<string, unknown>, type: "session.l
     || !blockers.every(blocker => EXIT_BLOCKERS.includes(blocker as ExitBlocker)) || data.exitAdmissible !== (blockers.length === 0)) {
     throw integrationFailure("invalid-response", "Malformed lifecycle snapshot.");
   }
+}
+
+/** Manual names are single-line user data, never terminal control sequences. */
+export function validSessionName(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0 && [...value.trim()].length <= 256
+    && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(value);
+}
+
+/** Opaque compare token; deliberately not a path or a private discovery record. */
+export function validNameRevision(value: unknown): value is string {
+  return typeof value === "string" && /^[a-f0-9]{64}$/u.test(value);
 }
 
 export function integrationCapabilities() {

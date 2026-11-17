@@ -1,8 +1,8 @@
 ## 1. Exact-session name API
 
-- [ ] 1.1 Add additive name/revision snapshots, strict session.rename requests, capability discovery and acknowledged response validation.
-- [ ] 1.2 Bind manual compare-and-apply naming through the neutral port and owning engine persistence, preserving exact-runtime fences and automatic-name ownership rules.
-- [ ] 1.3 Add focused protocol/runtime/naming/reporting fixtures and public API documentation for conflicts, supported values and unknown outcomes.
+- [x] 1.1 Add additive name/revision snapshots, strict session.rename requests, capability discovery and acknowledged response validation.
+- [x] 1.2 Bind manual compare-and-apply naming through the neutral port and owning engine persistence, preserving exact-runtime fences and automatic-name ownership rules.
+- [x] 1.3 Add focused protocol/runtime/naming/reporting fixtures and public API documentation for conflicts, supported values and unknown outcomes.
 
 ## 2. Generic A1 plugin feature settings
 
