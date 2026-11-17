@@ -83,8 +83,8 @@
     },
     {
       "id": "development-environment", "owner": "launch-startup",
-      "paths": ["scripts/development/check-environment.mjs", "scripts/development/environment-prerequisites.mjs", "scripts/development/environment-prerequisites.d.mts", "scripts/development/environment-probe.mjs", "scripts/development/environment-probe.d.mts"],
-      "testPaths": ["test/repository-governance/environment-prerequisites.test.ts"],
+      "paths": ["scripts/development/check-environment.mjs", "scripts/development/environment-prerequisites.mjs", "scripts/development/environment-prerequisites.d.mts", "scripts/development/environment-probe.mjs", "scripts/development/environment-probe.d.mts", "scripts/development/dependency-*"],
+      "testPaths": ["test/repository-governance/environment-prerequisites.test.ts", "test/repository-governance/environment-probe.test.ts", "test/repository-governance/dependency-*"],
       "integrationOwners": []
     }
   ],
