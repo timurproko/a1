@@ -4,9 +4,19 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- The cause is deterministic reviewed-metadata drift, not an environmental failure or a published-installer failure. Update only the stale workflow retention inventory and Pi API consumer inventory, and add focused assertions identifying the newly inventoried surface. Preserve workflow behavior, API declarations, assertions, budgets, timeouts, and coverage.
+- No product or governance requirement changes: the diagnostic artifacts already retain seven days, ordinary validation artifacts retain fourteen days, and the Pi dependencies remain pinned to 1.5.2. No specification delta is required.
 
 ## Evidence
+
+### Focused reproduction and attribution
+
+- Inspected the failed run's Windows Node 24 core job 133836019489, Ubuntu Node 24 job 133836019342, and macOS Node 24 job 133836019362 directly. Each reports the same four failures: two in `test/repository-governance/github-repository-governance.test.ts` and two in `test/repository-governance/pinned-pi-public-api.test.ts`. The smoke error lines in the triage excerpt come from passing negative-path fixtures, not the failed assertions. The aggregate orchestration failure follows the failed native jobs and needs no independent relaxation.
+- Reproduced locally on Windows Node 24.21.0 using `npx vitest run test/repository-governance/github-repository-governance.test.ts test/repository-governance/pinned-pi-public-api.test.ts`: four failures and eight passes, matching the native logs.
+- Introducing commit `e449cc683579e67e225af4db71a434044f985276` (#949) added the Windows published-pair diagnostic artifact with `retention-days: 7` to `.github/workflows/ci.yml`, while `config/github-repository-governance.json` still inventories only fourteen days. Exact comparison reports the missing seven-day entry.
+- Introducing commit `fe2e7e01a949688af34b920a43027bbc85e340ee` (#960) added `session-name-dialog.ts` and a `TUI` import in `shell-extension-ui.ts` without updating `config/baselines/pinned-pi-public-api.json`. The eleven drifted exports are DynamicBorder, CURSOR_MARKER, decodeKittyPrintable, getKeybindings, matchesKey, renderFakeCursor, Spacer, Text, truncateToWidth, TUI, and visibleWidth; declaration hashes and package versions are unchanged.
+
+### Original triage evidence
 
 - Run [Full regression #96](https://github.com/timurproko/a1/actions/runs/44022764568) (attempt 1, schedule) on `7c146a8` at 2026-11-17T05:15:03Z:
   - `vitest-full-without-isolated` (`architecture`, `dependency-policy`, `dist-integration`, `documentation-full`, `fast-remainder`, `fast-resource-sensitive`, `history-compatibility`, `image-compatibility`, `launch-integration`, `naming-full`, `package-contracts`, `package-smoke`, `package-startup`, `pi-engine-conformance`, `release-update`, `rendering-stability`, `typecheck`, `unix-release`, `update-performance`, `update-predecessor`) failed on macos-15-node24, ubuntu-24.04-node24, windows-2025-node22 (core shard), windows-2025-node24 (core shard) with exit 1.
