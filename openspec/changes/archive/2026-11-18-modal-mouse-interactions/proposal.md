@@ -18,6 +18,7 @@ A1's Models picker and other owned dialogs require keyboard input even when the 
 
 - ui-components: independent text-only hover, semantic clickable dialog controls, gesture ownership, and outside dismissal including in-place Models.
 - owned-ui-settings: replace the explicit keyboard-only configure-dialog policy with mouse choices and outside cancellation while preserving settings authority and keyboard behavior.
+- owned-pi-ui-foundation: reconcile footer direct-editing with outside-click ownership so one dismissal gesture cannot also open another footer dialog.
 
 ## Impact
 
