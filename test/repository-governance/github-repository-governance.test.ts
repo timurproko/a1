@@ -117,7 +117,7 @@ describe("declarative GitHub repository governance", () => {
     const stale = structuredClone(value);
     const index = stale.workflows.findIndex(workflow => workflow.path === ".github/workflows/ci.yml");
     stale.workflows[index] = { ...stale.workflows[index]!, artifactRetentionDays: [14] };
-    // The report addresses workflows in name order, not declaration order.
+    // Invariant: the report addresses workflows in name order, not declaration order.
     const sorted = [...stale.workflows].sort((left, right) => left.name.localeCompare(right.name)).findIndex(workflow => workflow.path === ".github/workflows/ci.yml");
     const report = compareRepositoryGovernance(stale, await matchingLive(value));
     expect(report.matches).toBe(false);
