@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /** Request the authoritative numbered preview after dependency readiness is established. */
-import { readFile } from "node:fs/promises";
-import { pathToFileURL } from "node:url";
+import { readFile, realpath } from "node:fs/promises";
 import { ensurePublicationDependencies } from "./dependency-bootstrap.mjs";
 
 /** Side-effect-free import boundary; publication services load only when the command is invoked. */
@@ -15,7 +14,7 @@ export async function main({ signal } = {}) {
   await publishDevelopmentPreview(preview, installer.name, { signal });
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && await realpath(new URL(import.meta.url)) === await realpath(process.argv[1]).catch(() => null)) {
   const controller = new AbortController(), abort = () => controller.abort(new Error("develop command cancelled"));
   process.on("SIGINT", abort); process.on("SIGTERM", abort);
   try {

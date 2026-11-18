@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, writeFile, readFile, cp, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, cp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
-async function fixture() {
+async function fixture(linked = false) {
   const root = await mkdtemp(join(tmpdir(), "publication-bootstrap-entry-")); roots.push(root);
   for (const directory of ["scripts/development", "scripts/release", "packages/a1-install"]) await mkdir(join(root, directory), { recursive: true });
   const files = ["development/develop.mjs", "development/dependency-bootstrap.mjs", "development/dependency-inspection.mjs", "development/dependency-process.mjs", "development/environment-probe.mjs", "release/release.mjs", "release/release-arguments.mjs"];
@@ -38,7 +38,8 @@ export const publishDevelopmentPreview=async(preview,installer,options)=>{record
 record({event:'import:release',ready:Boolean(semver)});
 export const createReleaseRuntime=({signal}={})=>({signal,error:message=>console.error('[release] '+message)});
 export const runRelease=async(args,runtime)=>{record({event:'command:release',args,signal:Boolean(runtime.signal)});if(process.env.FIXTURE_COMMAND==='fail')throw Error('fake release refused');};`);
-  const entry = (mode: string) => join(root, `scripts/${mode === "develop" ? "development/develop.mjs" : "release/release.mjs"}`);
+  if (linked) await symlink(join(root, "scripts"), join(root, "linked-scripts"), process.platform === "win32" ? "junction" : "dir");
+  const entry = (mode: string) => join(root, linked ? "linked-scripts" : "scripts", mode === "develop" ? "development/develop.mjs" : "release/release.mjs");
   const events = async () => {
     const text = await readFile(join(root, "events.jsonl"), "utf8").catch(() => "");
     return text.trim() ? text.trim().split("\n").map(line => JSON.parse(line)) : [];
@@ -62,6 +63,13 @@ describe("actual publication entries in dependency-empty disposable checkouts", 
     expect(names, result.stderr).toEqual(["npm:ci", "installed", "npm:ls", `import:${mode}`, ...(mode === "develop" ? ["source"] : []), `command:${mode}`]);
     expect(events[0].args).toContain("--include=dev"); expect(events.at(-1)).toMatchObject({ args, signal: true });
     expect(result.stderr).toContain("continuing the original command"); expect(result.stderr).not.toContain("ERR_MODULE_NOT_FOUND");
+  });
+  it.each(["develop", "release"])("executes %s through a linked directory without skipping bootstrap", async mode => {
+    const f = await fixture(true), args = mode === "release" ? ["patch"] : [];
+    const result = await f.run(mode, args);
+    expect(result.code, result.stderr).toBe(0);
+    expect((await f.events()).map(event => event.event)).toEqual(["npm:ci", "installed", "npm:ls", `import:${mode}`, ...(mode === "develop" ? ["source"] : []), `command:${mode}`]);
+    expect(result.stderr).toContain("continuing the original command");
   });
   it.each(["develop", "release"])("imports %s without installing or contacting publication services", async mode => {
     const f = await fixture(); expect((await f.run(mode, [], {}, true)).code).toBe(0); expect(await f.events()).toEqual([]);

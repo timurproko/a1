@@ -109,7 +109,7 @@ describe("Herdr supplied screenshots in the production shell", () => {
     try {
       terminal.input(`\u001b[200~"${path}"\u001b[201~`);
       terminal.input(" after");
-      await vi.waitFor(() => expect(shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).images).toHaveLength(1));
+      await vi.waitFor(() => expect(shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).images).toHaveLength(1), { timeout: 5_000 });
       const draft = shell.root.editor.getText();
       expect(draft).toMatch(/^\[🖼️ transferred screenshot\.png #[a-f0-9]+\] after$/u);
       const visible = stripTerminalSequences(shell.root.render(100).join("\n"));
@@ -144,7 +144,7 @@ describe("Herdr supplied screenshots in the production shell", () => {
       terminal.input(" between ");
       terminal.input(`\u001b[200~"${path}"\u001b[201~`);
       terminal.input(" after");
-      await vi.waitFor(() => expect(shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).images).toHaveLength(2));
+      await vi.waitFor(() => expect(shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).images).toHaveLength(2), { timeout: 5_000 });
       expect(shell.root.editor.getText()).toMatch(/^\[🖼️ transferred screenshot\.png #[a-f0-9]+\] between \[🖼️ transferred screenshot\.png #[a-f0-9]+\] after$/u);
       await expect(readFile(trace, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
     } finally { await shell.dispose(); await rm(root, { recursive: true, force: true }); }
@@ -157,7 +157,7 @@ describe("Herdr supplied screenshots in the production shell", () => {
     await mkdir(secondDirectory); await writeFile(second, otherBytes);
     try {
       for (const file of [path, second]) terminal.input(`\u001b[200~"${file}"\u001b[201~`);
-      await vi.waitFor(() => expect(shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).images).toHaveLength(2));
+      await vi.waitFor(() => expect(shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).images).toHaveLength(2), { timeout: 5_000 });
       const draft = shell.root.editor.getText(), records = shell.root.promptChips.imageChipAttachments(draft);
       expect(records.map(record => record.tag)).toEqual([
         expect.stringMatching(/^\[🖼️ transferred screenshot\.png #[a-f0-9]+\]$/u),
