@@ -746,6 +746,7 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
     expect(shell.root.usesDefaultInputSurface()).toBe(true);
     terminal.input("\x1b");
     expect(shell.root.usesDefaultInputSurface()).toBe(false);
+    await vi.dynamicImportSettled();
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Fork point");
 
     terminal.input("\x1b");

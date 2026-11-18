@@ -18,7 +18,7 @@
 - [x] 3.2 Replace Settings configure-dialog pointer blocking with hit-tested generic/Warnings changes, Default Model selection, and both Thinking Level steps through existing backend and undo authorities.
 - [x] 3.3 Close Settings configure workflows on an outside primary press without a write or underlying action, including from step two; preserve Escape back/close, existing wheel behavior, and asynchronous persistence failure handling.
 - [x] 3.4 Add owner-focused selector and Settings fixtures for independent keyboard focus, blended text-only hover, clicked-target actions, outside gesture ownership, clipped geometry, and async failure/reopen; update user-facing interaction documentation.
-- [x] 3.5 Apply the shared text-only 75/25 foreground hover to ordinary Settings labels, values, and enabled numeric controls while preserving independent keyboard focus and the existing row background.
+- [x] 3.5 Apply the shared text-only 75/25 foreground hover only to ordinary Settings values and enabled numeric controls; leave labels and section titles unchanged while preserving independent keyboard focus and the existing row background.
 - [x] 3.6 Reconcile the four CI-reported modal/transcript copy fixtures with outside-dismissal gesture ownership while preserving subsequent transcript scrolling and copying.
 
 ## 4. Bounded Settings configure dialogs with settings-aware scrolling

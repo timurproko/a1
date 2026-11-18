@@ -147,6 +147,12 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       shell.runtime.renderNow();
       expect(shell.root.hasActiveSelection()).toBe(false);
       expect(shell.root.viewportPresentationEvidence().scrollTop).toBe(top);
+      expect(screen()).not.toContain("Thinking Level (step");
+      expect(shell.runtime.hasOverlay()).toBe(true);
+      terminal.input("\r"); await nextImmediate();
+      expect(screen()).toContain("Thinking Level (step 1/2)");
+      terminal.input("\r"); await nextImmediate();
+      expect(screen()).toContain("Thinking Level (step 2/2)");
       terminal.input("\u001b");
       expect(screen()).toContain("Thinking Level (step 1/2)");
       expect(shell.runtime.hasOverlay()).toBe(true);

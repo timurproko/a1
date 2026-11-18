@@ -19,7 +19,7 @@ function render(state: { selected: boolean; hovered: boolean; region: "label" | 
 }
 
 describe("list rows against the reader's terminal", () => {
-  it.each([false, true])("tints the hovered semantic span without moving the keyboard background (selected %s)", selected => {
+  it.each([false, true])("tints only values while labels and keyboard backgrounds stay unchanged (selected %s)", selected => {
     const theme = { ...NAMING_THEME, hover: (token: UiThemeToken, text: string) => `~${token}:${text}~` };
     const rest = renderListRow(row, { selected, hovered: false, region: "value" }, 24, 200, theme);
     const value = renderListRow(row, { selected, hovered: true, region: "value" }, 24, 200, theme);
@@ -27,7 +27,8 @@ describe("list rows against the reader's terminal", () => {
     expect(value.includes("<highlight>")).toBe(rest.includes("<highlight>"));
     expect(value).not.toContain("~text:Theme");
     const label = renderListRow(row, { selected, hovered: true, region: "label" }, 24, 200, theme);
-    expect(label).toContain("~text:Theme");
+    expect(label).toBe(rest);
+    expect(label).not.toContain("~text:Theme");
     expect(label).toContain("<muted>light</muted>");
     expect(label.includes("<highlight>")).toBe(rest.includes("<highlight>"));
   });

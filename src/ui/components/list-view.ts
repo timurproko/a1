@@ -74,8 +74,7 @@ export function renderListRow(
   const labelColumn = Math.max(displayWidth(row.label), valueColumn - 4 - (row.stepper === undefined ? 0 : STEPPER_RESERVE));
   const labelPadded = `${row.label}${" ".repeat(Math.max(0, labelColumn - displayWidth(row.label)))}`;
   const leftRaw = `${cursor}${labelPadded}`;
-  const ordinaryLabel = state.selected ? theme.fg("text", labelPadded) : theme.plain(labelPadded);
-  const label = state.hovered && state.region === "label" ? theme.hover?.("text", labelPadded) ?? ordinaryLabel : ordinaryLabel;
+  const label = state.selected ? theme.fg("text", labelPadded) : theme.plain(labelPadded);
   const left = `${state.selected ? theme.fg("accent", cursor) : cursor}${label}`;
   const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
 

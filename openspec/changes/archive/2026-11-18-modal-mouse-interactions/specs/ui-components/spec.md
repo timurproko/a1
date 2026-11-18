@@ -63,7 +63,7 @@ Outside cancellation SHALL close or resolve the workflow rather than merely hide
 
 ### Requirement: Ordinary Settings hover shares the dialog foreground blend
 
-The shared Settings list-row renderer SHALL apply the same 75% ordinary-foreground / 25% current-accent text-only hover used by owned dialogs to hovered labels, muted values, and enabled numeric controls. Hover SHALL NOT replace a muted value with pure terminal white, add a background, move the keyboard-active row, or change the value's write behavior. Keyboard-active row backgrounds, alignment, clipping, disabled-control treatment, and ordinary non-hover semantic roles SHALL remain unchanged. Theme adapters without a hover painter SHALL retain their ordinary foreground treatment rather than fabricate an accent.
+The shared Settings list-row renderer SHALL apply the same 75% ordinary-foreground / 25% current-accent text-only hover used by owned dialogs only to hovered muted values and enabled numeric controls. Setting labels and section titles SHALL retain their ordinary foreground and attributes when hovered. Hover SHALL NOT replace a muted value with pure terminal white, add a background, move the keyboard-active row, or change the value's write behavior. Keyboard-active row backgrounds, alignment, clipping, disabled-control treatment, and ordinary non-hover semantic roles SHALL remain unchanged. Theme adapters without a hover painter SHALL retain their ordinary foreground treatment rather than fabricate an accent.
 
 #### Scenario: Hover a value while another row is keyboard-active
 
@@ -74,7 +74,8 @@ The shared Settings list-row renderer SHALL apply the same 75% ordinary-foregrou
 #### Scenario: Hover labels and enabled controls
 
 - **WHEN** the pointer rests over a Settings label or enabled numeric minus/plus control
-- **THEN** only that actionable text SHALL receive the same foreground blend
+- **THEN** a label SHALL remain visually unchanged and an enabled control SHALL receive the shared foreground blend
+- **AND** section titles SHALL NOT gain a hover treatment
 - **AND** no new background SHALL be introduced and disabled controls SHALL retain their disabled presentation
 
 ### Requirement: Configure pickers use a bounded settings-aware choice viewport

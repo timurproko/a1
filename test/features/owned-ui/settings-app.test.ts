@@ -673,6 +673,26 @@ describe("the settings screen", () => {
     expect(pointed).not.toContain("<accent>auto");
   });
 
+  it("leaves setting labels and section titles unchanged while only values receive hover tint", async () => {
+    const { app: target, writes } = await app();
+    const hover = vi.fn((token: UiThemeToken, text: string) => `~${token}:${text}~`);
+    const host = { ...HOST, theme: { ...PANEL_THEME, hover } };
+    const render = () => target.render({ width: 80, height: 24 }, host);
+    const before = render();
+    const rows = before.map(stripTerminalSequences);
+    for (const label of ["Update", "Appearance", "Current color"]) {
+      const row = rows.findIndex(line => line.includes(label));
+      const column = rows[row]!.indexOf(label) + 1;
+      target.onMouse?.({ kind: "motion", button: 3, column, row: row + 1 }, host);
+      expect(render()).toEqual(before);
+      expect(hover).not.toHaveBeenCalled();
+    }
+    const update = rows.findIndex(line => line.includes("Update"));
+    target.onMouse?.({ kind: "motion", button: 3, column: rows[update]!.indexOf("auto") + 1, row: update + 1 }, host);
+    expect(render()[update]).toContain("~muted:auto~");
+    expect(writes).toEqual([]);
+  });
+
   it("offers exactly three readable session-name formats and persists their stored values", async () => {
     const { app: target, session, writes } = await app();
     screen(target);
