@@ -141,7 +141,7 @@ An eligible reopening PR SHALL be integrated only after current-head required va
 - **THEN** the automation SHALL leave its auto-merge state unchanged and SHALL NOT merge it
 
 ### Requirement: Delivery automation is delegated to the shared workflow
-The repository SHALL forward pull-request delivery events to the reusable workflow of the shared delivery workflow in `timurproko/MyGitWorkflows` through one caller workflow that contains no steps of its own and passes only the delivery App credentials. Draft promotion, OpenSpec finalization, the delivery check, ready pull-request refresh, and merged-branch deletion SHALL be performed by that shared workflow. The repository SHALL NOT keep scripts, workflows, or validation jobs that implement or re-check those steps. The workflow inventory SHALL record the caller with its triggers, permissions, and the exact shared workflow reference.
+The repository SHALL forward pull-request delivery events to the reusable workflow of the shared delivery workflow in `timurproko/MyWorkflows` through one caller workflow that contains no steps of its own and passes only the delivery App credentials. Draft promotion, OpenSpec finalization, the delivery check, ready pull-request refresh, and merged-branch deletion SHALL be performed by that shared workflow. The repository SHALL NOT keep scripts, workflows, or validation jobs that implement or re-check those steps. The workflow inventory SHALL record the caller with its triggers, permissions, and the exact shared workflow reference.
 
 #### Scenario: A pull request is opened or updated
 - **WHEN** a pull request into `develop` is opened, edited, synchronized, marked ready, converted to draft, or closed

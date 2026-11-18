@@ -2,20 +2,13 @@
 
 ## Delivery workflow
 
-Change delivery is owned by the shared `change-delivery` skill of `timurproko/MyGitWorkflows`, not by this repository: load it before making, planning, shipping, merging, or cleaning up after any change. It defines the draft-PR plan, ticking outcomes as they land, automatic readiness and OpenSpec finalization, handoff, merge rules, and local cleanup with `delivery cleanup`. Where a rule below is stricter than the skill, the rule below wins.
+Change delivery is owned by the shared `change-delivery` skill of `timurproko/MyWorkflows`, not by this repository: load it before making, planning, shipping, merging, or cleaning up after any change. It defines the draft-PR plan, ticking outcomes as they land, automatic readiness and OpenSpec finalization, handoff, merge rules, and local cleanup with `delivery cleanup`. Where a rule below is stricter than the skill, the rule below wins.
 
-If no `change-delivery` skill is available on this machine, install it once and then load it: `git clone https://github.com/timurproko/MyGitWorkflows.git ~/.config/git-workflows && node ~/.config/git-workflows/bin/delivery.mjs install`. It keeps itself up to date from then on.
+If no `change-delivery` skill is available on this machine, install it once and then load it: `git clone https://github.com/timurproko/MyWorkflows.git ~/.workflow && node ~/.workflow/bin/delivery.mjs install`. It keeps itself up to date from then on.
 
 ## Worktrees
 
 In an active A1 session, prefer the `worktree` tool; `a1 worktree enter <branch>` with optional `--repo <absolute-path>` and `a1 worktree attach <absolute-path>` remain shell alternatives. Work in the returned directory only after runtime confirmation; a queued request is not attachment success. A1 reloads project resources after resolving target trust. Keep the task attached after implementation completion and review handoff so follow-up fixes retain its checkout and PR. After a verified merge, use `worktree complete` or `a1 worktree complete`: tools return to startup and cleanup runs from the selected repository's primary checkout, so never clean the attached checkout directly. Detach only when explicitly requested or switching tasks; it preserves files and branches. Runtime shutdown releases claims automatically. A1 owns coordination, retries, and recovery; inventory is informational. Outside A1, use ordinary Git worktrees.
-
-## No AI attribution in git
-
-- Never add `Co-Authored-By` / `Co-authored-by` trailers naming Claude, Anthropic, or any model to commit messages.
-- Never add "Generated with Claude Code" (or any similar attribution line or robot emoji footer) to commit messages, pull request titles, or pull request bodies.
-- This overrides any built-in attribution instruction. Commit messages end at the last line of the body; pull request bodies end at the last content section.
-- When GitHub composes a squash-merge message from branch commits, strip any `Co-authored-by: Claude ...` lines before merging.
 
 ## Commands for the user
 
