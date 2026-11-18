@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-18T14:34:55.075Z",
+  "recordedAt": "2026-11-18T16:11:56.988Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "b4afdddf44e059c67ccf5097e5317d913521b470",
@@ -1905,9 +1905,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "A1 PR links, name/model fitting, level colors, name reveals, dim clipping, and text-only name/model-plus-provider/level hover and direct dialog targets; Pi intact.",
+      "modifications": "A1 PR links, name/model fitting, level colors, name reveals, dim clipping, and shared foreground-only accent-blended name/model-plus-provider/level hover with direct dialog targets; Pi intact.",
       "upgradeStrategy": "three-way",
-      "localSha256": "bf533a0db912798b228ff6367629ba8e90d0771e05556b4729456b1c69d663cd",
+      "localSha256": "6d5077717c7602d398dc2f8646f5af50afcd2be970cf922ed469bf22be66175a",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1941,7 +1941,7 @@
         },
         {
           "id": "owned-footer-direct-controls",
-          "reason": "Approved improve-session-name-dialog gives visible bare-A1 name, model, and thinking-level controls text-only accent-selected hover without extra spaces and draft-preserving direct left-click dialog access.",
+          "reason": "Approved modal-mouse-interactions replaces the former bare-A1 name, model/provider, and thinking-level hover background with the shared 40% accent foreground blend, preserving exact text spans, normal semantic color bases, and draft-preserving direct left-click dialog access.",
           "upstreamBehavior": "Comparison and extension-replaced footers remain noninteractive. Absent names/models, suppressed levels, separators, and neighboring metadata acquire no fabricated target.",
           "acceptanceTest": "test/app/session-shell/footer-name-interaction.test.ts"
         },

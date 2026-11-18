@@ -1,18 +1,25 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.5.2 (MIT), commit b4afdddf44e059c67ccf5097e5317d913521b470,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
- * Modifications: A1 PR links, name/model fitting, level colors, name reveals, dim clipping, and
- * text-only name/model-plus-provider/level hover and direct dialog targets; Pi intact.
+ * Modifications: A1 PR links, name/model fitting, level colors, name reveals, dim clipping, and shared
+ * foreground-only accent-blended name/model-plus-provider/level hover with direct dialog targets; Pi
+ * intact.
  * Deviations: owned-status-level-color, owned-pull-request-badge, owned-footer-ellipsis,
  * owned-footer-model-priority, owned-session-name-reveal, owned-footer-direct-controls,
  * owned-footer-provider-qualifier.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import { hyperlink, stripTerminalSequences, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
+import { hyperlink, sliceByColumn, stripTerminalSequences, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import type { OwnedUiSessionViewModel, OwnedUiShellFooterControl, OwnedUiShellFooterControlSpan } from "../../../../../contracts/owned-ui/index.js";
-import { piTheme } from "../../theme.js";
+import { paintPiDialogHover, piTheme } from "../../theme.js";
 import { sessionNameFrame } from "../../../../../ui/components/session-name-frame.js";
-import { backgroundSgrSpan } from "../../../../../ui/components/spans.js";
+import { overlaySpan } from "../../../../../ui/components/spans.js";
+
+// Compatibility: use the same semantic level roles as the public Theme.getThinkingBorderColor().
+const THINKING_HOVER_ROLES = {
+  off: "thinkingOff", minimal: "thinkingMinimal", low: "thinkingLow", medium: "thinkingMedium",
+  high: "thinkingHigh", xhigh: "thinkingXhigh",
+} as const;
 
 export class SessionFooter implements Component {
   #reveal: { readonly from: string; readonly elapsed: number } | null = null;
@@ -195,8 +202,13 @@ export class SessionFooter implements Component {
       }
     }
     const hovered = this.#controlSpans.find(span => span.command === this.#hovered);
-    if (hovered !== undefined) lines[hovered.row] = backgroundSgrSpan(lines[hovered.row]!, hovered.column,
-      hovered.column + hovered.width, theme.getBgAnsi("selectedBg"), "\u001b[49m", visibleWidth);
+    if (hovered !== undefined) {
+      const source = lines[hovered.row]!;
+      const text = stripTerminalSequences(sliceByColumn(source, hovered.column, hovered.width));
+      const role = hovered.command === "thinking" ? THINKING_HOVER_ROLES[view.thinkingLevel] : "dim";
+      lines[hovered.row] = overlaySpan(source, hovered.column, hovered.column + hovered.width,
+        paintPiDialogHover(role, text), { inheritStartStyle: true });
+    }
     const statuses = view.status.footer?.extensionStatuses ?? [];
     if (statuses.length > 0) {
       const status = [...statuses].sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey)).map(([, text]) => sanitize(text)).join(" ");

@@ -4,9 +4,11 @@ Bare A1 supports mouse choices in Models, Launcher, Thinking Level, Skills, auth
 
 ## Hover is not keyboard selection
 
-Moving the pointer over a different choice does not move the keyboard-active row, its arrow, or its background highlight. Enter, Space, and other keyboard actions still target the keyboard-active item. Hover changes only the actionable text's foreground: 75% of its ordinary color plus 25% of the current accent. Primary text and metadata retain distinct colors. Hover adds no background, reverse video, or underline; a keyboard-active row keeps its existing background.
+Moving the pointer over a different choice does not move the keyboard-active row, its arrow, or its background highlight. Enter, Space, and other keyboard actions still target the keyboard-active item. Hover changes only the actionable text's foreground: 60% of its ordinary color plus 40% of the current accent. Primary text and metadata retain distinct colors. Hover adds no background, reverse video, or underline; a keyboard-active row keeps its existing background.
 
 The ordinary Settings list uses that same foreground-only blend only for hovered values and enabled numeric minus/plus controls. Setting labels and section titles do not change on hover. Values no longer brighten to pure white. Disabled controls retain their disabled appearance; the keyboard-active row keeps its existing background and focus. Scalar value menus retain their existing policy.
+
+Status-bar session-name, model/provider, and thinking-level controls use the same stronger foreground-only tint instead of a hover background. Their exact text targets and direct-click behavior are unchanged; thinking text retains its level-specific color as the blend's base.
 
 Clicking a visible choice invokes that choice's existing action directly. Keyboard shortcuts, setting write authority, default/current markers, undo, and asynchronous error handling remain in effect. Titles, blank rows, panel padding, and informational shortcut hints are not inferred buttons.
 
@@ -52,7 +54,7 @@ The [modal transition inventory](../../config/baselines/modal-surface-inventory.
 ## Focused evidence
 
 - `test/ui/components/dialog-pointer.test.ts` and `dialog-panel.test.ts`: semantic choice targets, clipped/inset geometry, independent hover, and configure-panel composition.
-- `test/integrations/pi/components/dialog-selection-row.test.ts`: exact 75/25 foreground blending in truecolor and 256-color output, with unchanged active backgrounds.
+- `test/integrations/pi/components/dialog-selection-row.test.ts`: exact 60/40 foreground blending in truecolor and 256-color output, with unchanged active backgrounds.
 - `test/integrations/pi/components/dialog-mouse.test.ts`: clicked-target callbacks, independent Enter targets across owned selector families, leave/disposal, login cancellation, and progress abort.
 - `test/integrations/pi/components/models-dialog.test.ts` and `test/app/session-shell/session-shell-models.test.ts`: model/scope/filter actions, deferred routing, prompt restoration, and outside dismissal.
 - `test/features/owned-ui/settings-app.test.ts`: generic and model choices, both Thinking Level steps, outside gesture ownership, asynchronous default-model recovery, and compact/resize handling.

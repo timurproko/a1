@@ -1,7 +1,7 @@
-import { stripTerminalSequences } from "@earendil-works/pi-tui";
+import { sliceByColumn, stripTerminalSequences } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
-import { piTheme } from "../../../src/integrations/pi/components/index.js";
-import { cellBackgroundAt } from "../../support/ansi-cell-style.js";
+import { cellBackgroundAt, cellStyle } from "../../support/ansi-cell-style.js";
+import { paintPiDialogHover } from "../../../src/integrations/pi/components/theme.js";
 import { screenshotPng } from "../../fixtures/image-sources.js";
 import { fixture, nextImmediate } from "./session-shell-fixture.js";
 
@@ -20,6 +20,16 @@ function clickName(value: Awaited<ReturnType<typeof fixture>>, side: "left" | "r
   value.terminal.input(`\x1b[<0;${column};${region.rowStart}M\x1b[<0;${column};${region.rowStart}m`);
 }
 
+function expectTextHover(row: string, region: { readonly columnStart: number; readonly columnEnd: number }, role: Parameters<typeof paintPiDialogHover>[0] = "dim"): void {
+  const plain = stripTerminalSequences(row);
+  const foreground = cellStyle(paintPiDialogHover(role, "x"), "x").foreground;
+  for (let column = region.columnStart; column <= region.columnEnd; column++) {
+    const character = plain[column - 1]!;
+    expect(cellStyle(sliceByColumn(row, column - 1, 1), character).foreground).toBe(foreground);
+    expect(cellBackgroundAt(row, column - 1)).toBe("default");
+  }
+}
+
 describe("direct footer name editing", () => {
   it("hovers only the name text without adding spaces or moving neighboring text", async () => {
     const value = await namedFixture();
@@ -30,12 +40,11 @@ describe("direct footer name editing", () => {
       const original = value.shell.root.render(100)[region.rowStart - 1]!;
       const plain = stripTerminalSequences(original);
       expect(plain.slice(region.columnStart - 1, region.columnEnd)).toBe("alpha project");
-      const expected = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
       for (const column of [region.columnStart, region.columnEnd]) {
         value.terminal.input(`\x1b[<35;${column};${region.rowStart}M`);
         const hovered = value.shell.root.render(100)[region.rowStart - 1]!;
         expect(stripTerminalSequences(hovered)).toBe(plain);
-        for (let col = region.columnStart; col <= region.columnEnd; col++) expect(cellBackgroundAt(hovered, col - 1)).toBe(expected);
+        expectTextHover(hovered, region);
         expect(cellBackgroundAt(hovered, region.columnStart - 2)).toBe(cellBackgroundAt(original, region.columnStart - 2));
         expect(cellBackgroundAt(hovered, region.columnEnd)).toBe(cellBackgroundAt(original, region.columnEnd));
       }
@@ -167,8 +176,7 @@ describe("direct footer name editing", () => {
       expect(region).toBeDefined();
       value.terminal.input(`\x1b[<35;${region.columnStart};${region.rowStart}M`);
       const row = value.shell.root.render(80)[region.rowStart - 1]!;
-      const expected = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
-      for (let column = region.columnStart; column <= region.columnEnd; column++) expect(cellBackgroundAt(row, column - 1)).toBe(expected);
+      expectTextHover(row, region, command === "thinking" ? "thinkingMedium" : "dim");
       value.terminal.input(`\x1b[<0;${region.columnEnd};${region.rowStart}M\x1b[<0;${region.columnEnd};${region.rowStart}m`);
       await vi.waitFor(() => expect(value.shell.root.usesDefaultInputSurface()).toBe(false));
       await vi.waitFor(() => expect(stripTerminalSequences(value.shell.root.render(80).join("\n"))).toContain(command === "models" ? "Models" : "Thinking Level"));
@@ -203,15 +211,14 @@ describe("direct footer name editing", () => {
           .toContain(command === "name" ? "Session Name" : command === "models" ? "Models" : "Thinking Level"));
         if (via === "footer") {
           const opened = value.shell.root.chrome.footerName?.region(command)!;
-          expect(cellBackgroundAt(value.shell.root.render(80)[opened.rowStart - 1]!, opened.columnStart - 1))
-            .toBe(cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0));
+          expectTextHover(value.shell.root.render(80)[opened.rowStart - 1]!, opened, command === "thinking" ? "thinkingMedium" : "dim");
         }
         value.shell.root.handleInput(command === "name" ? "unsaved name" : command === "models" ? "gpt" : "low");
         value.shell.runtime.renderNow();
         const region = value.shell.root.chrome.footerName?.region(command)!;
         value.terminal.input(`\x1b[<35;${region.columnStart};${region.rowStart}M`);
         const row = value.shell.root.render(80)[region.rowStart - 1]!;
-        expect(cellBackgroundAt(row, region.columnStart - 1)).toBe(cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0));
+        expectTextHover(row, region, command === "thinking" ? "thinkingMedium" : "dim");
         click();
         await vi.waitFor(() => expect(value.shell.root.usesDefaultInputSurface()).toBe(true));
         expect(value.engine.session.name).toBe(initialName);
@@ -278,8 +285,7 @@ describe("direct footer name editing", () => {
       value.terminal.input(`\x1b[<35;${column};${region.rowStart}M`);
       const hovered = value.shell.root.render(80)[region.rowStart - 1]!;
       expect(stripTerminalSequences(hovered)).toBe(stripTerminalSequences(row));
-      const background = cellBackgroundAt(piTheme().bg("selectedBg", "x"), 0);
-      for (let col = region.columnStart; col <= region.columnEnd; col++) expect(cellBackgroundAt(hovered, col - 1)).toBe(background);
+      expectTextHover(hovered, region);
       expect(cellBackgroundAt(hovered, region.columnEnd)).toBe("default");
       const click = () => {
         const { region, column } = target();

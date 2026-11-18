@@ -27,3 +27,9 @@
 - [x] 4.2 Add independent list scroll state with shared scrollbar geometry, appearance, thin/thick glyphs, hover/drag activity, track paging, and timed auto fade driven by live effective Settings values.
 - [x] 4.3 Route wheel input inside the configure panel to its list using shared speed, capture scrollbar drags through release, preserve keyboard selection, and keep outside-wheel/background ownership intact.
 - [x] 4.4 Add focused long-catalog, wheel-speed, thumb-drag, track-page, auto/always/hidden, resize, filtering, step-transition, and hit-target fixtures; document the bounded picker behavior.
+
+## 5. Stronger shared foreground-only hover and status-bar consistency
+
+- [x] 5.1 Increase the shared hover accent contribution from 25% to 40%, retaining 60% of the normal semantic foreground across dialogs and Settings values; Settings labels and titles remain unchanged.
+- [x] 5.2 Replace status-bar name/model/provider/thinking hover backgrounds with the same shared foreground blend, preserving thinking-level color bases, text spans, clipping, name animation lifecycle, links, direct clicks, and comparison behavior.
+- [x] 5.3 Add exact-color truecolor/256-color and real-shell footer hover fixtures for all controls, provider brackets, neighboring cells, clearing, live accents, and retained click behavior; reconcile shared hover docs and source provenance.

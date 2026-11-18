@@ -39,7 +39,7 @@ export function paintPiFloatingDialog(text: string): string {
 /** The same hover blend for every Pi semantic foreground, including richer selector metadata roles. */
 export function paintPiDialogHover(token: Parameters<ReturnType<typeof piTheme>["fg"]>[0], text: string): string {
   const theme = piTheme();
-  return `${foregroundAnsi(mixColors(theme.colors[token], theme.colors.accent, 0.25, "srgb"), theme.getColorMode())}${text}\u001b[39m`;
+  return `${foregroundAnsi(mixColors(theme.colors[token], theme.colors.accent, 0.4, "srgb"), theme.getColorMode())}${text}\u001b[39m`;
 }
 
 /** The live Pi theme in neutral roles; `panel` and `disabled` default to plain and dim. */

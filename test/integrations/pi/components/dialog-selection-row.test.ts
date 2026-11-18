@@ -46,7 +46,7 @@ describe("standard dialog selection rows", () => {
     expect(componentPort({ render: () => [], invalidate() {} }).cancelDialog).toBeUndefined();
   });
 
-  it.each(["truecolor", "256color"] as const)("blends hover text by 25 percent without changing active backgrounds (%s)", mode => {
+  it.each(["truecolor", "256color"] as const)("blends hover text by 40 percent without changing active backgrounds (%s)", mode => {
     withPiParityColorMode(mode, () => {
       const previous = piTheme();
       try {
@@ -57,9 +57,9 @@ describe("standard dialog selection rows", () => {
         for (const token of ["text", "muted", "success"] as const) {
           const base = colorToRgb(theme.colors[token]);
           const expected = { kind: "rgb" as const,
-            r: Math.round(base.r * 0.75 + accent.r * 0.25),
-            g: Math.round(base.g * 0.75 + accent.g * 0.25),
-            b: Math.round(base.b * 0.75 + accent.b * 0.25) };
+            r: Math.round(base.r * 0.6 + accent.r * 0.4),
+            g: Math.round(base.g * 0.6 + accent.g * 0.4),
+            b: Math.round(base.b * 0.6 + accent.b * 0.4) };
           const painted = ui.hover!(token, "東京");
           expect(painted).toBe(`${foregroundAnsi(expected, mode)}東京\u001b[39m`);
           expect(visibleWidth(painted)).toBe(4);

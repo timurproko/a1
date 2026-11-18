@@ -8,7 +8,7 @@ export type UiThemeBackground = "selectedBg" | "toolPendingBg";
 
 export interface UiTheme {
   fg(token: UiThemeToken, text: string): string;
-  /** Text-only dialog hover: 75% ordinary foreground, 25% live accent; never a background. */
+  /** Text-only shared hover: 60% ordinary foreground, 40% live accent; never a background. */
   hover?(token: UiThemeToken, text: string): string;
   bold(text: string): string;
   /**

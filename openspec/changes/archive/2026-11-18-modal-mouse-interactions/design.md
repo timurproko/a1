@@ -18,7 +18,7 @@ Hit targets identify actual visible choices and controls, not text inferred from
 
 ### Quiet theme-owned hover
 
-Expose a shared hover-text painter at the semantic theme boundary. Blend each normal text/metadata foreground toward the active accent by 25%, retaining 75% of the original. Resolve terminal-default foreground through the existing adapter's theme/capability handling; do not assume white. Preserve semantic distinctions, ANSI attributes, width, graphemes, and any preexisting keyboard-active background. Do not introduce a hover background, reverse video, underline, or pure-accent replacement. Compute concrete colors outside hot render loops where practical and refresh on theme/accent changes. Use the existing truecolor/256-color conversion rather than route-local RGB escapes.
+Expose a shared hover-text painter at the semantic theme boundary. Blend each normal text/metadata foreground toward the active accent by 40%, retaining 60% of the original. Resolve terminal-default foreground through the existing adapter's theme/capability handling; do not assume white. Preserve semantic distinctions, ANSI attributes, width, graphemes, and any preexisting keyboard-active background. Do not introduce a hover background, reverse video, underline, or pure-accent replacement. Compute concrete colors outside hot render loops where practical and refresh on theme/accent changes. Use the existing truecolor/256-color conversion rather than route-local RGB escapes.
 
 ### Pointer ownership and dismissal
 
@@ -52,11 +52,15 @@ For in-place Models, an outside primary press cancels before ordinary transcript
 
 ## Approved Settings refinements
 
-Ordinary Settings hover must use the same 75% normal foreground / 25% accent blend as owned dialogs, only for muted values and enabled numeric controls. Per the maintainer's clarification, setting labels and section titles must retain their ordinary foreground while hovered. Hover must not brighten values to pure terminal white, add a background, or move keyboard selection. Scalar value menus retain their existing policy.
+Ordinary Settings hover must use the same 60% normal foreground / 40% accent blend as owned dialogs, only for muted values and enabled numeric controls. Per the maintainer's clarification, setting labels and section titles must retain their ordinary foreground while hovered. Hover must not brighten values to pure terminal white, add a background, or move keyboard selection. Scalar value menus retain their existing policy.
 
 Configure panels must no longer expand with tall terminals or large model catalogs. Limit the panel's height budget to 20 rows and its choice window to ten items, reducing the window further on compact terminals while keeping title/search/guidance. Own a list scroll offset independently from keyboard selection: wheel and rail gestures move the viewport without selecting or changing a value; keyboard navigation reveals its active choice when necessary. Use the existing shared scrollbar geometry, glyphs, track/thumb roles, minimum thumb size, drag math, track paging, appearance policy, linger, and live effective scrollbarSpeed. Reserve the rail column consistently for auto/always and remove it for hidden. Wheel reports inside the panel belong to its list; only outside wheel reports retain background Settings scrolling. A rail drag remains captured through motion outside the panel and release rather than dismissing or clicking through. Filter, step, replacement, and geometry transitions reset stale pointer/drag state and clamp/reveal the appropriate choice.
 
 The existing three delivery outcomes remain ordered; ordinary Settings hover extends outcome 3. Bounded configure-panel scrolling is outcome 4 with its own tasks group and progress checkbox. The CI-reported four stale modal/transcript-copy assertions are repaired within outcome 3 without weakening post-dismissal copy behavior.
+
+## Approved stronger hover and status-bar refinement
+
+The maintainer requested a more prominent cue and the same foreground-only style on the status bar. Outcome 5 increases the shared accent contribution from 25% to 40%, superseding the initial strength recorded in outcomes 1 and 3. Status-bar session name and model/provider text blend from their normal dim foreground; thinking text blends from its existing level-specific role. Apply this only to the explicit visible control spans, without adding a background, moving neighboring metadata, altering hyperlink/click targets, or changing the comparison profile. Keep the underlying name-animation lifecycle intact; leaving the hover restores ordinary presentation. Pin actual encoded colors in both truecolor and 256-color paths and exercise provider brackets and real-shell clicks.
 
 ## Risks and boundaries
 
