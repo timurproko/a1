@@ -1,4 +1,3 @@
-import "./local-cleanup-runtime-fixture.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { watchLocalCleanup } from "../../scripts/governance/local-cleanup-watch.mjs";

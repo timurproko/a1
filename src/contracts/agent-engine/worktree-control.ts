@@ -3,7 +3,6 @@ export type WorktreeControlRequest =
   | { readonly action: "enter-worktree"; readonly branch: string; readonly base?: string; readonly repo?: string }
   | { readonly action: "unlink-worktree" }
   | { readonly action: "complete-worktree"; readonly change?: string; readonly pr?: number }
-  | { readonly action: "remove-local-worktree" }
   | { readonly action: "worktrees"; readonly repo?: string }
   | { readonly action: "worktree-status" };
 

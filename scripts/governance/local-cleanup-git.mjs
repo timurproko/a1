@@ -1,7 +1,5 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { captureWorktreeCleanupSnapshot } from "../../src/foundation/lifecycle/worktree-cleanup-snapshot.mjs";
-import { executeCleanupCommand, verifyCleanupReservation, withUnclaimedWorktree } from "../../src/foundation/lifecycle/worktree-claim-boundary.mjs";
 import { lstat, realpath, readdir, readFile, rm, rmdir, unlink } from "node:fs/promises";
 import { resolve, relative, isAbsolute, join } from "node:path";
 import { fail, safeRef } from "./local-cleanup-state.mjs";
@@ -21,10 +19,8 @@ export function gitRunner({ deadline = Infinity, now = Date.now } = {}) {
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")));
     Object.assign(env, { GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0" });
     try {
-      const commandArgs = ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-c", "protocol.ext.allow=never", "-c", "gc.auto=0", "-c", "maintenance.auto=false", "-C", cwd, ...args];
-      if (args[0] === "worktree" && args[1] === "remove") return await executeCleanupCommand("git", commandArgs,
-        { environment: env, timeoutMs: Math.min(10000, remaining), maxBuffer: 8 * 1024 * 1024, input, protectTarget: true });
-      const pending = execute("git", commandArgs, { env, timeout: Math.min(10000, remaining), maxBuffer: 8 * 1024 * 1024, encoding: "utf8", windowsHide: true });
+      const pending = execute("git", ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-c", "protocol.ext.allow=never", "-c", "gc.auto=0", "-c", "maintenance.auto=false", "-C", cwd, ...args],
+        { env, timeout: Math.min(10000, remaining), maxBuffer: 8 * 1024 * 1024, encoding: "utf8", windowsHide: true });
       pending.child.stdin.on("error", () => {}); pending.child.stdin.end(input);
       return (await pending).stdout;
     } catch { fail("git-operation-failed"); }
@@ -138,7 +134,7 @@ export async function discoverRepository(primaryPath, git = gitRunner()) {
   // Security: repository identity comes from this repository's literal configuration, not
   // `remote get-url`, because Git applies user-controlled `url.*.insteadOf` transport rewrites
   // to the latter. Network operations still use the named remote and retain those rewrites.
-  const configured = (await requiredGitValue(git, primary, ["config", "--local", "--get-all", "remote.origin.url"], { raw: true, emptyCode: "unsupported-origin" }))
+  const configured = (await git(primary, ["config", "--local", "--get-all", "remote.origin.url"]))
     .replace(/\r\n/gu, "\n").replace(/\n$/u, "").split("\n");
   if (configured.length !== 1 || configured[0] === undefined || configured[0] !== configured[0].trim() || configured[0] === "") fail("unsupported-origin");
   const match = /^(?:https:\/\/github\.com\/|git@github\.com:)([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(?:\.git)?$/.exec(configured[0]);
@@ -149,11 +145,11 @@ export async function discoverRepository(primaryPath, git = gitRunner()) {
 }
 
 /** Capture exact identity without granting cleanup authority or refreshing a released head. */
-async function requiredGitValue(git, cwd, args, { raw = false, emptyCode = "git-operation-failed" } = {}) {
+async function requiredGitValue(git, cwd, args) {
   for (let attempt = 1; ; attempt++) {
-    const output = await git(cwd, args), value = output.trim();
-    if (value !== "") return raw ? output : value;
-    if (process.platform !== "win32" || attempt >= 3) fail(emptyCode);
+    const value = (await git(cwd, args)).trim();
+    if (value !== "") return value;
+    if (process.platform !== "win32" || attempt >= 3) fail("git-operation-failed");
     await new Promise(resolve => setTimeout(resolve, 25 * attempt));
   }
 }
@@ -201,7 +197,7 @@ export async function statusBlockers(git, path, disposable, { ignored = true } =
 export async function inspectWorktree(identity, entry, {
   git = gitRunner(), cwd = process.cwd(), deadline = Infinity, now = Date.now,
   ordinaryEntryLimit = ORDINARY_CONTENT_ENTRY_LIMIT, generatedEntryLimit = GENERATED_CONTENT_ENTRY_LIMIT,
-  accepted = async () => false, remediationLink = null, remediationExport = null, preserveKeep = true,
+  accepted = async () => false, remediationLink = null, remediationExport = null,
 } = {}) {
   const actual = await captureWorktree(identity, entry.path, git);
   if (["path", "filesystem", "ref"].some(key => actual[key] !== entry[key])) fail("worktree-identity-changed");
@@ -246,7 +242,6 @@ export async function inspectWorktree(identity, entry, {
       if (now() >= deadline) fail("content-inspection-budget");
       if (!prefix && item.name === ".git") continue;
       const path = prefix + item.name;
-      if (preserveKeep && item.name === "KEEP") fail("preserved-keep-marker", { paths: [path] });
       visit(path);
       if (item.name === ".git") fail("nested-repository");
       if (item.isSymbolicLink()) {
@@ -275,14 +270,6 @@ export async function inspectWorktree(identity, entry, {
 
 /** Remove only the entry's declared disposable roots or files, after inspection has bounded them, so Git deletes tracked content alone. */
 export async function purgeDisposable(entry, timing = {}, { removeLink = removeLinkEntry } = {}) {
-  await verifyCleanupReservation(entry.path);
-  if (await exists(join(entry.path, ".git"))) {
-    return withUnclaimedWorktree(await captureWorktreeCleanupSnapshot(entry.path), {}, () => purgeDisposableContent(entry, timing, removeLink));
-  }
-  return purgeDisposableContent(entry, timing, removeLink);
-}
-
-async function purgeDisposableContent(entry, timing, removeLink) {
   const links = timing.containedLinks ?? [];
   if (!Array.isArray(links)) fail("content-link-drift");
   const seen = new Set();
@@ -456,13 +443,9 @@ export async function removeRemoteRef(identity, entry, git = gitRunner()) {
 
 /** The only destructive local Git primitives. A failed remove is never widened to recursive deletion. */
 export async function removeWorktree(identity, entry, git = gitRunner()) {
-  const snapshot = await captureWorktreeCleanupSnapshot(entry.path);
-  if (snapshot.head !== entry.head || snapshot.ref !== (entry.ref ?? "HEAD") || fingerprint(await lstat(entry.path)) !== entry.filesystem) fail("worktree-identity-changed");
-  await withUnclaimedWorktree(snapshot, {}, async () => {
-    await git(identity.primary, ["worktree", "remove", entry.path]);
-    const rows = parseWorktrees(await git(identity.primary, ["worktree", "list", "--porcelain", "-z"]));
-    if (await exists(entry.path) || rows.some(row => resolve(row.worktree).replaceAll("\\", "/") === entry.path)) fail("worktree-removal-partial");
-  });
+  await git(identity.primary, ["worktree", "remove", entry.path]);
+  const rows = parseWorktrees(await git(identity.primary, ["worktree", "list", "--porcelain", "-z"]));
+  if (await exists(entry.path) || rows.some(row => resolve(row.worktree).replaceAll("\\", "/") === entry.path)) fail("worktree-removal-partial");
 }
 export async function removeLocalRef(identity, entry, git = gitRunner(), accepted = async () => false) {
   if (!entry.ref) return "not-applicable";

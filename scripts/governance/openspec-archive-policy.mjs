@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { inspectDocumentationScope } from "./documentation-diff-scope.mjs";
+import { classifyDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
 
 export const ARCHIVE_TASKS = Object.freeze({
   recordEvidence: "Record verified implementation acceptance and merge evidence for archive preparation.",
@@ -33,7 +33,7 @@ function boundedText(value, limit = MAX_TEXT) {
 }
 
 export function metadataBlock(text, label) {
-  requireValue(typeof text === "string", "metadata-size");
+  boundedText(text);
   requireValue(["openspec-implementation", "openspec-acceptance", "openspec-archive", "openspec-acceptance-request", "openspec-acceptance-receipt", "openspec-delivery"].includes(label), "metadata-label");
   const blocks = [];
   let fence = null;
@@ -53,7 +53,7 @@ export function metadataBlock(text, label) {
   requireValue(fence?.label !== label, "metadata-unclosed");
   requireValue(blocks.length <= 1, "metadata-duplicate");
   if (!blocks.length) return null;
-  return strictJson(blocks[0], label === "openspec-delivery" ? Number.POSITIVE_INFINITY : 16 * 1024);
+  return strictJson(blocks[0]);
 }
 
 /** Parse bounded JSON without silently accepting duplicate (including escaped) keys. */
@@ -160,8 +160,7 @@ export function assertMergedImplementation(pull, repository, files, { allowDocum
     assertRepositoryPath(file.filename);
     if (file.status === "renamed") assertRepositoryPath(file.previous_filename);
   }
-  // Compatibility: a manual-only document is not operational implementation; auto-merge authority is a separate decision.
-  requireValue(allowDocumentation || !inspectDocumentationScope(files).documentationOnly, "planning-or-archive-pr");
+  requireValue(allowDocumentation || !classifyDocumentationAutoMerge(files).eligible, "planning-or-archive-pr");
 }
 
 export function assertRepositoryPath(value) {

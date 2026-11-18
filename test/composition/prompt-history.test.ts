@@ -10,9 +10,6 @@ import { resolveProductPaths } from "../../src/foundation/lifecycle/index.js";
 import { composeOwnedUi } from "../../src/composition/owned-ui.js";
 import { PromptHistoryController } from "../../src/app/session-shell/prompt-history-controller.js";
 
-// Performance: real SQLite workers require serial scheduling, not a larger per-test deadline.
-vi.setConfig({ testTimeout: 5000 });
-
 type ShellOptions = { history?: { store: PromptHistoryService; imageSidecar?: { directory: string }; forScope?: (scope: "unique" | "shared", id: string | null) => { store: PromptHistoryService; imageSidecar: { directory: string } } | null } };
 const observed = vi.hoisted(() => ({ shells: [] as ShellOptions[], enabled: true, scope: "unique" as "unique" | "shared", sessionId: "pi-one", persisted: true, loadEditor: vi.fn() }));
 
