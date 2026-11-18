@@ -69,7 +69,7 @@ Otherwise completion reloads startup resources, releases the attachment, and run
 The selected repository declares cleanup once in a committed `.a1/worktree.json`:
 
 ```json
-{ "cleanup": ["node", "scripts/governance/local-worktree-cleanup.mjs", "complete", "--repo", "{primary}", "--path", "{worktree}", "--change", "{change}", "--pr", "{pr}"] }
+{ "cleanup": ["node", "tools/remove-worktree.mjs", "--repo", "{primary}", "--path", "{worktree}", "--pr", "{pr}"] }
 ```
 
 A1 reads the declaration from the verified primary checkout, never the task checkout being left or an unrelated startup directory. It runs the array without a shell, substituting `{primary}`, `{worktree}`, `{branch}`, `{change}`, and `{pr}`. The first element must be a real executable such as `node`, not a `.cmd` shim. No per-machine setup is required. The cleanup command retains every eligibility, acceptance, ownership, and deletion safeguard; its report remains authoritative.

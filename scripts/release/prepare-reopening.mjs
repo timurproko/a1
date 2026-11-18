@@ -116,7 +116,7 @@ export async function prepareReopening(options = {}) {
   assertCommit(git, base, head, expected, releaseVersion, markdown, digest);
   git(["push", "origin", `--force-with-lease=refs/heads/${branch}:`, `HEAD:refs/heads/${branch}`]);
   const url = gh(["pr", "create", "--base", "develop", "--head", branch, "--title", subject, "--body",
-    `Reopens development at ${opening} and records the exact approved ${releaseVersion} release notes after stable publication. Documentation auto-merge verifies this exact release reopening and squash-merges it once required CI passes on the current head.`]);
+    `Reopens development at ${opening} and records the exact approved ${releaseVersion} release notes after stable publication. Release reopening auto-merge verifies this exact release reopening and squash-merges it once required CI passes on the current head.`]);
   const number = Number(/\/(\d+)\s*$/u.exec(url)?.[1]);
   if (!Number.isSafeInteger(number) || number < 1) throw new Error(`cannot read reopening pull request number from ${url}`);
   const pull = assertPull(JSON.parse(gh(["pr", "view", String(number), "--json", PR_FIELDS])), branch, head);

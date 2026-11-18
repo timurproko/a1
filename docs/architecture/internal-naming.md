@@ -42,7 +42,7 @@ Pending review preserves a possible external interface, not an obsolete private 
 | `RELEASE_CLEANUP_HOLDS`, `RELEASE_CLEANUP_RUN_ID` | Cleanup scheduler/worker handoff in `src/foundation/release/release-gc.ts`; serialized holds and a worker run identity. |
 | `SOURCE_LEDGER_PATH`, `SOURCE_LEDGER_SCAN_ROOT`, `SOURCE_LEDGER_PORT_ROOT` | Source-ledger governance fixture overrides; produced by its tests and consumed by `check-pinned-pi-source-ledger.mjs`. |
 | `RELEASE_RUNNER_LABEL` | Release/full-regression workflows supply certification-runner provenance to `run-release-gates.mjs`. |
-| `DOCS_AUTO_MERGE_POLL_ATTEMPTS`, `DOCS_AUTO_MERGE_POLL_MS` | Documentation automation polling controls, produced by governance tests and consumed by `manage-documentation-auto-merge.mjs`. |
+| `REOPENING_AUTO_MERGE_POLL_ATTEMPTS`, `REOPENING_AUTO_MERGE_POLL_MS` | Release reopening automation polling controls, produced by governance tests and consumed by `manage-release-reopening-auto-merge.mjs`. |
 | `VALIDATION_JOB_STARTED_MS`, `RENDERING_JOB_STARTED_MS` | CI timing handoffs within `.github/workflows/ci.yml`; epoch milliseconds. |
 | `PACKAGE_MESSAGE_SCENARIO` | Package-message worker parent/child JSON scenario handoff. |
 | `RECOVERY_TEST_CANCEL_AFTER`, `RECOVERY_TEST_REMOVAL_MARKER` | Recovery test parent/fake-npm handoff; mutation index and disposable sentinel path. |
