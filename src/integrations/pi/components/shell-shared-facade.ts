@@ -152,10 +152,14 @@ export function componentPort(component: Component, handleInput?: (data: string)
   const input = handleInput ?? component.handleInput;
   const focusable = component as Component & Partial<Focusable>;
   const disposable = component as Component & { dispose?: () => void };
+  const pointer = component as Component & Pick<PiShellComponentPort, "handleLocalMouse" | "clearMouseHover" | "cancelDialog">;
   return {
     render: width => component.render(width),
     ...(input === undefined ? {} : { handleInput: (data: string) => input.call(component, data) }),
     invalidate: () => component.invalidate(),
+    ...(pointer.handleLocalMouse === undefined ? {} : { handleLocalMouse: event => pointer.handleLocalMouse?.(event) }),
+    ...(pointer.clearMouseHover === undefined ? {} : { clearMouseHover: () => pointer.clearMouseHover?.() }),
+    ...(pointer.cancelDialog === undefined ? {} : { cancelDialog: () => pointer.cancelDialog?.() }),
     ...("focused" in focusable ? { setFocused: (focused: boolean) => { focusable.focused = focused; } } : {}),
     ...(typeof disposable.dispose === "function" ? { dispose: () => disposable.dispose?.() } : {}),
   };

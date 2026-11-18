@@ -21,11 +21,11 @@ import {
   SelectList,
   Spacer,
   Text,
-  type SelectItem,
+  type Component,
 } from "@earendil-works/pi-tui";
 import type { OwnedUiDialog } from "../../../contracts/owned-ui/index.js";
 import { ScopedModelsSelectorComponent } from "./upstream/components/scoped-models-selector.js";
-import { addPiModalSelectFooter, adoptPiModalFrame, adoptPiModalHeader, adoptPiModalSearchInput, renderPiModalSelectedPrimary, standardInternalChoicePort } from "./modal-frame.js";
+import { addPiModalSelectFooter, adoptPiModalFrame, adoptPiModalHeader, adoptPiModalSearchInput, standardInternalChoicePort } from "./modal-frame.js";
 import { deferredLoginDialog } from "./login-dialog-loader.js";
 import { deferredSelector } from "./deferred-selector.js";
 import { createDeferredModelsDialog } from "./models-dialog-loader.js";
@@ -53,12 +53,19 @@ import {
   type PiShellSelectorOptions,
 } from "./shell-shared-facade.js";
 
+function loadOwnedDialog(component: Component, cancel: () => void): Promise<PiShellComponentPort> {
+  return import("./dialog-mouse.js").then(module => module.ownedDialogPort(component, cancel));
+}
+
 export { createPiShellSkillsSelector } from "./deferred-selector.js";
 export type { PiShellSkillsSelectorOptions } from "./skills-dialog.js";
 
 export function createPiShellSelector(options: PiShellSelectorOptions, standard = false): PiShellComponentPort {
   ensureTheme();
-  const items = options.options.map(toSelectItem);
+  if (standard) return deferredSelector(() => import("./owned-selector.js").then(module => module.createOwnedSelector(options)), options.onCancel ?? (() => {}), { cancelOnOutside: options.onCancel !== undefined });
+  const items = options.options.map(option => ({ value: option.id, label: option.label,
+    ...(option.description === undefined ? {} : { description: option.description }),
+  }));
   const list = new SelectList(items, options.maxVisible ?? Math.min(PINNED_PI_LAYOUT.selectorMaxVisible, Math.max(1, items.length)), getPiSelectListTheme());
   if (options.onSelect !== undefined) list.onSelect = item => options.onSelect?.(item.value);
   if (options.onCancel !== undefined) list.onCancel = options.onCancel;
@@ -74,8 +81,7 @@ export function createPiShellSelector(options: PiShellSelectorOptions, standard 
       DIALOG_CLOSE_SHORTCUT_HINT,
     ]), 0, 0));
   }
-  const port = componentPort(container, data => list.handleInput(data));
-  return standard ? { ...port, render: width => port.render(width).map(row => renderPiModalSelectedPrimary(` ${row}`, width + 1, options.options.map(option => option.label)).slice(1)) } : port;
+  return componentPort(container, data => list.handleInput(data));
 }
 
 export interface PiShellSettingsSelectorOptions {
@@ -260,13 +266,17 @@ export function createPiShellTrustSelector(options: {
 }): PiShellComponentPort {
   ensureTheme();
   return deferredSelector(() => import("./upstream/components/trust-selector.js")
-    .then(({ TrustSelectorComponent }) => componentPort(new TrustSelectorComponent(options))), options.onCancel);
+    .then(({ TrustSelectorComponent }) => {
+      const selector = new TrustSelectorComponent(options);
+      return options.standardStyle ? loadOwnedDialog(selector, options.onCancel) : componentPort(selector);
+    }), options.onCancel);
 }
 
 /** Mirrors the pinned session manager's progress callback, including its partial results. */
 type SessionListProgress = (loaded: number, total: number, partialSessions?: readonly SessionInfo[]) => void;
 
 export async function createPiShellSessionSelector(options: {
+  readonly standardStyle?: boolean;
   readonly currentSessionsLoader: (onProgress?: SessionListProgress) => Promise<SessionInfo[]>;
   readonly allSessionsLoader: (onProgress?: SessionListProgress) => Promise<SessionInfo[]>;
   readonly onSelect: (path: string) => void;
@@ -288,10 +298,11 @@ export async function createPiShellSessionSelector(options: {
     { renameSession: options.renameSession, showRenameHint: true },
     options.currentSessionFilePath,
   );
-  return componentPort(selector);
+  return options.standardStyle ? loadOwnedDialog(selector, options.onCancel) : componentPort(selector);
 }
 
 export async function createPiShellTreeSelector(options: {
+  readonly standardStyle?: boolean;
   readonly tree: readonly unknown[];
   readonly currentLeafId: string | null;
   readonly terminalHeight: number;
@@ -315,7 +326,7 @@ export async function createPiShellTreeSelector(options: {
     options.initialFilterMode,
   );
   if (options.onCopy) selector.onCopy = options.onCopy;
-  return componentPort(selector);
+  return options.standardStyle ? loadOwnedDialog(selector, options.onCancel) : componentPort(selector);
 }
 
 export function createPiShellUserMessageSelector(
@@ -326,6 +337,7 @@ export function createPiShellUserMessageSelector(
   standard = false,
 ): PiShellComponentPort {
   ensureTheme();
+  if (standard) return deferredSelector(() => import("./owned-selector.js").then(module => module.createOwnedMessageSelector(messages, onSelect, onCancel, initialSelectedId)), onCancel);
   const selector = new UserMessageSelectorComponent(
     messages.map(message => ({ id: message.id, text: message.label })),
     onSelect,
@@ -333,11 +345,9 @@ export function createPiShellUserMessageSelector(
     initialSelectedId,
   );
   const list = selector.getMessageList();
-  if (standard) selector.children[1] = new Text(piTheme().fg("accent", piTheme().bold("Fork from Message")), 1, 0);
   addPiModalSelectFooter(selector);
   adoptPiModalFrame(selector, { topIndex: 4, bottomIndex: selector.children.length - 1 });
-  const port = componentPort(selector, data => list.handleInput(data));
-  return standard ? standardInternalChoicePort(port) : port;
+  return componentPort(selector, data => list.handleInput(data));
 }
 
 export interface PiShellLoginDialogPort extends PiShellComponentPort {
@@ -433,7 +443,7 @@ export function createPiShellAuthProviderSelector(
 ): PiShellComponentPort {
   ensureTheme();
   if (standardStyle) return deferredSelector(() => import("./upstream/components/oauth-selector.js")
-    .then(({ AuthProviderSelector }) => componentPort(new AuthProviderSelector(mode, providers, onSelect, onCancel, initialSearchInput))), onCancel);
+    .then(({ AuthProviderSelector }) => loadOwnedDialog(new AuthProviderSelector(mode, providers, onSelect, onCancel, initialSearchInput), onCancel)), onCancel);
   const selector = new OAuthSelectorComponent(mode, providers.map(provider => ({
     id: provider.providerId,
     name: provider.label,
@@ -465,7 +475,8 @@ export function createPiShellExtensionSelector(
   standardSelection = false,
 ): PiShellComponentPort {
   ensureTheme();
-  return componentPort(new ExtensionSelectorComponent(standardSelection ? internalDialogTitle(title) : title, [...options], onSelect, onCancel, { standardSelection }));
+  if (standardSelection) return deferredSelector(() => import("./owned-selector.js").then(module => module.createOwnedExtensionSelector(internalDialogTitle(title), options, onSelect, onCancel)), onCancel);
+  return componentPort(new ExtensionSelectorComponent(title, [...options], onSelect, onCancel));
 }
 
 export function createPiShellThemeSelector(
@@ -510,15 +521,13 @@ export function createPiShellDialog(
   }, standard);
   const box = new Box(1, 1);
   box.addChild(componentFromPort(selector));
-  return componentPort(box, data => selector.handleInput?.(data));
-}
-
-function toSelectItem(option: PiShellSelectorOption): SelectItem {
-  return {
-    value: option.id,
-    label: option.label,
-    ...(option.description === undefined ? {} : { description: option.description }),
-  };
+  const port = componentPort(box, data => selector.handleInput?.(data));
+  return standard ? {
+    ...port, ...(selector.ready === undefined ? {} : { ready: selector.ready }),
+    handleLocalMouse: event => selector.handleLocalMouse?.({ ...event, column: event.column - 1, row: event.row - 1 }),
+    clearMouseHover: () => selector.clearMouseHover?.(),
+    ...(handlers.onCancel === undefined ? {} : { cancelDialog: handlers.onCancel }),
+  } : port;
 }
 
 function dialogOptions(dialog: OwnedUiDialog): readonly PiShellSelectorOption[] {

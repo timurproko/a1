@@ -27,6 +27,44 @@ function input(shell: OwnedUiSessionShell, data: string): void {
 const defaultSurface = (shell: OwnedUiSessionShell) => !shell.runtime.hasOverlay() && shell.root.usesDefaultInputSurface();
 
 describe("bare-A1 unified Models dialog", () => {
+  it("routes model and scope clicks through the deferred presenter without moving keyboard selection on hover", async () => {
+    const { engine, shell, terminal } = await fixture([], [], true);
+    try {
+      shell.root.editor.setText("retained draft");
+      await shell.submit("/models");
+      shell.runtime.renderNow(true);
+      const lines = shell.root.render(terminal.columns).map(stripTerminalSequences);
+      const row = lines.findIndex(line => line.includes("claude [anthropic]")) + 1;
+      expect(row).toBeGreaterThan(0);
+      terminal.input(`\u001b[<35;7;${row}M`);
+      expect(frame(shell)).toContain("→ ○ gpt-5 [openai] ✓");
+      terminal.input(`\u001b[<0;4;${row}M\u001b[<0;4;${row}m`);
+      expect(engine.session.scopedModels).toEqual([{ model: { provider: "anthropic", id: "claude", name: "Claude" } }]);
+      expect(frame(shell)).toContain("→ ○ gpt-5 [openai] ✓");
+      shell.runtime.renderNow(true);
+      terminal.input(`\u001b[<0;7;${row}M\u001b[<0;7;${row}m`);
+      await nextImmediate();
+      expect(defaultSurface(shell)).toBe(true);
+      expect(engine.session.model).toMatchObject({ provider: "anthropic", id: "claude" });
+      expect(shell.root.editor.getText()).toBe("retained draft");
+    } finally { await shell.dispose(); }
+  });
+
+  it("outside-click cancels Models, restores the draft, and consumes the remaining gesture", async () => {
+    const { shell, terminal } = await fixture([], [], true);
+    try {
+      shell.root.editor.setText("kept draft");
+      await shell.submit("/models");
+      shell.runtime.renderNow(true);
+      terminal.input("\u001b[<64;2;1M");
+      expect(defaultSurface(shell)).toBe(false);
+      terminal.input("\u001b[<0;2;1M\u001b[<32;10;2M\u001b[<0;10;2m");
+      expect(defaultSurface(shell)).toBe(true);
+      expect(shell.root.editor.getText()).toBe("kept draft");
+      expect(shell.root.viewport.hasSelection).toBe(false);
+    } finally { await shell.dispose(); }
+  });
+
   it("separates apps from Agent commands and retains the complete pinned command manifest", async () => {
     const ownedBuiltIns = OWNED_BUILTIN_SLASH_COMMANDS.map(command => command.name);
     expect(ownedBuiltIns).toEqual(OWNED_WORKFLOW_COMMAND_NAMES);

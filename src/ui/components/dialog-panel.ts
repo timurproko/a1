@@ -1,3 +1,5 @@
+import type { DialogPointer } from "./dialog-pointer.js";
+import { RAIL_COLUMNS } from "./surface.js";
 import type { PaneRect } from "./frame.js";
 import { LineInput, renderInputRow } from "./line-input.js";
 import { renderShortcutHintsWithClose, type ShortcutHintEntry } from "./shortcut-hints.js";
@@ -21,9 +23,25 @@ export interface DialogRow {
   readonly description?: string;
 }
 
-export interface DialogPanelState {
+/** Painted choice viewport shared with its scrollbar; coordinates are one-based panel-local cells. */
+export interface DialogChoiceLayout {
+  readonly firstRow: number;
+  readonly rows: number;
+  readonly railColumn: number;
+}
+
+export interface DialogChoicePresentation {
+  readonly onChoiceLayout?: (layout: DialogChoiceLayout) => void;
+  /** When supplied, reserve the shared rail gap and cell even while the rail is quiet. */
+  readonly choiceRail?: (row: number) => string;
+}
+
+export interface DialogPanelState extends DialogChoicePresentation {
   readonly title: string;
+  readonly compact?: boolean;
+  readonly description?: string;
   readonly rows: readonly DialogRow[];
+  readonly pointer?: DialogPointer<number>;
   /** The row in hand. */
   readonly index: number;
   /** How to change it, in the words the engine uses. */
@@ -39,7 +57,7 @@ export interface DialogPanelFrame {
   readonly valueColumn: number;
 }
 
-export interface SteppedDialogPanelState {
+export interface SteppedDialogPanelState extends DialogChoicePresentation {
   /** Tight terminal geometry retains controls and guidance before optional spacing. */
   readonly compact?: boolean;
   readonly title: string;
@@ -49,6 +67,7 @@ export interface SteppedDialogPanelState {
   readonly description?: string;
   readonly input?: LineInput;
   readonly rows: readonly DialogRow[];
+  readonly pointer?: DialogPointer<number>;
   readonly index: number;
   readonly hint: readonly ShortcutHintEntry[];
 }
@@ -67,7 +86,7 @@ export function renderFloatingMenuSurface(text: string, mode: "truecolor" | "256
 interface DialogPanelLayout {
   readonly blank: string;
   readonly contentWidth: number;
-  contentRow(painted: string, raw?: string, selected?: boolean): string;
+  contentRow(painted: string, raw?: string, selected?: boolean, rail?: string): string;
 }
 
 /** The shared compact width used by Settings configure dialogs and native tab dialogs. */
@@ -78,7 +97,7 @@ export function configureDialogWidth(width: number): number {
 /** Rows available to a selector after retaining its title, description, control, and guidance. */
 export function configureDialogChoiceCapacity(height: number, hasInput: boolean, descriptionRows = 1): number {
   const wrappedDescriptionRows = Math.max(0, descriptionRows);
-  return Math.max(1, Math.max(0, height) - (hasInput ? 9 : 7) - (wrappedDescriptionRows - 1));
+  return Math.max(1, Math.min(10, Math.min(20, Math.max(0, height)) - (hasInput ? 9 : 7) - (wrappedDescriptionRows - 1)));
 }
 
 /** Number of modal rows a plain description occupies at the shared content width. */
@@ -95,14 +114,23 @@ function dialogPanelLayout(width: number, theme: UiTheme): DialogPanelLayout {
   return {
     blank: " ".repeat(frameWidth),
     contentWidth,
-    contentRow: (painted, raw = painted, selected = false) => {
-      const content = pad(truncateToWidth(painted, contentWidth), contentWidth, raw);
+    contentRow: (painted, raw = painted, selected = false, rail) => {
+      const rowWidth = Math.max(0, contentWidth - (rail === undefined ? 0 : RAIL_COLUMNS));
+      const content = pad(truncateToWidth(painted, rowWidth), rowWidth, raw);
       const rightPadding = " ".repeat(right);
-      return `${" ".repeat(left)}${selected ? theme.highlight(content) : content}${
+      const railCells = rail === undefined ? "" : theme.panel(truncateToWidth(rail, Math.min(contentWidth, RAIL_COLUMNS)));
+      return `${" ".repeat(left)}${selected ? theme.highlight(content) : content}${railCells}${
         selected ? theme.panel(rightPadding) : rightPadding
       }`;
     },
   };
+}
+
+/** The exact centered panel rectangle shared by composition and pointer routing (zero-based origin). */
+export function centeredDialogBounds(rect: PaneRect, rowCount: number): { readonly top: number; readonly left: number; readonly width: number; readonly height: number } {
+  const width = configureDialogWidth(rect.width);
+  const height = Math.min(Math.max(0, rect.height), rowCount);
+  return { top: Math.max(0, Math.floor((rect.height - height) / 2)), left: Math.max(0, Math.floor((rect.width - width) / 2)), width, height };
 }
 
 /** Dims a completed screen and overlays one full-intensity panel without disturbing ANSI tails. */
@@ -114,10 +142,10 @@ export function renderCenteredDialogOverlay(
 ): readonly string[] {
   const width = Math.max(0, rect.width);
   const height = Math.max(0, rect.height);
-  const panelWidth = configureDialogWidth(width);
-  const visibleDialog = dialogRows.slice(0, height);
-  const top = Math.max(0, Math.floor((height - visibleDialog.length) / 2));
-  const left = Math.max(0, Math.floor((width - panelWidth) / 2));
+  const bounds = centeredDialogBounds(rect, dialogRows.length);
+  const panelWidth = bounds.width;
+  const visibleDialog = dialogRows.slice(0, bounds.height);
+  const { top, left } = bounds;
 
   return Array.from({ length: height }, (_, row) => {
     const backdrop = dimStyledLine(frame[row] ?? "", width);
@@ -138,24 +166,33 @@ export function dialogValueColumn(rows: readonly DialogRow[]): number {
 export function renderDialogPanel(state: DialogPanelState, width: number, theme: UiTheme): readonly string[] {
   const labelColumn = Math.min(LABEL_COLUMN_CAP, Math.max(0, ...state.rows.map(row => displayWidth(row.label))));
   const layout = dialogPanelLayout(width, theme);
+  const description = state.description ?? state.rows[state.index]?.description ?? "";
+  const descriptionRows = wrapText(description, layout.contentWidth);
+  const firstChoiceRow = state.compact ? 2 : 4 + descriptionRows.length;
+  const reservedRail = state.choiceRail === undefined ? 0 : RAIL_COLUMNS;
+  state.onChoiceLayout?.({ firstRow: firstChoiceRow, rows: state.rows.length, railColumn: width - CONFIGURE_MODAL_PADDING_X });
+  state.pointer?.replace(state.rows.map((row, index) => ({
+    key: index, row: firstChoiceRow + index,
+    columnStart: CONFIGURE_MODAL_PADDING_X + 3,
+    columnEnd: Math.min(width - CONFIGURE_MODAL_PADDING_X - reservedRail, CONFIGURE_MODAL_PADDING_X + 2 + labelColumn + 2 + displayWidth(row.value)),
+  })));
 
   const rows = state.rows.map((row, index) => {
     const selected = index === state.index;
     const padded = `${row.label}${" ".repeat(Math.max(0, labelColumn - displayWidth(row.label)))}`;
     const cursor = selected ? "→ " : "  ";
     const raw = `${cursor}${padded}  ${row.value}`;
-    const content = selected
-      ? `${theme.fg("accent", cursor)}${theme.fg("text", padded)}  ${theme.fg("muted", row.value)}`
-      : `${cursor}${padded}  ${theme.fg("muted", row.value)}`;
-    return layout.contentRow(content, raw, selected);
+    const paint = (token: "text" | "muted", text: string) => state.pointer?.paint(theme, token, text, index) ?? theme.fg(token, text);
+    const label = state.pointer?.hovered === index ? paint("text", padded) : selected ? theme.fg("text", padded) : padded;
+    const content = `${selected ? theme.fg("accent", cursor) : cursor}${label}  ${paint("muted", row.value)}`;
+    return layout.contentRow(content, raw, selected, state.choiceRail?.(index));
   });
 
-  const description = state.rows[state.index]?.description ?? "";
-  const descriptionRows = wrapText(description, layout.contentWidth);
   const hint = typeof state.hint === "string"
     ? theme.fg("dim", state.hint)
     : renderShortcutHintsWithClose(state.hint, theme, layout.contentWidth, 0);
   const plainHint = typeof state.hint === "string" ? state.hint : " ".repeat(displayWidth(hint));
+  if (state.compact) return [layout.contentRow(theme.bold(theme.fg("accent", state.title)), state.title), ...rows, layout.contentRow(hint, plainHint)];
   return [
     layout.blank,
     layout.contentRow(theme.bold(theme.fg("accent", state.title)), state.title),
@@ -179,6 +216,17 @@ export function renderSteppedDialogPanel(
     STEPPED_LABEL_COLUMN_CAP,
     Math.max(0, ...state.rows.map(row => displayWidth(`${row.label}${row.labelSuffix ?? ""}${row.successSuffix === undefined ? "" : ` ${row.successSuffix}`}`))),
   );
+  const descriptionRows = state.description === undefined ? [] : wrapText(state.description, layout.contentWidth);
+  const inputRows = state.input === undefined ? 0 : 2;
+  const firstChoiceRow = state.compact ? 2 + Math.max(0, inputRows - 1) : 4 + descriptionRows.length + inputRows;
+  const reservedRail = state.choiceRail === undefined ? 0 : RAIL_COLUMNS;
+  state.onChoiceLayout?.({ firstRow: firstChoiceRow, rows: state.rows.length, railColumn: width - CONFIGURE_MODAL_PADDING_X });
+  state.pointer?.replace(state.rows.map((row, index) => ({
+    key: index, row: firstChoiceRow + index,
+    columnStart: CONFIGURE_MODAL_PADDING_X + 3,
+    columnEnd: Math.min(width - CONFIGURE_MODAL_PADDING_X - reservedRail, CONFIGURE_MODAL_PADDING_X + 2
+      + (row.value.length === 0 ? displayWidth(`${row.label}${row.labelSuffix ?? ""}${row.successSuffix === undefined ? "" : ` ${row.successSuffix}`}`) : labelColumn + 2 + displayWidth(row.value))),
+  })));
   const rows = state.rows.map((row, index) => {
     const selected = index === state.index;
     const success = row.successSuffix === undefined ? "" : ` ${row.successSuffix}`;
@@ -187,11 +235,10 @@ export function renderSteppedDialogPanel(
     const suffix = row.value.length === 0 ? "" : `  ${row.value}`;
     const cursor = selected ? "→ " : "  ";
     const raw = `${cursor}${completeLabel}${padding}${suffix}`;
-    const label = `${theme.fg("text", row.label)}${theme.fg("muted", row.labelSuffix ?? "")}${theme.fg("success", success)}${padding}`;
-    const content = selected
-      ? `${theme.fg("accent", cursor)}${label}${theme.fg("muted", suffix)}`
-      : `${cursor}${label}${theme.fg("muted", suffix)}`;
-    return layout.contentRow(content, raw, selected);
+    const paint = (token: "text" | "muted" | "success", text: string) => state.pointer?.paint(theme, token, text, index) ?? theme.fg(token, text);
+    const label = `${paint("text", row.label)}${paint("muted", row.labelSuffix ?? "")}${paint("success", success)}${padding}`;
+    const content = `${selected ? theme.fg("accent", cursor) : cursor}${label}${paint("muted", suffix)}`;
+    return layout.contentRow(content, raw, selected, state.choiceRail?.(index));
   });
   const input = state.input === undefined
     ? []
@@ -204,7 +251,6 @@ export function renderSteppedDialogPanel(
       }).lines.map(row => layout.contentRow(row)),
       layout.blank,
     ];
-  const descriptionRows = state.description === undefined ? [] : wrapText(state.description, layout.contentWidth);
   const step = state.step === undefined || state.steps === undefined ? "" : `(step ${state.step}/${state.steps})`;
   const title = step.length === 0 ? state.title : `${state.title} ${step}`;
   const paintedTitle = step.length === 0

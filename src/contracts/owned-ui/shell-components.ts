@@ -29,6 +29,10 @@ export interface OwnedUiShellComponentPort {
   handleInput?(data: string): void;
   /** Pointer input in one-based component-local coordinates, when supported. */
   handleLocalMouse?(event: { readonly kind: "press" | "release" | "motion" | "wheel-up" | "wheel-down"; readonly button: number; readonly column: number; readonly row: number }): void;
+  /** Clears pointer-only styling without changing the keyboard-active item. */
+  clearMouseHover?(): void;
+  /** Explicit cancellation of an owned dialog, including its workflow lifecycle. */
+  cancelDialog?(): void;
   setFocused?(focused: boolean): void;
   dispose?(): void;
 }

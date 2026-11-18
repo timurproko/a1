@@ -73,6 +73,65 @@ function hoverFixture() {
 }
 
 describe("session viewport interaction controller", () => {
+  it.each(["overlay", "replacement"])("cancels the top %s outside without passing its gesture through", kind => {
+    const { target, compose } = hoverFixture();
+    const cancel = vi.fn(() => {
+      if (kind === "overlay") target.setOverlaySurfaces([]);
+      else target.setInputSurfaceFrame(undefined);
+    });
+    const component = { render: () => [], invalidate() {}, cancelDialog: cancel };
+    const surface = { component, columnStart: 10, columnEnd: 20, rowStart: 3, rowEnd: 5 };
+    try {
+      if (kind === "overlay") target.setOverlaySurfaces([surface]);
+      else target.setInputSurfaceFrame(surface);
+      compose();
+      target.handlePreInput("\u001b[<64;2;2M");
+      target.handlePreInput("\u001b[<2;2;2M\u001b[<2;2;2m");
+      expect(cancel).not.toHaveBeenCalled();
+      target.handlePreInput("\u001b[<0;2;2M\u001b[<32;7;2M\u001b[<0;7;2m");
+      expect(cancel).toHaveBeenCalledTimes(1);
+      expect(target.hasSelection).toBe(false);
+      compose();
+      target.handlePreInput("\u001b[<0;2;2M\u001b[<32;7;2M\u001b[<0;7;2m");
+      expect(target.hasSelection).toBe(true);
+    } finally { target.clearPointerState(); }
+  });
+
+  it("leaves hover when exiting a dialog and dismisses only the top stacked dialog", () => {
+    const { target, compose } = hoverFixture();
+    const lowerCancel = vi.fn();
+    const upperCancel = vi.fn();
+    const leave = vi.fn();
+    const pointer = vi.fn();
+    const lower = { component: { render: () => [], invalidate() {}, cancelDialog: lowerCancel }, columnStart: 2, columnEnd: 15, rowStart: 2, rowEnd: 7 };
+    const upper = { component: { render: () => [], invalidate() {}, cancelDialog: upperCancel, clearMouseHover: leave, handleLocalMouse: pointer }, columnStart: 10, columnEnd: 20, rowStart: 3, rowEnd: 5 };
+    try {
+      target.setOverlaySurfaces([lower, upper]);
+      compose();
+      target.handlePreInput("\u001b[<35;12;4M");
+      expect(pointer).toHaveBeenCalledWith(expect.objectContaining({ row: 2, column: 3 }));
+      target.handlePreInput("\u001b[<35;5;4M");
+      expect(leave).toHaveBeenCalledTimes(1);
+      target.handlePreInput("\u001b[<0;5;4M\u001b[<0;5;4m");
+      expect(upperCancel).toHaveBeenCalledTimes(1);
+      expect(lowerCancel).not.toHaveBeenCalled();
+      expect(target.hasSelection).toBe(false);
+    } finally { target.clearPointerState(); }
+  });
+
+  it("does not use stale dialog geometry for outside cancellation", () => {
+    const { target, compose } = hoverFixture();
+    const cancel = vi.fn();
+    try {
+      target.setInputSurfaceFrame({ component: { render: () => [], invalidate() {}, cancelDialog: cancel }, columnStart: 10, columnEnd: 20, rowStart: 3, rowEnd: 5 });
+      compose();
+      target.invalidateInputSurface();
+      target.handlePreInput("\u001b[<0;2;2M\u001b[<0;2;2m");
+      expect(cancel).not.toHaveBeenCalled();
+      expect(target.hasSelection).toBe(false);
+    } finally { target.clearPointerState(); }
+  });
+
   it("gates release-time copying live while preserving explicit Ctrl+C", () => {
     const { target, compose } = hoverFixture();
     try {

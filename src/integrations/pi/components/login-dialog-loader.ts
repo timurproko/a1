@@ -22,6 +22,9 @@ export function deferredLoginDialog(...args: Parameters<typeof import("./upstrea
   });
   return {
     ready, dispose,
+    cancelDialog: () => { if (!closed) { dispose(); complete(false, "Login cancelled"); } },
+    handleLocalMouse: event => dialog?.handleLocalMouse?.(event),
+    clearMouseHover: () => dialog?.clearMouseHover?.(),
     render: width => dialog?.render(width) ?? (failed ? ["Login unavailable — Esc close".slice(0, width)] : []),
     invalidate: () => dialog?.invalidate(),
     setFocused: value => { focused = value; dialog?.setFocused?.(value); },

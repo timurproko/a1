@@ -97,7 +97,7 @@ export function createPiSessionPresenters(adapter: PiSessionPresenterBackend, op
     async openSessionSelector(host, onExit) {
       const context = source().pinnedSessionSelectorContext();
       const close = closeSurface(host);
-      const component = await createPiShellSessionSelector({
+      const component = await createPiShellSessionSelector({ standardStyle: adapter.settings.productMode === "bare",
         currentSessionsLoader: context.loadCurrentSessions,
         allSessionsLoader: context.loadAllSessions,
         currentSessionFilePath: context.currentSessionFilePath,
@@ -128,7 +128,7 @@ export function createPiSessionPresenters(adapter: PiSessionPresenterBackend, op
       const releasePresentation = host.beginPresentationHold?.();
       try {
         const selectors = await loadLazySelectors();
-        const component = await selectors.createTree({
+        const component = await selectors.createTree({ standardStyle: adapter.settings.productMode === "bare",
           tree: context.tree,
           currentLeafId: context.currentLeafId,
           terminalHeight: host.viewport().rows,

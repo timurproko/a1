@@ -81,6 +81,7 @@ export class SessionViewportController {
       copyOnSelect: () => this.#copyOnSelect,
       inputGeometryReady: () => this.inputGeometryReady,
       modalAt: (column, row) => this.#modalAt(column, row),
+      topSurface: () => this.#overlays?.at(-1) ?? this.#inputSurface,
       editorFrame: () => this.#editorPointerFrame,
       tailControl: () => this.#tailControl,
       clearTailControl: () => { this.#tailControl = undefined; },

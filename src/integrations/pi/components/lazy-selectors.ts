@@ -1,5 +1,6 @@
 import type { SessionTreeNode } from "@earendil-works/pi-coding-agent";
 import type { PiShellComponentPort } from "./shell-shared-facade.js";
+import { ownedDialogPort } from "./dialog-mouse.js";
 import { componentPort, ensureTheme } from "./shell-shared-facade.js";
 import type { ThinkingSelectorLevel } from "./upstream/components/thinking-selector.js";
 import type { FilterMode } from "./upstream/components/tree-selector.js";
@@ -21,6 +22,7 @@ interface PiShellLazyThinkingSelectorOptions {
 }
 
 interface PiShellLazyTreeSelectorOptions {
+  readonly standardStyle?: boolean;
   readonly tree: readonly unknown[];
   readonly currentLeafId: string | null;
   readonly terminalHeight: number;
@@ -88,7 +90,7 @@ function createPiShellLazySelectorLoader(imports: PiShellLazySelectorImports = D
         options.initialFilterMode,
       );
       if (options.onCopy) selector.onCopy = options.onCopy;
-      return componentPort(selector);
+      return options.standardStyle ? ownedDialogPort(selector, options.onCancel) : componentPort(selector);
     },
   };
 }

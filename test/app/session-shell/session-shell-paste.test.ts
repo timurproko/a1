@@ -431,7 +431,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     ["/fork", "Fork"],
     ["/login", "Login"],
     ["/logout", "Logout"],
-  ])("preserves normal transcript scroll and copy behind %s", async (command, _heading) => {
+  ])("preserves transcript wheel scrolling and restores copy after outside dismissal of %s", async (command, _heading) => {
     const messages = [{ role: "assistant", content: [{ type: "text", text: Array.from({ length: 120 }, (_, i) => `transcript-${i} alpha beta gamma`).join("\n\n") }] }];
     const { shell, terminal, engine } = await fixture(messages, [], true);
     try {
@@ -452,6 +452,13 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       expect(selectedRow).toBeGreaterThan(0);
       const before = terminal.writes.length;
       terminal.input(`\u001b[<0;2;${selectedRow}M\u001b[<32;7;${selectedRow}M\u001b[<0;7;${selectedRow}m`);
+      expect(shell.root.usesDefaultInputSurface()).toBe(true);
+      expect(shell.root.viewport.hasSelection).toBe(false);
+      expect(terminal.writes.slice(before).join("")).not.toContain("\u001b]52;c;");
+      shell.runtime.renderNow();
+      const restoredRow = shell.root.render(80).findIndex(row => stripTerminalSequences(row).includes("transcript-")) + 1;
+      expect(restoredRow).toBeGreaterThan(0);
+      terminal.input(`\u001b[<0;2;${restoredRow}M\u001b[<32;7;${restoredRow}M\u001b[<0;7;${restoredRow}m`);
       // Concurrency: the OSC52 write precedes copy settlement and its visible acknowledgement.
       await vi.waitFor(() => {
         shell.runtime.renderNow();
@@ -465,7 +472,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       expect(copies).toHaveLength(1);
       expect(Buffer.from(copies[0]![1]!, "base64").toString()).not.toContain("\u001b");
       expect(output).toContain("Copied 6 chars to clipboard");
-      expect(shell.root.usesDefaultInputSurface()).toBe(false);
+      expect(shell.root.usesDefaultInputSurface()).toBe(true);
       expect(shell.runtime.hasFocusedOverlay()).toBe(false);
       expect(engine.session.calls).toEqual(calls);
       terminal.input("\u001b");

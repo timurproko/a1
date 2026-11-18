@@ -11,7 +11,7 @@
  * footer. Selected session rows use the blue selection surface while preserving title and metadata
  * foregrounds; the active session title uses success green independently of keyboard selection, with
  * ordinary text weight.
- * Deviations: owned-modal-shortcut-hints, owned-resume-session-dialog,
+ * Deviations: owned-dialog-independent-mouse, owned-modal-shortcut-hints, owned-resume-session-dialog,
  * owned-standard-dialog-selection, owned-dialog-search-marker.
  */
 import { spawnSync } from "node:child_process";
@@ -22,6 +22,7 @@ import {
 	type Component,
 	Container,
 	type Focusable,
+  type TuiMouseEvent,
 	getKeybindings,
 	Input,
 	matchesKey,
@@ -35,6 +36,8 @@ import { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { DynamicBorder, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import { addPiModalHeader, adoptPiModalFrame, renderPiModalSearchInput } from "../../modal-frame.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
+import { DialogPointer } from "../../../../../ui/components/index.js";
+import { handlePiDialogPointer, paintPiDialogText } from "../../dialog-choice.js";
 import { filterAndSortSessions, hasSessionName, type NameFilter, type SortMode } from "./session-selector-search.js";
 
 type SessionListProgress = (
@@ -356,6 +359,14 @@ function flattenSessionTree(roots: SessionTreeNode[]): FlatSessionNode[] {
  * Custom session list component with multi-line items and search
  */
 class SessionList implements Component, Focusable {
+  readonly pointer = new DialogPointer<string>();
+  clearMouseHover(): void { this.pointer.clearHover(); }
+  handleMouse(event: TuiMouseEvent) {
+    const clicked = handlePiDialogPointer(this.pointer, event);
+    if (clicked !== undefined) this.onSelect?.(clicked);
+    if (event.y === 0) this.searchInput.handleMouse({ ...event, height: 1 });
+    return { handled: true };
+  }
 	public getSelectedSessionPath(): string | undefined {
 		const selected = this.filteredSessions[this.selectedIndex];
 		return selected?.session.path;
@@ -451,6 +462,7 @@ class SessionList implements Component, Focusable {
 	}
 
 	private filterSessions(query: string): void {
+    this.pointer.invalidate();
 		const trimmed = query.trim();
 		const nameFiltered =
 			this.nameFilter === "all" ? this.allSessions : this.allSessions.filter((session) => hasSessionName(session));
@@ -500,7 +512,7 @@ class SessionList implements Component, Focusable {
 		return this.showCwd && session.cwd ? shortenPath(session.cwd) : "";
 	}
 
-	invalidate(): void {}
+	invalidate(): void { this.pointer.invalidate(); }
 
 	render(width: number): string[] {
 		const lines: string[] = [];
@@ -547,11 +559,16 @@ class SessionList implements Component, Focusable {
 			+ (pathColumnWidth > 0 ? pathColumnWidth + columnGapWidth : 0);
 		const titleColumnWidth = Math.max(0, width - metadataWidth);
 
+    this.pointer.replace(this.filteredSessions.slice(startIndex, endIndex).map((node, index) => ({
+      key: node.session.path, row: lines.length + index + 1, columnStart: 3, columnEnd: width,
+    })));
 		// Render visible sessions (one line each with stable title, path, count, and age columns)
 		for (let i = startIndex; i < endIndex; i++) {
 			const node = this.filteredSessions[i]!;
 			const session = node.session;
 			const isSelected = i === this.selectedIndex;
+      const hovered = this.pointer.hovered === session.path;
+      const paint = (token: Parameters<typeof theme.fg>[0], text: string) => paintPiDialogText(hovered, token, text);
 			const isConfirmingDelete = session.path === this.confirmingDeletePath;
 			const isCurrent = this.isCurrentSessionPath(session.path);
 
@@ -582,15 +599,15 @@ class SessionList implements Component, Focusable {
 			} else if (hasName) {
 				messageColor = "warning";
 			}
-			const styledMsg = messageColor ? theme.fg(messageColor, truncatedMsg) : truncatedMsg;
+			const styledMsg = messageColor ? paint(messageColor, truncatedMsg) : hovered ? paint("text", truncatedMsg) : truncatedMsg;
 
 			const metadataColor = isConfirmingDelete ? "error" : "dim";
-			const titleColumn = fitToWidth(cursor + theme.fg("dim", prefix) + styledMsg, titleColumnWidth, "…");
+			const titleColumn = fitToWidth(cursor + paint("dim", prefix) + styledMsg, titleColumnWidth, "…");
 			const pathColumn = pathColumnWidth > 0
-				? `${theme.fg(metadataColor, fitPathToWidth(pathText, pathColumnWidth, this.showPath))}${" ".repeat(columnGapWidth)}`
+				? `${paint(metadataColor, fitPathToWidth(pathText, pathColumnWidth, this.showPath))}${" ".repeat(columnGapWidth)}`
 				: "";
-			const countColumn = theme.fg(metadataColor, msgCount.padStart(countColumnWidth));
-			const ageColumn = theme.fg(metadataColor, age.padStart(ageColumnWidth));
+			const countColumn = paint(metadataColor, msgCount.padStart(countColumnWidth));
+			const ageColumn = paint(metadataColor, age.padStart(ageColumnWidth));
 			const fittedLine = fitToWidth(
 				`${titleColumn}${" ".repeat(columnGapWidth)}${pathColumn}${countColumn} ${ageColumn}`,
 				width,

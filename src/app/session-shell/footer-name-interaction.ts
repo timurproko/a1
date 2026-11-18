@@ -75,7 +75,8 @@ export class FooterNameInteraction {
         const region = root.chrome.footerName?.region(control);
         return region !== undefined && withinTailControl(region, event.column, event.row);
       }) : undefined;
-      if (command === undefined || event.kind !== "press" || event.button !== 0) return false;
+      // Invariant: an open dialog owns outside presses before background footer actions.
+      if (command === undefined || event.kind !== "press" || event.button !== 0 || !root.usesDefaultInputSurface()) return false;
       this.#draining = true;
       void this.#activate(command).catch(error => {
         if (!this.#ports.disposed()) {
@@ -88,15 +89,7 @@ export class FooterNameInteraction {
   }
 
   async #activate(command: OwnedUiShellFooterControl): Promise<void> {
-    const { root, terminal } = this.#ports;
-    if (root.usesDefaultInputSurface()) { await this.#ports.edit(command); return; }
-    const active = root.chrome.footerName?.activeControl;
-    const replace = active !== command;
-    const release = replace ? terminal.beginPresentationHold?.() : undefined;
-    try {
-      root.handleInput("\x1b");
-      if (replace && root.usesDefaultInputSurface()) await this.#ports.edit(command);
-    } finally { release?.(); terminal.requestRender(); }
+    await this.#ports.edit(command);
   }
 
   onSessionReplaced(): void { this.#draining = false; this.#ports.root.chrome.footerName?.setPointer(undefined); }
