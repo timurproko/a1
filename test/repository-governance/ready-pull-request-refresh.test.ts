@@ -1,9 +1,7 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { inspectWorkflowSource } from "../../scripts/governance/github-repository-governance.mjs";
 import {
   classifyRefreshCandidate,
   decideRefresh,
@@ -228,44 +226,6 @@ describe("ready pull-request refresh command", () => {
     expect(success.stdout).toContain('"disposition":"skipped","pullRequest":2');
     expect(success.authorization).toEqual(["Bearer app"]);
     await expect(runCommand({ BRANCH_REFRESH_TOKEN: "app" }, [{ number: 1, head: sha(1), behind: 1, updateStatus: 500 }])).rejects.toThrow(/branch refresh failed for #1/);
-  });
-});
-
-describe("ready pull-request refresh workflow", () => {
-  it("runs trusted default-branch policy after merges and documentation integration, serialized without cancellation", async () => {
-    const workflow = await readFile(".github/workflows/ready-pull-request-refresh.yml", "utf8");
-    expect(workflow).toMatch(/pull_request_target:\n {4}branches: \[develop\]\n {4}types: \[closed\]/);
-    expect(workflow).toMatch(/workflow_run:\n {4}workflows: \[Documentation auto-merge\]\n {4}types: \[completed\]/);
-    expect(workflow).toContain("if: github.event_name == 'workflow_run' || github.event.pull_request.merged == true");
-    expect(workflow).toMatch(/concurrency:\n {2}group: ready-pull-request-refresh\n {2}cancel-in-progress: false/);
-    expect(workflow).toContain("ref: ${{ github.event.repository.default_branch }}");
-    expect(workflow).toContain("persist-credentials: false");
-    expect(workflow).not.toMatch(/github\.event\.pull_request\.head|workflow_run\.head_(?:sha|branch)|npm (?:ci|install)|pnpm|yarn/);
-  });
-
-  it("updates branches only with a scoped event-producing App token", async () => {
-    const workflow = await readFile(".github/workflows/ready-pull-request-refresh.yml", "utf8");
-    expect(workflow).toMatch(/^permissions:\n {2}contents: read\n\n/m);
-    expect(workflow).toContain("permission-contents: write");
-    expect(workflow).toContain("permission-pull-requests: write");
-    expect(workflow).toContain("BRANCH_REFRESH_TOKEN: ${{ steps.app.outputs.token }}");
-    expect(workflow).not.toContain("secrets.GITHUB_TOKEN");
-    expect(workflow).not.toMatch(/git push|gh pr merge|--auto|enablePullRequestAutoMerge|check-runs|workflow_dispatch|dispatches/);
-    const helper = await readFile("scripts/governance/refresh-ready-pull-requests.mjs", "utf8");
-    expect(helper).not.toMatch(/process\.env\.(?:GITHUB_TOKEN|GH_TOKEN)/);
-  });
-
-  it("drifts from the inventory when the App token loses its scope", async () => {
-    const workflow = await readFile(".github/workflows/ready-pull-request-refresh.yml", "utf8");
-    const path = ".github/workflows/ready-pull-request-refresh.yml";
-    expect(inspectWorkflowSource(path, workflow).authority).toEqual(["ready-pull-request-branch-refresh"]);
-    for (const drifted of [
-      workflow.replace(/^\s+permission-pull-requests: write\n/m, ""),
-      workflow.replace("permission-contents: write", "permission-contents: write\n          permission-workflows: write"),
-      workflow.replace("${{ steps.app.outputs.token }}", "${{ secrets.GITHUB_TOKEN }}"),
-    ]) {
-      expect(inspectWorkflowSource(path, drifted).authority).toEqual(["unscoped-branch-refresh"]);
-    }
   });
 });
 

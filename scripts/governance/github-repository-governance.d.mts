@@ -28,6 +28,7 @@ export interface RepositoryGovernanceDefinition {
 
 export function validateRepositoryGovernanceDefinition<T extends RepositoryGovernanceDefinition>(definition: T): T;
 export function inspectLocalWorkflows(definition: RepositoryGovernanceDefinition, root?: string): Promise<WorkflowGovernance[]>;
+export const SHARED_DELIVERY_WORKFLOW: string;
 export function inspectWorkflowSource(path: string, source: string): WorkflowGovernance;
 export function compareRepositoryGovernance(definition: RepositoryGovernanceDefinition, live: Omit<RepositoryGovernanceDefinition, "schema" | "repository">): {
   readonly schema: string;
