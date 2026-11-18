@@ -87,6 +87,37 @@ describe("bounded local session control", () => {
     expect(applied).toEqual(["hold", "last"]);
   });
 
+  it("does not acknowledge expiry on an early timer wake while the server deadline is still live", async () => {
+    let release!: () => void, wake!: () => void;
+    const gate = new Promise<void>(done => { release = done; });
+    const woke = new Promise<void>(done => { wake = done; });
+    const applied: unknown[] = [];
+    const target = await host(undefined, async value => { applied.push(value); if (value === "hold") await gate; return value; });
+    const first = requestSessionControl({ runtimeDir, sessionId: target.state.sessionId, payload: "hold" });
+    while (!applied.length) await new Promise(done => setTimeout(done, 5));
+    const now = Date.now(), clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    const schedule = globalThis.setTimeout;
+    let injected = false, settled = false;
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((callback, delay, ...args) => {
+      if (delay === 30 && !injected) {
+        injected = true;
+        return schedule(() => { callback(...args); wake(); }, 0);
+      }
+      return schedule(callback, delay, ...args);
+    });
+    const expired = requestSessionControl({ runtimeDir, sessionId: target.state.sessionId, payload: "late", timeoutMs: 30 });
+    void expired.then(() => { settled = true; }, () => { settled = true; });
+    try {
+      await woke;
+      await new Promise(done => schedule(done, 0));
+      expect(settled).toBe(false);
+      clock.mockReturnValue(now + 31);
+      await expect(expired).rejects.toMatchObject({ code: "request-expired" });
+    } finally { clock.mockRestore(); release(); await first; }
+    expect(await requestSessionControl({ runtimeDir, sessionId: target.state.sessionId, payload: "last" })).toBe("last");
+    expect(applied).toEqual(["hold", "last"]);
+  });
+
   it("rejects oversized or malformed discovery records without reading arbitrary payloads", async () => {
     const target = await host();
     const directory = join(runtimeDir, "session-controls");

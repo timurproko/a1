@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createHerdrCommand } from "../../../src/features/owned-ui/herdr-command.js";
 let root = "";
-afterEach(async () => { if (root) await rm(root, { recursive: true, force: true }); });
+afterEach(async () => { if (root) await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
 async function npmFixture(source: string) {
   root = await mkdtemp(join(tmpdir(), "hc command's space-"));
   const script = join(root, "node_modules", "fixture", "cli.js");
