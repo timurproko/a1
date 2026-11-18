@@ -81,12 +81,9 @@ describe("declarative GitHub repository governance", () => {
     expect(inspected.find(workflow => workflow.name === "Development validation")).toMatchObject({
       artifactRetentionDays: [7, 14],
     });
-    expect(inspected.find(workflow => workflow.name === "Merged branch cleanup")).toMatchObject({
-      triggers: ["pull_request_target:closed"], trustedSource: "default-branch", permissions: ["contents: write"],
-    });
-    expect(inspected.find(workflow => workflow.name === "Ready pull-request refresh")).toMatchObject({
-      triggers: ["pull_request_target:closed", "workflow_run"], trustedSource: "default-branch", permissions: ["contents: read"],
-      authority: ["ready-pull-request-branch-refresh"], concurrency: "ready-pull-request-refresh",
+    expect(inspected.find(workflow => workflow.name === "Delivery")).toMatchObject({
+      triggers: ["pull_request_target", "pull_request_target:edited", "workflow_dispatch", "workflow_run"],
+      trustedSource: "shared-delivery-workflow", permissions: ["contents: write", "pull-requests: read"], authority: ["shared-delivery"],
     });
     expect(inspected.find(workflow => workflow.name === "Nightly regression triage")).toMatchObject({
       triggers: ["workflow_dispatch", "workflow_run"], trustedSource: "default-branch", permissions: ["actions: read", "contents: write", "pull-requests: write"], authority: ["nightly-regression-triage"], artifactRetentionDays: [30],
@@ -107,16 +104,26 @@ describe("declarative GitHub repository governance", () => {
     });
   });
 
+  it("trusts the shared delivery caller only while it forwards events without running steps of its own", async () => {
+    const path = ".github/workflows/delivery.yml";
+    const source = await readFile(path, "utf8");
+    expect(inspectWorkflowSource(path, source)).toMatchObject({ trustedSource: "shared-delivery-workflow", authority: ["shared-delivery"] });
+    expect(inspectWorkflowSource(path, source.replace("@main", "@feature")).trustedSource).toBe("unknown");
+    expect(inspectWorkflowSource(path, `${source}  extra:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo hi\n`).trustedSource).toBe("unknown");
+  });
+
   it("reports drift when a workflow adds a diagnostic retention period", async () => {
     const value = await definition();
     const stale = structuredClone(value);
     const index = stale.workflows.findIndex(workflow => workflow.path === ".github/workflows/ci.yml");
     stale.workflows[index] = { ...stale.workflows[index]!, artifactRetentionDays: [14] };
+    // The report addresses workflows in name order, not declaration order.
+    const sorted = [...stale.workflows].sort((left, right) => left.name.localeCompare(right.name)).findIndex(workflow => workflow.path === ".github/workflows/ci.yml");
     const report = compareRepositoryGovernance(stale, await matchingLive(value));
     expect(report.matches).toBe(false);
     expect(report.differences).toEqual([
-      { path: `workflows[${index}].artifactRetentionDays[0]`, expected: 14, actual: 7, reason: "value" },
-      { path: `workflows[${index}].artifactRetentionDays[1]`, expected: undefined, actual: 14, reason: "unknown" },
+      { path: `workflows[${sorted}].artifactRetentionDays[0]`, expected: 14, actual: 7, reason: "value" },
+      { path: `workflows[${sorted}].artifactRetentionDays[1]`, expected: undefined, actual: 14, reason: "unknown" },
     ]);
     expect(report.mutationPerformed).toBe(false);
   });
@@ -147,7 +154,8 @@ describe("declarative GitHub repository governance", () => {
       for (const match of source.matchAll(/^\s*uses:\s*([^\s#]+)(?:\s+#.*)?$/gm)) {
         const reference = match[1]!;
         if (reference.startsWith("./") || reference.startsWith("docker://")
-          || reference === "timurproko/a1/.github/workflows/publish.yml@develop") continue;
+          || reference === "timurproko/a1/.github/workflows/publish.yml@develop"
+          || reference === "timurproko/MyGitWorkflows/.github/workflows/delivery.yml@main") continue;
         expect(reference, `${name}: ${reference}`).toMatch(/@[0-9a-f]{40}$/);
       }
     }
