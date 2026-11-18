@@ -52,8 +52,11 @@ close event, so it deletes its own exact merged head and the Delivery workflow f
 its successful run to the shared ready pull-request refresh.
 
 `config/github-repository-governance.json` is the reviewed policy for repository
-settings, Actions defaults, security capabilities, environments, complete rulesets,
-protected refs, and workflow authority. Inspection is read-only by default:
+settings, Actions defaults, security capabilities, environments, labels, and workflow
+authority. Branch and tag rulesets are not declared here: they live in
+`protection/repositories.json` of the shared workflow repository and are compared or
+installed with `delivery protect --repo timurproko/a1` (add `--apply` to install).
+Inspection of this file is read-only by default:
 
 ```sh
 node scripts/governance/check-github-repository-governance.mjs --check
@@ -466,7 +469,7 @@ upload steps. When both packages are absent and no upload step ran, it returns t
 Release to draft and deletes the unconsumed tag at the bound source using the
 release-automation App, the only actor that may bypass the tag ruleset. It never
 moves a tag, never deletes a tag at any other commit, and keeps both the Release and
-tag once npm may have been reached. The `a1-protect-release-tags` ruleset must list
+tag once npm may have been reached. The shared `protect-release-tags` ruleset lists
 that App (`openspec-ci`) as its single bypass actor.
 
 Preparation refuses any target tag that already exists; publish the draft instead of
@@ -582,8 +585,11 @@ operation.
 ## Branch protection rationale
 
 One person maintains this repository, and a PR author cannot approve their own PR.
-The `develop` ruleset therefore requires a pull request, a green required check,
-and resolved review threads, but zero approving reviews. `master` and release tags
+The `protect-develop` ruleset therefore requires a pull request, green
+`Development validation required` and `delivery / Delivery check`, and resolved review
+threads, but zero approving reviews. The repository admin may bypass it for pull
+requests only: any pull request can be merged without waiting for checks, and nothing
+reaches `develop` without one. `master` and release tags
 are written only after publication and are protected from force-push, movement, and
 deletion.
 

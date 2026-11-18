@@ -1,4 +1,3 @@
-import type { GithubRuleset } from "./github-rulesets.mjs";
 
 export interface WorkflowGovernance {
   readonly name: string;
@@ -20,8 +19,6 @@ export interface RepositoryGovernanceDefinition {
   readonly actions: Record<string, unknown>;
   readonly securityCapabilities: Record<string, unknown>;
   readonly environments: Array<Record<string, unknown> & { readonly name: string }>;
-  readonly protectedRefs: string[];
-  readonly rulesets: GithubRuleset[];
   readonly labels: Array<{ readonly name: string; readonly color: string; readonly description: string }>;
   readonly workflows: WorkflowGovernance[];
 }
