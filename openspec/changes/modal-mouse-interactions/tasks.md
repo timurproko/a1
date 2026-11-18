@@ -1,9 +1,9 @@
 ## 1. Shared dialog pointer ownership and text-only hover
 
-- [ ] 1.1 Add reusable semantic dialog hit targets and independent pointer-hover state without changing the keyboard-active selection.
-- [ ] 1.2 Add the theme-owned 75% ordinary-foreground / 25% accent hover painter, preserving metadata roles, truecolor/256-color capability handling, and existing keyboard-selection backgrounds.
-- [ ] 1.3 Route topmost owned-dialog outside primary presses through explicit cancellation and drain the dismissal gesture without underlying actions; clear stale hover and reject stale geometry.
-- [ ] 1.4 Carry pointer/cancellation capabilities through relevant port wrappers and add focused component/theme and shell routing fixtures for independent selection, leave, stacking, resize, replacement, and no click-through.
+- [x] 1.1 Add reusable semantic dialog hit targets and independent pointer-hover state without changing the keyboard-active selection.
+- [x] 1.2 Add the theme-owned 75% ordinary-foreground / 25% accent hover painter, preserving metadata roles, truecolor/256-color capability handling, and existing keyboard-selection backgrounds.
+- [x] 1.3 Route topmost owned-dialog outside primary presses through explicit cancellation and drain the dismissal gesture without underlying actions; clear stale hover and reject stale geometry.
+- [x] 1.4 Carry pointer/cancellation capabilities through relevant port wrappers and add focused component/theme and shell routing fixtures for independent selection, leave, stacking, resize, replacement, and no click-through.
 
 ## 2. In-place Models mouse interaction
 

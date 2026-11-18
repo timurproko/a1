@@ -11,7 +11,7 @@ import {
   type UiThemeToken,
 } from "../../../contracts/presentation/index.js";
 import { renderFloatingDialogSurface } from "../../../ui/components/spans.js";
-import { stripTerminalSequences, truncateToWidth, type MarkdownTheme, type SelectListTheme } from "@earendil-works/pi-tui";
+import { foregroundAnsi, mixColors, stripTerminalSequences, truncateToWidth, type MarkdownTheme, type SelectListTheme } from "@earendil-works/pi-tui";
 import { getMarkdownTheme } from "../startup-public.js";
 import { onPiThemeChange, piTheme, renderPiAccentPreview } from "./upstream/theme/theme.js";
 
@@ -40,6 +40,10 @@ export function paintPiFloatingDialog(text: string): string {
 export function piUiTheme(options: { readonly panel?: Paint; readonly disabled?: Paint } = {}): UiTheme {
   return {
     fg: (token: UiThemeToken, text: string) => piTheme().fg(token, text),
+    hover: (token, text) => {
+      const theme = piTheme();
+      return `${foregroundAnsi(mixColors(theme.colors[token], theme.colors.accent, 0.25, "srgb"), theme.getColorMode())}${text}\u001b[39m`;
+    },
     bold: text => piTheme().bold(text),
     plain: text => text,
     accentPreview: (color, text) => renderPiAccentPreview(color, text),

@@ -1,3 +1,4 @@
+import type { DialogPointer } from "./dialog-pointer.js";
 import type { PaneRect } from "./frame.js";
 import { LineInput, renderInputRow } from "./line-input.js";
 import { renderShortcutHintsWithClose, type ShortcutHintEntry } from "./shortcut-hints.js";
@@ -24,6 +25,7 @@ export interface DialogRow {
 export interface DialogPanelState {
   readonly title: string;
   readonly rows: readonly DialogRow[];
+  readonly pointer?: DialogPointer<number>;
   /** The row in hand. */
   readonly index: number;
   /** How to change it, in the words the engine uses. */
@@ -49,6 +51,7 @@ export interface SteppedDialogPanelState {
   readonly description?: string;
   readonly input?: LineInput;
   readonly rows: readonly DialogRow[];
+  readonly pointer?: DialogPointer<number>;
   readonly index: number;
   readonly hint: readonly ShortcutHintEntry[];
 }
@@ -138,20 +141,25 @@ export function dialogValueColumn(rows: readonly DialogRow[]): number {
 export function renderDialogPanel(state: DialogPanelState, width: number, theme: UiTheme): readonly string[] {
   const labelColumn = Math.min(LABEL_COLUMN_CAP, Math.max(0, ...state.rows.map(row => displayWidth(row.label))));
   const layout = dialogPanelLayout(width, theme);
+  const description = state.rows[state.index]?.description ?? "";
+  const descriptionRows = wrapText(description, layout.contentWidth);
+  state.pointer?.replace(state.rows.map((row, index) => ({
+    key: index, row: 4 + descriptionRows.length + index,
+    columnStart: CONFIGURE_MODAL_PADDING_X + 3,
+    columnEnd: Math.min(width - CONFIGURE_MODAL_PADDING_X, CONFIGURE_MODAL_PADDING_X + 2 + labelColumn + 2 + displayWidth(row.value)),
+  })));
 
   const rows = state.rows.map((row, index) => {
     const selected = index === state.index;
     const padded = `${row.label}${" ".repeat(Math.max(0, labelColumn - displayWidth(row.label)))}`;
     const cursor = selected ? "→ " : "  ";
     const raw = `${cursor}${padded}  ${row.value}`;
-    const content = selected
-      ? `${theme.fg("accent", cursor)}${theme.fg("text", padded)}  ${theme.fg("muted", row.value)}`
-      : `${cursor}${padded}  ${theme.fg("muted", row.value)}`;
+    const paint = (token: "text" | "muted", text: string) => state.pointer?.paint(theme, token, text, index) ?? theme.fg(token, text);
+    const label = state.pointer?.hovered === index ? paint("text", padded) : selected ? theme.fg("text", padded) : padded;
+    const content = `${selected ? theme.fg("accent", cursor) : cursor}${label}  ${paint("muted", row.value)}`;
     return layout.contentRow(content, raw, selected);
   });
 
-  const description = state.rows[state.index]?.description ?? "";
-  const descriptionRows = wrapText(description, layout.contentWidth);
   const hint = typeof state.hint === "string"
     ? theme.fg("dim", state.hint)
     : renderShortcutHintsWithClose(state.hint, theme, layout.contentWidth, 0);
@@ -179,6 +187,15 @@ export function renderSteppedDialogPanel(
     STEPPED_LABEL_COLUMN_CAP,
     Math.max(0, ...state.rows.map(row => displayWidth(`${row.label}${row.labelSuffix ?? ""}${row.successSuffix === undefined ? "" : ` ${row.successSuffix}`}`))),
   );
+  const descriptionRows = state.description === undefined ? [] : wrapText(state.description, layout.contentWidth);
+  const inputRows = state.input === undefined ? 0 : 2;
+  const firstChoiceRow = state.compact ? 2 + Math.max(0, inputRows - 1) : 4 + descriptionRows.length + inputRows;
+  state.pointer?.replace(state.rows.map((row, index) => ({
+    key: index, row: firstChoiceRow + index,
+    columnStart: CONFIGURE_MODAL_PADDING_X + 3,
+    columnEnd: Math.min(width - CONFIGURE_MODAL_PADDING_X, CONFIGURE_MODAL_PADDING_X + 2
+      + (row.value.length === 0 ? displayWidth(`${row.label}${row.labelSuffix ?? ""}${row.successSuffix === undefined ? "" : ` ${row.successSuffix}`}`) : labelColumn + 2 + displayWidth(row.value))),
+  })));
   const rows = state.rows.map((row, index) => {
     const selected = index === state.index;
     const success = row.successSuffix === undefined ? "" : ` ${row.successSuffix}`;
@@ -187,10 +204,9 @@ export function renderSteppedDialogPanel(
     const suffix = row.value.length === 0 ? "" : `  ${row.value}`;
     const cursor = selected ? "→ " : "  ";
     const raw = `${cursor}${completeLabel}${padding}${suffix}`;
-    const label = `${theme.fg("text", row.label)}${theme.fg("muted", row.labelSuffix ?? "")}${theme.fg("success", success)}${padding}`;
-    const content = selected
-      ? `${theme.fg("accent", cursor)}${label}${theme.fg("muted", suffix)}`
-      : `${cursor}${label}${theme.fg("muted", suffix)}`;
+    const paint = (token: "text" | "muted" | "success", text: string) => state.pointer?.paint(theme, token, text, index) ?? theme.fg(token, text);
+    const label = `${paint("text", row.label)}${paint("muted", row.labelSuffix ?? "")}${paint("success", success)}${padding}`;
+    const content = `${selected ? theme.fg("accent", cursor) : cursor}${label}${paint("muted", suffix)}`;
     return layout.contentRow(content, raw, selected);
   });
   const input = state.input === undefined
@@ -204,7 +220,6 @@ export function renderSteppedDialogPanel(
       }).lines.map(row => layout.contentRow(row)),
       layout.blank,
     ];
-  const descriptionRows = state.description === undefined ? [] : wrapText(state.description, layout.contentWidth);
   const step = state.step === undefined || state.steps === undefined ? "" : `(step ${state.step}/${state.steps})`;
   const title = step.length === 0 ? state.title : `${state.title} ${step}`;
   const paintedTitle = step.length === 0

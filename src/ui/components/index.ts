@@ -11,6 +11,8 @@ export {
   renderSteppedDialogPanel,
 } from "./dialog-panel.js";
 export type { DialogPanelFrame, DialogPanelState, DialogRow, SteppedDialogPanelState } from "./dialog-panel.js";
+export { DialogPointer } from "./dialog-pointer.js";
+export type { DialogPointerTarget } from "./dialog-pointer.js";
 export { emojiPresentation } from "./emoji-presentation.js";
 export { FrameContractError, assertPaneRect, finalizeFrame, validateFrame } from "./frame.js";
 export type { PaneRect } from "./frame.js";
