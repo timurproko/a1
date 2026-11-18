@@ -1,8 +1,7 @@
 import { lstat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fail } from "./local-cleanup-state.mjs";
-import { canonical, discoverRepository, gitRunner, inside, removeLinkEntry, REPOSITORY_DISPOSABLE_PATHS } from "./local-cleanup-git.mjs";
-import { cleanupPreflight } from "./local-cleanup-preflight.mjs";
+import { canonical, discoverRepository, gitRunner, inside, inspectWorktree, removeLinkEntry, REPOSITORY_DISPOSABLE_PATHS } from "./local-cleanup-git.mjs";
 import { acceptedHead, verifyCleanupEvidence } from "./local-cleanup-evidence.mjs";
 import { writeLocalCleanupReport } from "./local-cleanup-reconcile.mjs";
 
@@ -25,7 +24,7 @@ async function realAncestors(worktree, link) {
 /** Explicitly remove one ignored disposable link, not its target, the worktree, or any other link. */
 export async function unlinkDisposableLink({ identity, store, reader, path, change, sourcePr, link, confirmed = false,
   cwd = process.cwd(), now = Date.now, deadline = now() + 60000, git = gitRunner({ deadline, now }),
-  verify = verifyCleanupEvidence, inspect = cleanupPreflight, removeLink = removeLinkEntry }) {
+  verify = verifyCleanupEvidence, inspect = inspectWorktree, removeLink = removeLinkEntry }) {
   const absolute = resolve(path).replaceAll("\\", "/");
   const report = { version: 1, operation: "unlink-disposable-link", results: [], coverage: { total: 1, visited: 0, complete: false }, at: now() };
   const row = { path: absolute, sourcePr, link, disposition: "blocked", steps: [] };

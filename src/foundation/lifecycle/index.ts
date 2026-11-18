@@ -27,7 +27,7 @@ export { enterSessionRepositoryWorktree } from "./session-worktree-entry.js";
 export { executeSessionWorktreeControl, requestSessionWorktreeControl, takeSessionWorktreeControl } from "./session-worktree-control.js";
 export type { SessionWorktreeControlRequest, SessionWorktreeControlOutcome } from "./session-worktree-control.js";
 export {
-  describeWorktreeCompletion, requestSessionWorktreeCompletion, requestSessionWorktreeLocalRemoval, settleSessionWorktreeCompletion,
+  describeWorktreeCompletion, requestSessionWorktreeCompletion, settleSessionWorktreeCompletion,
 } from "./session-worktree-completion.js";
 export type {
   WorktreeCompletionRequest, WorktreeCompletionResult, WorktreeCompletionSelectors,

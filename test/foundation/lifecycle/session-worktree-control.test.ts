@@ -26,14 +26,6 @@ it("queues an exact-session shell request without Git or attachment changes and 
   expect(await executeSessionWorktreeControl(f.identity, { action: "worktree-status" }, f.options)).toMatchObject({ health: "detached", cwd: f.home, startupDirectory: f.home, repositoryRoot: null });
 });
 
-it("queues local removal without detaching or substituting merged completion", async () => {
-  const f = await fixture(), request = { action: "remove-local-worktree" as const };
-  await requestSessionWorktreeControl(f.identity, request, f.options);
-  expect(await takeSessionWorktreeControl(f.identity, f.options)).toEqual(request);
-  await expect(executeSessionWorktreeControl(f.identity, request, f.options)).rejects.toMatchObject({ code: "worktree-not-attached" });
-  expect(await takeSessionWorktreeControl(f.identity, f.options)).toBeNull();
-});
-
 it("preserves the first request instead of replacing it with a concurrent shell mutation", async () => {
   const f = await fixture();
   await requestSessionWorktreeControl(f.identity, { action: "unlink-worktree" }, f.options);
