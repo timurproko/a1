@@ -2,13 +2,9 @@
 
 ## Delivery workflow
 
-- Load the [delivery skill](.agents/skills/change-delivery/SKILL.md) before repository delivery work. It routes to the owning [delivery](docs/openspec-archive-automation.md), [worktree](docs/architecture/project-structure.md#development-worktrees), and [cleanup](docs/local-worktree-cleanup.md) procedures.
-- Ask only about a genuinely missing decision. One explicit instruction can approve a presented plan and request implementation; it does not authorize merge or unrelated deletion.
-- Keep delivery progress truthful. Trusted automation owns implementation-PR readiness and finalization, so never mark an implementation PR ready yourself; protected integration still requires a separate current exact-candidate maintainer decision.
+Change delivery is owned by the shared `change-delivery` skill of `timurproko/MyGitWorkflows`, not by this repository: load it before making, planning, shipping, merging, or cleaning up after any change. It defines the draft-PR plan, ticking outcomes as they land, automatic readiness and OpenSpec finalization, handoff, merge rules, and local cleanup with `delivery cleanup`. Where a rule below is stricter than the skill, the rule below wins.
 
-## Implementation progress
-
-Plan `tasks.md` as one task group per PR `## Implementation` outcome, in the same order. Then work one outcome at a time: write its code and tests, tick its `tasks.md` tasks, commit and push, and tick that outcome in the PR body (`[ ]` to `[x]`, nothing else) before starting the next one. A tick means the code and tests are written: CI, broad test runs, and manual validation never delay it, and a later defect is fixed in a new commit. Never save ticks for handoff.
+If no `change-delivery` skill is available on this machine, install it once and then load it: `git clone https://github.com/timurproko/MyGitWorkflows.git ~/.config/git-workflows && node ~/.config/git-workflows/bin/delivery.mjs install`. It keeps itself up to date from then on.
 
 ## Worktrees
 
@@ -23,5 +19,6 @@ In an active A1 session, prefer the `worktree` tool; `a1 worktree enter <branch>
 
 ## Commands for the user
 
+- For an interactive checkout test in a handoff, build first and use `./scripts/dev` or `./scripts/dev pi`; never hand off or invoke a direct Node launcher such as `node scripts/development/dev-launch.mjs`.
 - Whenever you give the user a command to run themselves (manual test, build, dev server, script, git step), give exactly one Git Bash line in one fenced code block, starting with `cd <absolute path of the repo or worktree> && ...`, so it can be pasted into any Git Bash window regardless of its current directory. Example: `cd /d/Git/a1/.worktrees/my-task && export FOO=1 && npm run build && ./scripts/dev`.
 - Use Git Bash syntax only: forward-slash paths (`/d/Git/...`), `export VAR=value` or `VAR=value cmd`, `&&` between steps. Never PowerShell or cmd syntax, never several lines, never assume the user is already in the right folder.

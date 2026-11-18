@@ -3,69 +3,21 @@ import { requireDevelopmentValidation } from "../../scripts/release/require-deve
 
 const head = "a".repeat(40);
 const valid = {
-  acceptanceOnly: "false", implementationBound: "true", acceptanceCandidate: "false", deliveryCandidate: "true",
-  acceptanceResult: "skipped", deliveryResult: "success", changesResult: "success", docsResult: "skipped",
+  changesResult: "success", docsResult: "skipped",
   namingRequired: "false", namingResult: "skipped", namingHead: head, documentationResult: "skipped",
   modularResult: "success", renderingResult: "skipped", docsOnly: "false", versionOnly: "false", releaseReopening: "false",
   openspecTouched: "false", documentationRequired: "false", renderingTier: "none", selectedHead: head, expectedHead: head,
 };
 
 describe("development validation aggregate", () => {
-  it("accepts only a current trusted legacy acceptance candidate when every generic lane is skipped", () => {
-    const acceptance = {
-      ...valid,
-      acceptanceOnly: "true",
-      acceptanceCandidate: "true",
-      acceptanceResult: "success",
-      deliveryResult: "skipped",
-      docsResult: "skipped",
-      namingResult: "skipped",
-      documentationResult: "skipped",
-      modularResult: "skipped",
-      renderingResult: "skipped",
-    };
-    expect(requireDevelopmentValidation(acceptance)).toEqual({ mode: "acceptance" });
-    for (const override of [
-      { acceptanceCandidate: "false" },
-      { acceptanceResult: "failure" },
-      { docsResult: "success" },
-      { namingResult: "success" },
-      { documentationResult: "success" },
-      { modularResult: "success" },
-      { renderingResult: "success" },
-      { selectedHead: "b".repeat(40) },
-    ]) expect(() => requireDevelopmentValidation({ ...acceptance, ...override })).toThrow();
-  });
-
-  it("requires finalized delivery validation in the same run for implementation-bound candidates", () => {
-    expect(requireDevelopmentValidation(valid)).toMatchObject({ mode: "code" });
-    for (const override of [
-      { implementationBound: undefined },
-      { deliveryCandidate: "false" },
-      { deliveryResult: "failure" },
-      { deliveryResult: "skipped" },
-    ]) expect(() => requireDevelopmentValidation({ ...valid, ...override })).toThrow();
-  });
-
-  it("requires the delivery lane to skip for non-implementation validation", () => {
-    const ordinary = { ...valid, implementationBound: "false", deliveryCandidate: "false", deliveryResult: "skipped" };
-    expect(requireDevelopmentValidation(ordinary)).toMatchObject({ mode: "code" });
-    expect(() => requireDevelopmentValidation({ ...ordinary, deliveryResult: "success" }))
-      .toThrow("finalized delivery validation must be skipped");
-  });
-
   it("accepts only intentional generic skips for an exact release reopening", () => {
     const reopening = {
       ...valid,
-      implementationBound: "false",
-      deliveryCandidate: "false",
-      deliveryResult: "skipped",
       releaseReopening: "true",
       modularResult: "skipped",
     };
     expect(requireDevelopmentValidation(reopening)).toEqual({ mode: "release-reopening" });
     for (const override of [
-      { implementationBound: "true" },
       { namingRequired: "true", namingResult: "success" },
       { docsOnly: "true", docsResult: "success" },
       { versionOnly: "true" },
@@ -102,7 +54,7 @@ describe("development validation aggregate", () => {
   });
 
   it.each([
-    ["stale head", { selectedHead: "b".repeat(40) }], ["missing acceptance route", { acceptanceOnly: undefined }],
+    ["stale head", { selectedHead: "b".repeat(40) }],
     ["missing classification", { changesResult: "failure" }],
     ["missing changed documentation", { documentationRequired: "true", documentationResult: "skipped" }],
     ["unexpected changed documentation", { documentationRequired: "false", documentationResult: "success" }],

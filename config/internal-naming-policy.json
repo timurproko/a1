@@ -291,19 +291,19 @@
     },
     {
       "role": "autoMergeAttempts",
-      "key": "DOCS_AUTO_MERGE_POLL_ATTEMPTS",
+      "key": "REOPENING_AUTO_MERGE_POLL_ATTEMPTS",
       "exposure": "automation",
-      "owner": "scripts/governance/manage-documentation-auto-merge.mjs",
-      "evidence": "test/repository-governance/documentation-auto-merge.test.ts",
-      "semantics": "Documentation automation poll count"
+      "owner": "scripts/governance/manage-release-reopening-auto-merge.mjs",
+      "evidence": "test/repository-governance/release-reopening-auto-merge.test.ts",
+      "semantics": "Release reopening automation poll count"
     },
     {
       "role": "autoMergeDelay",
-      "key": "DOCS_AUTO_MERGE_POLL_MS",
+      "key": "REOPENING_AUTO_MERGE_POLL_MS",
       "exposure": "automation",
-      "owner": "scripts/governance/manage-documentation-auto-merge.mjs",
-      "evidence": "test/repository-governance/documentation-auto-merge.test.ts",
-      "semantics": "Documentation automation poll delay in milliseconds"
+      "owner": "scripts/governance/manage-release-reopening-auto-merge.mjs",
+      "evidence": "test/repository-governance/release-reopening-auto-merge.test.ts",
+      "semantics": "Release reopening automation poll delay in milliseconds"
     },
     {
       "role": "validationStart",

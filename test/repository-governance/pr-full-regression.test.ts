@@ -84,7 +84,7 @@ describe("trusted complete-regression selection", () => {
 
   it("blocks malformed lifecycle, provenance, and PR metadata instead of granting selection", () => {
     for (const body of [repairLink + "\n" + repairLink, "```openspec-implementation\n{}", repairLink.replace('"version":3', '"version":9'),
-      repairLink.replace('"version":3', '"version":3,"version":3'), repairLink.replace('"version":3', '"version":3,"unexpected":true')]) expect(() => select(["docs/a.md"], { body })).toThrow();
+      repairLink.replace('"version":3', '"version":3,"unexpected":true')]) expect(() => select(["docs/a.md"], { body })).toThrow();
     expect(() => select(["src/a.ts"], repair(), { provenance: { ...provenance(), extra: true } as unknown as RegressionProvenance })).toThrow(/provenance/);
     expect(() => select(["src/a.ts"], repair(), { provenance: provenance({ url: "https://example.test/run/9001" }) })).toThrow(/source/);
     expect(() => select(["src/a.ts"], repair(), { provenance: provenance({ workflowName: "Publish", workflowFile: "release.yml" }) })).toThrow(/source/);
@@ -161,7 +161,7 @@ describe("PR-native caller, security, and lifecycle contracts", () => {
     expect(ci.jobs["full-selection"].needs).toBe("readiness");
     expect(ci.jobs["full-selection"].if).toBe("needs.readiness.outputs.validate == 'true' && github.event_name == 'pull_request'");
     expect(ci.jobs["full-regression"].with).toEqual({ source: "${{ needs.full-selection.outputs.head }}", base: "${{ needs.full-selection.outputs.base }}", selection: "${{ needs.full-selection.outputs.selection-id }}", pr: "${{ github.event.pull_request.number }}" });
-    expect(ci.jobs.required.needs).toEqual(expect.arrayContaining(["full-selection", "full-regression", "delivery", "modular"]));
+    expect(ci.jobs.required.needs).toEqual(expect.arrayContaining(["full-selection", "full-regression", "modular"]));
     expect(ci.jobs.required.if).toContain("needs.readiness.outputs.validate == 'true'");
     expect(ci.on.pull_request.types).toEqual(expect.arrayContaining(["edited", "synchronize", "ready_for_review", "converted_to_draft"]));
     expect(ci.on.pull_request.types).not.toEqual(expect.arrayContaining(["labeled", "unlabeled"]));

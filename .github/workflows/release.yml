@@ -133,4 +133,4 @@ jobs:
         shell: bash
         env:
           PR_URL: ${{ steps.reopen.outputs.url }}
-        run: echo "Stable publication is complete. $PR_URL auto-merges once required CI passes on its current head; merge it manually only if documentation auto-merge reports it ineligible." >> "$GITHUB_STEP_SUMMARY"
+        run: echo "Stable publication is complete. $PR_URL auto-merges once required CI passes on its current head; merge it manually only if release reopening auto-merge reports it ineligible." >> "$GITHUB_STEP_SUMMARY"

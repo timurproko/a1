@@ -13,8 +13,15 @@ import {
   UPGRADE_STEPS,
   upgradeAcceptance,
 } from "../../scripts/pi/pi-upgrade-report.mjs";
-import { assertImplementationOnlyProgress, parseImplementationAcceptanceScenarios, parseImplementationProgress } from "../../scripts/governance/openspec-acceptance-checklist.mjs";
-import { parseImplementation } from "../../scripts/governance/openspec-archive-policy.mjs";
+import { readDeliveryRecord } from "../../scripts/release/delivery-record.mjs";
+
+/** The generated body's Implementation checkboxes and Acceptance bullets, read the way the shared delivery workflow lists them. */
+function deliverySections(body: string) {
+  const section = (name: string) => body.split(`## ${name}\n\n`)[1]?.split("\n\n## ")[0]?.split("\n") ?? [];
+  const items = section("Implementation").map(line => /^- \[( |x)\] (.+)$/.exec(line)).map(match => ({ checked: match?.[1] === "x", text: match?.[2] ?? "" }));
+  const acceptance = section("Acceptance").map(line => line.replace(/^- /, ""));
+  return { items, acceptance, bounded: [...items.map(item => item.text), ...acceptance].every(text => Buffer.byteLength(text) >= 20 && Buffer.byteLength(text) <= 300) };
+}
 
 const previous = { version: "0.84.2", commit: "914cf1472e715297caa30db4b9535d534a9eb718" };
 const commit = "d981de1229ef899957bbe968bc8dcda02a21f477";
@@ -63,24 +70,22 @@ describe("Pi upgrade proposal", () => {
     expect(body).not.toContain("Version delta");
     expect(body).not.toContain("Vendored copies");
     expect(body.trimEnd().endsWith("</details>")).toBe(true);
-    expect(parseImplementation(body)).toEqual({ version: 3, change: "pi-upgrade-0-85-1" });
+    expect(readDeliveryRecord(body)).toEqual({ change: "pi-upgrade-0-85-1" });
   });
 
-  it("generates outcomes that parse as an incomplete checklist and as a complete candidate once checked", () => {
+  it("generates unchecked outcomes and one acceptance bullet within the delivery layout bounds", () => {
     const body = renderUpgradeBody(report());
-    const progress = parseImplementationProgress(body);
-    expect(progress).toEqual({ format: "checklist", complete: false, items: UPGRADE_IMPLEMENTATION_ITEMS.map(text => ({ checked: false, text })) });
-    expect(() => assertImplementationOnlyProgress(progress.items)).not.toThrow();
-    expect(() => parseImplementationAcceptanceScenarios(body, 3)).toThrow();
-    const checked = body.replaceAll("- [ ] ", "- [x] ");
-    expect(parseImplementationProgress(checked, { requireComplete: true }).complete).toBe(true);
-    expect(parseImplementationAcceptanceScenarios(checked, 3)).toEqual([upgradeAcceptance(report())]);
+    const sections = deliverySections(body);
+    expect(sections.items).toEqual(UPGRADE_IMPLEMENTATION_ITEMS.map(text => ({ checked: false, text })));
+    expect(sections.acceptance).toEqual([upgradeAcceptance(report())]);
+    expect(sections.bounded).toBe(true);
+    expect(deliverySections(body.replaceAll("- [ ] ", "- [x] ")).items.every(item => item.checked)).toBe(true);
     expect(upgradeAcceptance({ version: "0.85.1", commit: null })).toBe("A1 pins Pi 0.85.1, and its vendored copies, inventories, public API and feature baselines, and parity records match that release.");
   });
 
   it("keeps the proposal within the layout bounds when every gate fails", () => {
     const body = renderUpgradeBody(report({ version: "0.85.1-rc.2", steps: UPGRADE_STEPS.map(name => ({ name, status: "failed", detail: "" })) }));
-    expect(() => parseImplementationAcceptanceScenarios(body.replaceAll("- [ ] ", "- [x] "), 3)).not.toThrow();
+    expect(deliverySections(body).bounded).toBe(true);
   });
 
   it("puts the version delta, changelog, and every verdict in the sync report comment", () => {

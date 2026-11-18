@@ -1,9 +1,7 @@
 import { appendFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
-import { inspectUnassociatedPull } from "../governance/openspec-association-policy.mjs";
-import { createArchiveReader } from "../governance/openspec-archive-github.mjs";
-import { archiveFailure, parseImplementation, SHA } from "../governance/openspec-archive-policy.mjs";
 import { classifyReleaseReopening } from "../governance/release-reopening-auto-merge.mjs";
+import { createRepositoryReader, readDeliveryRecord, recordFailure, SHA } from "./delivery-record.mjs";
 
 const PULL_REQUEST_EVENT = "pull_request";
 const REOPENING_BRANCH = /^chore\/release-(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)-dev$/u;
@@ -17,52 +15,28 @@ export function classifyDevelopmentValidationReadiness({ eventName, draft = fals
   if (eventName !== PULL_REQUEST_EVENT) return { validate: true, reason: "non-pull-request" };
   if (draft) return { validate: false, reason: "draft" };
 
-  let implementation;
+  let record;
   try {
-    implementation = parseImplementation(body);
+    record = readDeliveryRecord(body);
   } catch (error) {
     return {
       validate: false,
       reason: "malformed-implementation-metadata",
-      errorCode: typeof error?.archiveCode === "string" ? error.archiveCode : "metadata-invalid",
+      errorCode: typeof error?.recordCode === "string" ? error.recordCode : "metadata-invalid",
     };
   }
 
-  if (implementation?.version === 3
-    && (!implementation.archive || implementation.finalizedHead !== headSha || !SHA.test(headSha))) {
+  // Rationale: suites on a head the delivery bot is about to replace are wasted; the finalized head gets its own run.
+  if (record && (!record.archive || record.finalizedHead !== headSha || !SHA.test(headSha))) {
     return { validate: false, reason: "awaiting-finalization" };
   }
-  return {
-    validate: true,
-    reason: implementation?.version === 3 ? "finalized-version-3" : implementation ? "legacy-implementation" : "ready",
-  };
-}
-
-/** Apply immutable path/tree policy to an otherwise ordinary unassociated ready pull request. */
-export async function classifyDevelopmentValidationReadinessFromRepository({ eventName, pull, reader }) {
-  const decision = classifyDevelopmentValidationReadiness({
-    eventName,
-    draft: pull?.draft,
-    body: pull?.body ?? "",
-    headSha: pull?.head?.sha ?? "",
-  });
-  if (!decision.validate || decision.reason !== "ready") return decision;
-  const association = await inspectUnassociatedPull(reader, pull);
-  if (!association.blocked) return decision;
-  return { validate: false, reason: association.reason, errorCode: association.reason, changes: association.changes };
+  return { validate: true, reason: record ? "finalized-version-3" : "ready" };
 }
 
 /** Bind current mutable readiness metadata to the immutable pull-request event identity. */
-export async function classifyCurrentDevelopmentValidationReadiness({
-  eventName,
-  pull,
-  reader,
-  expectedNumber,
-  expectedHead,
-  expectedBase,
-}) {
+export async function classifyCurrentDevelopmentValidationReadiness({ eventName, pull, expectedNumber, expectedHead, expectedBase }) {
   assertCurrentPull(pull, expectedNumber, expectedHead, expectedBase);
-  return classifyDevelopmentValidationReadinessFromRepository({ eventName, pull, reader });
+  return classifyDevelopmentValidationReadiness({ eventName, draft: pull?.draft, body: pull?.body ?? "", headSha: pull?.head?.sha ?? "" });
 }
 
 /** Reuse exact release-reopening semantics without granting a path-only version exemption. */
@@ -102,10 +76,10 @@ export async function classifyCurrentReleaseReopeningValidationRoute({
 
 function assertCurrentPull(pull, expectedNumber, expectedHead, expectedBase) {
   if (!Number.isSafeInteger(expectedNumber) || expectedNumber < 1 || !SHA.test(expectedHead ?? "") || !SHA.test(expectedBase ?? "")) {
-    throw archiveFailure("association-event-identity");
+    throw recordFailure("association-event-identity");
   }
   if (pull?.number !== expectedNumber || pull.head?.sha !== expectedHead || pull.base?.sha !== expectedBase) {
-    throw archiveFailure("association-event-drift");
+    throw recordFailure("association-event-drift");
   }
 }
 
@@ -135,15 +109,14 @@ async function main() {
     const expectedHead = process.env.EXPECTED_HEAD;
     const expectedBase = process.env.EXPECTED_BASE;
     if (!Number.isSafeInteger(number) || number < 1 || !SHA.test(expectedHead ?? "") || !SHA.test(expectedBase ?? "")) {
-      throw archiveFailure("association-event-identity");
+      throw recordFailure("association-event-identity");
     }
     const repository = process.env.GITHUB_REPOSITORY ?? "";
-    const reader = createArchiveReader({ repository, token: process.env.GITHUB_TOKEN });
+    const reader = createRepositoryReader({ repository, token: process.env.GITHUB_TOKEN });
     const pull = await reader.get(`${reader.prefix}/pulls/${number}`);
     decision = await classifyCurrentDevelopmentValidationReadiness({
       eventName,
       pull,
-      reader,
       expectedNumber: number,
       expectedHead,
       expectedBase,
@@ -168,7 +141,7 @@ async function main() {
     const detail = decision.errorCode ? `; policy error: \`${decision.errorCode}\`` : "";
     await appendFile(summary, `## Development validation readiness\n\nDecision: **${decision.validate ? "validate" : "defer"}**; reason: \`${decision.reason}\`${detail}.\n\nRelease reopening route: **${reopening.selected ? "selected" : "not selected"}**; reason: ${JSON.stringify(reopening.reason)}.\n`, "utf8");
   }
-  if (["malformed-implementation-metadata", "missing-implementation-association"].includes(decision.reason)) {
+  if (decision.reason === "malformed-implementation-metadata") {
     console.error(`Development validation readiness failed: ${decision.errorCode}`);
     process.exitCode = 1;
   } else {

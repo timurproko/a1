@@ -16,8 +16,15 @@ import {
   type TriageEvidence,
   type TriageLane,
 } from "../../scripts/release/regression-triage-report.mjs";
-import { parseImplementationAcceptanceScenarios, parseImplementationProgress } from "../../scripts/governance/openspec-acceptance-checklist.mjs";
-import { parseImplementation } from "../../scripts/governance/openspec-archive-policy.mjs";
+import { readDeliveryRecord } from "../../scripts/release/delivery-record.mjs";
+
+/** The generated body's Implementation checkboxes and Acceptance bullets, read the way the shared delivery workflow lists them. */
+function deliverySections(body: string) {
+  const section = (name: string) => body.split(`## ${name}\n\n`)[1]?.split("\n\n## ")[0]?.split("\n") ?? [];
+  const items = section("Implementation").map(line => /^- \[( |x)\] (.+)$/.exec(line)).map(match => ({ checked: match?.[1] === "x", text: match?.[2] ?? "" }));
+  const acceptance = section("Acceptance").map(line => line.replace(/^- /, ""));
+  return { items, acceptance, bounded: [...items.map(item => item.text), ...acceptance].every(text => Buffer.byteLength(text) >= 20 && Buffer.byteLength(text) <= 300) };
+}
 
 const workflow = { name: "Full regression", file: "full-regression.yml", scheduledOnly: false };
 const run = { id: 9001, number: 412, attempt: 1, workflowName: "Full regression", conclusion: "failure", headBranch: "develop", url: "https://github.com/timurproko/a1/actions/runs/9001", headSha: "30546e1d9c0b4c3f8a2d7e6f5a4b3c2d1e0f9a8b", event: "schedule", createdAt: "2026-09-19T02:47:13Z" };
@@ -141,9 +148,9 @@ describe("nightly regression triage report", () => {
     expect(Buffer.byteLength(bounded.slice(0, -1).join("\n"))).toBeLessThanOrEqual(2048);
   });
 
-  it("renders a body in the ordinary delivery layout whose two generated outcomes promote it once checked", () => {
+  it("renders a body in the ordinary delivery layout with two unchecked outcomes", () => {
     const body = renderTriageBody({ ...evidence(), date: "2026-09-19", key: "full-regression.yml:fast-remainder,package-startup,orchestration" });
-    expect(parseImplementation(body)).toEqual({ version: 3, change: "fix-nightly-regression-2026-09-19" });
+    expect(readDeliveryRecord(body)).toEqual({ change: "fix-nightly-regression-2026-09-19" });
     expect(body.startsWith("## Proposal\n\nFix the Full regression failure of 2026-09-19 on `develop` at `30546e1`, where 2 validation commands (`fast-remainder`, `package-startup`) failed;")).toBe(true);
     expect(body).toContain("## Implementation\n\n- [ ] Reproduce the failure on the failed lane from the recorded tests or commands and identify the introducing commit or the environmental cause.\n- [ ] Fix the cause without weakening assertions, budgets, timeouts, or coverage.\n\n## Acceptance\n\n- The 2026-09-19 Full regression failure on develop is repaired, and its failed lanes pass on the fix head without weakened assertions, budgets, timeouts, or coverage.\n\n## Automation\n");
     // Invariant: the triage key stays machine-readable inside the automation block, where the layout policy allows it.
@@ -152,11 +159,12 @@ describe("nightly regression triage report", () => {
     expect(body).not.toContain("Run [Full regression #412]");
     expect(body.trimEnd().endsWith("</details>")).toBe(true);
 
-    // Invariant: the generated draft is incomplete until the fixer checks both outcomes, and then it is an ordinary complete candidate.
-    expect(parseImplementationProgress(body)).toEqual({ format: "checklist", complete: false, items: TRIAGE_IMPLEMENTATION_ITEMS.map(text => ({ checked: false, text })) });
-    expect(() => parseImplementationAcceptanceScenarios(body, 3)).toThrow();
+    // Invariant: the generated draft is incomplete until the fixer checks both outcomes.
+    const sections = deliverySections(body);
+    expect(sections.items).toEqual(TRIAGE_IMPLEMENTATION_ITEMS.map(text => ({ checked: false, text })));
+    expect(sections.acceptance).toEqual(["The 2026-09-19 Full regression failure on develop is repaired, and its failed lanes pass on the fix head without weakened assertions, budgets, timeouts, or coverage."]);
+    expect(sections.bounded).toBe(true);
     const checked = body.replaceAll("- [ ] ", "- [x] ");
-    expect(parseImplementationAcceptanceScenarios(checked, 3)).toEqual(["The 2026-09-19 Full regression failure on develop is repaired, and its failed lanes pass on the fix head without weakened assertions, budgets, timeouts, or coverage."]);
     expect(parseTriageKey(checked)).toBe("full-regression.yml:fast-remainder,package-startup,orchestration");
   });
 

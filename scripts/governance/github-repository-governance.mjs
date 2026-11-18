@@ -90,29 +90,8 @@ export function inspectWorkflowSource(path, source) {
   const authority = [];
   if (source.includes(SHARED_DELIVERY_WORKFLOW)) authority.push("shared-delivery");
   if (source.includes("Development validation required")) authority.push("Development validation required");
-  if (source.includes("acceptance-validation-route.mjs")) authority.push("acceptance-only-routing");
-  if (source.includes("delivery_candidate=")) authority.push("single-pr-finalization-validation");
-  if (source.includes("manage-documentation-auto-merge.mjs")) authority.push("documentation-auto-merge", "matching-merged-head-delete", "archive-protected-integration");
+  if (source.includes("manage-release-reopening-auto-merge.mjs")) authority.push("release-reopening-auto-merge", "matching-merged-head-delete");
   if (source.includes('VALIDATION_SELECTION_JSON: \'["full-release"]\'') || source.includes("uses: ./.github/workflows/full-regression-shared.yml")) authority.push("complete-regression");
-  if (source.includes("reconcile-merged-branch.mjs")) authority.push("matching-merged-head-delete");
-  if (source.includes("refresh-ready-pull-requests.mjs")) {
-    // Security: branch refresh is recognized only through a scoped App token; any other credential shape drifts from the inventory.
-    const scopedAppToken = source.includes("actions/create-github-app-token@") && source.includes("BRANCH_REFRESH_TOKEN: ${{ steps.app.outputs.token }}")
-      && /^\s+permission-contents: write\s*$/m.test(source) && /^\s+permission-pull-requests: write\s*$/m.test(source)
-      && !/^\s+permission-(?!contents:|pull-requests:)[a-z-]+:/m.test(source);
-    authority.push(scopedAppToken ? "ready-pull-request-branch-refresh" : "unscoped-branch-refresh");
-  }
-  if (source.includes("reconcile-openspec-archive.mjs")) {
-    if (source.includes("OPENSPEC_ARCHIVE_APP_PRIVATE_KEY")) {
-      authority.push("openspec-archive-app-publication", "archive-read-only-audit");
-      if (source.includes("atomic single-PR delivery")) authority.push("single-pr-delivery-verification");
-    }
-    else {
-      if (source.includes("--validate-candidate")) authority.push("archive-merge-result-validation");
-      if (source.includes("--validate-acceptance")) authority.push("acceptance-record-validation");
-    }
-  }
-  if (source.includes("publish-openspec-finalization.mjs") && source.includes("OPENSPEC_ARCHIVE_APP_PRIVATE_KEY")) authority.push("single-pr-finalization-publication");
   if (path.endsWith("release-candidate.yml") && source.includes("channel: candidate") && line(/^  workflow_dispatch:\s*$/m)) authority.push("stable-release-candidate-validation");
   if (path.endsWith("release.yml") && source.includes("channel: stable") && line(/^  release:\s*$/m)) authority.push("stable-release-publication");
   if (source.includes("rollback-publication.mjs")) {

@@ -1,6 +1,8 @@
 {
   "cleanup": [
-    "node", "scripts/governance/local-worktree-cleanup.mjs", "complete",
-    "--repo", "{primary}", "--path", "{worktree}", "--change", "{change}", "--pr", "{pr}"
+    "node",
+    "--eval",
+    "require(\"node:child_process\").execSync(\"delivery cleanup --apply --path \\\"\" + process.argv[1] + \"\\\"\", { stdio: \"inherit\" })",
+    "{worktree}"
   ]
 }

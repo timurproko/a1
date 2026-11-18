@@ -3,29 +3,5 @@
     "commit": "",
     "pr": ""
   },
-  "includeCoAuthoredBy": false,
-  "hooks": {
-    "WorktreeCreate": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/scripts/governance/claude-worktree-create.mjs",
-            "timeout": 300
-          }
-        ]
-      }
-    ],
-    "WorktreeRemove": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/scripts/governance/claude-worktree-remove.mjs",
-            "timeout": 60
-          }
-        ]
-      }
-    ]
-  }
+  "includeCoAuthoredBy": false
 }

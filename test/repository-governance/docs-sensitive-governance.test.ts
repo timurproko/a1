@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { scanLegacyIdentity } from "../../scripts/governance/product-identity-inventory.mjs";
-import { classifyDocumentationAutoMerge } from "../../scripts/governance/documentation-auto-merge.mjs";
 
+// Invariant: every fixture root is removed after its test, whatever its outcome.
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
@@ -21,16 +21,6 @@ describe("docs-sensitive governance", () => {
     const after = await scanLegacyIdentity(root);
     expect(after.summary.total).toBe(0);
     expect(after).not.toEqual(before);
-  });
-
-  it("allows maintained docs while keeping generated baselines on the manual mixed/code path", () => {
-    expect(classifyDocumentationAutoMerge([{ filename: "docs/architecture/example.md", status: "modified" }]).eligible).toBe(true);
-    expect(classifyDocumentationAutoMerge([{ filename: "config/product-identity-legacy-inventory.json", status: "modified" }]).eligible).toBe(false);
-    expect(classifyDocumentationAutoMerge([
-      { filename: "docs/architecture/example.md", status: "modified" },
-      { filename: "openspec/changes/example/proposal.md", status: "modified" },
-      { filename: "config/product-identity-legacy-inventory.json", status: "modified" },
-    ]).eligible).toBe(false);
   });
 });
 

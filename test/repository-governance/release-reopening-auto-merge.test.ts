@@ -3,7 +3,7 @@ import { cp, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { classifyReleaseReopening } from "../../scripts/governance/release-reopening-auto-merge.mjs";
+import { classifyReleaseReopening, planReopeningAutoMerge } from "../../scripts/governance/release-reopening-auto-merge.mjs";
 
 const baseSha = "b".repeat(40);
 const headSha = "a".repeat(40);
@@ -65,12 +65,12 @@ function classify(options: {
 }
 
 describe("release reopening auto-merge classification", () => {
-  it("loads the trusted documentation manager without node_modules", async () => {
-    const root = await mkdtemp(join(tmpdir(), "a1-documentation-manager-"));
+  it("loads the trusted reopening manager without node_modules", async () => {
+    const root = await mkdtemp(join(tmpdir(), "a1-reopening-manager-"));
     temporary.push(root);
     await cp(resolve("scripts"), join(root, "scripts"), { recursive: true });
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !["GITHUB_TOKEN", "GITHUB_EVENT_PATH", "GITHUB_REPOSITORY"].includes(key)));
-    const result = spawnSync(process.execPath, [join(root, "scripts", "governance", "manage-documentation-auto-merge.mjs")], {
+    const result = spawnSync(process.execPath, [join(root, "scripts", "governance", "manage-release-reopening-auto-merge.mjs")], {
       cwd: root,
       encoding: "utf8",
       env,
@@ -129,5 +129,26 @@ describe("release reopening auto-merge classification", () => {
     await expect(classify({ headNote: note.replace("Example", "Other") })).resolves.toMatchObject({ eligible: false });
     await expect(classify({ head: {} })).resolves.toMatchObject({ eligible: false, reason: expect.stringContaining("could not be verified") });
     await expect(classify({ head: { ...reopeningManifests("0.2.3-dev"), "package.json": "{" } })).resolves.toMatchObject({ eligible: false });
+  });
+});
+
+describe("release reopening merge plan", () => {
+  const plan = (validation: "pending" | "success" | "failure", mergeableState: string, autoMergeArmed = false, mergeable: boolean | null = true) =>
+    planReopeningAutoMerge({ validation, autoMergeArmed, mergeableState, mergeable });
+
+  it("merges only a mergeable head whose current validation succeeded", () => {
+    expect(plan("success", "clean")).toBe("merge");
+    expect(plan("success", "unstable")).toBe("merge");
+    expect(plan("pending", "clean")).toBe("wait");
+    expect(plan("pending", "clean", true)).toBe("unchanged");
+    expect(plan("failure", "clean")).toBe("wait");
+    expect(plan("success", "clean", false, null)).toBe("wait");
+    expect(plan("success", "dirty")).toBe("wait");
+  });
+
+  it("arms native auto-merge once behind required validation", () => {
+    expect(plan("pending", "blocked")).toBe("arm");
+    expect(plan("pending", "behind")).toBe("arm");
+    expect(plan("pending", "blocked", true)).toBe("unchanged");
   });
 });

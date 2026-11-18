@@ -3,7 +3,6 @@ import {
   classifyCurrentDevelopmentValidationReadiness,
   classifyCurrentReleaseReopeningValidationRoute,
   classifyDevelopmentValidationReadiness,
-  classifyDevelopmentValidationReadinessFromRepository,
   classifyReleaseReopeningValidationRoute,
 } from "../../scripts/release/development-validation-readiness.mjs";
 
@@ -17,11 +16,11 @@ describe("development validation readiness", () => {
       .toEqual({ validate: false, reason: "draft" });
   });
 
-  it("permits ready ordinary and legacy pull requests", () => {
+  it("permits a ready ordinary pull request and refuses a retired delivery version", () => {
     expect(classifyDevelopmentValidationReadiness({ eventName: "pull_request", body: "ordinary" }))
       .toEqual({ validate: true, reason: "ready" });
     expect(classifyDevelopmentValidationReadiness({ eventName: "pull_request", body: implementation({ version: 2, change: "legacy-change" }) }))
-      .toEqual({ validate: true, reason: "legacy-implementation" });
+      .toEqual({ validate: false, reason: "malformed-implementation-metadata", errorCode: "delivery-record-identity" });
   });
 
   it("defers active version-3 delivery until finalization metadata is present", () => {
@@ -50,7 +49,7 @@ describe("development validation readiness", () => {
 
   it("fails closed with a bounded reason for malformed lifecycle metadata", () => {
     expect(classifyDevelopmentValidationReadiness({ eventName: "pull_request", body: "```openspec-implementation\n{" }))
-      .toEqual({ validate: false, reason: "malformed-implementation-metadata", errorCode: "metadata-unclosed" });
+      .toEqual({ validate: false, reason: "malformed-implementation-metadata", errorCode: "delivery-record-unclosed" });
   });
 
   it("uses the current finalized body when a same-head event carries active metadata", async () => {
@@ -68,29 +67,11 @@ describe("development validation readiness", () => {
       base: { sha: base },
     };
     await expect(classifyCurrentDevelopmentValidationReadiness({
-      eventName: "pull_request", pull, reader: {}, expectedNumber: 581, expectedHead: head, expectedBase: base,
+      eventName: "pull_request", pull, expectedNumber: 581, expectedHead: head, expectedBase: base,
     })).resolves.toEqual({ validate: true, reason: "finalized-version-3" });
     await expect(classifyCurrentDevelopmentValidationReadiness({
-      eventName: "pull_request", pull, reader: {}, expectedNumber: 581, expectedHead: "c".repeat(40), expectedBase: base,
-    })).rejects.toMatchObject({ archiveCode: "association-event-drift" });
-  });
-
-  it("fails closed when immutable evidence shows mixed code and active-change edits without association", async () => {
-    const baseSha = "a".repeat(40), headSha = "b".repeat(40), blobSha = "c".repeat(40);
-    const active = "openspec/changes/example-change/proposal.md";
-    const pull = { number: 7, changed_files: 2, draft: false, body: "ordinary", base: { sha: baseSha }, head: { sha: headSha } };
-    const reader = {
-      repository: "owner/repo", prefix: "/repos/owner/repo",
-      async pages() { return [{ filename: active, status: "modified" }, { filename: "src/app.ts", status: "modified" }]; },
-      async get(path: string) {
-        if (path.includes(`/git/trees/${baseSha}`) || path.includes(`/git/trees/${headSha}`)) {
-          return { truncated: false, tree: [{ path: active, sha: blobSha, type: "blob", mode: "100644" }] };
-        }
-        throw new Error(path);
-      },
-    };
-    await expect(classifyDevelopmentValidationReadinessFromRepository({ eventName: "pull_request", pull, reader }))
-      .resolves.toEqual({ validate: false, reason: "missing-implementation-association", errorCode: "missing-implementation-association", changes: ["example-change"] });
+      eventName: "pull_request", pull, expectedNumber: 581, expectedHead: "c".repeat(40), expectedBase: base,
+    })).rejects.toMatchObject({ recordCode: "association-event-drift" });
   });
 
   it("selects an exact current-head post-publication reopening", async () => {
@@ -133,7 +114,7 @@ describe("development validation readiness", () => {
     })).resolves.toMatchObject({ selected: true, reason: "verified release reopening 0.2.5 -> 0.2.6-dev" });
     await expect(classifyCurrentReleaseReopeningValidationRoute({
       eventName: "pull_request", pull, reader, expectedNumber: 706, expectedHead: "c".repeat(40), expectedBase: base,
-    })).rejects.toMatchObject({ archiveCode: "association-event-drift" });
+    })).rejects.toMatchObject({ recordCode: "association-event-drift" });
   });
 
   it("grants no reopening route to lookalikes or unavailable evidence", async () => {

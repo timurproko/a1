@@ -1,0 +1,42 @@
+name: Release reopening auto-merge
+
+on:
+  pull_request_target:
+    branches: [develop]
+    types: [opened, synchronize, reopened, edited, ready_for_review, converted_to_draft, auto_merge_enabled]
+  workflow_run:
+    workflows: [Development validation]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: release-reopening-auto-merge-${{ github.event.pull_request.number || github.event.workflow_run.id }}
+  cancel-in-progress: true
+
+jobs:
+  enforce:
+    name: Integrate a verified release reopening
+    # Rationale: only a release reopening branch is this workflow's business; other pull requests are not inspected.
+    if: startsWith(github.event.pull_request.head.ref || github.event.workflow_run.head_branch, 'chore/release-')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out trusted policy
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+
+      - name: Verify and integrate the release reopening
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/governance/manage-release-reopening-auto-merge.mjs

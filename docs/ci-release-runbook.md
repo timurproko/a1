@@ -36,30 +36,20 @@ and completes the trusted-publishing token exchange for both packages. A refusal
 anything is uploaded, and names the workflow and environment to register. When a
 caller's path changes, update both packages before the next publication through it.
 
-`.github/workflows/documentation-auto-merge.yml` is the only pull-request
-auto-merge authority. It runs trusted policy from `develop`; it never checks out or
-executes a pull request's code with its write token.
+`.github/workflows/delivery.yml` forwards pull-request events to the shared delivery
+workflow in `timurproko/MyGitWorkflows`. That workflow promotes a fully ticked draft,
+finalizes its OpenSpec change in the same branch, publishes the `delivery / Delivery check`,
+refreshes ready pull requests after `develop` advances, and deletes a merged topic branch.
+This repository holds no delivery policy of its own; its validation runs tests only and
+waits for the finalized head the shared workflow records in the pull-request body.
 
-`.github/workflows/merged-branch-cleanup.yml` owns branch deletion after a human or
-external actor closes a pull request. On the close event it checks out trusted
-default-branch policy and installs no pull-request dependencies. GitHub does not
-emit a new workflow event for a merge authored with the workflow `GITHUB_TOKEN`, so
-Documentation auto-merge also performs the same shared reconciliation synchronously
-after its own validated integration. Both paths delete only an unprotected same-
-repository topic ref whose live object still equals the merged pull request head SHA.
-An absent ref is success; fork, unmerged, advanced, protected, default, release-owned,
-or malformed refs are preserved and reported.
-
-`.github/workflows/ready-pull-request-refresh.yml` keeps ready pull requests current
-after `develop` advances. It runs trusted default-branch policy after a merged close
-event and after every Documentation auto-merge completion, because merges authored with
-`GITHUB_TOKEN` emit no close event. One serialized, non-cancelling pass re-reads each
-open pull request targeting `develop` and the current target, then calls GitHub's
-update-branch operation with the exact head it just compared. It uses a short-lived
-App token scoped to contents and pull requests so the new head emits `synchronize` and
-ordinary finalization and CI run; it never falls back to `GITHUB_TOKEN`. Drafts, forks,
-other bases, and current heads are skipped; a moved head is deferred and a conflict is
-reported for manual repair. It never merges, arms auto-merge, or dispatches checks.
+`.github/workflows/release-reopening-auto-merge.yml` is the only automation here that
+merges a pull request, and only the verified release reopening pull request described
+below. It runs trusted policy from `develop`, never checks out or executes a pull
+request's code with its write token, and ignores every pull request whose head is not a
+`chore/release-X.Y.Z-dev` branch. A merge made with the workflow `GITHUB_TOKEN` emits no
+close event, so it deletes its own exact merged head and the Delivery workflow forwards
+its successful run to the shared ready pull-request refresh.
 
 `config/github-repository-governance.json` is the reviewed policy for repository
 settings, Actions defaults, security capabilities, environments, complete rulesets,
@@ -97,7 +87,7 @@ effect of stable publication, not a trigger.
 
 Ordinary type, architecture, unit/contract, and dist checks always run for code changes. Changed-file documentation and rendering run as independent parallel jobs. Rendered shell/component changes select `smoke`; viewport, scheduler, terminal adapter, evidence harness, package identity, and selector changes select `full`; unrelated changes select `none`. The aggregate accepts a skipped modular job only when the current selector requested the skip.
 
-Integration owners declare one cadence in `config/integration-owners.json`. Impact mode selects affected `pull-request` owners: a changed production path selects its coarse owner, a changed test selects its owner, and a changed file under `test/support/` or `test/fixtures/` selects the owners of the retained tests that import it directly or through other support files (the selection lists those tests as its `shared-support` reason). A support file that no retained test imports, or a test tree the scanner cannot read, falls back to every owner the shared rule declares and records `shared-support-declared`; an invalidator, unknown operational path, or manual Development dispatch selects every `pull-request` owner. An implementation-bound PR body does not force conservative selection; it only removes the documentation-only and version-only shortcuts. The modular matrix itself is derived from the selection by `scripts/release/validation-matrix.mjs`, so inactive jobs are not scheduled at all rather than checking out and exiting early. `exhaustive` owners are never silently skipped or reported as passed: impact and aggregate evidence list them as cadence-deferred, and malformed cadence blocks selection. Full regression and nightly/stable release still execute both cadence classes. PR-attached Full regression is selected only when base policy verifies an `openspec-ci` App-authored candidate, its generated repair identity, and every qualifying failed Full regression source field in `regression-provenance.json` against GitHub's read-only workflow-run record. Release/publishing, shared-support, prerequisite, build, validation-authority, unknown-path, label, Publish-only repair, and successful-run persistent-overrun changes retain bounded ordinary validation. Planning-only generated repair drafts remain exempt; eligible implementation drafts receive native lane feedback without integration authority.
+Integration owners declare one cadence in `config/integration-owners.json`. Impact mode selects affected `pull-request` owners: a changed production path selects its coarse owner, a changed test selects its owner, and a changed file under `test/support/` or `test/fixtures/` selects the owners of the retained tests that import it directly or through other support files (the selection lists those tests as its `shared-support` reason). A support file that no retained test imports, or a test tree the scanner cannot read, falls back to every owner the shared rule declares and records `shared-support-declared`; an invalidator, unknown operational path, or manual Development dispatch selects every `pull-request` owner. The modular matrix itself is derived from the selection by `scripts/release/validation-matrix.mjs`, so inactive jobs are not scheduled at all rather than checking out and exiting early. `exhaustive` owners are never silently skipped or reported as passed: impact and aggregate evidence list them as cadence-deferred, and malformed cadence blocks selection. Full regression and nightly/stable release still execute both cadence classes. PR-attached Full regression is selected only when base policy verifies an `openspec-ci` App-authored candidate, its generated repair identity, and every qualifying failed Full regression source field in `regression-provenance.json` against GitHub's read-only workflow-run record. Release/publishing, shared-support, prerequisite, build, validation-authority, unknown-path, label, Publish-only repair, and successful-run persistent-overrun changes retain bounded ordinary validation. Planning-only generated repair drafts remain exempt; eligible implementation drafts receive native lane feedback without integration authority.
 
 The real three-release `update-predecessor` scenario is exhaustive because its fresh npm installations and private-prefix protected replacements dominate recent PR critical paths, and `update-performance` is exhaustive because its assertion is wall-clock timing on a shared runner. On Windows the predecessor owner requires the newest published updater to replace and activate the exact candidate with A1 under a user-style prefix and npm beside a separate Node installation; it separately proves the declared `0.2.2` official-installer context bridge without relabeling that immutable build as direct-update capable. The update path's deterministic contracts stay on pull requests through `pi-release-resume` and `package-contracts`, including preflight ordering, installer npm-context delegation, failure containment, lifecycle, recovery, materialization, warmup, package, and update behavior. This permits a real published-history incompatibility or update slowdown to reach `develop` before the next exhaustive run detects it, but nightly and stable publication remain blocked by the exhaustive predecessor outcome. `.github/workflows/full-regression.yml` runs every night at `02:47 UTC` against the `develop` tip with every owner and enforced budgets, independent of publication, so such a regression shows as a failed Full regression run the next morning; nightly publication's own complete validation still blocks publication. For diagnosis on any other candidate, dispatch standalone Full regression; labels and high-risk release/update impact do not add it to PR checks or change owner cadence.
 
@@ -164,38 +154,20 @@ gh workflow run full-regression.yml --ref <branch-or-tag>
 
 Record the run's resolved source SHA and package evidence; do not substitute an unrelated historical green run for current-head acceptance. This standalone run is a deliberate additional operation, not an automatic step for every PR and not selected PR authority.
 
-Documentation auto-merge reads the complete GitHub changed-file response and arms
-squash auto-merge for an eligible pull request while required validation is pending;
-branch protection prevents integration until `Development validation required`
-succeeds. If validation finishes before auto-merge can be armed and GitHub already
-reports the pull request clean, the reconciler squash-merges only the validated head
-SHA. Every current and renamed-from path must be under `openspec/**`, under
-`docs/**` other than `docs/releases/**`, or exactly the root `README.md`. Release
-history requires manual integration except in the verified release reopening PR:
-a `chore/release-X.Y.Z-dev` PR opened by `openspec-ci[bot]` that modifies only the
+Release reopening auto-merge arms squash auto-merge for the verified reopening pull
+request while required validation is pending; branch protection prevents integration
+until `Development validation required` succeeds. If validation finishes before
+auto-merge can be armed and GitHub already reports the pull request clean, it
+squash-merges only the validated head SHA. The reopening pull request is a
+`chore/release-X.Y.Z-dev` PR opened by `openspec-ci[bot]` that modifies only the
 three version declarations (base `<released>-dev`, head its patch successor `-dev`,
 nothing else in the manifests) and adds exactly `docs/releases/<released>.md` equal
-to the published stable Release body. It takes the same validated squash route. Eligible pull requests must use a
-non-draft branch in this repository and target `develop`. Implementation-associated PRs and newly introduced active OpenSpec changes are held for manual integration even when their diff is documentation-only. Body edits trigger reconciliation; removing a marker cannot bypass the base/head tree check. Standalone existing-change revisions and archive moves remain eligible.
+to the published stable Release body. Any other shape is left for a manual merge.
 
-The exact allowlist covers maintained OpenSpec, architecture, feature, manual,
-runbook, and root README documentation. Other root Markdown files, `LICENSE`,
-`.gitignore`, source, tests, scripts, workflows, configuration, generated baselines,
-and mixed changes do not auto-merge. The guard also runs when a pull request changes
-or auto-merge is manually enabled; if any path is outside the allowlist, it disables
-auto-merge while leaving the pull request available for a later manual merge. Every
-docs-only change runs lightweight generated-governance consistency, so archiving an
-inventoried OpenSpec occurrence fails that pull request rather than a later code pull
-request. The only narrower route is an exact single added canonical
-`openspec/acceptance/<change>/<source-head>.json` record: trusted base policy reads the
-complete live diff before dependency installation, then the dedicated acceptance job
-must validate its exact source, CI, scope, branch, body, checklist, and conflict state.
-Only that verified route skips generic impact installation and documentation/all-spec
-validation; malformed, mixed, renamed, stale, or unavailable inputs fail closed.
-A legitimate generated baseline update remains outside the allowlist and follows the
-manually accepted mixed/code path.
-
-A new implementation-bound specification starts as OpenSpec-only artifacts in one normally named draft PR. Explicit approval to implement continues in that same worktree, branch, history, and PR; the plan does not merge first. Approved refinements reconcile planning before code. After implementation, add one to ten plain implementation-specific bullets under `## Acceptance` and mark the PR ready; the trusted `OpenSpec finalization` workflow conservatively synchronizes deltas, stages the dated archive plus conditional acceptance manifest, and commits them to the same branch, and exact-head CI validates that head. Automation-owned auto-merge remains disabled: an authorized maintainer's direct merge, personal exact-head auto-merge arm, or explicit request for the active agent to expected-head squash-merge the currently eligible candidate accepts the listed scenarios and atomically integrates implementation, specs, and archive. No acceptance or archive follow-up PR is created. Closing an unmerged draft integrates nothing; cleanup still needs separate approval. See [delivery and archive handoff](openspec-archive-automation.md) for commands and legacy compatibility.
+Every other pull request, documentation included, follows the shared delivery path:
+a maintainer merges it or arms auto-merge on it. A docs-only change still runs the
+lightweight generated-governance consistency checks, so archiving an inventoried
+OpenSpec occurrence fails that pull request rather than a later code pull request.
 
 ## Numbered development previews
 
@@ -428,7 +400,7 @@ the version. The retired `--approve` form remains a mutation-free usage error.
    uploads the asset, fast-forwards `master`, and creates or exactly reuses
    `chore/release-0.1.9-dev`. That PR's single commit changes only the application
    manifest, root lockfile, installer version, and exact `docs/releases/0.1.8.md`.
-   Documentation auto-merge re-verifies that exact content and squash-merges it
+   Release reopening auto-merge re-verifies that exact content and squash-merges it
    once required CI passes on its current head. If any check fails it disables
    auto-merge; then let required CI pass and **merge it manually**.
 
@@ -512,7 +484,7 @@ Rules that do not bend:
 - **Nightly startup budget overruns:** a single overrun on Full regression or nightly publication is a warning in the run summary, not a failure; the triage judges the key across the three most recent `develop` runs and opens a `package-startup` candidate only when all three overran. Stable candidate validation still fails on one overrun; rerun it with the measured phases in hand.
 - **Nightly regression fails:** the triage workflow opens or refreshes a draft `fix/nightly-regression-<date>` pull request whose triage comment and change carry the evidence and whose `regression-provenance.json` binds the source run; start the fix there. Its body is the ordinary delivery layout with the two implementation outcomes, the acceptance outcome, and the triage key already generated: check each outcome as it completes, never rewrite the generated items, and let trusted readiness promote the all-checked draft like any other. A failed Full regression source created by `openspec-ci` selects PR-attached Full regression, while a Publish-only failure or successful-run persistent overrun retains ordinary PR validation. Reproduce from the listed tests or commands on the failed lane and fix without weakening assertions, budgets, timeouts, or coverage. Record focused implementation evidence and pre-finalization observations in the change, then require `Development validation required` and, when selected, PR-attached Full regression on the finalized exact head. Put final run/head/selection in Actions and handoff rather than making another evidence-recording commit. Standalone dispatch remains diagnostic; numbered-package nightly recovery is independent. A day whose failed scope set differs from every open candidate opens a new one. A Full regression dispatched on a candidate's own branch is that candidate's proof but never selected PR authority; its failures never open another candidate. A failure with no candidate means the triage workflow itself failed; read its run summary and dispatch it with the failed run id and `dry_run` off.
 - **Nightly exhaustive predecessor validation fails:** treat the focused PR result as insufficient, keep publication blocked, and repair the incompatibility without reducing predecessor count, timeouts, or exact-package isolation.
-- **Documentation auto-merge fails:** leave the pull request open, inspect its exact
+- **Release reopening auto-merge fails:** leave the pull request open, inspect its exact
   changed-file classification, docs-sensitive inventory, and workflow permissions,
   and never broaden the allowlist to make one pull request pass.
 - **Merged-branch cleanup fails:** inspect the bounded PR/ref/SHA disposition. Never

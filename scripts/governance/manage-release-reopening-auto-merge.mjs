@@ -1,0 +1,273 @@
+import { appendFile, readFile } from "node:fs/promises";
+import { classifyReleaseReopening, planReopeningAutoMerge } from "./release-reopening-auto-merge.mjs";
+
+class GitHubGraphQLError extends Error {
+  constructor(status, body) {
+    super(`GitHub GraphQL failed (${status}): ${JSON.stringify(body)?.slice(0, 1000)}`);
+    this.status = status;
+    this.errors = body?.errors;
+  }
+
+  get isUnstableAutoMergeRejection() {
+    return this.status >= 200 && this.status < 300
+      && Array.isArray(this.errors) && this.errors.length > 0
+      && this.errors.every(error => error?.type === "UNPROCESSABLE"
+        && Array.isArray(error.path) && error.path.length === 1
+        && error.path[0] === "enablePullRequestAutoMerge"
+        && typeof error.message === "string"
+        && /^Pull request (?:Pull request )?is in unstable status\.?$/.test(error.message));
+  }
+}
+
+const token = process.env.GITHUB_TOKEN;
+const eventPath = process.env.GITHUB_EVENT_PATH;
+const repositoryName = process.env.GITHUB_REPOSITORY;
+const apiUrl = process.env.GITHUB_API_URL ?? "https://api.github.com";
+const graphqlUrl = process.env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql";
+
+if (!token || !eventPath || !repositoryName) throw new Error("GitHub event, repository, and token are required");
+
+const event = JSON.parse(await readFile(eventPath, "utf8"));
+const [owner, repository] = repositoryName.split("/");
+if (!owner || !repository) throw new Error(`invalid GITHUB_REPOSITORY: ${repositoryName}`);
+
+const context = event.workflow_run
+  ? {
+      validationComplete: event.workflow_run.name === "Development validation"
+        && event.workflow_run.event === "pull_request",
+      validationSucceeded: event.workflow_run.conclusion === "success",
+      validatedHeadSha: event.workflow_run.head_sha,
+      candidates: event.workflow_run.pull_requests ?? [],
+    }
+  : event.pull_request
+    ? { validationComplete: false, validationSucceeded: false, validatedHeadSha: undefined, candidates: [event.pull_request] }
+    : { validationComplete: false, validationSucceeded: false, validatedHeadSha: undefined, candidates: [] };
+
+if (event.workflow_run && !context.validationComplete) {
+  await summary("No pull-request Development validation run to process.");
+} else {
+  let numbers = [...new Set(context.candidates.map(candidate => candidate?.number).filter(Number.isSafeInteger))];
+  if (numbers.length === 0 && Number.isSafeInteger(event.workflow_run?.id)) {
+    const associated = await rest(`/repos/${owner}/${repository}/actions/runs/${event.workflow_run.id}/pull_requests`);
+    if (!Array.isArray(associated)) throw new Error("workflow-run pull-request response was not an array");
+    numbers = [...new Set(associated.map(candidate => candidate?.number).filter(Number.isSafeInteger))];
+  }
+  if (numbers.length === 0) {
+    await summary("No pull request was associated with this event; auto-merge remained unchanged.");
+  }
+  for (const number of numbers) await processPullRequest(number, context);
+}
+
+async function processPullRequest(number, run) {
+  const attempts = boundedPollingNumber("REOPENING_AUTO_MERGE_POLL_ATTEMPTS", process.env.REOPENING_AUTO_MERGE_POLL_ATTEMPTS, 30);
+  const delayMs = boundedPollingNumber("REOPENING_AUTO_MERGE_POLL_MS", process.env.REOPENING_AUTO_MERGE_POLL_MS, 2000);
+  let expectedHead;
+  let expectedId;
+  let reason = "waiting for mergeability";
+  // Concurrency: every retry re-reads identity AND the complete diff, never just merge state.
+  for (let attempt = 0; attempt <= attempts; attempt += 1) {
+    if (attempt > 0 && delayMs > 0) await new Promise(resolve => setTimeout(resolve, delayMs));
+    const pull = await readPullRequest(number);
+    expectedHead ??= pull.head.sha;
+    expectedId ??= pull.node_id;
+    const sameHead = pull.head.sha === expectedHead && pull.node_id === expectedId;
+    if (pull.state !== "open") {
+      if (pull.merged === true && sameHead) {
+        await summary(`PR #${number}: already merged at expected head ${expectedHead}.`);
+        return await deleteMergedBranch(pull);
+      }
+      return await summary(`PR #${number}: closed without merge of the expected head; no branch mutation.`);
+    }
+    const route = await isTrustedEligible(pull);
+    if (!route) return;
+    if (!sameHead) return await summary(`PR #${number}: head or identity changed during reconciliation; deferred.`);
+
+    const validationMatchesHead = run.validationComplete && run.validatedHeadSha === pull.head?.sha;
+    const validation = validationMatchesHead
+      ? run.validationSucceeded ? "success" : "failure"
+      : "pending";
+    const action = planReopeningAutoMerge({
+      validation,
+      autoMergeArmed: Boolean(pull.auto_merge),
+      mergeableState: pull.mergeable_state,
+      mergeable: pull.mergeable,
+    });
+    if (action === "merge") return await mergeValidatedHead(pull);
+    if (validation === "failure") {
+      return await summary(`PR #${number}: current-head Development validation failed; no integration.`);
+    }
+    if (action === "unchanged" && validation === "pending") {
+      return await summary(`PR #${number}: squash auto-merge is already armed; waiting for current-head validation.`);
+    }
+    reason = pull.mergeable !== true || !["clean", "unstable"].includes(pull.mergeable_state)
+      ? `waiting for mergeability (${pull.mergeable_state ?? "unknown"}, mergeable=${pull.mergeable ?? "unknown"})`
+      : "waiting for successful current-head validation";
+    if (action === "arm" && attempt < attempts) {
+      try {
+        await graph(`mutation EnableReopeningAutoMerge($pullRequestId: ID!) {
+          enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: SQUASH }) {
+            pullRequest { number }
+          }
+        }`, { pullRequestId: pull.node_id }, "enablePullRequestAutoMerge", number);
+        await summary(`PR #${number}: exact ${route}; squash auto-merge armed behind required validation.`);
+        if (validation === "pending") return;
+        // Invariant: token-authored integration still needs synchronous branch cleanup.
+      } catch (error) {
+        if (!(error instanceof GitHubGraphQLError) || !error.isUnstableAutoMergeRejection) throw error;
+        await summary(`PR #${number}: unstable-status arming rejection; refreshing eligibility and validation.`);
+      }
+      continue;
+    }
+    if (pull.mergeable === false || pull.mergeable_state === "dirty") break;
+    if (validation === "pending" && pull.mergeable === true
+      && ["clean", "unstable"].includes(pull.mergeable_state)) break;
+  }
+  await summary(`PR #${number}: deferred; ${reason}.`);
+}
+
+async function readPullRequest(number) {
+  const pull = await rest(`/repos/${owner}/${repository}/pulls/${number}`);
+  if (pull?.number !== number || typeof pull.node_id !== "string" || !pull.node_id
+    || !["open", "closed"].includes(pull.state) || typeof pull.draft !== "boolean"
+    || typeof pull.head?.sha !== "string" || !/^[a-f0-9]{40}$/i.test(pull.head.sha)) {
+    throw new Error(`GitHub returned malformed PR #${number} metadata`);
+  }
+  return pull;
+}
+
+async function isTrustedEligible(pull) {
+  const number = pull.number;
+  // Invariant: only a release reopening branch is this automation's business; every other pull request,
+  // including one a maintainer armed for auto-merge, is left exactly as it is.
+  if (!pull.head?.ref?.startsWith("chore/release-")) return false;
+  let files;
+  try {
+    files = await changedFiles(number);
+    if (!Number.isSafeInteger(pull.changed_files) || pull.changed_files !== files.length) throw new Error("incomplete changed-file response");
+  } catch (error) {
+    await disableIfArmed(pull, `classification failed: ${describe(error)}`);
+    throw error;
+  }
+  const reopening = await classifyReleaseReopening({ pull, files, repository: repositoryName, read: readFileAt, release: readRelease });
+  if (reopening.eligible) return "release reopening";
+  await disableIfArmed(pull, reopening.reason);
+  await summary(`PR #${number}: auto-merge not eligible — ${reopening.reason}.`);
+  return false;
+}
+
+async function readFileAt(path, ref) {
+  const file = await rest(`/repos/${owner}/${repository}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${ref}`);
+  if (file?.type !== "file" || file.encoding !== "base64" || typeof file.content !== "string") throw new Error(`${path}@${ref} is not a readable file`);
+  return Buffer.from(file.content, "base64").toString("utf8");
+}
+
+async function readRelease(tag) {
+  return await rest(`/repos/${owner}/${repository}/releases/tags/${encodeURIComponent(tag)}`);
+}
+
+async function mergeValidatedHead(pull) {
+  const number = pull.number;
+  try {
+    const result = await rest(`/repos/${owner}/${repository}/pulls/${number}/merge`, {
+      method: "PUT",
+      body: { sha: pull.head.sha, merge_method: "squash" },
+    });
+    if (result?.merged !== true) throw new Error(`GitHub did not merge PR #${number}: ${JSON.stringify(result)?.slice(0, 1000)}`);
+  } catch (error) {
+    const current = await readPullRequest(number);
+    // Concurrency: only another actor's confirmed merge of THIS decision's head can authorize cleanup.
+    if (current.state !== "closed" || current.merged !== true || current.node_id !== pull.node_id
+      || current.head.sha !== pull.head.sha) throw error;
+    await summary(`PR #${number}: already merged at expected head ${pull.head.sha}.`);
+    return await deleteMergedBranch(current);
+  }
+  await summary(`PR #${number}: current head passed validation (${pull.mergeable_state}); squash-merged with expected head SHA ${pull.head.sha}.`);
+  return await deleteMergedBranch(pull);
+}
+
+function boundedPollingNumber(name, input, maximum) {
+  const value = Number(input ?? maximum);
+  if (!Number.isInteger(value) || value < 0 || value > maximum) throw new Error(`Invalid ${name}: expected 0..${maximum}`);
+  return value;
+}
+
+// Rationale: a merge made with GITHUB_TOKEN emits no pull-request event, so the shared branch cleanup never sees it.
+async function deleteMergedBranch(pull) {
+  const ref = pull.head?.ref;
+  if (pull.head?.repo?.full_name !== repositoryName || !/^chore\/release-[0-9A-Za-z.-]+$/u.test(ref ?? "")) return;
+  const path = `/repos/${owner}/${repository}/git/ref/heads/${ref}`;
+  const current = await request(path, { expected: [200, 404] });
+  if (current.status === 404) return await summary(`PR #${pull.number}: branch ${ref} is already deleted.`);
+  // Invariant: only the exact merged head is deleted; a branch that moved after the merge is someone's new work.
+  if (current.body?.object?.sha !== pull.head.sha) return await summary(`PR #${pull.number}: branch ${ref} moved after the merge; retained.`);
+  await request(`/repos/${owner}/${repository}/git/refs/heads/${ref}`, { method: "DELETE", expected: [204, 404, 422] });
+  await summary(`PR #${pull.number}: deleted merged branch ${ref}.`);
+}
+
+async function changedFiles(number) {
+  const files = [];
+  for (let page = 1; ; page += 1) {
+    if (page > 30) throw new Error("changed-file response exceeded GitHub's reviewable limit");
+    const batch = await rest(`/repos/${owner}/${repository}/pulls/${number}/files?per_page=100&page=${page}`);
+    if (!Array.isArray(batch)) throw new Error("changed-file response was not an array");
+    files.push(...batch);
+    if (batch.length < 100) return files;
+  }
+}
+
+async function disableIfArmed(pull, reason) {
+  if (!pull.auto_merge) return;
+  await graph(`mutation DisableIneligibleAutoMerge($pullRequestId: ID!) {
+    disablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId }) {
+      pullRequest { number }
+    }
+  }`, { pullRequestId: pull.node_id }, "disablePullRequestAutoMerge", pull.number);
+  await summary(`PR #${pull.number}: disabled auto-merge — ${reason}.`);
+}
+
+async function rest(path, options = {}) {
+  return (await request(path, { ...options, expected: options.expected ?? [200] })).body;
+}
+
+async function request(path, options = {}) {
+  const response = await fetch(`${apiUrl}${path}`, {
+    method: options.method ?? "GET",
+    headers: options.body ? { ...headers(), "content-type": "application/json" } : headers(),
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  const text = await response.text();
+  const expected = options.expected ?? [200];
+  if (!expected.includes(response.status)) throw new Error(`GitHub REST ${response.status}: ${text.slice(0, 300)}`);
+  return { status: response.status, body: text ? JSON.parse(text) : undefined };
+}
+
+async function graph(query, variables, mutation, number) {
+  const response = await fetch(graphqlUrl, {
+    method: "POST",
+    headers: { ...headers(), "content-type": "application/json" },
+    body: JSON.stringify({ query, variables }),
+  });
+  const body = await response.json();
+  if (!response.ok || (body?.errors != null && (!Array.isArray(body.errors) || body.errors.length > 0))
+    || body?.data?.[mutation]?.pullRequest?.number !== number) {
+    throw new GitHubGraphQLError(response.status, body);
+  }
+  return body.data;
+}
+
+function headers() {
+  return {
+    accept: "application/vnd.github+json",
+    authorization: `Bearer ${token}`,
+    "x-github-api-version": "2022-11-28",
+  };
+}
+
+async function summary(message) {
+  console.log(message);
+  if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `- ${message}\n`);
+}
+
+function describe(error) {
+  return error instanceof Error ? error.message : String(error);
+}

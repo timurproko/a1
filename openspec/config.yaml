@@ -1,15 +1,11 @@
 schema: spec-driven
 
 context: |
-  Delivery guidance is maintained by subject, not repeated here:
-  - Load the [delivery skill](../.agents/skills/change-delivery/SKILL.md) for repository delivery work.
-  - Follow the [delivery runbook](../docs/openspec-archive-automation.md) for planning, authorization, same-PR implementation, validation, finalization, handoff, integration, and legacy/generated-proposal rules.
-  - Follow the [worktree protocol](../docs/architecture/project-structure.md#development-worktrees) before creating, resuming, or switching a task checkout.
-  - Follow [local cleanup](../docs/local-worktree-cleanup.md) for cleanup authority, named-export decisions, process stops, blockers, and recovery.
-  Keep planning-only drafts until approved implementation is requested. One explicit instruction can approve an already presented plan and request implementation; do not ask for duplicate confirmation. Update approved refinements before corresponding edits.
-  Keep progress truthful and let trusted automation own readiness/finalization. Implementation approval never grants merge permission, foreign-worktree ownership, or blanket user-file deletion. Existing tooling and protected integration gates remain authoritative.
+  Change delivery is owned by the shared `change-delivery` skill of `timurproko/MyGitWorkflows`: load it for planning, authorization, same-PR implementation, finalization, handoff, integration, and cleanup.
+  Follow the [worktree protocol](../docs/architecture/project-structure.md#development-worktrees) before creating, resuming, or switching a task checkout.
+  Write `tasks.md` as one task group per PR `## Implementation` outcome, in the same order.
 
 operations:
   archive:
     guidance:
-      - Follow the delivery runbook's finalization, post-merge verification, and legacy procedures. Never publish a version-3 acceptance-only or archive-only follow-up or mutate develop directly.
+      - The shared delivery workflow archives a change inside its own pull request. Never archive by hand, publish an archive-only follow-up, or mutate develop directly.
