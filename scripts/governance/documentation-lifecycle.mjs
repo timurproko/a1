@@ -1,11 +1,11 @@
-import { inspectDocumentationScope } from "./documentation-diff-scope.mjs";
+import { classifyDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
 import { parseImplementation, metadataBlock, CHANGE, SHA } from "./openspec-archive-policy.mjs";
 import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
 
-/** Resolve lifecycle linkage only; callers must independently enforce current documentation-integration authority. */
+/** Resolve implementation holds separately from the path-only code/operational classifier. */
 export async function inspectDocumentationLifecycle(pull, files, reader) {
-  const classification = inspectDocumentationScope(files);
-  if (!classification.valid || !classification.documentationOnly) return { held: true, reason: "code-or-unclassifiable-diff" };
+  const classification = classifyDocumentationAutoMerge(files);
+  if (!classification.eligible) return { held: true, reason: "code-or-unclassifiable-diff" };
   if (!Number.isSafeInteger(pull.changed_files) || pull.changed_files !== files.length) return { held: true, reason: "incomplete-diff" };
   if (pull.draft !== false) return { held: true, reason: "draft-or-unknown-state" };
   if (pull.body !== null && typeof pull.body !== "string") return { held: true, reason: "missing-lifecycle-metadata" };

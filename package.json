@@ -28,7 +28,7 @@
     "clean": "node scripts/clean.mjs",
     "build": "node scripts/development/run-build.mjs",
     "build:core": "node scripts/development/run-build.mjs --core",
-    "build:managed": "npm run clean && tsc -p tsconfig.build.json && node scripts/development/copy-worktree-contracts.mjs && node scripts/release/generate-release-notes-resource.mjs && node scripts/pi/build-pi-settings-metadata.mjs && node scripts/pi/build-startup-public.mjs",
+    "build:managed": "npm run clean && tsc -p tsconfig.build.json && node scripts/release/generate-release-notes-resource.mjs && node scripts/pi/build-pi-settings-metadata.mjs && node scripts/pi/build-startup-public.mjs",
     "typecheck": "tsgo -p tsconfig.json --noEmit && tsgo -p tsconfig.bin.json",
     "check:local": "npm run typecheck && npm run check:architecture && npm run check:names",
     "check:architecture": "node scripts/governance/check-architecture.mjs && node scripts/governance/check-session-writer-guard.mjs && node scripts/governance/check-product-identity-boundaries.mjs && node scripts/governance/check-package-identity.mjs && node scripts/governance/check-pinned-pi-source-ledger.mjs",

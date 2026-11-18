@@ -7,7 +7,6 @@ import type { ProcessIdentity } from "./model.js";
 import { inspectLiveProcess } from "./process-liveness.js";
 import { resolveProductPaths } from "./paths.js";
 import { withSessionClaimSnapshot, withSessionClaimLock } from "./session-claim-lock.js";
-import { cleanupClaimDirectory, withWorktreeClaimExclusion } from "./worktree-claim-boundary.mjs";
 import { rethrowStartupGitFailure, worktreeGitEnvironment } from "./worktree-git-environment.js";
 
 const CONTEXT_SCHEMA = "a1-session-repository-context-v1";
@@ -215,8 +214,7 @@ export async function setSessionRepositoryContext(
   }
   const owner = { runtimeId: requireRuntimeId(options), agentId: requireAgentId(options) };
   const persist = async (record: SessionRepositoryRecord | null) => {
-    const unchanged = record !== null && samePath(record.worktreeGitDir, selected.gitDir)
-      && await validateContextRecord(header, record, options.signal, selected).then(() => true, () => false);
+    const unchanged = record !== null && samePath(record.worktreeGitDir, selected.gitDir);
     await writeContextRecord(header, primary, selected, unchanged ? record.revision ?? randomUUID() : randomUUID(), options);
     await releaseClaimsOwnedBy(owner, selected.gitDir, options);
     return { cwd: selected.root, branch: requireBranch(selected) };
@@ -576,8 +574,7 @@ async function writeClaim(
     startIdentity: runtimeIdentity.startIdentity,
     updatedAt: new Date().toISOString(),
   };
-  const target = { path: selected.root, commonDir: selected.commonDir, gitDir: selected.gitDir, ref: `refs/heads/${selected.branch}` };
-  await withWorktreeClaimExclusion(target, options, () => atomicWrite(claimRecordPath(selected.commonDir, selected.gitDir, options), claim));
+  await atomicWrite(claimRecordPath(selected.commonDir, selected.gitDir, options), claim);
 }
 
 async function readContextRecord(header: SessionHeader, options: SessionRepositoryContextOptions): Promise<SessionRepositoryRecord | null> {
@@ -635,7 +632,6 @@ async function validateContextRecord(
   header: SessionHeader,
   record: SessionRepositoryRecord,
   signal?: AbortSignal,
-  observed?: GitWorktreeIdentity,
 ): Promise<GitWorktreeIdentity> {
   if (record.sessionId !== header.id || record.sessionFile !== header.file) throw new Error("associated session identity changed");
   const startup = await readGitWorktreeIdentity(record.repositoryRoot ?? header.cwd, false, signal);
@@ -652,8 +648,7 @@ async function validateContextRecord(
   if (await lstat(join(root, ".git")).catch(missing) === null) throw invalid("no longer has its Git pointer");
   let selected: GitWorktreeIdentity;
   try {
-    // Concurrency: an explicit relink already read this identity under the mutation gate; claim publication rechecks its physical pointer.
-    selected = observed ?? await readGitWorktreeIdentity(root, true, signal);
+    selected = await readGitWorktreeIdentity(root, true, signal);
   } catch (error) {
     if (error instanceof Error && (error.message === NOT_A_WORKTREE_ROOT
       || ("stderr" in error && String(error.stderr).includes("not a git repository")))) throw invalid("is no longer a Git worktree");
@@ -822,11 +817,12 @@ async function readSessionHeader(identity: SessionRepositoryIdentity): Promise<S
 async function readGitWorktreeIdentity(path: string, requireWorktreeRoot: boolean, signal?: AbortSignal): Promise<GitWorktreeIdentity> {
   if (!validPath(path)) throw new Error("associated worktree path is invalid");
   const cwd = await realpath(resolve(path));
-  // Performance: independent read-only probes share a launch interval; claim publication still revalidates under exclusion.
-  const [{ stdout }, branchResult] = await Promise.all([
-    executeGit(["rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir", "--git-dir"], cwd, MAX_RECORD_BYTES, signal),
-    requireWorktreeRoot ? executeGit(["symbolic-ref", "--quiet", "--short", "HEAD"], cwd, 4_096, signal) : Promise.resolve(null),
-  ]);
+  const { stdout } = await executeGit(
+    ["rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir", "--git-dir"],
+    cwd,
+    MAX_RECORD_BYTES,
+    signal,
+  );
   const lines = stdout.split(/\r?\n/u).filter(Boolean);
   if (lines.length !== 3) throw new Error("associated worktree identity is invalid");
   const [rootValue, commonValue, gitValue] = lines;
@@ -836,7 +832,8 @@ async function readGitWorktreeIdentity(path: string, requireWorktreeRoot: boolea
   const commonDir = await realpath(commonValue);
   const gitDir = await realpath(gitValue);
   let branch: string | null = null;
-  if (branchResult !== null) {
+  if (requireWorktreeRoot) {
+    const branchResult = await executeGit(["symbolic-ref", "--quiet", "--short", "HEAD"], cwd, 4_096, signal);
     branch = branchResult.stdout.trim();
     if (branch.length === 0 || branch.length > 256) throw new Error("associated worktree has a detached or invalid branch");
   }
@@ -938,7 +935,7 @@ function contextRecordPath(header: Pick<SessionHeader, "id" | "file">, options: 
 }
 
 function claimStoreRoot(options: SessionRepositoryContextOptions): string {
-  return cleanupClaimDirectory(options);
+  return join(options.dataDir ?? resolveProductPaths().dataDir, PRODUCT_IDENTITY.state.sessionWorktreeClaimDirectory);
 }
 
 function runtimesDirectory(options: SessionRepositoryContextOptions): string {
