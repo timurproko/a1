@@ -11,6 +11,7 @@ The maintainer integration decision accepts these scenarios:
 - Resize and content changes discard stale pointer targets, and comparison mode and opaque extension-owned custom surfaces retain their existing policy.
 - Ordinary Settings values and enabled numeric controls use blended text-only hover instead of pure white; labels and section titles remain unchanged on hover.
 - Settings configure pickers stay within 20 rows and ten visible choices, with wheel, track paging, and captured thumb dragging following live Agent scrollbar preferences.
+- Status-bar name, model/provider, and thinking-level hover uses the shared 40% accent text tint without a background or shifted hit targets.
 
 ```openspec-delivery
 {
@@ -30,12 +31,13 @@ The maintainer integration decision accepts these scenarios:
     "Launcher and owned selectors accept mouse choices while Settings supports Warnings, Default Model, and both Thinking Level steps through existing write authority.",
     "Resize and content changes discard stale pointer targets, and comparison mode and opaque extension-owned custom surfaces retain their existing policy.",
     "Ordinary Settings values and enabled numeric controls use blended text-only hover instead of pure white; labels and section titles remain unchanged on hover.",
-    "Settings configure pickers stay within 20 rows and ten visible choices, with wheel, track paging, and captured thumb dragging following live Agent scrollbar preferences."
+    "Settings configure pickers stay within 20 rows and ten visible choices, with wheel, track paging, and captured thumb dragging following live Agent scrollbar preferences.",
+    "Status-bar name, model/provider, and thinking-level hover uses the shared 40% accent text tint without a background or shifted hit targets."
   ],
-  "archiveDigest": "101bde6e7758506e4f4ce4f9ac1c5e861dc7d47b92f22c5d736b2a61910805b5",
-  "specDigest": "90df91fe259dbf77b28203ccda7340aba1b095ae1a5f154f1a6c6338245556ec",
-  "tasksDigest": "6da47a63b3ef80d7b69ff83be46c51190ce178fd4576a8667187d158cf37b9bb",
-  "evidenceDigest": "4d3f618e64ab051637754e6bd35e7dc0040ec30e9731ef0606049d54383cdb9f",
+  "archiveDigest": "ce678873e62619667640b8fcc5e156c2be8d8e6bbbf8e526fc80e151c3933e19",
+  "specDigest": "7d3512a7387ba5fc035a4311dc4381999f93c250e3f69c1d0b9ee30395aa15fb",
+  "tasksDigest": "f13a30cef9b7c83b7b98b87f7a71479cdde856ee21cf9ea4f1c4243da4e0141a",
+  "evidenceDigest": "cb3a4a2e3083fff96d5efb21802b9f7675605e034dfbc2753a7d3a6101be65ec",
   "knownGaps": []
 }
 ```

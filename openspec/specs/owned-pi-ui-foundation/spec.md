@@ -4306,7 +4306,7 @@ The Pi TUI runtime boundary SHALL NOT end a session because a component returned
 
 ### Requirement: Footer controls offer draft-preserving direct editing
 
-Bare A1's visible session name, active model name, and thinking level SHALL independently highlight on hover using the subtle live accent-selected background while retaining their ordinary foreground. Each control's hover and click target SHALL fit its visible text only and SHALL NOT insert blank side characters. Hover SHALL NOT shift layout or cover neighboring labels, thinking separators, or unrelated metadata. With no owned dialog open, a normal left-click SHALL directly open Session Name, Models, or Thinking Level respectively, without a context menu or prompt submission.
+Bare A1's visible session name, active model name, and thinking level SHALL independently highlight on hover using the shared text-only foreground blend of 60% of their ordinary semantic color and 40% of the current accent. Name and model/provider text SHALL blend from their normal dim role, and thinking text SHALL blend from its current level-specific role. Hover SHALL NOT add a background, underline, or reverse video; it SHALL preserve text attributes, adjacent colors, and comparison-profile presentation. Each control's hover and click target SHALL fit its visible text only and SHALL NOT insert blank side characters. Hover SHALL NOT shift layout or cover neighboring labels, thinking separators, or unrelated metadata. With no owned dialog open, a normal left-click SHALL directly open Session Name, Models, or Thinking Level respectively, without a context menu or prompt submission.
 
 When the existing provider-count and width rules show a provider qualifier, bare A1 SHALL render it in square brackets immediately after the active model name and before the thinking-level separator, as `model [provider] • level`, matching the Models dialog. The model name, connecting space, and visible bracketed provider SHALL share one hover/click target that opens Models. The thinking separator and level SHALL remain outside that target; omitting the qualifier SHALL shrink the model target to its visible model text. Existing qualifier visibility, omission before clipping higher-priority content, routed-model meaning, foreground roles, and comparison-profile formatting SHALL remain unchanged.
 
@@ -4315,7 +4315,7 @@ Opening, submitting, or cancelling these dialogs SHALL retain the ordinary promp
 #### Scenario: Hover and directly edit a footer name
 
 - **WHEN** the pointer enters the visible footer-name text
-- **THEN** only that text SHALL receive subtle hover background without extra spaces or layout shift
+- **THEN** only that text SHALL receive the shared accent-blended foreground without a hover background, extra spaces, or layout shift
 - **WHEN** the user normally left-clicks the target with no owned dialog open
 - **THEN** the fully selected name dialog SHALL open directly without a context menu
 
@@ -4345,7 +4345,7 @@ Opening, submitting, or cancelling these dialogs SHALL retain the ordinary promp
 
 - **WHEN** the bare-A1 footer has multiple providers and sufficient width for its optional provider qualifier
 - **THEN** it SHALL render `model [provider] • level` rather than `(provider) model • level`
-- **AND** hovering any cell of the model or bracketed provider SHALL highlight the full `model [provider]` label without changing its foreground
+- **AND** hovering any cell of the model or bracketed provider SHALL tint the full `model [provider]` label through the shared foreground blend without adding a background or tinting the thinking separator
 - **AND** clicking the provider or either bracket SHALL open Models when no dialog is open, or dismiss the current cancellable owned dialog without opening Models in that same gesture
 - **WHEN** the qualifier no longer fits or the existing provider-count rule omits it
 - **THEN** the model and level targets SHALL remain aligned with their visible text
