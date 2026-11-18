@@ -7,8 +7,10 @@ Define reviewed GitHub policy, trusted workflow authority, atomic manual deliver
 
 ### Requirement: Governed GitHub state is declarative and drift-detectable
 A1 SHALL keep one reviewed repository definition for governed repository settings,
-Actions policy, environments, complete ruleset fields, protected refs, and workflow
-inventory. A read-only check SHALL compare that definition with live GitHub state and
+Actions policy, security capabilities, environments, labels, and workflow inventory.
+Branch and tag rulesets SHALL be declared only in `protection/repositories.json` of the
+shared delivery workflow and installed with its `delivery protect` command; the
+repository definition SHALL NOT declare, compare, or apply rulesets. A read-only check SHALL compare that definition with live GitHub state and
 report field-level drift without mutating the repository. Applying policy SHALL require
 a separate explicit maintainer confirmation and SHALL verify live state afterwards.
 
@@ -17,12 +19,12 @@ a separate explicit maintainer confirmation and SHALL verify live state afterwar
 - **THEN** it SHALL report every governed field as matching and perform no mutation
 
 #### Scenario: An unnormalized live field drifts
-- **WHEN** GitHub differs in a governed field that the former ruleset normalizer ignored
-- **THEN** the check SHALL fail and identify the ruleset and field
+- **WHEN** GitHub differs in a governed field of a declared setting, environment, label, or workflow
+- **THEN** the check SHALL fail and identify the exact path of that field
 
 #### Scenario: Ordinary CI evaluates repository policy
 - **WHEN** a pull request runs repository governance validation
-- **THEN** it SHALL use read-only authority and SHALL NOT apply settings or rulesets
+- **THEN** it SHALL use read-only authority and SHALL NOT apply settings
 
 #### Scenario: Maintainer applies reviewed policy
 - **WHEN** the maintainer invokes the policy application command with its exact confirmation
@@ -30,16 +32,19 @@ a separate explicit maintainer confirmation and SHALL verify live state afterwar
 
 ### Requirement: Protected refs retain distinct responsibilities
 `develop` SHALL reject deletion and non-fast-forward updates, require a pull request,
-require resolved review threads, require `Development validation required` with
-no bypass actor, and require the pull request head to be up to date with `develop`
+require resolved review threads, require `Development validation required` and the
+shared `delivery / Delivery check`, and require the pull request head to be up to date with `develop`
 before merge, so that a candidate validated and finalized against a base that has
 since advanced is reconciled, re-finalized, and revalidated before integration.
 `master` SHALL reject deletion and non-fast-forward updates with no bypass actor while
 remaining writable by a successful stable release fast-forward. `v*` tags SHALL
 reject movement for every actor and SHALL reject deletion for every actor except one
 declared release-automation GitHub App with `always` bypass, which exists solely so
-that a failed stable publication can delete its unconsumed tag before npm. No person,
-team, repository role, or other App SHALL bypass any protected ref. Any change to
+that a failed stable publication can delete its unconsumed tag before npm. The repository
+admin role MAY bypass the `develop` ruleset for pull requests only, so a maintainer can merge
+a pull request without waiting for its checks but can never write `develop` without one. No
+other person, team, repository role, or App SHALL bypass any protected ref. These rulesets
+SHALL be the ones the shared delivery workflow declares for this repository. Any change to
 approvals, strict-base policy, merge methods, or bypass authority SHALL require an
 explicit specification decision.
 
@@ -58,15 +63,15 @@ explicit specification decision.
 
 #### Scenario: Protected history is rewritten
 - **WHEN** an actor attempts to delete or non-fast-forward a protected branch or move a release tag
-- **THEN** GitHub SHALL reject the operation without a bypass
+- **THEN** GitHub SHALL reject the operation, including for the repository admin
 
 #### Scenario: A failed publication removes its unconsumed tag
 - **WHEN** the release-automation App deletes a `v*` tag whose Release returned to draft with both packages absent from npm
 - **THEN** GitHub SHALL permit that deletion and SHALL reject the same deletion by any other actor
 
 #### Scenario: The bypass is widened
-- **WHEN** the declared governance adds a bypass actor to a branch ruleset, a second tag bypass actor, a non-App actor, or a non-`always` bypass mode
-- **THEN** governance validation SHALL reject the definition
+- **WHEN** a bypass beyond the admin pull-request bypass on `develop` and the single release-automation App on `v*` tags is wanted
+- **THEN** it SHALL require an explicit specification decision and a reviewed change to the shared declaration
 
 ### Requirement: Workflow authority is explicit and least-privileged
 The repository SHALL inventory each workflow's trusted source, triggers, permissions,

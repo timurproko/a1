@@ -169,8 +169,10 @@ Every modular development gate and complete-regression shard SHALL emit its sele
 - **AND** a failed owner SHALL remain attributable to its canonical Windows runtime and shard job
 
 ### Requirement: Development merges are gated by one required check
-GitHub SHALL require the development validation check for pull requests into
-`develop`, which SHALL be the only branch a change can be written to directly.
+GitHub SHALL require the development validation check, and the `delivery / Delivery check`
+of the shared delivery workflow, for pull requests into `develop`, which SHALL be
+the only branch a change can be written to directly. The development validation check
+SHALL remain the single check the workflows of this repository publish for that gate.
 
 `master` SHALL record the commit the npm `latest` tag serves. Only a completed
 stable publication SHALL write it, by fast-forward, and it SHALL carry no check or
@@ -181,7 +183,7 @@ been validated. Publication SHALL NOT serve as the first automated validation of
 change.
 
 #### Scenario: Required check has not passed
-- **WHEN** a pull request targets `develop` and its required check is absent or unsuccessful
+- **WHEN** a pull request targets `develop` and either required check is absent or unsuccessful
 - **THEN** GitHub SHALL prevent the merge
 
 #### Scenario: A stable version is published
