@@ -201,7 +201,9 @@ describe("bounded Settings configure-list scrolling", () => {
     const first = value.modelRows()[0]!;
     expect(first.content).toContain("model-03");
     value.pointer("press", first.plain.indexOf("model-03") + 1, first.row);
-    await vi.waitFor(() => expect(value.writes).toEqual(kind === "default" ? ["provider/model-03"] : [{ "provider/model-03": true }]));
+    const expected = kind === "default" ? "provider/model-03"
+      : Object.fromEntries(Array.from({ length: 40 }, (_, index) => [`provider/model-${String(index).padStart(2, "0")}`, index === 3]));
+    await vi.waitFor(() => expect(value.writes).toEqual([expected]));
     if (kind === "default") expect(value.panel()).toEqual([]);
     else expect(value.modelRows()[0]!.content).toContain("model-03");
   });
