@@ -13,6 +13,31 @@ function fixture(height = 24) {
 }
 
 describe("Launcher dialog", () => {
+  it.each([8, 24])("keeps keyboard Agent active while the mouse hovers and opens Settings (%i rows)", height => {
+    const { dialog, select } = fixture(height);
+    const lines = dialog.render(60);
+    const row = lines.findIndex(line => line.includes("Settings")) + 1;
+    dialog.handleLocalMouse({ kind: "motion", button: 3, column: 5, row });
+    expect(dialog.render(60).find(line => line.includes("→"))).toContain("Agent");
+    dialog.handleInput("\r");
+    expect(select).toHaveBeenLastCalledWith("agent");
+    select.mockClear();
+    dialog.render(60);
+    dialog.handleLocalMouse({ kind: "press", button: 0, column: 5, row });
+    expect(select).toHaveBeenCalledExactlyOnceWith("settings");
+  });
+
+  it("invalidates former hit targets on filtering and exposes explicit cancellation", () => {
+    const { dialog, select, cancel } = fixture();
+    const lines = dialog.render(60);
+    const row = lines.findIndex(line => line.includes("Settings")) + 1;
+    dialog.handleInput("zzz");
+    dialog.handleLocalMouse({ kind: "press", button: 0, column: 5, row });
+    expect(select).not.toHaveBeenCalled();
+    dialog.cancelDialog();
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
   it("wraps at both ends of the current results without opening until confirmed", () => {
     const { dialog, select, text } = fixture();
     dialog.handleInput("\u001b[A");

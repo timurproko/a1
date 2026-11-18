@@ -1,15 +1,16 @@
 import { DynamicBorder } from "../startup-public.js";
-import { Container, getKeybindings, Input, Spacer, Text, type Component } from "@earendil-works/pi-tui";
+import { Container, getKeybindings, Input, Spacer, Text } from "@earendil-works/pi-tui";
+import { ownedDialogPort } from "./dialog-mouse.js";
+import { PiDialogChoice, paintPiDialogText } from "./dialog-choice.js";
 import { addPiModalHeader, addPiModalSearchInput, adoptPiModalFrame } from "./modal-frame.js";
 import {
   DIALOG_CLOSE_SHORTCUT_HINT,
   paintPiBorder,
   PINNED_PI_LAYOUT,
   piTheme,
-  renderPiModalListRow,
   renderPiModalShortcutHints,
 } from "./theme.js";
-import { componentPort, ensureTheme, piShellTruncateToWidth, piShellVisibleWidth, type PiShellComponentPort } from "./shell-shared-facade.js";
+import { ensureTheme, piShellTruncateToWidth, piShellVisibleWidth, type PiShellComponentPort } from "./shell-shared-facade.js";
 import { skillMatchesQuery, type PiShellSkillSummary } from "./skills-command.js";
 
 export interface PiShellSkillsSelectorOptions {
@@ -27,21 +28,6 @@ class ClippedLine {
   render(width: number): string[] {
     const line = piShellTruncateToWidth(this.#text.split("\n", 1)[0] ?? "", width);
     return [line + " ".repeat(Math.max(0, width - piShellVisibleWidth(line)))];
-  }
-}
-
-class SkillRow implements Component {
-  readonly #content: string;
-  readonly #selected: boolean;
-
-  constructor(content: string, selected: boolean) {
-    this.#content = content;
-    this.#selected = selected;
-  }
-
-  invalidate(): void {}
-  render(width: number): string[] {
-    return [renderPiModalListRow(this.#content, width, this.#selected)];
   }
 }
 
@@ -137,8 +123,8 @@ class SkillsSelectorComponent extends Container {
       const skill = this.#filtered[index]!;
       const selected = index === this.#selectedIndex;
       const label = skill.name;
-      const content = `${selected ? theme.fg("accent", "→ ") : "  "}${selected ? theme.fg("text", label) : label}`;
-      this.#listContainer.addChild(new SkillRow(content, selected));
+      this.#listContainer.addChild(new PiDialogChoice(hovered => `${selected ? piTheme().fg("accent", "→ ") : "  "}${hovered || selected ? paintPiDialogText(hovered, "text", label) : label}`,
+        selected, () => this.#onSelect(skill.name)));
     }
     if (start > 0 || end < this.#filtered.length) {
       this.#listContainer.addChild(new Text(theme.fg("muted", `  (${this.#selectedIndex + 1}/${this.#filtered.length})`), 0, 0));
@@ -154,5 +140,5 @@ class SkillsSelectorComponent extends Container {
 
 export function createPiShellSkillsSelector(options: PiShellSkillsSelectorOptions): PiShellComponentPort {
   ensureTheme();
-  return componentPort(new SkillsSelectorComponent(options));
+  return ownedDialogPort(new SkillsSelectorComponent(options), options.onCancel);
 }

@@ -30,6 +30,8 @@ export interface ViewportPointerPorts {
   inputGeometryReady(): boolean;
   /** The topmost overlay or input surface under a cell. */
   modalAt(column: number, row: number): TerminalPointerSurface | undefined;
+  /** Top painted surface, including when the pointer is outside its bounds. */
+  topSurface(): TerminalPointerSurface | undefined;
   /** The editor rows of the most recent composition. */
   editorFrame(): { readonly rowStart: number; readonly rowEnd: number } | undefined;
   tailControl(): TailControl | undefined;
@@ -85,6 +87,7 @@ export class ViewportPointerGestures {
   #pendingEditorClick: { readonly column: number; readonly row: number } | undefined;
   #position: { readonly column: number; readonly row: number } | undefined;
   #hoveredHyperlinkKey: string | undefined;
+  #hoverSurface: TerminalPointerSurface | undefined;
 
   constructor(ports: ViewportPointerPorts) {
     this.#ports = ports;
@@ -105,11 +108,13 @@ export class ViewportPointerGestures {
 
   /** No pointer position or hovered link is remembered. */
   get idle(): boolean {
-    return this.#position === undefined && this.#hoveredHyperlinkKey === undefined;
+    return this.#position === undefined && this.#hoveredHyperlinkKey === undefined && this.#hoverSurface === undefined;
   }
 
   /** Forget every latch. */
   clear(): void {
+    this.#hoverSurface?.component.clearMouseHover?.();
+    this.#hoverSurface = undefined;
     this.#dragGrabOffset = null;
     this.#dockSuppressed = false;
     this.#tailSuppressed = false;
@@ -164,6 +169,23 @@ export class ViewportPointerGestures {
     if (this.#owner === "drain" || !this.#ports.inputGeometryReady()) {
       if (event.kind === "release") this.#owner = undefined;
       else if (event.kind === "press") this.#owner = "drain";
+      return true;
+    }
+    if (this.#hoverSurface?.component !== overModal?.component) {
+      this.#hoverSurface?.component.clearMouseHover?.();
+      outcome.repaint ||= this.#hoverSurface !== undefined;
+    }
+    this.#hoverSurface = overModal;
+    const top = this.#ports.topSurface();
+    if (this.#owner === undefined && event.kind === "press" && event.button === 0
+      && top?.component.cancelDialog !== undefined && overModal?.component !== top.component) {
+      // Invariant: cancellation owns the whole gesture, even if it synchronously replaces the surface.
+      this.#owner = "drain";
+      this.#ports.stopSelectionAutoScroll();
+      viewport.clearSelection();
+      top.component.clearMouseHover?.();
+      top.component.cancelDialog();
+      outcome.repaint = true;
       return true;
     }
     const owner = !wheel && this.#owner !== undefined ? this.#owner : overModal;

@@ -3,7 +3,7 @@ import type { OwnedUiShellComponentPort } from "../../../contracts/owned-ui/inde
 
 /** Defers optional selector code while retaining focus, early input and cancellation. */
 export function deferredSelector(load: () => Promise<OwnedUiShellComponentPort>, cancel: () => void,
-  options: { readonly placeholder?: OwnedUiShellComponentPort; readonly deferInterrupt?: boolean } = {},
+  options: { readonly placeholder?: OwnedUiShellComponentPort; readonly deferInterrupt?: boolean; readonly cancelOnOutside?: boolean } = {},
 ): OwnedUiShellComponentPort {
   let delegate: OwnedUiShellComponentPort | undefined;
   let closed = false;
@@ -26,19 +26,24 @@ export function deferredSelector(load: () => Promise<OwnedUiShellComponentPort>,
   return {
     ready,
     render: width => {
+      if (closed) return [];
       lastWidth = width;
       return delegate?.render(width) ?? (failure === undefined ? options.placeholder?.render(width) ?? [] : [failure.slice(0, width)]);
     },
     invalidate: () => delegate?.invalidate(),
     handleInput: data => {
+      if (closed) return;
       if (delegate !== undefined) delegate.handleInput?.(data);
       else if (data === "\u001b" || data === "\u0003" && !options.deferInterrupt) cancel();
       else if (pending.length < 32) pending.push(data);
     },
     handleLocalMouse: event => {
+      if (closed) return;
       if (delegate !== undefined) delegate.handleLocalMouse?.(event);
       else if (pending.length < 32) pending.push(event);
     },
+    clearMouseHover: () => delegate?.clearMouseHover?.(),
+    ...(options.cancelOnOutside === false ? {} : { cancelDialog: cancel }),
     setFocused: value => { focused = value; delegate?.setFocused?.(value); options.placeholder?.setFocused?.(value); },
     dispose: () => { closed = true; pending.length = 0; delegate?.dispose?.(); options.placeholder?.dispose?.(); },
   };

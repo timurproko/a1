@@ -14,21 +14,9 @@ import {
 import type { OwnedUiShellComponentPort } from "../../../contracts/owned-ui/index.js";
 import { DIALOG_CONTENT_PADDING_X, dialogFrameGeometry, insetDialogContent } from "../../../contracts/presentation/index.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints, renderPiModalListRow } from "./theme.js";
+import { clearPiDialogHover } from "./dialog-hover.js";
 
 export const PI_MODAL_CONTENT_PADDING_X = DIALOG_CONTENT_PADDING_X;
-
-/** Applies standard primary/metadata roles without changing a pinned row's text or clipping. */
-export function renderPiModalSelectedPrimary(row: string, width: number, labels: readonly string[]): string {
-  const plain = stripTerminalSequences(row).trimEnd();
-  if (!plain.startsWith(" → ")) return row;
-  const primary = labels.filter(label => plain.slice(3).startsWith(label))
-    .sort((left, right) => visibleWidth(right) - visibleWidth(left))[0];
-  const length = primary === undefined ? Math.max(0, visibleWidth(plain) - 3) : visibleWidth(primary);
-  const label = stripTerminalSequences(sliceByColumn(row, 3, length));
-  const suffix = sliceByColumn(row, 3 + length, Math.max(0, visibleWidth(plain) - 3 - length));
-  const theme = piTheme();
-  return ` ${renderPiModalListRow(`${theme.fg("accent", "→ ")}${theme.fg("text", label)}${theme.fg("muted", stripTerminalSequences(suffix))}`, Math.max(0, width - 1), true)}`;
-}
 
 /** Standardizes internal legacy model/message choices without changing their controller or metadata. */
 export function standardInternalChoicePort(port: OwnedUiShellComponentPort, metadata = false): OwnedUiShellComponentPort {
@@ -123,6 +111,7 @@ export class PiModalFrame implements Component {
   readonly #bottomRule: Component;
   readonly #fullWidthContent: ReadonlySet<Component>;
   readonly #preInsetContent: ReadonlySet<Component>;
+  #mouseChildren: { component: Component; top: number; left: number; width: number; height: number }[] = [];
 
   constructor(
     topRule: Component,
@@ -139,6 +128,7 @@ export class PiModalFrame implements Component {
   }
 
   invalidate(): void {
+    this.#mouseChildren = [];
     this.#topRule.invalidate();
     for (const component of this.#content) component.invalidate();
     this.#bottomRule.invalidate();
@@ -147,17 +137,28 @@ export class PiModalFrame implements Component {
   render(width: number): string[] {
     const geometry = dialogFrameGeometry(width);
     const rows = [...this.#topRule.render(geometry.frameWidth)];
+    this.#mouseChildren = [];
     for (const component of this.#content) {
-      if (this.#fullWidthContent.has(component) || this.#preInsetContent.has(component)) {
-        rows.push(...component.render(geometry.frameWidth));
-      } else if (component instanceof Spacer) {
-        rows.push(...component.render(geometry.contentWidth));
-      } else {
-        rows.push(...component.render(geometry.contentWidth).map(row => insetDialogContent(row, geometry)));
-      }
+      const full = this.#fullWidthContent.has(component) || this.#preInsetContent.has(component);
+      const childWidth = full ? geometry.frameWidth : geometry.contentWidth;
+      const left = full || component instanceof Spacer ? 0 : PI_MODAL_CONTENT_PADDING_X;
+      const content = component.render(childWidth);
+      this.#mouseChildren.push({ component, top: rows.length, left, width: childWidth, height: content.length });
+      rows.push(...(left === 0 ? content : content.map(row => insetDialogContent(row, geometry))));
     }
     rows.push(...this.#bottomRule.render(geometry.frameWidth));
     return rows;
+  }
+
+  clearMouseHover(): void {
+    for (const component of this.#content) clearPiDialogHover(component);
+  }
+
+  handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+    const child = this.#mouseChildren.find(candidate => event.y >= candidate.top && event.y < candidate.top + candidate.height
+      && event.x >= candidate.left && event.x < candidate.left + candidate.width);
+    if (child === undefined) return undefined;
+    return child.component.handleMouse?.({ ...event, x: event.x - child.left, y: event.y - child.top, width: child.width, height: child.height });
   }
 }
 

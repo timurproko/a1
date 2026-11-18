@@ -127,6 +127,7 @@ describe("OwnedUiTerminalHost", () => {
       second.presenter.start();
       await settledFrames();
       const overlay = second.presenter.showSelector("Detached choice", [{ id: "one", label: "One" }], () => {});
+      await vi.dynamicImportSettled();
       expect(overlay.isHidden()).toBe(true);
       const statuses = terminal.programStatuses.length;
       second.engine.session.emit({ type: "agent_start" });

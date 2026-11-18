@@ -91,6 +91,9 @@ export class SessionDialogCoordinator {
         else if (presentation.terminalRuntime.legacyKeyInput(data) === "\u001b") cancel();
         else if (pending.length < 32) pending.push(data);
       },
+      handleLocalMouse: event => dialog?.handleLocalMouse?.(event),
+      clearMouseHover: () => dialog?.clearMouseHover?.(),
+      cancelDialog: cancel,
       invalidate: () => dialog?.invalidate(),
       dispose: () => { closed = true; pending.length = 0; },
     }, { width: 60, maxHeight: "100%", anchor: "center", inputCoordination: "owned", modal: true });
@@ -146,7 +149,7 @@ export class SessionDialogCoordinator {
         onCancel?.();
       },
     });
-    const handle = this.#ports.terminal.showOverlay(component, { ...OVERLAY_OPTIONS, modal: true });
+    const handle = this.#ports.terminal.showOverlay({ ...component, cancelDialog: () => { this.#close(); onCancel?.(); } }, { ...OVERLAY_OPTIONS, modal: true });
     this.#handle = handle;
     return handle;
   }

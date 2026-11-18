@@ -53,8 +53,18 @@ describe("session application switching", () => {
     try {
       shell.root.editor.setText("unfinished draft");
       terminal.input(APPS);
-      expect(await text()).toContain("Launcher");
-      terminal.input("set"); terminal.input(ENTER);
+      const launcher = await text();
+      expect(launcher).toContain("Launcher");
+      terminal.input("\u001b[<0;1;1M\u001b[<32;5;1M\u001b[<0;5;1m");
+      expect(await text()).not.toContain("Launcher");
+      expect(shell.root.viewport.hasSelection).toBe(false);
+      terminal.input(APPS);
+      const launcherRows = (await text()).split("\n");
+      const row = launcherRows.findIndex(line => line.includes("Settings"));
+      const column = launcherRows[row]!.indexOf("Settings") + 1;
+      terminal.input(`\u001b[<35;${column};${row + 1}M`);
+      expect(await text()).toContain("→ Agent");
+      terminal.input(`\u001b[<0;${column};${row + 1}M\u001b[<0;${column};${row + 1}m`);
       expect(await text()).toContain("settings");
       expect(surfaces.map(surface => surface.route)).toEqual(["settings"]);
       const scroll = shell.root.viewportPresentationEvidence().scrollTop;

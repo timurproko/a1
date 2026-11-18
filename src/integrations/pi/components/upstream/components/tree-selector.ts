@@ -12,17 +12,20 @@
  * system session entry even behind hidden metadata, single-character ellipses on both clipped edges
  * with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic
  * Type/search shortcut footers without a redundant select hint.
- * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog, owned-dialog-search-marker.
+ * Deviations: owned-dialog-independent-mouse, owned-modal-shortcut-hints, owned-session-tree-dialog,
+ * owned-dialog-search-marker.
  */
 import {
 	type Component,
 	Container,
 	type Focusable,
+  type TuiMouseEvent,
 	Input,
 	type Keybinding,
 	matchesKey,
 	Spacer,
 	sliceByColumn,
+  stripTerminalSequences,
 	Text,
 	truncateToWidth,
 	visibleWidth,
@@ -31,6 +34,8 @@ import {
 import { DynamicBorder, formatReadLineRange, type SessionTreeNode } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { addPiModalHeader, adoptPiModalFrame, renderPiModalSearchInput } from "../../modal-frame.js";
+import { DialogPointer } from "../../../../../ui/components/index.js";
+import { handlePiDialogPointer, paintPiDialogText } from "../../dialog-choice.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
 
 const theme = new Proxy({} as ReturnType<typeof piTheme>, {
@@ -174,6 +179,13 @@ interface ToolCallInfo {
 }
 
 class TreeList implements Component {
+  readonly pointer = new DialogPointer<string>();
+  clearMouseHover(): void { this.pointer.clearHover(); }
+  handleMouse(event: TuiMouseEvent) {
+    const clicked = handlePiDialogPointer(this.pointer, event);
+    if (clicked !== undefined) this.onSelect?.(clicked);
+    return { handled: true };
+  }
 	private flatNodes: FlatNode[] = [];
 	private filteredNodes: FlatNode[] = [];
 	private selectedIndex = 0;
@@ -726,6 +738,8 @@ class TreeList implements Component {
 			const flatNode = this.filteredNodes[i]!;
 			const entry = flatNode.node.entry;
 			const isSelected = i === this.selectedIndex;
+      const hovered = this.pointer.hovered === entry.id;
+      const paint = (token: Parameters<typeof theme.fg>[0], text: string) => paintPiDialogText(hovered, token, text);
 
 			// Build line: menu arrow + tree prefix + path marker + label + content
 			const cursor = isSelected ? theme.fg("accent", "→ ") : "  ";
@@ -773,15 +787,15 @@ class TreeList implements Component {
 
 			// Fold marker for nodes without connectors (roots)
 			const showsFoldInConnector = flatNode.showConnector && !flatNode.isVirtualRootChild;
-			const foldMarker = isFolded && !showsFoldInConnector ? theme.fg("accent", "⊞ ") : "";
+			const foldMarker = isFolded && !showsFoldInConnector ? paint("accent", "⊞ ") : "";
 
-			const label = flatNode.node.label ? theme.fg("accent", `[${flatNode.node.label}] `) : "";
+			const label = flatNode.node.label ? paint("accent", `[${flatNode.node.label}] `) : "";
 			const labelTimestamp =
 				this.showLabelTimestamps && flatNode.node.label && flatNode.node.labelTimestamp
-					? theme.fg("accent", `[${this.formatLabelTimestamp(flatNode.node.labelTimestamp)}] `)
+					? paint("accent", `[${this.formatLabelTimestamp(flatNode.node.labelTimestamp)}] `)
 					: "";
-			const content = this.getEntryDisplayText(flatNode.node);
-			const prefixPart = theme.fg("dim", prefix) + foldMarker;
+			const content = this.getEntryDisplayText(flatNode.node, hovered);
+			const prefixPart = paint("dim", prefix) + foldMarker;
 			const anchorCol = visibleWidth(prefixPart);
 			const gutter = cursor;
 			const body = prefixPart + label + labelTimestamp + content;
@@ -789,7 +803,14 @@ class TreeList implements Component {
 			renderedRows.push({ gutter, body, anchorCol, bodyWidth: visibleWidth(body), rightClipSuffix, isSelected });
 		}
 
-		lines.push(...renderHorizontalViewport(renderedRows, width));
+    const hovered = this.pointer.hovered;
+    const painted = renderHorizontalViewport(renderedRows, width);
+    this.pointer.replace(painted.map((row, index) => ({
+      key: this.filteredNodes[startIndex + index]!.node.entry.id, row: index + 1, columnStart: 3,
+      columnEnd: visibleWidth(stripTerminalSequences(row).trimEnd()),
+    })));
+    if (hovered !== this.pointer.hovered) return this.render(width);
+		lines.push(...painted);
 		lines.push(
 			truncateToWidth(theme.fg("muted", `  (${this.selectedIndex + 1}/${this.filteredNodes.length})`), width),
 		);
@@ -797,13 +818,13 @@ class TreeList implements Component {
 		return lines;
 	}
 
-	private getEntryDisplayText(node: SessionTreeNode): string {
+	private getEntryDisplayText(node: SessionTreeNode, hovered = false): string {
 		const entry = node.entry;
 		let result: string;
 
 		const normalize = (s: string) => s.replace(/[\n\t]/g, " ").trim();
-		const primary = (color: Parameters<typeof theme.fg>[0], text: string) => theme.fg(color, text);
-		const description = (text: string, color: Parameters<typeof theme.fg>[0] = "muted") => theme.fg(color, text);
+		const primary = (color: Parameters<typeof theme.fg>[0], text: string) => paintPiDialogText(hovered, color, text);
+		const description = (text: string, color: Parameters<typeof theme.fg>[0] = "muted") => paintPiDialogText(hovered, color, text);
 
 		switch (entry.type) {
 			case "message": {
@@ -870,7 +891,7 @@ class TreeList implements Component {
 			case "session_info":
 				result = entry.name
 					? primary("dim", `[title: ${entry.name}]`)
-					: [theme.fg("dim", "[title: "), theme.italic(theme.fg("dim", "empty")), theme.fg("dim", "]")].join("");
+					: [primary("dim", "[title: "), theme.italic(primary("dim", "empty")), primary("dim", "]")].join("");
 				break;
 			default:
 				result = "";

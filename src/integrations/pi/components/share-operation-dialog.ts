@@ -74,7 +74,7 @@ export function createPiShellShareOperationDialog(
 ): PiShellOperationLoaderPort {
   ensureTheme();
   const dialog = new ShareOperationDialog(runtime, message, spinner);
-  return { ...componentPort(dialog), signal: dialog.signal, setMessage: message => dialog.setMessage(message) };
+  return { ...componentPort(dialog), cancelDialog: () => dialog.handleInput("\u001b"), signal: dialog.signal, setMessage: message => dialog.setMessage(message) };
 }
 
 export function createPiShellOperationLoader(

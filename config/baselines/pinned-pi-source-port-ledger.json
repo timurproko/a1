@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-17T10:19:27.467Z",
+  "recordedAt": "2026-11-18T16:11:56.988Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "b4afdddf44e059c67ccf5097e5317d913521b470",
@@ -1905,9 +1905,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "A1 PR links, name/model fitting, level colors, name reveals, dim clipping, and text-only name/model-plus-provider/level hover and direct dialog targets; Pi intact.",
+      "modifications": "A1 PR links, name/model fitting, level colors, name reveals, dim clipping, and shared foreground-only accent-blended name/model-plus-provider/level hover with direct dialog targets; Pi intact.",
       "upgradeStrategy": "three-way",
-      "localSha256": "bf533a0db912798b228ff6367629ba8e90d0771e05556b4729456b1c69d663cd",
+      "localSha256": "6d5077717c7602d398dc2f8646f5af50afcd2be970cf922ed469bf22be66175a",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1941,7 +1941,7 @@
         },
         {
           "id": "owned-footer-direct-controls",
-          "reason": "Approved improve-session-name-dialog gives visible bare-A1 name, model, and thinking-level controls text-only accent-selected hover without extra spaces and draft-preserving direct left-click dialog access.",
+          "reason": "Approved modal-mouse-interactions replaces the former bare-A1 name, model/provider, and thinking-level hover background with the shared 40% accent foreground blend, preserving exact text spans, normal semantic color bases, and draft-preserving direct left-click dialog access.",
           "upstreamBehavior": "Comparison and extension-replaced footers remain noninteractive. Absent names/models, suppressed levels, separators, and neighboring metadata acquire no fabricated target.",
           "acceptanceTest": "test/app/session-shell/footer-name-interaction.test.ts"
         },
@@ -2215,8 +2215,14 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Adapt the provider controller to injected neutral options, shared framing, live roles, Title Case and circular navigation. Configured status uses a muted dot, success-green configured text and trailing checkmark without method/source qualifiers. Omit decorative preferred-partner badges while retaining filtering, paging, actions and comparison presentation.",
       "upgradeStrategy": "three-way",
-      "localSha256": "e6241d3b70c2ea7f83fbeb43a32c9f5dc9842a39ea4bd01e8973b727a3e763c8",
+      "localSha256": "00d9f8a51c932c2c3b2eae783220bd27d109a6a85ef18c10edd9ecf6c6443cee",
       "approvedDeviations": [
+        {
+          "id": "owned-dialog-independent-mouse",
+          "reason": "Bare A1 adds explicit clicked-choice actions and blended text-only hover independent of keyboard selection; the owned host cancels on outside primary presses without click-through.",
+          "upstreamBehavior": "The comparison profile retains its pinned component and keyboard behavior.",
+          "acceptanceTest": "test/integrations/pi/components/dialog-mouse.test.ts"
+        },
         {
           "id": "standard-sign-in-dialog-styling",
           "reason": "Internal provider selectors use Title Case, standard selection, circular navigation, success-green configured status and no decorative preferred-partner badges.",
@@ -2461,8 +2467,14 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal frame with standalone title, standard outer rules, stable filter/status row, progressive result paging, aligned result columns, Session Tree selection roles, quiet in-field query syntax guidance, an accent dialog-search marker, and one-line bottom dynamic feedback and searchable-dialog shortcut footer. Selected session rows use the blue selection surface while preserving title and metadata foregrounds; the active session title uses success green independently of keyboard selection, with ordinary text weight.",
       "upgradeStrategy": "three-way",
-      "localSha256": "302ce0827a0134eefbe15a8810eefed0840bf3b8c3da6b22abe266df58c3164c",
+      "localSha256": "05b47fb3d9cf567890b00fd4fa28bea7a510ad14efe6505d22ec37b50c5290d6",
       "approvedDeviations": [
+        {
+          "id": "owned-dialog-independent-mouse",
+          "reason": "Bare A1 activates clicked sessions directly and blends hovered title/metadata text toward accent without moving keyboard selection; outside presses cancel through the owning lifecycle.",
+          "upstreamBehavior": "Comparison input routing and existing search, rename, delete, progressive loading, and keyboard actions remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/dialog-mouse.test.ts"
+        },
         {
           "id": "owned-modal-shortcut-hints",
           "reason": "Bare A1 distinguishes shortcut keys from action names and separates modal hint entries with whitespace instead of dots.",
@@ -2794,8 +2806,14 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing it directly below the top rule through the shared compact padded modal frame and its muted hint directly below it, deduplicating levels, and rendering exclusive radio-style default markers before level names, an item-adjacent active checkmark, and aligned muted descriptions. Bare A1 persists defaults immediately on Space, closes through the implicit Ctrl+C-capable selection-cancel action, and uses the shared compact semantic shortcut row with Type/search guidance and an accent search marker without advertising that alias. All list and border colors use the owned theme and its explicit color mode. Selected rows use the shared bare-A1 blue selection surface only around the rendered item span, with the existing accent arrow, normal-text level, and preserved current/default/description roles. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "8d7b9e4329e0f4783982599fa0cade9e5ff65c32e7276416284f0e68a3b251a5",
+      "localSha256": "587eb2f2ed5dfb57382ec96f5a994fbaf42799fc828cbc123c4947ec590dd960",
       "approvedDeviations": [
+        {
+          "id": "owned-dialog-independent-mouse",
+          "reason": "Bare A1 activates clicked levels directly and uses blended text-only mouse hover independently from its keyboard-active row and default/current markers.",
+          "upstreamBehavior": "The comparison profile retains the public pinned selector; keyboard default actions and level authority remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/dialog-mouse.test.ts"
+        },
         {
           "id": "owned-modal-shortcut-hints",
           "reason": "Bare A1 distinguishes shortcut keys from action names and separates modal hint entries with whitespace instead of dots.",
@@ -2959,8 +2977,14 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation excluding internal bookkeeping, a standard accent-marked search input, blue full-row menu-arrow selection that preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed timestamps, numeric result counters without duplicate label-time status, and a stateful time on/off shortcut, semantic role colors with session naming for the system root, standard paging/first-last/non-root containing-branch folding keys with a permanently expanded system session entry even behind hidden metadata, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic Type/search shortcut footers without a redundant select hint.",
       "upgradeStrategy": "three-way",
-      "localSha256": "64028141da54824cefd1ada446e0fc479e33bc710e9ee23221e435c9985a2fbd",
+      "localSha256": "ffe5c8c2d07f6ec0b1bd3adf5b8913bf91a49cfe9812688a79c6b6a40605f60f",
       "approvedDeviations": [
+        {
+          "id": "owned-dialog-independent-mouse",
+          "reason": "Bare A1 navigates to clicked tree entries directly, with geometry-matched independent text-only hover and owned outside cancellation.",
+          "upstreamBehavior": "Comparison input routing and existing tree search, filters, folding, labels, copy, and keyboard selection remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/dialog-mouse.test.ts"
+        },
         {
           "id": "owned-modal-shortcut-hints",
           "reason": "Bare A1 distinguishes shortcut keys from action names and separates modal hint entries with whitespace instead of dots.",
@@ -3018,8 +3042,14 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized trust port with injected public options and shared framing; bare A1 opts into Title Case, selected backgrounds, circular navigation, aligned decisions and no saved-path suffix while comparison styling and trust effects remain unchanged.",
       "upgradeStrategy": "three-way",
-      "localSha256": "3179a87dfb8b4e15ce6d2e1ded1b402d488f179eb84874c20b01933effb667ba",
+      "localSha256": "1d7064ad95e0dfdd25e09af450ab7e3beaa0a989d446393b8adcfef753c1cec2",
       "approvedDeviations": [
+        {
+          "id": "owned-dialog-independent-mouse",
+          "reason": "Bare A1 dispatches explicit clicked trust choices and adds text-only blended hover without steering keyboard selection; outside cancellation does not accept a trust decision.",
+          "upstreamBehavior": "Comparison styling, trust persistence authority, and keyboard decisions remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/dialog-mouse.test.ts"
+        },
         {
           "id": "owned-modal-shortcut-hints",
           "reason": "Bare A1 distinguishes shortcut keys from action names and separates modal hint entries with whitespace instead of dots.",

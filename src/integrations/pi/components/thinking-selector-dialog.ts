@@ -1,5 +1,6 @@
 import { ThinkingSelectorComponent } from "../startup-public.js";
 import { OwnedThinkingSelectorComponent, type ThinkingSelectorLevel } from "./upstream/components/thinking-selector.js";
+import { ownedDialogPort } from "./dialog-mouse.js";
 import { componentPort, ensureTheme, type PiShellComponentPort } from "./shell-shared-facade.js";
 
 interface PiShellThinkingSelectorPresentation {
@@ -37,7 +38,7 @@ export function createPiShellThinkingSelector(
       onSelectAsDefault,
       defaultLevel,
     );
-    return { ...componentPort(selector, data => selector.handleInput(data)), footerControl: "thinking" };
+    return { ...ownedDialogPort(selector, onCancel, data => selector.handleInput(data)), footerControl: "thinking" };
   }
   const selector = new ThinkingSelectorComponent(currentLevel, [...availableLevels], onSelect, onCancel, onSelectAsDefault, defaultLevel);
   const list = selector.getSelectList();

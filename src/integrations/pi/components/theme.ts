@@ -11,7 +11,7 @@ import {
   type UiThemeToken,
 } from "../../../contracts/presentation/index.js";
 import { renderFloatingDialogSurface } from "../../../ui/components/spans.js";
-import { stripTerminalSequences, truncateToWidth, type MarkdownTheme, type SelectListTheme } from "@earendil-works/pi-tui";
+import { foregroundAnsi, mixColors, stripTerminalSequences, truncateToWidth, type MarkdownTheme, type SelectListTheme } from "@earendil-works/pi-tui";
 import { getMarkdownTheme } from "../startup-public.js";
 import { onPiThemeChange, piTheme, renderPiAccentPreview } from "./upstream/theme/theme.js";
 
@@ -36,10 +36,17 @@ export function paintPiFloatingDialog(text: string): string {
   return renderFloatingDialogSurface(text, piTheme().getColorMode());
 }
 
+/** The same hover blend for every Pi semantic foreground, including richer selector metadata roles. */
+export function paintPiDialogHover(token: Parameters<ReturnType<typeof piTheme>["fg"]>[0], text: string): string {
+  const theme = piTheme();
+  return `${foregroundAnsi(mixColors(theme.colors[token], theme.colors.accent, 0.4, "srgb"), theme.getColorMode())}${text}\u001b[39m`;
+}
+
 /** The live Pi theme in neutral roles; `panel` and `disabled` default to plain and dim. */
 export function piUiTheme(options: { readonly panel?: Paint; readonly disabled?: Paint } = {}): UiTheme {
   return {
     fg: (token: UiThemeToken, text: string) => piTheme().fg(token, text),
+    hover: paintPiDialogHover,
     bold: text => piTheme().bold(text),
     plain: text => text,
     accentPreview: (color, text) => renderPiAccentPreview(color, text),

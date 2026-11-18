@@ -9,18 +9,14 @@ import type {
 } from "../../ui/components/index.js";
 import {
   GLOBAL_SCOPE,
+  DialogPointer,
   LineInput,
   PLAIN_THEME,
   ShortcutRegistry,
   assertNoShortcutConflicts,
   blockJumpTarget,
-  configureDialogChoiceCapacity,
-  configureDialogTextRows,
-  configureDialogWidth,
   numericValues,
   RAIL_COLUMNS,
-  renderCenteredDialogOverlay,
-  renderDialogPanel,
   renderEmptyState,
   renderGroupHeader,
   renderListRow,
@@ -64,7 +60,8 @@ import { SettingsSpinnerPreview } from "./settings-spinner-preview.js";
 import { SettingsEdits, replaceRecord, sameRecord } from "./settings-edits.js";
 import { SETTINGS_APP_ID } from "./settings-route.js";
 import type { SettingsSearchInput, SettingsSearchInputFactory } from "./settings-search-input.js";
-import { dialogWindow, modelDialogKey, modelDialogLines, type StructuredEdit } from "./settings-model-dialog.js";
+import { activateModelDialog, modelDialogKey, type ModelDialogActions, type StructuredEdit } from "./settings-model-dialog.js";
+import { SettingsConfigureDialog } from "./settings-configure-dialog.js";
 export { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
 const SCOPE = SETTINGS_APP_ID;
 const SETTINGS_TOP_RULE_ROWS = 1;
@@ -170,7 +167,7 @@ export class SettingsApp implements UiApp {
   #reveal: ListRowSpan | undefined;
   readonly #search: SettingsSearchState;
   #menu: ValueMenu | null = null;
-  #structured: StructuredEdit | null = null;
+  readonly #configure = new SettingsConfigureDialog();
   // Invariant: pending values remain visible until the source reflects them.
   readonly #edits: SettingsEdits;
   #bodyTopForFrame = SETTINGS_TOP_RULE_ROWS + SETTINGS_TITLE_ROWS;
@@ -192,7 +189,7 @@ export class SettingsApp implements UiApp {
     readonly dialogPanel?: (text: string) => string;
   }) {
     this.#session = session;
-    this.#edits = new SettingsEdits(session, () => this.#structured);
+    this.#edits = new SettingsEdits(session, () => this.#configure.open);
     this.#options = {
       dialogPanel: options.dialogPanel ?? null,
     };
@@ -216,6 +213,7 @@ export class SettingsApp implements UiApp {
     this.#search.input?.setFocused(false);
     this.#search.input = null;
     this.#rail.dispose();
+    this.#configure.dispose();
   }
 
   render(rect: PaneRect, host: AppHostServices): readonly string[] {
@@ -308,13 +306,17 @@ export class SettingsApp implements UiApp {
       rect,
       reservesRail ? RAIL_COLUMNS : 0,
     );
-    const complete = frame.slice(0, rect.height).concat(Array(Math.max(0, rect.height - frame.length)).fill("")), open = this.#structured, dialogTheme: UiTheme = this.#options.dialogPanel === null ? theme : { ...theme, panel: this.#options.dialogPanel };
-    return open === null ? complete : renderCenteredDialogOverlay(complete, this.#dialogLines(open, configureDialogWidth(rect.width), rect.height, dialogTheme), rect, dialogTheme);
+    const complete = frame.slice(0, rect.height).concat(Array(Math.max(0, rect.height - frame.length)).fill(""));
+    const dialogTheme: UiTheme = this.#options.dialogPanel === null ? theme : { ...theme, panel: this.#options.dialogPanel };
+    const open = this.#configure.open;
+    return this.#configure.render(complete, rect, dialogTheme, open === null ? "" : labelOf(open.entry), SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE), {
+      appearance: this.#scrollbarAppearance(), style: this.#scrollbarStyle(), speed: this.#scrollbarSpeed(), requestRender: () => host.requestRender(),
+    });
   }
 
   onInput(data: string, host: AppHostServices): PaneInputResult {
     if (data === "\u0003" && this.#search.input === null) return { consumed: false };
-    if (this.#structured !== null) return this.#structuredKey(data);
+    if (this.#configure.open !== null) return this.#structuredKey(data);
     if (this.#menu !== null) return this.#menuKey(data);
     if (this.#search.input !== null) return this.#filterKey(data);
 
@@ -380,6 +382,14 @@ export class SettingsApp implements UiApp {
   }
 
   onMouse(event: PaneMouseEvent, host: AppHostServices): PaneInputResult {
+    const dialog = this.#configure.pointer(event, host.getSize());
+    if (dialog !== null) {
+      if (dialog.clicked === undefined) return dialog;
+      const open = this.#configure.open;
+      if (open !== null && open.modelDialog !== null) return activateModelDialog(open, dialog.clicked, this.#modelDialogActions());
+      this.#toggleFlag(dialog.clicked);
+      return { consumed: true };
+    }
     const searchPointer = handleSettingsSearchPointer(this.#search, event, this.#panelTopForFrame);
     if (searchPointer !== null) return searchPointer;
 
@@ -429,14 +439,10 @@ export class SettingsApp implements UiApp {
         this.#scroll = Math.max(0, this.#scroll + (event.kind === "wheel-down" ? distance : -distance));
         return { consumed: true };
       }
-      if (this.#structured === null) return { consumed: false };
+      if (this.#configure.open === null) return { consumed: false };
     }
 
-    if (this.#structured !== null) {
-      // Invariant: the structured surface is keyboard-only. Non-content-wheel pointer reports
-      // cannot change its selection or act on the Settings list behind it.
-      return { consumed: true, render: false };
-    }
+    if (this.#configure.open !== null) return { consumed: true, render: false };
 
     const rail = this.#rail.pointer(event, this.#scroll);
     if (rail.scroll !== undefined) this.#scroll = rail.scroll;
@@ -539,8 +545,11 @@ export class SettingsApp implements UiApp {
     this.#hoverRegion = "label";
     this.#rail.clear();
     const currentDefault = typeof entry.rawValue === "string" ? entry.rawValue : null;
-    this.#structured = {
+    this.#configure.invalidate();
+    this.#configure.open = {
       entry,
+      pointer: new DialogPointer<number>(),
+      windowStart: 0,
       flags: entry.flags.map(flag => flag.key),
       modelDialog,
       filter: modelDialog === null ? null : new LineInput(""),
@@ -554,19 +563,13 @@ export class SettingsApp implements UiApp {
   }
 
   #structuredKey(data: string): PaneInputResult {
-    const open = this.#structured;
+    const open = this.#configure.open;
     if (open === null) return { consumed: false };
-    if (open.modelDialog !== null) {
-      return modelDialogKey(open, data, KEYS[data] ?? data, {
-        session: this.#session,
-        close: () => { this.#structured = null; },
-        reopen: reopened => { this.#structured = reopened; },
-        save: (edit, previous, forward) => { this.#saveStructured(edit, previous, forward); },
-      });
-    }
+    this.#configure.invalidate();
+    if (open.modelDialog !== null) return modelDialogKey(open, data, KEYS[data] ?? data, this.#modelDialogActions());
     switch (SETTINGS_SHORTCUTS.resolve(KEYS[data] ?? data, DIALOG_SCOPE)) {
       case "close":
-        this.#structured = null;
+        this.#configure.open = null;
         return { consumed: true };
       case "part-previous":
         open.index = wrapChoiceIndex(open.index, -1, open.flags.length);
@@ -585,8 +588,17 @@ export class SettingsApp implements UiApp {
     }
   }
 
+  #modelDialogActions(): ModelDialogActions {
+    return {
+      session: this.#session,
+      close: () => { this.#configure.open = null; this.#configure.invalidate(); },
+      reopen: open => { this.#configure.open = open; this.#configure.invalidate(); },
+      save: (open, previous, forward) => this.#saveStructured(open, previous, forward),
+    };
+  }
+
   #toggleFlag(index: number): void {
-    const open = this.#structured;
+    const open = this.#configure.open;
     const flag = open?.flags[index];
     if (open === null || open === undefined || flag === undefined) return;
     const previous = { ...open.record };
@@ -608,7 +620,7 @@ export class SettingsApp implements UiApp {
   ): void {
     // Concurrency: only roll back the dialog if no later press has moved the record on.
     this.#edits.saveStructured(open.entry, previous, forward, () => {
-      if (this.#structured === open && sameRecord(open.record, forward)) replaceRecord(open.record, previous);
+      if (this.#configure.open === open && sameRecord(open.record, forward)) replaceRecord(open.record, previous);
     });
   }
 
@@ -857,25 +869,6 @@ export class SettingsApp implements UiApp {
     });
     this.#menuFrame = frame;
     return renderValueMenu(lines, state, frame, theme);
-  }
-
-  #dialogLines(open: StructuredEdit, width: number, height: number, theme: UiTheme): readonly string[] {
-    if (open.modelDialog !== null) return modelDialogLines(open, width, height, theme);
-    const rows = open.flags.map(key => {
-      const declared = open.entry.flags.find(flag => flag.key === key);
-      return {
-        label: declared?.label ?? humanizeLabel(key),
-        // Protocol: the engine writes toggles as the booleans they are rather than as yes/no; a choice shows its word.
-        value: declared?.choices === undefined ? ((open.record[key] ?? false) ? "true" : "false") : String(open.record[key] ?? declared.fallback),
-        ...(declared?.description === undefined ? {} : { description: declared.description }),
-      };
-    });
-    const visible = dialogWindow(
-      rows,
-      open.index,
-      configureDialogChoiceCapacity(height, false, configureDialogTextRows(rows[open.index]?.description ?? "", width)),
-    );
-    return renderDialogPanel({ title: labelOf(open.entry), rows: visible.rows, index: visible.index, hint: SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE) }, width, theme);
   }
 
   #footerLines(width: number, theme: UiTheme): readonly string[] {

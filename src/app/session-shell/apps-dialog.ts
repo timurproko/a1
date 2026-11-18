@@ -1,5 +1,5 @@
 import { wrapChoiceIndex, type TerminalComponentPort } from "../../contracts/presentation/index.js";
-import { LineInput, handleLineInputKey, ShortcutRegistry, configureDialogChoiceCapacity, renderSteppedDialogPanel, type UiTheme } from "../../ui/components/index.js";
+import { DialogPointer, type PaneMouseEvent, LineInput, handleLineInputKey, ShortcutRegistry, configureDialogChoiceCapacity, renderSteppedDialogPanel, type UiTheme } from "../../ui/components/index.js";
 
 const APPS = [
   { id: "agent", label: "Agent" },
@@ -19,6 +19,8 @@ SHORTCUTS.declare({ key: "escape", scope: SCOPE, description: "Close Launcher", 
 export class AppsDialog implements TerminalComponentPort {
   readonly #input = new LineInput();
   #index = 0;
+  readonly #pointer = new DialogPointer<number>();
+  #visibleStart = 0;
   readonly ports: {
     theme(): UiTheme;
     height(): number;
@@ -37,7 +39,10 @@ export class AppsDialog implements TerminalComponentPort {
     const compact = height < 12;
     const capacity = compact ? Math.max(1, height - 3) : configureDialogChoiceCapacity(height, true, 0);
     const start = Math.max(0, this.#index - capacity + 1);
+    this.#visibleStart = start;
+    if (matches.length === 0) this.#pointer.invalidate();
     return renderSteppedDialogPanel({
+      ...(matches.length === 0 ? {} : { pointer: this.#pointer }),
       title: "Launcher", input: this.#input, compact,
       rows: matches.length === 0 ? [{ label: "No apps found", value: "" }]
         : matches.slice(start, start + capacity).map(app => ({ label: app.label, value: "" })),
@@ -46,7 +51,20 @@ export class AppsDialog implements TerminalComponentPort {
     }, width, this.ports.theme()).slice(0, height);
   }
 
+  clearMouseHover(): void { this.#pointer.clearHover(); }
+  cancelDialog(): void { this.ports.cancel(); }
+
+  handleLocalMouse(event: PaneMouseEvent): void {
+    const clicked = this.#pointer.handle(event);
+    if (clicked !== undefined) {
+      const app = this.#matches()[this.#visibleStart + clicked];
+      if (app !== undefined) this.ports.select(app.id);
+    }
+    this.ports.requestRender();
+  }
+
   handleInput(data: string): void {
+    this.#pointer.invalidate();
     const key = this.ports.legacyKey(data);
     const token = key === "\u001b[A" ? "up" : key === "\u001b[B" ? "down"
       : key === "\r" || key === "\n" ? "enter" : key === "\u001b" || key === "\u0003" ? "escape" : "edit";
@@ -67,5 +85,5 @@ export class AppsDialog implements TerminalComponentPort {
     this.ports.requestRender();
   }
 
-  invalidate(): void {}
+  invalidate(): void { this.#pointer.invalidate(); }
 }
