@@ -5,9 +5,18 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs, promisify } from "node:util";
 import {
-  assertImplementationOnlyProgress, assertVersion3BodyLayout, checkedImplementationPreview, declaredImplementationComplete, parseImplementationAcceptanceScenarios, parseImplementationProgress,
+  assertImplementationOnlyProgress, parseImplementationAcceptanceScenarios, parseImplementationProgress,
 } from "./openspec-acceptance-checklist.mjs";
 import { archiveFailure, parseImplementation } from "./openspec-archive-policy.mjs";
+
+/** Check every Implementation item so `--final` validates the body the author is about to complete. */
+function withImplementationChecked(body) {
+  let inImplementation = false;
+  return body.split("\n").map(line => {
+    if (/^##\s/.test(line.replace(/\r$/, ""))) inImplementation = line.replace(/\r$/, "") === "## Implementation";
+    return inImplementation ? line.replace(/^- \[ \] /, "- [x] ") : line;
+  }).join("\n");
+}
 
 /**
  * Apply the trusted promotion body validators to one delivery body. Reasons match the finalization run's `draft-<code>`
@@ -15,7 +24,7 @@ import { archiveFailure, parseImplementation } from "./openspec-archive-policy.m
  * checked, because the check runs before the author ticks the last one.
  */
 export function inspectDeliveryBody(body, { final = false } = {}) {
-  let complete = declaredImplementationComplete(body);
+  let complete = false;
   try {
     const implementation = parseImplementation(body);
     if (!implementation) throw archiveFailure("unassociated");
@@ -24,8 +33,7 @@ export function inspectDeliveryBody(body, { final = false } = {}) {
     if (progress.format !== "checklist") throw archiveFailure("implementation-progress-legacy-draft");
     complete = progress.complete;
     assertImplementationOnlyProgress(progress.items);
-    assertVersion3BodyLayout(body, { acceptanceRequired: complete || final });
-    if (complete || final) parseImplementationAcceptanceScenarios(final ? checkedImplementationPreview(body) : body, 3);
+    if (complete || final) parseImplementationAcceptanceScenarios(final ? withImplementationChecked(body) : body, 3);
     return { ok: true, complete };
   } catch (error) {
     if (typeof error?.archiveCode !== "string") throw error;

@@ -5,9 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { withSessionClaimSnapshot, withSessionClaimLock } from "../../../src/foundation/lifecycle/session-claim-lock.js";
 
 const gates = vi.hoisted(() => ({ held: new Set<string>(), acquire: vi.fn() }));
-vi.mock("../../../src/foundation/lifecycle/claim-gate.js", async importOriginal => ({
-  ...await importOriginal<typeof import("../../../src/foundation/lifecycle/claim-gate.js")>(),
-  tryAcquireClaimGate: (path: string) => {
+vi.mock("../../../src/foundation/lifecycle/claim-gate.js", () => ({ tryAcquireClaimGate: (path: string) => {
   gates.acquire(path);
   if (gates.held.has(path)) return null;
   gates.held.add(path);

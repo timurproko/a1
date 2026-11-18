@@ -7,7 +7,7 @@ import {
   type SessionRepositoryContextOptions, type SessionRepositoryIdentity,
 } from "./session-repository-context.js";
 import { enterSessionRepositoryWorktree } from "./session-worktree-entry.js";
-import { requestSessionWorktreeCompletion, requestSessionWorktreeLocalRemoval } from "./session-worktree-completion.js";
+import { requestSessionWorktreeCompletion } from "./session-worktree-completion.js";
 
 import type { WorktreeControlRequest as SessionWorktreeControlRequest, WorktreeControlOutcome as SessionWorktreeControlOutcome } from "../../contracts/agent-engine/index.js";
 export type { WorktreeControlRequest as SessionWorktreeControlRequest, WorktreeControlOutcome as SessionWorktreeControlOutcome } from "../../contracts/agent-engine/index.js";
@@ -26,7 +26,6 @@ export async function executeSessionWorktreeControl(
     return { kind: "unlinked", cwd: await readSessionStartupRoot(identity) };
   }
   if (request.action === "complete-worktree") return { kind: "completing", ...await requestSessionWorktreeCompletion(identity, request, options) };
-  if (request.action === "remove-local-worktree") return { kind: "completing", ...await requestSessionWorktreeLocalRemoval(identity, options) };
   if (request.action === "worktrees") return { kind: "worktrees", entries: await listSessionRepositoryWorktrees(identity, { ...options, ...(request.repo === undefined ? {} : { repo: request.repo }) }) };
   const startupDirectory = await readSessionStartupRoot(identity);
   try {
@@ -95,7 +94,7 @@ function parseRequest(value: unknown): SessionWorktreeControlRequest {
     : request.action === "enter-worktree" ? text("branch") && optional("base") && optional("repo")
     : request.action === "complete-worktree" ? optional("change") && (request.pr === undefined || Number.isSafeInteger(request.pr) && Number(request.pr) > 0)
     : request.action === "worktrees" ? optional("repo")
-    : request.action === "unlink-worktree" || request.action === "worktree-status" || request.action === "remove-local-worktree";
+    : request.action === "unlink-worktree" || request.action === "worktree-status";
   if (!valid) throw new Error("invalid worktree control request");
   return value as SessionWorktreeControlRequest;
 }

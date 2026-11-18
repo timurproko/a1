@@ -26,7 +26,7 @@ npm run test:full                  # complete deduplicated local composition
 npm run test:release               # release gates; publication authority is unchanged
 ```
 
-Validation policy is [Shared delivery rules R06](delivery-rules.md#r06---validation-and-readiness-structure). Focused command examples:
+Before a push, run only quick targeted checks of what changed; CI after the pull request becomes ready is the validation authority:
 
 ```bash
 npm run typecheck                          # type check
@@ -34,7 +34,7 @@ npx vitest run <changed test files...>     # tests covering the changed code
 npx openspec validate <change> --strict    # the OpenSpec change
 ```
 
-Preflight is an optional diagnostic command, not a substitute for current-head CI:
+Do not run preflight, `test:fast`, `test:full`, `test:release`, or directory-wide test runs before pushing. They are for reproducing a failure CI reported, or when the maintainer asks. Preflight is the optional tool for reproducing a fast-gate failure:
 
 ```bash
 npm run preflight                  # pull-request validation's fast gates on the committed head
@@ -42,7 +42,7 @@ npm run preflight                  # pull-request validation's fast gates on the
 
 Preflight selects the committed merge-base diff with `origin/develop` exactly as validation does (uncommitted paths are reported, not checked), writes it to `.artifacts/validation/local-impact.json`, and stops at the first failure. It runs the core job's install build and receipt, `typecheck`, `check:architecture`, changed-file code documentation, release documentation, changed-file naming, docs governance, strict OpenSpec validation with the workflow's pinned validator, and the core job's `pr-core-tests` and `pr-selected-tests` scopes. Each step invokes the script and arguments its workflow job runs, so a failure reports the same rule identifier and path. It does not run resource-sensitive or integration owners, and CI remains the authority.
 
-`test:pr-core` is not a replacement for `test:fast`: CI combines it with directly changed and coarse-owner tests from the exact impact selection. Selected resource-sensitive tests run independently on an isolated Windows runner. The real SQLite-worker prompt-history composition suite belongs to this serial partition rather than competing with ordinary parallel suites; its five-second snapshot/default deadlines and explicit fifteen-second cases stay unchanged. The isolated worktree gate-recovery package wrapper also belongs to this mandatory serial partition; it exercises actual Windows holder/descendant death and concurrent/crashed recovery with ordinary Node and fresh packed modules. Its new wrapper uses the existing 240/250-second worker/wrapper convention, without changing any older deadline. Selected package, startup, rendering, Pi, compatibility, and platform owners also run independently after their actual prerequisites.
+`test:pr-core` is not a replacement for `test:fast`: CI combines it with directly changed and coarse-owner tests from the exact impact selection. Selected resource-sensitive tests run independently on an isolated Windows runner. Selected package, startup, rendering, Pi, compatibility, and platform owners also run independently after their actual prerequisites.
 
 Conservative Development retains every critical owner floor and the small set of `pull-request` integration owners, while scheduling only directly affected `direct-impact` owners and deferring all exhaustive owners. The complete regression implementation runs inside a PR only when base policy verifies an `openspec-ci` App-created repair, its generated candidate identity, and a failed Full regression source in `regression-provenance.json`. Publishing/prerequisite/validation-authority impact, shared inputs, unknown paths, labels, Publish-only repairs, and successful-run persistent-overrun candidates retain bounded ordinary validation. Planning-only generated repair drafts stay exempt; eligible implementation drafts get feedback without integration authority. The selected exact-head evidence must include Windows Node 22/24, Linux Node 24, and macOS Node 24. Full regression and nightly/stable release retain both cadence classes and the same coverage through the shared implementation. The real three-release `update-predecessor` exact-package oracle is exhaustive; deterministic predecessor command, fixture, materialization, warmup, package, and update contracts remain PR-eligible. Preview and release continue to consume exact candidate bytes under their channel-specific contracts. A standalone manual Full regression remains useful for diagnosis or an unselected candidate, but never replaces automatically selected current-PR evidence. The generated ownership ledger command is:
 

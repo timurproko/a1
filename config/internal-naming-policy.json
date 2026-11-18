@@ -2,14 +2,6 @@
   "schema": "internal-naming-policy-v1",
   "environment": [
     {
-      "role": "worktreeCleanupReservation",
-      "key": "WORKTREE_CLEANUP_RESERVATION",
-      "exposure": "private",
-      "owner": "src/foundation/lifecycle/worktree-claim-boundary.mjs",
-      "evidence": "docs/features/worktrees.md",
-      "semantics": "Private nonce and exact approval delegated only to participating cleanup descendants; not user configuration or independent cleanup authority"
-    },
-    {
       "role": "configDir",
       "key": "A1_CONFIG_DIR",
       "exposure": "public",
@@ -355,36 +347,6 @@
     }
   ],
   "externalMembers": [
-    {
-      "name": "a1",
-      "path": "scripts/governance/delivery-contract.mjs",
-      "reason": "Frozen portable-delivery-v1 repository key in docs/delivery-adapters.json"
-    },
-    {
-      "name": "a1",
-      "path": "scripts/governance/delivery-control.mjs",
-      "reason": "Frozen portable-delivery-v1 repository key in docs/delivery-adapters.json"
-    },
-    {
-      "name": "a1",
-      "path": "scripts/governance/delivery-case-verifier.mjs",
-      "reason": "Frozen portable-delivery-v1 expectByRepository key in docs/delivery-cases.json"
-    },
-    {
-      "name": "a1",
-      "path": "test/repository-governance/portable-delivery-cases.node.mjs",
-      "reason": "Frozen portable-delivery-v1 repository key in docs/delivery-adapters.json"
-    },
-    {
-      "name": "a1InstallationRequired",
-      "path": "test/repository-governance/delivery-progress.node.mjs",
-      "reason": "Frozen portable-delivery-v1 C13 serialized observation field in docs/delivery-cases.json"
-    },
-    {
-      "name": "a1InstallationRequired",
-      "path": "test/repository-governance/portable-delivery-cases.node.mjs",
-      "reason": "Frozen portable-delivery-v1 C13 serialized observation field in docs/delivery-cases.json"
-    },
     {
       "name": "a1ParityBaselineCommit",
       "path": "test/repository-governance/pi-parity-evidence.test.ts",

@@ -2,12 +2,10 @@ import { randomUUID } from "node:crypto";
 import { lstat, mkdir, open, readdir, realpath, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import type { ClaimGateHandle } from "./claim-gate-core.mjs";
-import { retryClaimGateContention, tryAcquireClaimGate } from "./claim-gate.js";
+import { tryAcquireClaimGate } from "./claim-gate.js";
 
 interface ClaimLockOptions { readonly signal?: AbortSignal; readonly lockTimeoutMs?: number }
 const FILES = new Set(["owner.json", "owner.next", "recovery.json", "recovery.next"]);
-const BUSY_GATE = "global gate is busy; use supported gate inspect/recover, never PID/age eviction. See docs/worktree-consumer-verification.md";
 
 /** Read a consistent claim snapshot without publishing or repairing mutation metadata. */
 export async function withSessionClaimSnapshot<T>(directory: string, options: ClaimLockOptions, operation: () => Promise<T>): Promise<T> {
@@ -35,9 +33,9 @@ export async function withSessionClaimSnapshot<T>(directory: string, options: Cl
       } catch (error) {
         if (error instanceof Error && (error.name === "AbortError" || ("code" in error && String(error.code).startsWith("worktree-")))) throw error;
         throw failure("worktree-coordination-io", "cannot read worktree coordination; check permissions and filesystem availability", error);
-      } finally { await retryClaimGateContention(() => gate.release()); }
+      } finally { gate.release(); }
     }
-    if (Date.now() >= deadline) throw failure("worktree-claim-busy", BUSY_GATE);
+    if (Date.now() >= deadline) throw failure("worktree-claim-busy", "worktree coordination did not settle within the operation budget; no worktree ownership was changed");
     await delay(20, undefined, { signal: options.signal });
   }
 }
@@ -59,15 +57,14 @@ export async function withSessionClaimLock<T>(directory: string, options: ClaimL
   const authority = join(canonical, "mutation.authority");
   const barrier = join(canonical, "mutation.lock");
   const deadline = Date.now() + (options.lockTimeoutMs ?? 2_000);
-  let gate: ClaimGateHandle | undefined;
+  let gate;
   while (gate === undefined) {
     options.signal?.throwIfAborted();
     const acquired = tryAcquireClaimGate(authority);
     if (acquired !== null) { gate = acquired; break; }
-    if (Date.now() >= deadline) throw failure("worktree-claim-busy", BUSY_GATE);
+    if (Date.now() >= deadline) throw failure("worktree-claim-busy", "worktree mutation is temporarily busy; automatic runtime registration will retry, and linking can be retried");
     await delay(Math.min(20, Math.max(1, deadline - Date.now())), undefined, { signal: options.signal });
   }
-  const heldGate = gate;
   let operationStarted = false;
   try {
     options.signal?.throwIfAborted();
@@ -80,7 +77,7 @@ export async function withSessionClaimLock<T>(directory: string, options: ClaimL
     if (metadata.isFile()) {
       // Security: a new OS gate proves nothing about an older writer that does not participate in it.
       // Even a dead legacy PID does not exclude a competing legacy reclaimer's rename race.
-      throw failure("worktree-legacy-recovery-required", "legacy worktree lock prevents safe recovery; stop all old and new claim writers and related cleanup descendants, back up only the regular legacy session-worktree-claims/mutation.lock while fully quiescent, then start the updated A1; never apply this to a modern .gate or delete sessions/worktree claims");
+      throw failure("worktree-legacy-recovery-required", "legacy worktree lock prevents safe recovery; stop all older A1 processes, back up only session-worktree-claims/mutation.lock while stopped, then start the updated A1; do not delete sessions or worktree claims");
     }
     for (const name of await readdir(barrier)) {
       const entry = await lstat(join(barrier, name));
@@ -110,7 +107,7 @@ export async function withSessionClaimLock<T>(directory: string, options: ClaimL
     if (error instanceof Error && (error.name === "AbortError" || ("code" in error && String(error.code).startsWith("worktree-")))) throw error;
     throw failure("worktree-coordination-io", "worktree coordination I/O failed; check A1 data-directory permissions and filesystem availability, then retry", error);
   } finally {
-    await retryClaimGateContention(() => heldGate.release());
+    gate.release();
   }
 }
 
