@@ -46,7 +46,7 @@ export async function inspectLocalWorkflows(definition, root = ".") {
 }
 
 /** The one reviewed reference to the shared delivery automation; it tracks that repository's main branch by design. */
-export const SHARED_DELIVERY_WORKFLOW = "uses: timurproko/MyGitWorkflows/.github/workflows/delivery.yml@main";
+export const SHARED_DELIVERY_WORKFLOW = "uses: timurproko/MyWorkflows/.github/workflows/delivery.yml@main";
 
 export function inspectWorkflowSource(path, source) {
   const line = pattern => pattern.test(source);

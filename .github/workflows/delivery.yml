@@ -1,6 +1,6 @@
 name: Delivery
 
-# The change-delivery automation lives in timurproko/MyGitWorkflows and is shared by every repository:
+# The change-delivery automation lives in timurproko/MyWorkflows and is shared by every repository:
 # draft promotion, OpenSpec finalization, the delivery check, ready pull-request refresh and merged-branch
 # deletion. This file only forwards events and the delivery bot's credentials to it.
 on:
@@ -29,7 +29,7 @@ permissions:
 jobs:
   delivery:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
-    uses: timurproko/MyGitWorkflows/.github/workflows/delivery.yml@main
+    uses: timurproko/MyWorkflows/.github/workflows/delivery.yml@main
     with:
       pr: ${{ inputs.pr }}
       dry_run: ${{ inputs.dry_run || false }}

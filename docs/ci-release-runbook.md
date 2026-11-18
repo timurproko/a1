@@ -37,7 +37,7 @@ anything is uploaded, and names the workflow and environment to register. When a
 caller's path changes, update both packages before the next publication through it.
 
 `.github/workflows/delivery.yml` forwards pull-request events to the shared delivery
-workflow in `timurproko/MyGitWorkflows`. That workflow promotes a fully ticked draft,
+workflow in `timurproko/MyWorkflows`. That workflow promotes a fully ticked draft,
 finalizes its OpenSpec change in the same branch, publishes the `delivery / Delivery check`,
 refreshes ready pull requests after `develop` advances, and deletes a merged topic branch.
 This repository holds no delivery policy of its own; its validation runs tests only and
