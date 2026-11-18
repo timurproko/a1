@@ -213,6 +213,7 @@ export class SettingsApp implements UiApp {
     this.#search.input?.setFocused(false);
     this.#search.input = null;
     this.#rail.dispose();
+    this.#configure.dispose();
   }
 
   render(rect: PaneRect, host: AppHostServices): readonly string[] {
@@ -308,7 +309,9 @@ export class SettingsApp implements UiApp {
     const complete = frame.slice(0, rect.height).concat(Array(Math.max(0, rect.height - frame.length)).fill(""));
     const dialogTheme: UiTheme = this.#options.dialogPanel === null ? theme : { ...theme, panel: this.#options.dialogPanel };
     const open = this.#configure.open;
-    return this.#configure.render(complete, rect, dialogTheme, open === null ? "" : labelOf(open.entry), SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE));
+    return this.#configure.render(complete, rect, dialogTheme, open === null ? "" : labelOf(open.entry), SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE), {
+      appearance: this.#scrollbarAppearance(), style: this.#scrollbarStyle(), speed: this.#scrollbarSpeed(), requestRender: () => host.requestRender(),
+    });
   }
 
   onInput(data: string, host: AppHostServices): PaneInputResult {

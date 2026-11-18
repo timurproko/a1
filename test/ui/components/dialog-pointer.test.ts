@@ -2,6 +2,20 @@ import { describe, expect, it } from "vitest";
 import { DialogPointer, PLAIN_THEME, renderDialogPanel, renderSteppedDialogPanel } from "../../../src/ui/components/index.js";
 
 describe("semantic dialog pointer targets", () => {
+  it("reserves the shared rail gap/cell without making either a row action", () => {
+    const pointer = new DialogPointer<number>();
+    let firstRow = 0;
+    const lines = renderSteppedDialogPanel({ title: "Choose", rows: [{ label: "a long clipped choice 東京", value: "" }], index: 0, hint: [], pointer,
+      onChoiceLayout: layout => { firstRow = layout.firstRow; expect(layout.railColumn).toBe(18); },
+      choiceRail: () => " ┃",
+    }, 20, PLAIN_THEME);
+    expect(lines.every(line => line.length <= 20)).toBe(true);
+    expect(lines[firstRow - 1]).toContain(" ┃  ");
+    expect(pointer.handle({ kind: "press", button: 0, row: firstRow, column: 18 })).toBeUndefined();
+    expect(pointer.handle({ kind: "press", button: 0, row: firstRow, column: 17 })).toBeUndefined();
+    expect(pointer.handle({ kind: "press", button: 0, row: firstRow, column: 5 })).toBe(0);
+  });
+
   it("keeps hover separate from keyboard state and activates only primary presses", () => {
     const pointer = new DialogPointer<string>();
     pointer.replace([{ key: "B", row: 3, columnStart: 5, columnEnd: 8 }]);

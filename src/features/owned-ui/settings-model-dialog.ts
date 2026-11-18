@@ -2,7 +2,6 @@ import { DIALOG_BACK_SHORTCUT_HINT, DIALOG_CLOSE_SHORTCUT_HINT, wrapChoiceIndex 
 import type { DialogRow } from "../../ui/components/index.js";
 import {
   LineInput,
-  type DialogPointer,
   ShortcutRegistry,
   assertNoShortcutConflicts,
   configureDialogChoiceCapacity,
@@ -15,6 +14,9 @@ import {
 } from "../../ui/components/index.js";
 import type { OwnedSettingsManager, OwnedUiSettingsEntry } from "../../ui/settings/index.js";
 import { changeFailure, structuredValue } from "./settings-edits.js";
+import type { SettingsDialogList } from "./settings-dialog-list.js";
+import type { StructuredEdit } from "./settings-configure-state.js";
+export type { StructuredEdit } from "./settings-configure-state.js";
 import { SETTINGS_APP_ID } from "./settings-route.js";
 
 const MODEL_SCOPE = `${SETTINGS_APP_ID}-models`;
@@ -32,27 +34,6 @@ MODEL_SHORTCUTS.declare({ key: "down", scope: MODEL_LEVEL_SCOPE, description: "N
 MODEL_SHORTCUTS.declare({ key: "enter", scope: MODEL_LEVEL_SCOPE, description: "Select level", section: "Choose", hint: { keys: "Enter", does: "select" } }, "select");
 MODEL_SHORTCUTS.declare({ key: "escape", scope: MODEL_LEVEL_SCOPE, description: "Return to models", section: "Choose", hint: { keys: DIALOG_BACK_SHORTCUT_HINT.key, does: DIALOG_BACK_SHORTCUT_HINT.action } }, "back");
 assertNoShortcutConflicts(MODEL_SHORTCUTS.assemble());
-
-/**
- * A structured setting being edited: its parts, the row in hand, and their values. A part is a
- * toggle when the declaration offers no choices, and a choice cycle otherwise; a choice part at its
- * fallback is unset and leaves the record.
- */
-export interface StructuredEdit {
-  readonly entry: OwnedUiSettingsEntry;
-  readonly pointer: DialogPointer<number>;
-  windowStart: number;
-  readonly flags: readonly string[];
-  readonly modelDialog: "thinking" | "default" | null;
-  /** Searchable flag dialog for owned tab-bar configuration. */
-  readonly filter: LineInput | null;
-  step: "model" | "level";
-  modelKey: string | null;
-  modelIndex: number;
-  index: number;
-  error: string | null;
-  readonly record: Record<string, boolean | string>;
-}
 
 /** What the model dialog asks of the settings screen that owns it. */
 export interface ModelDialogActions {
@@ -135,7 +116,7 @@ export function activateModelDialog(open: StructuredEdit, index: number, actions
   return { consumed: true };
 }
 
-export function modelDialogLines(open: StructuredEdit, width: number, height: number, theme: UiTheme): readonly string[] {
+export function modelDialogLines(open: StructuredEdit, width: number, height: number, theme: UiTheme, list: SettingsDialogList): readonly string[] {
   if (open.modelDialog === "default") {
     const flags = filteredModelFlags(open);
     const current = typeof open.entry.rawValue === "string" ? open.entry.rawValue : null;
@@ -147,10 +128,11 @@ export function modelDialogLines(open: StructuredEdit, width: number, height: nu
         value: "",
       }));
     const description = open.error ?? "Select the model used for new sessions";
-    const visible = dialogWindow(rows, open.index, configureDialogChoiceCapacity(height, true, configureDialogTextRows(description, width)));
+    const visible = list.project(rows, open.index, configureDialogChoiceCapacity(height, true, configureDialogTextRows(description, width)));
     open.windowStart = open.index - visible.index;
     return renderSteppedDialogPanel({
       ...(flags.length === 0 ? {} : { pointer: open.pointer }),
+      ...list.presentation(), compact: height < 10,
       title: "Default Model", description, input: open.filter ?? new LineInput(""),
       rows: visible.rows, index: visible.index, hint: MODEL_SHORTCUTS.hintEntries(MODEL_SCOPE),
     }, width, theme);
@@ -165,10 +147,11 @@ export function modelDialogLines(open: StructuredEdit, width: number, height: nu
         value: stored[flag.key] === undefined ? "" : String(stored[flag.key]),
       }));
     const description = "Select a model to configure";
-    const visible = dialogWindow(allRows, open.index, configureDialogChoiceCapacity(height, true, configureDialogTextRows(description, width)));
+    const visible = list.project(allRows, open.index, configureDialogChoiceCapacity(height, true, configureDialogTextRows(description, width)));
     open.windowStart = open.index - visible.index;
     return renderSteppedDialogPanel({
       ...(flags.length === 0 ? {} : { pointer: open.pointer }),
+      ...list.presentation(), compact: height < 10,
       title: "Thinking Level",
       step: 1,
       steps: 2,
@@ -187,10 +170,10 @@ export function modelDialogLines(open: StructuredEdit, width: number, height: nu
     value: choice.description,
   }));
   const description = `Select default thinking level for ${selected?.label ?? open.modelKey ?? "model"}`;
-  const visible = dialogWindow(allRows, open.index, configureDialogChoiceCapacity(height, false, configureDialogTextRows(description, width)));
+  const visible = list.project(allRows, open.index, configureDialogChoiceCapacity(height, false, configureDialogTextRows(description, width)));
   open.windowStart = open.index - visible.index;
   return renderSteppedDialogPanel({
-    pointer: open.pointer,
+    pointer: open.pointer, ...list.presentation(), compact: height < 10,
     title: "Thinking Level",
     step: 2,
     steps: 2,
@@ -199,17 +182,6 @@ export function modelDialogLines(open: StructuredEdit, width: number, height: nu
     index: visible.index,
     hint: MODEL_SHORTCUTS.hintEntries(MODEL_LEVEL_SCOPE),
   }, width, theme);
-}
-
-/** The rows a dialog of `maximum` rows shows, centred on `index` where the list allows. */
-export function dialogWindow(
-  rows: readonly DialogRow[],
-  index: number,
-  maximum: number,
-): { readonly rows: readonly DialogRow[]; readonly index: number } {
-  if (rows.length <= maximum) return { rows, index: Math.min(Math.max(0, rows.length - 1), Math.max(0, index)) };
-  const start = Math.min(rows.length - maximum, Math.max(0, index - Math.floor(maximum / 2)));
-  return { rows: rows.slice(start, start + maximum), index: index - start };
 }
 
 // Concurrency: the dialog closes at once; a refused save reopens it with the reason.

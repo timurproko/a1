@@ -23,7 +23,7 @@
 
 ## 4. Bounded Settings configure dialogs with settings-aware scrolling
 
-- [ ] 4.1 Cap configure-panel height and visible choice count while retaining title, description, search, active row, and close guidance on compact terminals.
-- [ ] 4.2 Add independent list scroll state with shared scrollbar geometry, appearance, thin/thick glyphs, hover/drag activity, track paging, and timed auto fade driven by live effective Settings values.
-- [ ] 4.3 Route wheel input inside the configure panel to its list using shared speed, capture scrollbar drags through release, preserve keyboard selection, and keep outside-wheel/background ownership intact.
-- [ ] 4.4 Add focused long-catalog, wheel-speed, thumb-drag, track-page, auto/always/hidden, resize, filtering, step-transition, and hit-target fixtures; document the bounded picker behavior.
+- [x] 4.1 Cap configure-panel height and visible choice count while retaining title, description, search, active row, and close guidance on compact terminals.
+- [x] 4.2 Add independent list scroll state with shared scrollbar geometry, appearance, thin/thick glyphs, hover/drag activity, track paging, and timed auto fade driven by live effective Settings values.
+- [x] 4.3 Route wheel input inside the configure panel to its list using shared speed, capture scrollbar drags through release, preserve keyboard selection, and keep outside-wheel/background ownership intact.
+- [x] 4.4 Add focused long-catalog, wheel-speed, thumb-drag, track-page, auto/always/hidden, resize, filtering, step-transition, and hit-target fixtures; document the bounded picker behavior.

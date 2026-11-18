@@ -1681,8 +1681,8 @@ describe("the value dropdown behind the screen", () => {
     const source = opened.find(line => line.includes("Thinking level")) ?? "";
     const low = opened.find(line => line.includes(" low")) ?? "";
     const high = opened.find(line => line.includes(" high")) ?? "";
-    expect(source).not.toContain("<muted>high</muted>");
-    expect(source).toContain("  high</highlight>");
+    expect(source).toContain("<muted>high</muted>");
+    expect(source).toContain("<muted>high</muted></highlight>");
     expect(low).not.toContain("<highlight>");
     expect(high).toContain("<highlight><text>✓</text></highlight>");
     expect(writes).toHaveLength(1);

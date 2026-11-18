@@ -31,7 +31,15 @@ Cancellation uses the owning workflow's cancel lifecycle, restoring the prompt d
 
 Exposed transcript wheel scrolling, scrollbar policy, configured wheel speed, and ordinary selection after dismissal remain owned by the existing viewport controller. Starting a primary gesture outside a cancellable dialog now dismisses it before transcript selection can begin. This deliberately replaces the former behavior that allowed selecting transcript text while Models remained open.
 
-Wheel input outside Models scrolls the transcript without closing the picker. Settings content wheel scrolling remains available behind its fixed configure panel without activating a dialog choice. Scalar Settings value menus retain their existing pointer policy.
+Wheel input outside Models scrolls the transcript without closing the picker. Settings wheel input outside its configure panel remains available to the background Settings list. Wheel input inside the panel belongs to its choice list instead and never activates a choice. Scalar Settings value menus retain their existing pointer policy.
+
+## Bounded configure pickers
+
+Settings configure panels, including Default Model, Thinking Level, and generic structured settings, use at most a 20-row height budget and ten visible choices. Compact terminals reduce the choice window further while retaining title, search or active choice, and shortcut guidance. Large model catalogs no longer stretch the panel across a tall screen.
+
+The list has its own scroll offset, independent from keyboard selection. Wheel anywhere inside the panel scrolls that list; pressing the track pages it and dragging the thumb follows the pointer, even outside the panel, through release. Scrolling does not write a setting or redirect Enter to a different item. Keyboard navigation reveals its active choice again when necessary, and clicking a scrolled result acts on that currently visible model or part.
+
+The rail uses the Agent's shared geometry, accent thumb, dim track, minimum thumb size, and configured thin `┃` or thick `▐` style. Effective `Scrollbar mode`, `Scrollbar style`, and `Speed` preferences apply live. `always` shows an overflowing rail, `auto` shows it during hover/drag and the shared scroll linger before clearing it automatically, and `hidden` has no rail or rail target while wheel scrolling still works. Auto/always reserve the same gap and rail cell even while quiet; hidden does not. Closing the workflow stops its repaint timer. Filtering, step changes, and resize reset stale hit/drag geometry.
 
 ## Geometry and ownership
 
@@ -55,6 +63,6 @@ The [modal transition inventory](../../config/baselines/modal-surface-inventory.
 
 Build the exact candidate and launch it through `./scripts/dev` in Windows Terminal/Git Bash. Open Models, keep one model keyboard-active, and hover another: the keyboard row must stay fixed while only the hovered text subtly changes color. Check model text, scope circles, filter labels, and narrow/compact layouts. Press Enter after hovering another row to check that keyboard focus did not move.
 
-Open Launcher and Settings, then Warnings, Default Model, and both Thinking Level steps. Click choices, hover without clicking, cancel outside, and resize. An outside gesture must only dismiss, not change a background setting or launch the footer control beneath it. Repeat with Skills, authentication choices, Project Trust, Resume Session, Session Tree, and Fork from Message as available. Check prompt draft/attachment restoration and unchanged keyboard save/cancel behavior.
+Open Launcher and Settings, then Warnings, Default Model, and both Thinking Level steps. For a long model catalog, check that the panel stays compact, wheel scrolling stays inside it, and track paging/thumb dragging reach the final model. Change Scrollbar mode/style/Speed and check auto fade, always-visible overflow, hidden rails, and both glyph styles. Click choices, hover without clicking, cancel outside, and resize. An outside gesture must only dismiss, not change a background setting or launch the footer control beneath it. Repeat with Skills, authentication choices, Project Trust, Resume Session, Session Tree, and Fork from Message as available. Check prompt draft/attachment restoration and unchanged keyboard save/cancel behavior.
 
 The focused fixtures are automated evidence, not a claim that physical terminal review has been performed. Integration remains a separate maintainer decision for the exact validated candidate.
