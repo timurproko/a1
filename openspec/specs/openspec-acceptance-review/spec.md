@@ -142,10 +142,10 @@ The dedicated acceptance-request requirements in this capability SHALL remain au
 - **AND** neither the legacy nor single-PR route SHALL manufacture authority
 
 ### Requirement: Version-3 acceptance is a plain scenario list in the development PR
-A finalized version-3 development PR SHALL display one to three implementation-specific behavior-and-expected-result scenarios under `Acceptance` as plain bullets, not checkboxes. The same ordered scenario text SHALL exist in a committed conditional acceptance manifest within the staged archive. The list SHALL exclude generic process attestations and SHALL be complete enough for the maintainer to understand what their manual merge accepts.
+A finalized version-3 development PR SHALL display one or more implementation-specific behavior-and-expected-result scenarios under `Acceptance` as plain bullets, not checkboxes. The same ordered scenario text SHALL exist in a committed conditional acceptance manifest within the staged archive. The list SHALL exclude generic process attestations and SHALL be complete enough for the maintainer to understand what their manual merge accepts.
 
 #### Scenario: Acceptance list is valid
-- **WHEN** the PR and manifest contain the same one to three concise, distinct, implementation-specific scenarios
+- **WHEN** the PR and manifest contain the same one or more concise, distinct, implementation-specific scenarios
 - **THEN** candidate validation SHALL accept the list structure without claiming the scenarios passed
 
 #### Scenario: Checkbox state is supplied

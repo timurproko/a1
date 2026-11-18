@@ -57,6 +57,7 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "worktree attach <path>",
     "worktree detach",
     "worktree complete [--change <id>] [--pr <number>]",
+    "worktree remove-local",
     "worktree list [--repo <absolute-path>]",
     "worktree status",
     "api <request-json>",
@@ -103,6 +104,7 @@ export function cliHelp(capabilities: CliCapabilities): string {
     `  ${command} worktree attach <path>`,
     `  ${command} worktree detach`,
     `  ${command} worktree complete [--change <id>] [--pr <number>]`,
+    `  ${command} worktree remove-local`,
     `  ${command} worktree list [--repo <absolute-path>]`,
     `  ${command} worktree status`,
     "",
@@ -233,6 +235,9 @@ function parseWorktree(rest: readonly string[]): CliCommand {
   if (action === "list" && value === "--repo" && flag && !flag.startsWith("-") && rest.length === 3) {
     return { kind: "session-context", request: { action: "worktrees", repo: flag } };
   }
+  if (action === "remove-local" && value === undefined) {
+    return { kind: "session-context", request: { action: "remove-local-worktree" } };
+  }
   if (action === "complete") {
     const selectors = rest.slice(1);
     let change: string | undefined, pr: number | undefined;
@@ -247,7 +252,7 @@ function parseWorktree(rest: readonly string[]): CliCommand {
       return { kind: "session-context", request: { action: "complete-worktree", ...(change === undefined ? {} : { change }), ...(pr === undefined ? {} : { pr }) } };
     }
   }
-  return { kind: "error", message: PRODUCT_TEXT.diagnostic("worktree accepts enter <branch> [--repo <absolute-path>] [--base <branch>], attach <absolute-path>, detach, status, complete [--change <id>] [--pr <number>], or list [--repo <absolute-path>].") };
+  return { kind: "error", message: PRODUCT_TEXT.diagnostic("worktree accepts enter <branch> [--repo <absolute-path>] [--base <branch>], attach <absolute-path>, detach, status, complete [--change <id>] [--pr <number>], remove-local, or list [--repo <absolute-path>].") };
 }
 
 function parseSessionContext(rest: readonly string[]): CliCommand {

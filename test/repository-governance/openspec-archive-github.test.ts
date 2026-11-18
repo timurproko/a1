@@ -78,6 +78,17 @@ describe("archive GitHub evidence", () => {
     expect(f.requests.every(request => request.method === "GET")).toBe(true);
   });
 
+  it.each([1, 2])("reads historical version-%i receipts without migrating bodies, records or trees", async version => {
+    const f = fixture();
+    if (version === 2) f.pull.body = '```openspec-implementation\n{"version":2,"change":"example"}\n```';
+    const before = JSON.stringify(f.routes);
+    const evidence = await loadArchiveEvidence(f.reader, 20);
+    expect(evidence).toMatchObject({ disposition: "eligible", implementation: { version }, acceptance: { id: 99, author: "reviewer" } });
+    expect(JSON.stringify(f.routes)).toBe(before);
+    expect(f.requests.every(request => request.method === "GET")).toBe(true);
+    expect(f.requests.some(request => request.path.includes("/contents/docs/delivery-contract.json"))).toBe(false);
+  });
+
   it("recovers cleared historical run associations only with matching commit and branch evidence", async () => {
     const f = fixture(); f.run.pull_requests = [];
     f.routes[`${f.prefix}/commits/${f.sha}/pulls`] = [f.pull];

@@ -18,6 +18,8 @@ TypeScript/JavaScript and Python use syntax trees. Workflow environment maps, em
 
 The exact externally branded key/member authority is `config/internal-naming-policy.json`. It records each setting's owner, evidence, exposure, and value semantics. Arbitrary uppercase properties are not public environment settings. No compatibility-alias exposure category is allowed. Test snippets and negative-test input data are not declarations or supported aliases.
 
+The immutable [portable delivery contract](../delivery-rules.md) fixes the serialized `a1` repository/expectation key and C13's `a1InstallationRequired` observation field. Six exact path/member entries preserve those external spellings at their declared readers and fixtures without rewriting the shared adapters or cases. They do not exempt branded local identifiers, other members or unrelated files; inspector regression tests enforce those boundaries.
+
 ## Environment ownership inventory
 
 ### Supported branded external settings

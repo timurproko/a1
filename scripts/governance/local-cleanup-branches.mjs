@@ -33,7 +33,7 @@ export async function pruneMergedBranches({ identity, state, reader, git = gitRu
   const result = { results: [], coverage: { total: 0, visited: 0, complete: false } };
   const rows = parseWorktrees(await git(identity.primary, ["worktree", "list", "--porcelain", "-z"]));
   const checkedOut = new Set(rows.map(row => row.branch).filter(Boolean));
-  const registered = new Set(state.entries.filter(entry => entry.state !== "done" && entry.ref).map(entry => entry.ref));
+  const registered = new Set(state.entries.filter(entry => (entry.state !== "done" || entry.role === "local-removal") && entry.ref).map(entry => entry.ref));
   const listing = await git(identity.primary, ["for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/"]);
   const branches = listing.trim().split("\n").filter(Boolean).map(line => { const space = line.indexOf(" "); return { ref: line.slice(0, space), tip: line.slice(space + 1) }; })
     .filter(({ ref, tip }) => safeRef(ref) && SHA.test(tip) && !registered.has(ref));

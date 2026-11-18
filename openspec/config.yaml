@@ -1,13 +1,12 @@
 schema: spec-driven
 
 context: |
-  Delivery guidance is maintained by subject, not repeated here:
+  Read and follow [Shared delivery rules](../docs/delivery-rules.md) using this repository's entry in [Delivery adapters](../docs/delivery-adapters.json).
+  Repository-owned command syntax is maintained by subject, not repeated here:
   - Load the [delivery skill](../.agents/skills/change-delivery/SKILL.md) for repository delivery work.
   - Follow the [delivery runbook](../docs/openspec-archive-automation.md) for planning, authorization, same-PR implementation, validation, finalization, handoff, integration, and legacy/generated-proposal rules.
   - Follow the [worktree protocol](../docs/architecture/project-structure.md#development-worktrees) before creating, resuming, or switching a task checkout.
   - Follow [local cleanup](../docs/local-worktree-cleanup.md) for cleanup authority, named-export decisions, process stops, blockers, and recovery.
-  Keep planning-only drafts until approved implementation is requested. One explicit instruction can approve an already presented plan and request implementation; do not ask for duplicate confirmation. Update approved refinements before corresponding edits.
-  Keep progress truthful and let trusted automation own readiness/finalization. Implementation approval never grants merge permission, foreign-worktree ownership, or blanket user-file deletion. Existing tooling and protected integration gates remain authoritative.
 
 operations:
   archive:
