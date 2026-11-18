@@ -521,9 +521,9 @@ Failed forward changes SHALL NOT become undoable. If restoration fails or is una
 
 ### Requirement: The per-model thinking setting uses the pinned stepped selector
 
-The owned Settings screen SHALL present the Agent `modelThinkingLevels` structured setting through a keyboard-only two-step selector matching A1's modal hierarchy rather than through the generic object-part panel. Both steps SHALL use the title `Thinking Level` followed on the same line by a muted `(step N/2)` marker. Step 1 SHALL show the muted next-line description `Select a model to configure`, a focused searchable input using the exact ASCII `> ` prompt marker with the `>` in the active semantic accent role, and the models supplied by the setting descriptor. A bracketed provider suffix such as `[openai-codex]` SHALL use the muted role on selected and unselected model rows, matching the Models dialog. A selected model or thinking-level row SHALL place exactly one space between its arrow cursor and visible label; unselected levels SHALL NOT reserve hidden checkmark spacing. Typing SHALL filter model labels, Up/Down SHALL move the selected model, Enter SHALL advance to that model's supported level choices, and Escape SHALL close from step 1.
+The owned Settings screen SHALL present the Agent `modelThinkingLevels` structured setting through a keyboard- and mouse-operable two-step selector matching A1's modal hierarchy rather than through the generic object-part panel. Both steps SHALL use the title `Thinking Level` followed on the same line by a muted `(step N/2)` marker. Step 1 SHALL show the muted next-line description `Select a model to configure`, a focused searchable input using the exact ASCII `> ` prompt marker with the `>` in the active semantic accent role, and the models supplied by the setting descriptor. A bracketed provider suffix such as `[openai-codex]` SHALL use the muted role on selected and unselected model rows, matching the Models dialog. A selected model or thinking-level row SHALL place exactly one space between its arrow cursor and visible label; unselected levels SHALL NOT reserve hidden checkmark spacing. Typing SHALL filter model labels, Up/Down SHALL move the selected model, Enter SHALL advance to that model's supported level choices, and Escape SHALL close from step 1. Clicking a model SHALL advance for the clicked model without using the keyboard-active row as a substitute.
 
-Step 2 SHALL retain the `Thinking Level` title with `(step 2/2)`, show the muted next-line description `Select default thinking level for {model label}`, offer only the supported levels declared for that model, and add pinned Pi's clear-override choice when that model has an override. The model label SHALL NOT replace or extend the title. Enter on clear override SHALL remove that model's override; Enter on a level SHALL write the whole updated object through the Agent backend and return to step 1 so another model can be configured. Escape SHALL return to step 1 without writing. The footer SHALL describe only the active step's keyboard behavior, including `Type search`, `Enter select`, and `Esc close` on step 1 and `Esc back` on step 2, rather than showing the main Settings adjustment or undo hints.
+Step 2 SHALL retain the `Thinking Level` title with `(step 2/2)`, show the muted next-line description `Select default thinking level for {model label}`, offer only the supported levels declared for that model, and add pinned Pi's clear-override choice when that model has an override. The model label SHALL NOT replace or extend the title. Enter on clear override SHALL remove that model's override; Enter on a level SHALL write the whole updated object through the Agent backend and return to step 1 so another model can be configured. Clicking a level or clear-override row SHALL invoke that same action for the clicked choice. Escape SHALL return to step 1 without writing. The footer SHALL describe only the active step's keyboard behavior, including `Type search`, `Enter select`, and `Esc close` on step 1 and `Esc back` on step 2, rather than showing the main Settings adjustment or undo hints. Hover in either step SHALL use the shared text-only foreground blend without moving keyboard selection. Outside primary press SHALL close the entire configure workflow from either step without an additional write or underlying Settings action.
 
 #### Scenario: Open per-model thinking levels
 
@@ -563,19 +563,45 @@ Step 2 SHALL retain the `Thinking Level` title with `(step 2/2)`, show the muted
 - **WHEN** the user presses Escape in step 1 while its footer shows `Esc close`
 - **THEN** the structured dialog SHALL close and restore the Settings list
 
-### Requirement: Structured-setting dialogs are keyboard-only
+#### Scenario: Click a different model or level from keyboard selection
 
-While any structured-setting dialog is open, pointer motion, presses, and releases SHALL be consumed without moving its selection, changing a part, advancing a step, writing a value, or acting on Settings rows. Wheel input over the Settings content SHALL continue to scroll the list behind the fixed dialog. All dialog navigation and changes SHALL occur through the dialog's advertised keyboard shortcuts.
+- **WHEN** item A is keyboard-active and the user hovers item B in either step
+- **THEN** only B's actionable text SHALL receive the shared accent blend and Enter SHALL still act on A
+- **WHEN** the user primary-clicks B
+- **THEN** the existing advance or write action SHALL run for B rather than A
+
+#### Scenario: Click outside the second step
+
+- **WHEN** the user primary-presses outside the Thinking Level panel in step 2
+- **THEN** the configure workflow SHALL close without a write rather than returning to step 1
+- **AND** the dismissal gesture SHALL NOT act on the Settings screen behind it
+
+### Requirement: Structured-setting dialogs support mouse choices without moving keyboard focus
+
+While any structured-setting dialog is open, it SHALL own pointer input without passing presses, motion, or releases through to the Settings list. A visible actionable row SHALL be clickable through its existing semantic change or step action, including generic object parts, Warnings, Default Model, and both Thinking Level steps. Pointer hover SHALL remain independent from keyboard selection and use the shared 75% ordinary-foreground / 25% accent text-only blend without adding or moving a background highlight. Enter SHALL continue to target the keyboard-active row after hovering another row. Row hit targets SHALL match the current centered, clipped, and scrolled panel geometry.
+
+A primary press outside the complete panel rectangle SHALL close the configure workflow without an additional write and consume the entire gesture. It SHALL NOT act on Settings rows, values, menus, or the scrollbar behind it. Pressing blank padding inside the panel SHALL NOT dismiss it or write a value. Wheel input over the Settings content SHALL continue to scroll the list behind the fixed dialog without changing or closing the dialog. Existing keyboard shortcuts, settings write authority, undo state, and asynchronous error handling SHALL remain intact.
+
+#### Scenario: Hover without changing keyboard focus
+
+- **WHEN** keyboard-active structured row A differs from hovered row B
+- **THEN** B SHALL receive only the shared text-hover treatment
+- **AND** A's active marker and background SHALL remain unchanged
+- **AND** Enter SHALL still act on A without writing B's value
 
 #### Scenario: Point or click in a structured dialog
 
-- **WHEN** the user moves or presses the pointer over an open structured-setting dialog
-- **THEN** the report SHALL be consumed without changing dialog selection or settings state
+- **WHEN** the user primary-clicks visible actionable structured row B
+- **THEN** the same semantic action as explicit keyboard activation of B SHALL run once through the existing backend authority
+- **AND** no Settings row behind the panel SHALL be activated
 
 #### Scenario: Point outside a structured dialog
 
-- **WHEN** a non-wheel pointer report lands outside the visible structured rows while the dialog is open
-- **THEN** it SHALL NOT act on the Settings list, scrollbar, or values behind the dialog
+- **WHEN** the pointer moves outside the panel while the dialog is open
+- **THEN** the former hover SHALL clear without moving keyboard focus or acting on the underlying screen
+- **WHEN** the user primary-presses outside the panel
+- **THEN** the configure workflow SHALL close without an additional write
+- **AND** that gesture SHALL NOT act on the Settings list, scrollbar, or values behind the dialog
 
 #### Scenario: Scroll Settings content with a structured dialog open
 
@@ -785,9 +811,9 @@ The centered modal SHALL use the shared component's native-matching floating pan
 
 The owned Settings screen SHALL expose Pi's persisted default provider/model pair as one writable Agent entry labeled `Default model`. The entry SHALL display `configure` rather than treating the model catalog as a scalar value menu, and SHALL appear immediately above `Default thinking level per model` in the Agent section. It SHALL declare `next-session` application and SHALL use Pi's existing default-model settings fields as its sole persistence authority.
 
-Activating `Default model` SHALL open a keyboard-only searchable selector using the authenticated models supplied by the Agent setting descriptor. The selector SHALL use the owned modal hierarchy, an accent title `Default Model`, a muted instruction `Select the model used for new sessions`, a focused search input with the exact ASCII `> ` prompt marker, and shortcut guidance for typing, Up/Down navigation, Enter selection, and Escape close. Each model row SHALL use the Models-dialog form `modelId [provider]` without a duplicate display-name column. Search SHALL still match model identifier, display name, provider, and full `provider/modelId` reference. The persisted default SHALL be the initial selection when it remains available and SHALL have one success-colored `✓` immediately after `[provider]`, independent of the active session model.
+Activating `Default model` SHALL open a keyboard- and mouse-operable searchable selector using the authenticated models supplied by the Agent setting descriptor. The selector SHALL use the owned modal hierarchy, an accent title `Default Model`, a muted instruction `Select the model used for new sessions`, a focused search input with the exact ASCII `> ` prompt marker, and shortcut guidance for typing, Up/Down navigation, Enter selection, and Escape close. Each model row SHALL use the Models-dialog form `modelId [provider]` without a duplicate display-name column. Search SHALL still match model identifier, display name, provider, and full `provider/modelId` reference. The persisted default SHALL be the initial selection when it remains available and SHALL have one success-colored `✓` immediately after `[provider]`, independent of the active session model.
 
-Enter SHALL accept the selected full model reference through the Agent settings backend, close the selector immediately, and continue persistence asynchronously without rendering a saving state. A successful write SHALL leave the Settings list visible and update Pi's persisted default provider/model pair without changing the active session model, active model indicator, current thinking level, or model cycling scope. Escape SHALL close without writing. If the write fails or becomes unavailable, the selector SHALL reopen with its query and selection preserved, the previous default SHALL remain authoritative, and the Settings failure channel SHALL report the error.
+Enter SHALL accept the selected full model reference through the Agent settings backend, close the selector immediately, and continue persistence asynchronously without rendering a saving state. A primary click on a model row SHALL accept that clicked full model reference through the same action, independently of the keyboard-active row. Hover SHALL use the shared text-only accent blend without moving keyboard selection. A successful write SHALL leave the Settings list visible and update Pi's persisted default provider/model pair without changing the active session model, active model indicator, current thinking level, or model cycling scope. Escape or an outside primary press SHALL close without writing; an outside-dismissal gesture SHALL NOT act on the Settings list behind it. If the write fails or becomes unavailable, the selector SHALL reopen with its query and selection preserved, the previous default SHALL remain authoritative, and the Settings failure channel SHALL report the error.
 
 The pinned `a1 pi` comparison profile SHALL retain its existing model selector and select-as-default interaction without receiving the owned Settings configurator.
 
@@ -818,11 +844,20 @@ The pinned `a1 pi` comparison profile SHALL retain its existing model selector a
 - **AND** a successful asynchronous write SHALL persist Pi's default provider/model pair as that model while the Settings list remains visible
 - **AND** the active session model, thinking level, and cycling scope SHALL remain unchanged
 
+#### Scenario: Click a model without moving keyboard focus on hover
+
+- **WHEN** A is keyboard-active and the user hovers B
+- **THEN** only B's actionable text SHALL receive the shared foreground blend and Enter SHALL still select A
+- **WHEN** the user primary-clicks B
+- **THEN** the selector SHALL close immediately and asynchronously persist B through the existing default-model action
+- **AND** the active session model and cycling scope SHALL remain unchanged
+
 #### Scenario: Close without changing the default
 
-- **WHEN** the user presses Escape in the default-model selector
+- **WHEN** the user presses Escape or primary-presses outside the default-model selector
 - **THEN** the selector SHALL close without writing
 - **AND** the previous persisted default SHALL remain unchanged
+- **AND** an outside-dismissal gesture SHALL NOT act on the underlying Settings screen
 
 #### Scenario: Default-model persistence fails
 
