@@ -117,12 +117,12 @@ Every changed pull-request-eligible retained test SHALL select its owning scope,
 - **AND** the maintainer SHALL use Full regression when exhaustive validation is required
 
 #### Scenario: Implementation-bound diff is documentation-shaped
-- **WHEN** an implementation-bound pull request's complete diff touches only documentation, OpenSpec, or archive paths
-- **THEN** the PR core SHALL run without the documentation-only exemption
-- **AND** ownership selection SHALL remain `impact` with no integration owner selected merely because of the association
+- **WHEN** a pull request that links an OpenSpec change has a complete diff touching only documentation, OpenSpec, or archive paths
+- **THEN** selection SHALL classify it from that diff exactly as it would an unlinked pull request
+- **AND** the link in the pull-request body SHALL NOT change the selected scopes
 
 #### Scenario: Implementation-bound diff touches owned source
-- **WHEN** an implementation-bound pull request changes a path with a reviewed coarse owner
+- **WHEN** a pull request that links an OpenSpec change changes a path with a reviewed coarse owner
 - **THEN** selection SHALL choose that owner's tests and the integration owners its ownership links
 - **AND** unrelated pull-request owners SHALL remain explicitly unselected
 
@@ -516,84 +516,6 @@ reported as what it said rather than as what it was expected to say.
 - **WHEN** validation has been triggered and its result has not been read
 - **THEN** the change SHALL NOT be described as passing
 
-### Requirement: Documentation-only changes merge on their own
-Repository automation SHALL arrange automatic squash integration only for non-draft,
-non-implementation-bound PRs when every changed and renamed-from path is under
-`openspec/**`, under `docs/**` other than `docs/releases/**`, or is exactly the root
-`README.md`. A release-history path SHALL always require manual integration. An
-implementation association or introduction of a new active change SHALL hold the PR
-for manual integration even with an OpenSpec-only diff; malformed or unavailable
-lifecycle data SHALL fail closed. Removing a marker SHALL NOT bypass the authoritative
-base/head check. Other ordinary docs, standalone existing-change revisions, and
-verified archive follow-ups SHALL retain eligibility. It MAY arm an eligible pull
-request while required validation is pending because protected `develop` remains the
-merge gate. After successful validation for the current head, automation SHALL
-reconcile that head when GitHub reports `clean` or positively mergeable `unstable`
-state through a normal protected squash-merge request enforcing that expected head
-SHA. A specifically recognized unstable-status rejection when arming SHALL be handled
-by bounded re-evaluation or an explicit deferred outcome, not by creating another
-failed check solely for that state transition.
-
-An eligible pull request SHALL pass documentation-sensitive governance and, when
-OpenSpec is touched, strict OpenSpec validation. A pull request containing any other
-path SHALL remain open for local maintainer validation and manual merge, including
-behavior-preserving refactors and mixed documentation-plus-code changes. CI success
-SHALL NOT substitute for local maintainer acceptance of code. Failed validation or
-successful validation for an older head SHALL NOT authorize direct integration.
-State recovery SHALL NOT change required checks, grant bypass authority, or turn
-unrelated API failures into success.
-
-#### Scenario: Complete diff is auto-merge eligible
-- **WHEN** a non-draft, non-implementation-bound PR has every changed and renamed-from path under `openspec/**`, under eligible `docs/**`, or exactly at the root `README.md`
-- **THEN** automation SHALL arrange squash integration behind the required validation gate
-
-#### Scenario: Release-history document changes
-- **WHEN** any changed or renamed-from path is `docs/releases/<version>.md`
-- **THEN** documentation automation SHALL disable any armed auto-merge and leave the pull request for manual integration
-
-#### Scenario: Maintained docs change is validated
-- **WHEN** an otherwise eligible pull request changes a path under `docs/**`
-- **THEN** CI SHALL run documentation-sensitive governance before the required validation gate succeeds
-
-#### Scenario: OpenSpec change is validated
-- **WHEN** an eligible pull request changes a path under `openspec/**`
-- **THEN** CI SHALL run strict OpenSpec validation before the required validation gate succeeds
-
-#### Scenario: Eligible pull request is still validating
-- **WHEN** an eligible current head is blocked only because required validation is pending
-- **THEN** automation MAY arm squash auto-merge and SHALL rely on protected `develop` to prevent premature integration
-
-#### Scenario: Eligible pull request is already clean
-- **WHEN** successful required validation belongs to the current head and GitHub already reports that head clean
-- **THEN** automation SHALL reconcile squash integration using that exact head SHA
-
-#### Scenario: Successful validation belongs to an older head
-- **WHEN** the pull request head differs from the head that passed required validation
-- **THEN** automation SHALL NOT directly merge the current head
-
-#### Scenario: Behavior-preserving code changed
-- **WHEN** a pull request contains any changed or renamed-from path outside the auto-merge allowlist
-- **THEN** it SHALL NOT be armed to merge automatically even if behavior is intended to remain unchanged
-- **AND** it SHALL wait for local maintainer acceptance and manual merge
-
-#### Scenario: Documentation and code are mixed
-- **WHEN** a pull request contains both an allowed documentation path and a path outside the allowlist
-- **THEN** the entire pull request SHALL follow the manual code path
-
-#### Scenario: Validation passes while the policy check is unstable
-- **WHEN** an eligible current head passes required validation while a pending or failed non-required check leaves GitHub reporting a positively mergeable unstable head
-- **THEN** automation SHALL attempt normal protected squash integration with the validated head SHA
-- **AND** a failed attempt to arm auto-merge SHALL NOT be a prerequisite to that attempt
-
-#### Scenario: Arming reports an unstable-state transition
-- **WHEN** GitHub specifically rejects arming because the pull request is in unstable status
-- **THEN** automation SHALL refresh state and re-evaluate its eligibility and current-head validation within a bounded recovery attempt
-- **AND** if safe integration cannot yet be established it SHALL report deferral without claiming the pull request merged or that required validation passed
-
-#### Scenario: Real validation or API failure remains visible
-- **WHEN** required validation fails or automation encounters an authentication, permission, transport, malformed-response, or unrelated API error
-- **THEN** that failure SHALL remain visible and SHALL NOT be reclassified as a successful unstable-state recovery
-
 ### Requirement: Resource-sensitive fast validation is partitioned deterministically
 The fast validation tier SHALL declare tests whose subprocess, temporary-repository, or release-store workloads require protection from shared runner contention. Every declared resource-sensitive test SHALL be excluded from the parallel remainder, SHALL execute exactly once in one non-file-parallel partition process on an isolated runner under the partition's explicit hang bound, and SHALL retain all of its semantic assertions. The hang bound SHALL be the same explicit thirty-second bound the other explicit fast-tier invocations declare; it SHALL be recorded in the plan evidence as explicit, and it SHALL NOT serve as a performance assertion. Pull-request validation and exact-package validation SHALL derive the same partition from the same authoritative suite configuration on every platform. The ordinary remainder and resource-sensitive partition SHALL report separate planned commands, elapsed time, outcomes, and available subprocess or fixture timing. A failed assertion, process error, missing or duplicate test owner, or hang-bound expiry SHALL fail the tier without automatically retrying the test. Per-test durations SHALL remain available as evidence, and the focused timing report SHALL name every test body above five seconds so a slowdown is visible without failing the pull request on shared-runner variance.
 
@@ -734,9 +656,8 @@ The release command SHALL continue to require a target. It SHALL reject a missin
 
 ### Requirement: Release reopening pull requests integrate after validation
 The post-publication next-development pull request SHALL remain subject to required
-validation and SHALL integrate automatically through the documentation auto-merge
-manager's verified release-reopening route once its exact current head passes required
-validation. The release command SHALL NOT create a pre-publication release-note or
+validation and SHALL integrate automatically through the release-reopening auto-merge
+manager once its exact current head passes required validation. The release command SHALL NOT create a pre-publication release-note or
 stable-version pull request, enable auto-merge itself, directly merge the reopening PR,
 relax branch protection, or treat CI success on any head other than the current one as
 permission to advance. It SHALL display the draft Release and reopening PR URLs with
@@ -854,10 +775,10 @@ The single protected-branch aggregate SHALL require the PR core and every scope 
 - **THEN** it SHALL NOT satisfy the current aggregate
 
 #### Scenario: Finalized Implementation candidate completes validation
-- **WHEN** a finalized implementation-bound pull request in the Implementation phase runs ordinary exact-head validation
-- **THEN** selected product validation and finalized-delivery validation SHALL both execute for that candidate
-- **AND** the stable protected aggregate SHALL succeed in the same workflow run only after every selected result and the finalized delivery record succeed
-- **AND** no Acceptance phase edit or second workflow run SHALL be required before manual review and merge
+- **WHEN** a finalized pull request that links an OpenSpec change runs ordinary exact-head validation
+- **THEN** selected product validation SHALL execute for that candidate
+- **AND** the stable protected aggregate SHALL succeed in the same workflow run only after every selected result succeeds
+- **AND** no further body edit or second workflow run SHALL be required before manual review and merge
 
 #### Scenario: Manual review rejects the implementation
 - **WHEN** manual review finds a defect after the protected aggregate succeeds
@@ -1240,11 +1161,11 @@ The worker bound SHALL NOT remove or reclassify tests, suppress output, add retr
 - **AND** existing assertions, timeouts, isolated owners, resource-sensitive owners, package owners, and failure semantics SHALL remain unchanged
 
 ### Requirement: Pull-request validation waits for a reviewable candidate
-Development validation SHALL schedule no test suite while a pull request is draft. When an ordinary pull request becomes ready for review, one readiness decision SHALL permit its existing impact-selected validation. When a version-3 implementation-bound pull request becomes ready while its OpenSpec change is still active, base-controlled policy SHALL defer test selection until trusted finalization has updated the pull-request metadata with the archive and acceptance-manifest paths. The finalized exact head SHALL then receive every existing selected validation scope and the stable protected aggregate.
+Development validation SHALL schedule no test suite while a pull request is draft. When an ordinary pull request becomes ready for review, one readiness decision SHALL permit its existing impact-selected validation. When a pull request that links an OpenSpec change becomes ready while that change is still active, base-controlled policy SHALL defer test selection until the shared delivery workflow has recorded the archive path and the finalized head in the pull-request body. Readiness SHALL read only that record; association and delivery validity SHALL remain the shared delivery check's decision. The finalized exact head SHALL then receive every existing selected validation scope and the stable protected aggregate.
 
 The readiness decision SHALL execute without pull-request-head code or dependency installation, SHALL report an explicit reason, and SHALL fail closed for malformed lifecycle metadata. For pull-request events, readiness SHALL read current mutable body and draft metadata through trusted read-only GitHub authority and SHALL use it only when the current pull-request number, head, and base still equal the immutable event identity. Drifted, unavailable, or invalid current metadata SHALL fail visibly. Draft and pre-finalization runs SHALL NOT emit a misleading successful `Development validation required` aggregate. The absence of that exact-head aggregate SHALL keep the candidate ineligible for integration. Conversion back to draft and later ready-head changes SHALL continue to cancel superseded PR validation; no prior-head result SHALL be reused.
 
-Manual Development dispatch, scheduled/manual Full regression, release validation, publication gates, OpenSpec finalization, and post-merge verification SHALL retain their independent triggers and authority. Once readiness permits Development validation, owner selection, native lanes, assertions, coverage, retries, timeouts, permissions, evidence binding, and failure semantics SHALL remain unchanged.
+Manual Development dispatch, scheduled/manual Full regression, release validation, publication gates, and the shared delivery workflow SHALL retain their independent triggers and authority. Once readiness permits Development validation, owner selection, native lanes, assertions, coverage, retries, timeouts, permissions, evidence binding, and failure semantics SHALL remain unchanged.
 
 #### Scenario: Draft implementation receives pushes
 - **WHEN** any draft pull request receives planning, implementation, body, or head changes
@@ -1542,7 +1463,7 @@ Linux and macOS publication full validation MAY remain sequential. Bounded devel
 
 Validation that authorizes handoff or integration of a finalized version-3 implementation SHALL execute from a native pull-request event for the exact finalized head. Its selected lanes, queued/running/completed state, failures, and stable `Development validation required` aggregate SHALL be associated with and visible from that pull request's checks UI.
 
-Development validation SHALL defer an implementation candidate whose finalized-head body binding is absent or differs from the event head. A later ordinary pull-request event with a matching binding SHALL perform the applicable finalized-delivery, acceptance, impact-selected product, governance, and aggregate checks. Earlier-head, branch-only, manually dispatched, `workflow_run`, or synthetic commit-status evidence SHALL NOT substitute for that PR-associated run.
+Development validation SHALL defer an implementation candidate whose finalized-head body binding is absent or differs from the event head. A later ordinary pull-request event with a matching binding SHALL perform the applicable impact-selected product, governance, and aggregate checks. Development validation SHALL NOT itself validate the delivery record; the shared delivery workflow's check owns that decision. Earlier-head, branch-only, manually dispatched, `workflow_run`, or synthetic commit-status evidence SHALL NOT substitute for that PR-associated run.
 
 #### Scenario: Final head enters ordinary validation
 - **WHEN** a pull-request event identifies a finalized version-3 head whose body binding matches that exact head
@@ -1562,7 +1483,7 @@ Development validation SHALL defer an implementation candidate whose finalized-h
 #### Scenario: Manual dispatch targets the same branch
 - **WHEN** a maintainer manually dispatches Development validation against a finalized implementation branch
 - **THEN** the run MAY provide diagnostic coverage in Actions
-- **AND** SHALL NOT replace the PR-associated delivery, acceptance, selection, visibility, or aggregate evidence required for integration
+- **AND** SHALL NOT replace the PR-associated selection, visibility, or aggregate evidence required for integration
 
 ### Requirement: npm publication recovers boundedly from duplicate transparency-log entries
 
