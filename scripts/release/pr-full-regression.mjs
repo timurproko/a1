@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseImplementation } from "../governance/openspec-archive-policy.mjs";
+import { readDeliveryRecord } from "./delivery-record.mjs";
 
 const SHA = /^[0-9a-f]{40}$/u;
 const DOCUMENT = path => path === "README.md" || path.startsWith("docs/") || path.startsWith("openspec/");
@@ -71,7 +71,7 @@ export function parseRepairProvenance(value) {
 }
 
 function generatedFailedRegressionRepair(pull, identity, provenance) {
-  const link = parseImplementation(pull.body ?? "");
+  const link = readDeliveryRecord(pull.body ?? "");
   if (!link && (pull.body ?? "").includes("openspec-implementation")) throw new Error("ambiguous implementation association");
   if (provenance === null) return false;
   const parsed = parseRepairProvenance(provenance);

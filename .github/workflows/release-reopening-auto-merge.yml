@@ -1,4 +1,4 @@
-name: Documentation auto-merge
+name: Release reopening auto-merge
 
 on:
   pull_request_target:
@@ -14,12 +14,14 @@ permissions:
   actions: read
 
 concurrency:
-  group: documentation-auto-merge-${{ github.event.pull_request.number || github.event.workflow_run.id }}
+  group: release-reopening-auto-merge-${{ github.event.pull_request.number || github.event.workflow_run.id }}
   cancel-in-progress: true
 
 jobs:
   enforce:
-    name: Enforce documentation auto-merge policy
+    name: Integrate a verified release reopening
+    # Rationale: only a release reopening branch is this workflow's business; other pull requests are not inspected.
+    if: startsWith(github.event.pull_request.head.ref || github.event.workflow_run.head_branch, 'chore/release-')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -34,7 +36,7 @@ jobs:
         with:
           node-version: 24
 
-      - name: Reconcile documentation auto-merge policy
+      - name: Verify and integrate the release reopening
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/governance/manage-documentation-auto-merge.mjs
+        run: node scripts/governance/manage-release-reopening-auto-merge.mjs

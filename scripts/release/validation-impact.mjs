@@ -89,11 +89,10 @@ export async function selectValidationImpact(options = {}) {
   if (options.includeWorktree === true) changes = mergeChanges(changes, await collectWorktreeChanges(repository));
   if (changes.length > MAX_CHANGES) throw new Error(`validation selection exceeds ${MAX_CHANGES} changed entries`);
 
-  const implementationBound = options.implementationBound === true;
-  const docsOnly = !implementationBound && changes.length > 0
+  const docsOnly = changes.length > 0
     && changes.every(change => isDocumentationOnlyPath(change.path) && (change.oldPath === undefined || isDocumentationOnlyPath(change.oldPath)));
   const openspecTouched = changes.some(change => change.path.startsWith("openspec/") || change.oldPath?.startsWith("openspec/"));
-  const versionOnly = !implementationBound && await isVersionOnlyChange(repository, base, head, changes, options.includeWorktree === true);
+  const versionOnly = await isVersionOnlyChange(repository, base, head, changes, options.includeWorktree === true);
   const documentationPaths = [...new Set(changes
     .filter(change => change.status !== "D")
     .map(change => change.path)

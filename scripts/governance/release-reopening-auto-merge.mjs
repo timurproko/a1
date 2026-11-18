@@ -1,5 +1,5 @@
 import { nextStablePatchVersion, parseReleaseNote, releaseNotePath } from "../release/release-notes.mjs";
-import { parseImplementation, metadataBlock } from "./openspec-archive-policy.mjs";
+import { carriesDeliveryMetadata } from "../release/delivery-record.mjs";
 
 // Provenance: the App identity `release.yml` mints to open the reopening PR.
 export const REOPENING_AUTHOR = Object.freeze({ login: "openspec-ci[bot]", id: 329165293, type: "Bot" });
@@ -25,9 +25,7 @@ export async function classifyReleaseReopening({ pull, files, repository, read, 
   }
   if (!SHA.test(pull.base?.sha ?? "") || !SHA.test(pull.head?.sha ?? "")) return refuse("reopening PR has no exact base and head");
   try {
-    if (metadataBlock(pull.body ?? "", "openspec-acceptance-request") || parseImplementation(pull.body ?? "")) {
-      return refuse("reopening PR carries lifecycle metadata");
-    }
+    if (carriesDeliveryMetadata(pull.body ?? "")) return refuse("reopening PR carries lifecycle metadata");
   } catch { return refuse("reopening PR carries invalid lifecycle metadata"); }
 
   if (!Array.isArray(files) || files.length !== REOPENING_VERSION_FILES.length + 1) return refuse("reopening PR must change exactly four files");
@@ -77,4 +75,21 @@ function withoutVersion(value, path) {
   delete copy.version;
   if (path === "package-lock.json") delete copy.packages[""].version;
   return copy;
+}
+
+/**
+ * Decide the next step for a verified reopening PR from its current-head validation and GitHub's merge state:
+ * `merge` now, `arm` native auto-merge behind required validation, leave an existing arm `unchanged`, or `wait`.
+ */
+export function planReopeningAutoMerge({ validation, autoMergeArmed, mergeableState, mergeable }) {
+  if (validation === "failure" || mergeable !== true) return "wait";
+  if (mergeableState === "clean" || mergeableState === "unstable") {
+    // Invariant: a non-required check does not replace current-head validation or branch protection.
+    if (validation === "success") return "merge";
+    return autoMergeArmed ? "unchanged" : "wait";
+  }
+  if (mergeableState === "blocked" || mergeableState === "behind") {
+    return autoMergeArmed ? "unchanged" : "arm";
+  }
+  return "wait";
 }

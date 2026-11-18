@@ -25,7 +25,6 @@ const resourceSensitiveTests = [
   "test/foundation/launch-context/cutover.test.ts",
   "test/foundation/lifecycle/session-repository-context.test.ts",
   ...originalResourceSensitiveTests.slice(1, 2),
-  "test/repository-governance/local-cleanup.test.ts",
   "test/foundation/release/release-state.test.ts",
   "test/foundation/release/release-gc.test.ts",
   "test/features/prompt-history/concurrency.integration.test.ts",

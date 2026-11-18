@@ -1,10 +1,4 @@
 export interface DevelopmentValidationResults {
-  readonly acceptanceOnly?: string | undefined;
-  readonly implementationBound?: string | undefined;
-  readonly acceptanceCandidate?: string;
-  readonly deliveryCandidate?: string;
-  readonly acceptanceResult?: string;
-  readonly deliveryResult?: string;
   readonly changesResult?: string;
   readonly docsResult?: string;
   readonly namingResult?: string;
@@ -23,7 +17,6 @@ export interface DevelopmentValidationResults {
 }
 
 export function requireDevelopmentValidation(value: DevelopmentValidationResults):
-  | { readonly mode: "acceptance" }
   | { readonly mode: "docs"; readonly openspec: boolean }
   | { readonly mode: "version" }
   | { readonly mode: "code"; readonly renderingTier: string; readonly documentationRequired: boolean };

@@ -6,10 +6,10 @@ name: Delivery
 on:
   pull_request_target:
     types: [opened, synchronize, ready_for_review, converted_to_draft, reopened, edited, closed]
-  # Rationale: a documentation merge made with GITHUB_TOKEN emits no pull-request event, so its
-  # completed run is forwarded to refresh the remaining ready pull requests.
+  # Rationale: a release reopening merge made with GITHUB_TOKEN emits no pull-request event, so its
+  # successful run is forwarded to refresh the remaining ready pull requests.
   workflow_run:
-    workflows: [Documentation auto-merge]
+    workflows: [Release reopening auto-merge]
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -28,6 +28,7 @@ permissions:
 
 jobs:
   delivery:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     uses: timurproko/MyGitWorkflows/.github/workflows/delivery.yml@main
     with:
       pr: ${{ inputs.pr }}

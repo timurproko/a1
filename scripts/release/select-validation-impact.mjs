@@ -11,7 +11,6 @@ const selection = assertValidationImpact(await selectValidationImpact({
   head: optionValue("--head") ?? "HEAD",
   includeWorktree: process.argv.includes("--include-worktree"),
   manualNoComparison: process.argv.includes("--manual-no-comparison"),
-  implementationBound: process.argv.includes("--implementation-bound"),
 }));
 const serialized = `${JSON.stringify(selection, null, 2)}\n`;
 if (output) {

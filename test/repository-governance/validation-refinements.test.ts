@@ -19,7 +19,7 @@ describe("reviewed ownership refinements", () => {
   it("narrows documentation and environment tooling without scheduling unrelated launch or package work", () => {
     const docs = select(["scripts/governance/check-docs-governance.mjs"]);
     expect(docs.tests).toContain("test/repository-governance/docs-sensitive-governance.test.ts");
-    expect(docs.tests).not.toContain("test/repository-governance/openspec-finalization-publication.test.ts");
+    expect(docs.tests).not.toContain("test/repository-governance/release-reopening-auto-merge.test.ts");
     expect(docs.tests.length + docs.resourceTests.length).toBeLessThan(20);
     const environment = select(["scripts/development/check-environment.mjs"]);
     expect(environment.tests).toContain("test/repository-governance/environment-prerequisites.test.ts");

@@ -1,11 +1,5 @@
 import { appendFile, readFile } from "node:fs/promises";
-import { classifyDocumentationAutoMerge, planDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
-import { inspectDocumentationLifecycle } from "./documentation-lifecycle.mjs";
-import { classifyReleaseReopening } from "./release-reopening-auto-merge.mjs";
-import { executeMergedBranchCleanup } from "./execute-merged-branch-cleanup.mjs";
-import { readArchiveMarker, archiveAuthorityCurrent } from "./openspec-archive-publication.mjs";
-import { parseImplementation } from "./openspec-archive-policy.mjs";
-import { assertHumanAutoMergeArm } from "./openspec-acceptance-policy.mjs";
+import { classifyReleaseReopening, planReopeningAutoMerge } from "./release-reopening-auto-merge.mjs";
 
 class GitHubGraphQLError extends Error {
   constructor(status, body) {
@@ -65,8 +59,8 @@ if (event.workflow_run && !context.validationComplete) {
 }
 
 async function processPullRequest(number, run) {
-  const attempts = boundedPollingNumber("DOCS_AUTO_MERGE_POLL_ATTEMPTS", process.env.DOCS_AUTO_MERGE_POLL_ATTEMPTS, 30);
-  const delayMs = boundedPollingNumber("DOCS_AUTO_MERGE_POLL_MS", process.env.DOCS_AUTO_MERGE_POLL_MS, 2000);
+  const attempts = boundedPollingNumber("REOPENING_AUTO_MERGE_POLL_ATTEMPTS", process.env.REOPENING_AUTO_MERGE_POLL_ATTEMPTS, 30);
+  const delayMs = boundedPollingNumber("REOPENING_AUTO_MERGE_POLL_MS", process.env.REOPENING_AUTO_MERGE_POLL_MS, 2000);
   let expectedHead;
   let expectedId;
   let reason = "waiting for mergeability";
@@ -80,7 +74,7 @@ async function processPullRequest(number, run) {
     if (pull.state !== "open") {
       if (pull.merged === true && sameHead) {
         await summary(`PR #${number}: already merged at expected head ${expectedHead}.`);
-        return await reconcileDocumentationBranch(pull);
+        return await deleteMergedBranch(pull);
       }
       return await summary(`PR #${number}: closed without merge of the expected head; no branch mutation.`);
     }
@@ -92,30 +86,13 @@ async function processPullRequest(number, run) {
     const validation = validationMatchesHead
       ? run.validationSucceeded ? "success" : "failure"
       : "pending";
-    let archive;
-    try { archive = readArchiveMarker(pull.body); }
-    catch {
-      await disableIfArmed(pull, "invalid archive identity");
-      return await summary(`PR #${number}: invalid archive metadata; manual reconciliation required.`);
-    }
-    if (archive) {
-      // Concurrency: generated archives are never pre-armed against a base that may advance during CI.
-      await disableIfArmed(pull, "generated archive requires fresh head and base validation");
-      if (archive.generatedHead !== pull.head.sha || validation !== "success") {
-        return await summary(`PR #${number}: archive waiting for current-head CI; automatic protected integration will resume from its completion event.`);
-      }
-      const target = await rest(`/repos/${owner}/${repository}/git/ref/heads/develop`);
-      if (target.object?.sha !== archive.targetSha) return await summary(`PR #${number}: archive base advanced; regeneration is required before automatic integration.`);
-      if (!await archiveAuthorityCurrent(rest, repositoryName, pull, archive)) return await summary(`PR #${number}: archive authority changed; automatic integration deferred.`);
-    }
-    const action = planDocumentationAutoMerge({
+    const action = planReopeningAutoMerge({
       validation,
       autoMergeArmed: Boolean(pull.auto_merge),
       mergeableState: pull.mergeable_state,
       mergeable: pull.mergeable,
     });
-    if (action === "merge") return await mergeValidatedHead(pull, archive?.targetSha);
-    if (archive) return await summary(`PR #${number}: archive waiting for positive mergeability; automatic protected integration remains pending without native pre-arming.`);
+    if (action === "merge") return await mergeValidatedHead(pull);
     if (validation === "failure") {
       return await summary(`PR #${number}: current-head Development validation failed; no integration.`);
     }
@@ -127,7 +104,7 @@ async function processPullRequest(number, run) {
       : "waiting for successful current-head validation";
     if (action === "arm" && attempt < attempts) {
       try {
-        await graph(`mutation EnableDocumentationAutoMerge($pullRequestId: ID!) {
+        await graph(`mutation EnableReopeningAutoMerge($pullRequestId: ID!) {
           enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: SQUASH }) {
             pullRequest { number }
           }
@@ -160,6 +137,9 @@ async function readPullRequest(number) {
 
 async function isTrustedEligible(pull) {
   const number = pull.number;
+  // Invariant: only a release reopening branch is this automation's business; every other pull request,
+  // including one a maintainer armed for auto-merge, is left exactly as it is.
+  if (!pull.head?.ref?.startsWith("chore/release-")) return false;
   let files;
   try {
     files = await changedFiles(number);
@@ -168,80 +148,11 @@ async function isTrustedEligible(pull) {
     await disableIfArmed(pull, `classification failed: ${describe(error)}`);
     throw error;
   }
-  const classification = classifyDocumentationAutoMerge(files);
-  const sameRepository = pull.head?.repo?.full_name === repositoryName;
-  const trustedEligible = classification.eligible && sameRepository && !pull.draft && pull.base?.ref === "develop";
-
-  if (!classification.eligible && pull.head?.ref?.startsWith("chore/release-")) {
-    const reopening = await classifyReleaseReopening({ pull, files, repository: repositoryName, read: readFileAt, release: readRelease });
-    if (reopening.eligible) return "release reopening";
-    await disableIfArmed(pull, reopening.reason);
-    await summary(`PR #${number}: auto-merge not eligible — ${reopening.reason}.`);
-    return false;
-  }
-  if (!trustedEligible) {
-    const reason = classification.eligible
-      ? !sameRepository
-        ? "the head branch is not in the trusted repository"
-        : pull.draft
-          ? "the pull request is a draft"
-          : `the base branch is ${pull.base?.ref ?? "unknown"}, not develop`
-      : classification.reason;
-    if (await preserveHumanImplementationArm(pull)) {
-      await summary(`PR #${number}: preserved authorized human auto-merge for the exact finalized implementation head; documentation automation remains ineligible.`);
-      return false;
-    }
-    await disableIfArmed(pull, reason);
-    await summary(`PR #${number}: auto-merge not eligible — ${reason}.`);
-    return false;
-  }
-  try {
-    const lifecycle = await inspectDocumentationLifecycle(pull, files, { prefix: `/repos/${repositoryName}`, get: rest });
-    if (lifecycle.held) {
-      if (await preserveHumanImplementationArm(pull)) {
-        await summary(`PR #${number}: preserved authorized human auto-merge for the exact finalized implementation head; documentation automation remains ineligible.`);
-        return false;
-      }
-      await disableIfArmed(pull, lifecycle.reason);
-      await summary(`PR #${number}: manual implementation hold (${lifecycle.reason}).`);
-      return false;
-    }
-  } catch (error) {
-    await disableIfArmed(pull, "lifecycle classification unavailable");
-    throw error;
-  }
-  return "documentation allowlist";
-}
-
-async function preserveHumanImplementationArm(pull) {
-  if (!pull.auto_merge || pull.state !== "open" || pull.draft !== false
-    || pull.base?.ref !== "develop" || pull.head?.repo?.full_name !== repositoryName
-    || (event.pull_request && ["edited", "synchronize", "converted_to_draft"].includes(event.action))) return false;
-  let implementation;
-  try { implementation = parseImplementation(pull.body ?? ""); }
-  catch { return false; }
-  if (implementation?.version !== 3 || !implementation.archive || !implementation.acceptanceManifest) return false;
-  const actor = pull.auto_merge?.enabled_by;
-  if (actor?.type !== "User" || !/^[a-zA-Z0-9-]{1,39}$/.test(actor.login ?? "")) return false;
-  try {
-    const [permission, events] = await Promise.all([
-      rest(`/repos/${owner}/${repository}/collaborators/${actor.login}/permission`),
-      timelineEvents(pull.number),
-    ]);
-    assertHumanAutoMergeArm(pull, permission.permission, events);
-    return true;
-  } catch { return false; }
-}
-
-async function timelineEvents(number) {
-  const events = [];
-  for (let page = 1; ; page += 1) {
-    if (page > 10) throw new Error("timeline response exceeded policy limit");
-    const batch = await rest(`/repos/${owner}/${repository}/issues/${number}/timeline?per_page=100&page=${page}`);
-    if (!Array.isArray(batch)) throw new Error("timeline response was not an array");
-    events.push(...batch);
-    if (batch.length < 100) return events;
-  }
+  const reopening = await classifyReleaseReopening({ pull, files, repository: repositoryName, read: readFileAt, release: readRelease });
+  if (reopening.eligible) return "release reopening";
+  await disableIfArmed(pull, reopening.reason);
+  await summary(`PR #${number}: auto-merge not eligible — ${reopening.reason}.`);
+  return false;
 }
 
 async function readFileAt(path, ref) {
@@ -254,12 +165,8 @@ async function readRelease(tag) {
   return await rest(`/repos/${owner}/${repository}/releases/tags/${encodeURIComponent(tag)}`);
 }
 
-async function mergeValidatedHead(pull, archiveBase) {
+async function mergeValidatedHead(pull) {
   const number = pull.number;
-  if (archiveBase) {
-    const target = await rest(`/repos/${owner}/${repository}/git/ref/heads/develop`);
-    if (target.object?.sha !== archiveBase) return await summary(`PR #${number}: archive base changed before merge; deferred.`);
-  }
   try {
     const result = await rest(`/repos/${owner}/${repository}/pulls/${number}/merge`, {
       method: "PUT",
@@ -272,10 +179,10 @@ async function mergeValidatedHead(pull, archiveBase) {
     if (current.state !== "closed" || current.merged !== true || current.node_id !== pull.node_id
       || current.head.sha !== pull.head.sha) throw error;
     await summary(`PR #${number}: already merged at expected head ${pull.head.sha}.`);
-    return await reconcileDocumentationBranch(current);
+    return await deleteMergedBranch(current);
   }
   await summary(`PR #${number}: current head passed validation (${pull.mergeable_state}); squash-merged with expected head SHA ${pull.head.sha}.`);
-  return await reconcileDocumentationBranch({ ...pull, state: "closed", merged: true, merged_at: new Date().toISOString() });
+  return await deleteMergedBranch(pull);
 }
 
 function boundedPollingNumber(name, input, maximum) {
@@ -284,16 +191,17 @@ function boundedPollingNumber(name, input, maximum) {
   return value;
 }
 
-async function reconcileDocumentationBranch(pull) {
-  const decision = await executeMergedBranchCleanup({ pull, repository: repositoryName, request });
-  await summary(`PR #${pull.number}: documentation branch cleanup ${JSON.stringify({
-    disposition: decision.disposition,
-    ref: decision.ref ?? null,
-    expectedSha: decision.expectedSha ?? null,
-    actualSha: decision.actualSha ?? null,
-    reason: decision.reason ?? null,
-  })}.`);
-  if (decision.disposition === "failure") throw new Error(`post-delete verification failed for PR #${pull.number}`);
+// Rationale: a merge made with GITHUB_TOKEN emits no pull-request event, so the shared branch cleanup never sees it.
+async function deleteMergedBranch(pull) {
+  const ref = pull.head?.ref;
+  if (pull.head?.repo?.full_name !== repositoryName || !/^chore\/release-[0-9A-Za-z.-]+$/u.test(ref ?? "")) return;
+  const path = `/repos/${owner}/${repository}/git/ref/heads/${ref}`;
+  const current = await request(path, { expected: [200, 404] });
+  if (current.status === 404) return await summary(`PR #${pull.number}: branch ${ref} is already deleted.`);
+  // Invariant: only the exact merged head is deleted; a branch that moved after the merge is someone's new work.
+  if (current.body?.object?.sha !== pull.head.sha) return await summary(`PR #${pull.number}: branch ${ref} moved after the merge; retained.`);
+  await request(`/repos/${owner}/${repository}/git/refs/heads/${ref}`, { method: "DELETE", expected: [204, 404, 422] });
+  await summary(`PR #${pull.number}: deleted merged branch ${ref}.`);
 }
 
 async function changedFiles(number) {

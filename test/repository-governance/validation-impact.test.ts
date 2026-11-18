@@ -155,34 +155,18 @@ describe("development validation impact", () => {
     expect(selected.changes).toContainEqual(expect.objectContaining({ status: "R", oldPath: "src/leaf.ts", path: "src/renamed.ts" }));
   });
 
-  it("keeps the PR core without the docs-only exemption for an implementation-associated documentation-shaped diff", async () => {
-    const { repository, base } = await fixtureRepository();
-    await put(repository, "openspec/changes/archive/2026-09-15-example/proposal.md", "Archived proposal.\n");
-    const head = await commit(repository, "finalized delivery");
-    const ordinary = await selectValidationImpact({ repository, base, head });
-    expect(ordinary).toMatchObject({ docsOnly: true, ordinaryScopes: [] });
-    const bound = await selectValidationImpact({ repository, base, head, implementationBound: true });
-    expect(bound.docsOnly).toBe(false);
-    expect(bound.ordinaryScopes).toEqual(["typecheck", "architecture", "pr-core-tests"]);
-    expect(bound.prCore.mode).toBe("impact");
-    expect(bound.prCore.owners.every(owner => !owner.selected)).toBe(true);
-    expect(bound.prCore.mandatoryTests).toEqual(["test/fixture.test.ts"]);
-    expect(bound.integration.selection.mode).toBe("impact");
-    expect(bound.integration.selection.owners.every(owner => !owner.selected)).toBe(true);
-  });
-
-  it("selects only the owners an implementation-associated source change touches", async () => {
+  it("selects only the owners a source change with archived change files touches", async () => {
     const { repository, base } = await fixtureRepository();
     await put(repository, "src/leaf.ts", "export const leaf = 2;\n");
     await put(repository, "openspec/changes/archive/2026-09-15-example/tasks.md", "- [x] 1.1 Done.\n");
     const head = await commit(repository, "finalized implementation");
-    const bound = await selectValidationImpact({ repository, base, head, implementationBound: true });
+    const bound = await selectValidationImpact({ repository, base, head });
     expect(bound.prCore.mode).toBe("impact");
     expect(bound.prCore.owners).toEqual([expect.objectContaining({ owner: "fixture", selected: true, reasons: [{ code: "owned-path", paths: ["src/leaf.ts"] }] })]);
     expect(bound.integration.selection.mode).toBe("impact");
     expect(bound.integration.selection.owners).toEqual([expect.objectContaining({ owner: "fixture", selected: true })]);
     expect(bound.integration.fallback).toBeNull();
-    const manual = await selectValidationImpact({ repository, base, head, implementationBound: true, manualNoComparison: true });
+    const manual = await selectValidationImpact({ repository, base, head, manualNoComparison: true });
     expect(manual.prCore.mode).toBe("conservative");
     expect(manual.prCore.owners[0]?.reasons[0]?.code).toBe("manual-no-comparison");
     expect(manual.integration.fallback).toBe("manual-no-comparison");

@@ -4,21 +4,7 @@ import { fileURLToPath } from "node:url";
 export function requireDevelopmentValidation(value) {
   requireResult(value.changesResult, "change classification");
   if (!/^[0-9a-f]{40}$/u.test(value.selectedHead ?? "") || value.selectedHead !== value.expectedHead) throw new Error("validation selection is stale or has an invalid head");
-  if (value.acceptanceOnly === "true") {
-    requireResult(value.acceptanceResult, "acceptance record validation");
-    if (value.acceptanceCandidate !== "true") throw new Error("trusted acceptance candidate validation is missing");
-    requireGenericLanesSkipped(value);
-    return { mode: "acceptance" };
-  }
-  if (value.acceptanceOnly !== "false") throw new Error("acceptance-only routing result is missing");
-  if (value.implementationBound === "true") {
-    requireResult(value.deliveryResult, "finalized delivery validation");
-    if (value.deliveryCandidate !== "true") throw new Error("finalized delivery candidate validation is missing");
-  } else if (value.implementationBound === "false") {
-    requireSkipped(value.deliveryResult, "finalized delivery validation");
-  } else throw new Error("implementation-bound routing result is missing");
   if (value.releaseReopening === "true") {
-    if (value.implementationBound !== "false") throw new Error("release reopening must not be implementation-bound");
     if (value.namingRequired !== "false") throw new Error("release reopening must not require naming validation");
     if (value.docsOnly !== "false" || value.versionOnly !== "false") throw new Error("release reopening must use its dedicated route");
     if (value.documentationRequired !== "false" || value.renderingTier !== "none") throw new Error("release reopening selected an unexpected generic lane");
@@ -71,12 +57,6 @@ function requireSkipped(result, label) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const value = Object.fromEntries(Object.entries({
-    acceptanceOnly: "ACCEPTANCE_ONLY",
-    implementationBound: "IMPLEMENTATION_BOUND",
-    acceptanceCandidate: "ACCEPTANCE_CANDIDATE",
-    deliveryCandidate: "DELIVERY_CANDIDATE",
-    acceptanceResult: "ACCEPTANCE_RESULT",
-    deliveryResult: "DELIVERY_RESULT",
     changesResult: "CHANGES_RESULT",
     docsResult: "DOCS_RESULT",
     namingResult: "NAMING_RESULT",
