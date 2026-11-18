@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { planRulesetChanges, validateRulesetDefinition } from "./github-rulesets.mjs";
 
-const ROOT_KEYS = ["schema", "repository", "repositorySettings", "actions", "securityCapabilities", "environments", "protectedRefs", "rulesets", "labels", "workflows"];
+const ROOT_KEYS = ["schema", "repository", "repositorySettings", "actions", "securityCapabilities", "environments", "labels", "workflows"];
 const REPOSITORY_SETTING_KEYS = ["visibility", "default_branch", "allow_auto_merge", "delete_branch_on_merge", "allow_merge_commit", "allow_squash_merge", "allow_rebase_merge", "allow_update_branch", "use_squash_pr_title_as_default", "squash_merge_commit_title", "squash_merge_commit_message", "merge_commit_title", "merge_commit_message", "web_commit_signoff_required"];
 const ACTION_KEYS = ["enabled", "allowed_actions", "sha_pinning_required", "selected_actions", "default_workflow_permissions", "can_approve_pull_request_reviews"];
 const SECURITY_KEYS = ["secret_scanning", "secret_scanning_push_protection", "secret_scanning_non_provider_patterns", "secret_scanning_validity_checks", "dependabot_alerts", "dependabot_security_updates"];
@@ -13,11 +12,10 @@ const WORKFLOW_KEYS = ["name", "path", "state", "triggers", "permissions", "trus
 export function validateRepositoryGovernanceDefinition(definition) {
   requireExactKeys(definition, ROOT_KEYS, "definition");
   if (definition.schema !== "a1-github-repository-governance-v1") throw new Error("repository governance schema is invalid");
-  validateRulesetDefinition(definition);
   requireExactKeys(definition.repositorySettings, REPOSITORY_SETTING_KEYS, "repositorySettings");
   requireExactKeys(definition.actions, ACTION_KEYS, "actions");
   requireExactKeys(definition.securityCapabilities, SECURITY_KEYS, "securityCapabilities");
-  for (const key of ["environments", "protectedRefs", "labels", "workflows"]) if (!Array.isArray(definition[key])) throw new Error(`${key} must be an array`);
+  for (const key of ["environments", "labels", "workflows"]) if (!Array.isArray(definition[key])) throw new Error(`${key} must be an array`);
   for (const environment of definition.environments) requireExactKeys(environment, ENVIRONMENT_KEYS, `environment ${environment?.name ?? "unknown"}`);
   for (const label of definition.labels) {
     requireExactKeys(label, LABEL_KEYS, `label ${label?.name ?? "unknown"}`);
@@ -128,16 +126,11 @@ export function compareRepositoryGovernance(definition, live) {
   compareExact(definition.actions, live.actions, "actions", differences);
   compareExact(definition.securityCapabilities, live.securityCapabilities, "securityCapabilities", differences);
   compareExact(sortNamed(definition.environments), sortNamed(live.environments), "environments", differences);
-  compareExact([...definition.protectedRefs].sort(), [...(live.protectedRefs ?? [])].sort(), "protectedRefs", differences);
   // Invariant: only declared labels are compared; labels the repository carries for other reasons are not policy.
   const liveLabels = new Map((live.labels ?? []).map(label => [label.name, label]));
   compareExact(sortNamed(definition.labels), sortNamed(definition.labels.map(label => liveLabels.get(label.name) ?? { name: label.name })), "labels", differences);
   compareExact(sortNamed(definition.workflows).map(canonicalWorkflow), sortNamed(live.workflows).map(canonicalWorkflow), "workflows", differences);
 
-  const rulesetPlan = planRulesetChanges(definition, live.rulesets ?? []);
-  for (const change of rulesetPlan.changes.filter(change => change.action !== "none")) {
-    differences.push({ path: `rulesets.${change.name}`, expected: change.action === "undeclared" ? undefined : change.desired, actual: change.live, reason: change.action });
-  }
   return {
     schema: "a1-github-repository-governance-report-v1",
     repository: definition.repository,

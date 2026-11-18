@@ -2,7 +2,6 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { compareRepositoryGovernance, inspectLocalWorkflows, validateRepositoryGovernanceDefinition } from "./github-repository-governance.mjs";
-import { planRulesetChanges } from "./github-rulesets.mjs";
 import { optionValue } from "../cli-options.mjs";
 
 const definitionPath = resolve(optionValue("--definition") ?? "config/github-repository-governance.json");
@@ -16,7 +15,7 @@ report.api = { repository, fetchedAt: new Date().toISOString() };
 
 if (process.argv.includes("--apply")) {
   if (optionValue("--confirm") !== "apply-a1-github-governance") throw new Error("--apply requires --confirm apply-a1-github-governance");
-  const mutablePrefixes = ["repositorySettings", "actions", "environments", "labels", "rulesets"];
+  const mutablePrefixes = ["repositorySettings", "actions", "environments", "labels"];
   const unsupported = report.differences.filter(difference => !mutablePrefixes.some(prefix => difference.path === prefix || difference.path.startsWith(`${prefix}.`) || difference.path.startsWith(`${prefix}[`)));
   if (unsupported.length > 0) throw new Error(`reviewed drift requires code or an explicit policy decision: ${unsupported.map(value => value.path).join(", ")}`);
   const mutations = [];
@@ -54,14 +53,6 @@ if (process.argv.includes("--apply")) {
     }
     mutations.push("labels");
   }
-  const rulesetPlan = planRulesetChanges(definition, live.rulesets);
-  for (const change of rulesetPlan.changes) {
-    if (change.action === "none") continue;
-    if (change.action === "undeclared") throw new Error(`undeclared live ruleset requires explicit removal decision: ${change.name}`);
-    const path = change.action === "create" ? "rulesets" : `rulesets/${change.id}`;
-    await api(path, { method: change.action === "create" ? "POST" : "PUT", body: change.desired });
-    mutations.push(`ruleset:${change.name}`);
-  }
   live = await loadLive(api, definition);
   const verification = compareRepositoryGovernance(definition, live);
   if (!verification.matches) throw new Error(`post-apply governance verification differs: ${verification.differences.map(value => value.path).join(", ")}`);
@@ -86,8 +77,6 @@ async function loadLive(api, reviewed) {
   if (actionPermissions.allowed_actions === "selected") selectedActions = await api("actions/permissions/selected-actions");
   const environmentList = await api("environments");
   const environments = await Promise.all((environmentList.environments ?? []).map(environment => api(`environments/${encodeURIComponent(environment.name)}`)));
-  const summaries = await api("rulesets?includes_parents=false");
-  const rulesets = await Promise.all(summaries.map(summary => api(`rulesets/${summary.id}`)));
   const labels = (await api("labels?per_page=100")).map(label => select(label, ["name", "color", "description"]));
   const workflowList = await api("actions/workflows");
   const localWorkflows = await inspectLocalWorkflows(reviewed);
@@ -122,8 +111,6 @@ async function loadLive(api, reviewed) {
       dependabot_security_updates: automatedFixes ? "enabled" : "disabled",
     },
     environments: environments.map(environment => select(environment, ["name", "can_admins_bypass", "protection_rules", "deployment_branch_policy"])),
-    protectedRefs: rulesets.flatMap(ruleset => ruleset.conditions?.ref_name?.include ?? []),
-    rulesets,
     labels,
     workflows,
   };
