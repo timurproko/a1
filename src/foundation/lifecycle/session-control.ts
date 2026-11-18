@@ -252,8 +252,8 @@ export async function requestSessionControl(options: SessionControlRequestOption
   return await new Promise((done, reject) => {
     const socket = createConnection(endpoint);
     const requestId = randomUUID();
-    // Timers may wake before the wall-clock deadline carried to the server. Never report expiry
-    // while a queued request is still eligible for application there.
+    // Concurrency: timers may wake before the wall-clock deadline carried to the server. Never
+    // report expiry while a queued request is still eligible for application there.
     const expire = () => {
       const remaining = deadline - Date.now();
       if (remaining > 0) { timer = setTimeout(expire, remaining); return; }
