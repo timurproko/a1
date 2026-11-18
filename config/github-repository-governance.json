@@ -226,18 +226,6 @@
       "artifactRetentionDays": [30]
     },
     {
-      "name": "Merged branch cleanup",
-      "path": ".github/workflows/merged-branch-cleanup.yml",
-      "state": "active",
-      "triggers": ["pull_request_target:closed"],
-      "permissions": ["contents: write"],
-      "trustedSource": "default-branch",
-      "authority": ["matching-merged-head-delete"],
-      "concurrency": "merged-branch-cleanup-",
-      "environments": [],
-      "artifactRetentionDays": []
-    },
-    {
       "name": "Nightly regression triage",
       "path": ".github/workflows/nightly-regression-triage.yml",
       "state": "active",
@@ -248,30 +236,6 @@
       "concurrency": "nightly-regression-triage",
       "environments": [],
       "artifactRetentionDays": [30]
-    },
-    {
-      "name": "OpenSpec archive",
-      "path": ".github/workflows/openspec-archive.yml",
-      "state": "active",
-      "triggers": ["pull_request_target", "schedule", "workflow_dispatch"],
-      "permissions": ["actions: read", "contents: read", "pull-requests: read"],
-      "trustedSource": "default-branch",
-      "authority": ["archive-read-only-audit", "single-pr-delivery-verification", "openspec-archive-app-publication"],
-      "concurrency": "openspec-archive",
-      "environments": [],
-      "artifactRetentionDays": [14]
-    },
-    {
-      "name": "OpenSpec finalization",
-      "path": ".github/workflows/openspec-finalization.yml",
-      "state": "active",
-      "triggers": ["pull_request_target", "pull_request_target:edited", "workflow_dispatch"],
-      "permissions": ["contents: read", "pull-requests: read"],
-      "trustedSource": "default-branch",
-      "authority": ["single-pr-finalization-publication"],
-      "concurrency": "openspec-finalization-",
-      "environments": [],
-      "artifactRetentionDays": []
     },
     {
       "name": "Pi upstream sync",
@@ -298,14 +262,14 @@
       "artifactRetentionDays": [30]
     },
     {
-      "name": "Ready pull-request refresh",
-      "path": ".github/workflows/ready-pull-request-refresh.yml",
+      "name": "Delivery",
+      "path": ".github/workflows/delivery.yml",
       "state": "active",
-      "triggers": ["pull_request_target:closed", "workflow_run"],
-      "permissions": ["contents: read"],
-      "trustedSource": "default-branch",
-      "authority": ["ready-pull-request-branch-refresh"],
-      "concurrency": "ready-pull-request-refresh",
+      "triggers": ["pull_request_target", "pull_request_target:edited", "workflow_dispatch", "workflow_run"],
+      "permissions": ["contents: write", "pull-requests: read"],
+      "trustedSource": "shared-delivery-workflow",
+      "authority": ["shared-delivery"],
+      "concurrency": "",
       "environments": [],
       "artifactRetentionDays": []
     }

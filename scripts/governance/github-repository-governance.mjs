@@ -47,6 +47,9 @@ export async function inspectLocalWorkflows(definition, root = ".") {
   return workflows;
 }
 
+/** The one reviewed reference to the shared delivery automation; it tracks that repository's main branch by design. */
+export const SHARED_DELIVERY_WORKFLOW = "uses: timurproko/MyGitWorkflows/.github/workflows/delivery.yml@main";
+
 export function inspectWorkflowSource(path, source) {
   const line = pattern => pattern.test(source);
   const triggers = [];
@@ -76,12 +79,16 @@ export function inspectWorkflowSource(path, source) {
   // that wrapper only selects the default-branch publisher, which re-derives every identity.
   else if (path.endsWith("release.yml") && source.includes("uses: timurproko/a1/.github/workflows/publish.yml@develop")
     && source.includes("ref: develop")) trustedSource = "published-release-tag";
+  // Security: the shared delivery workflow is the only cross-repository reusable workflow; it runs its own reviewed
+  // scripts and reads pull-request content as data, so this caller forwards events and App credentials only.
+  else if (path.endsWith("delivery.yml") && source.includes(SHARED_DELIVERY_WORKFLOW) && !/^\s+(?:run|steps):/m.test(source)) trustedSource = "shared-delivery-workflow";
   else if (path.endsWith("ci.yml") && source.includes("github.event.pull_request.head.sha") && permissions.every(value => value.endsWith("read"))) trustedSource = "pull-request-head-read-only";
   else if (path.endsWith("full-regression.yml") && source.includes("source: ${{ github.sha }}") && source.includes("uses: ./.github/workflows/full-regression-shared.yml")) trustedSource = "dispatch-commit";
   else if (path.endsWith("full-regression-shared.yml") && source.includes("ref: ${{ inputs.source }}") && permissions.every(value => value.endsWith("read"))) trustedSource = "explicit-source-read-only";
   else if (path.endsWith("publish.yml") && source.includes("git/ref/heads/develop") && source.includes("ref: ${{ needs.source.outputs.sha }}")) trustedSource = "authoritative-develop";
 
   const authority = [];
+  if (source.includes(SHARED_DELIVERY_WORKFLOW)) authority.push("shared-delivery");
   if (source.includes("Development validation required")) authority.push("Development validation required");
   if (source.includes("acceptance-validation-route.mjs")) authority.push("acceptance-only-routing");
   if (source.includes("delivery_candidate=")) authority.push("single-pr-finalization-validation");
