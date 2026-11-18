@@ -14,7 +14,7 @@
 
 ## 3. Mouse interaction across owned selector and configure dialogs
 
-- [ ] 3.1 Adopt shared independent hover, direct clicked-choice activation, and outside cancellation in Launcher and shared A1-owned selectors while preserving existing input editing and leaving opaque extension surfaces and the comparison profile unchanged.
-- [ ] 3.2 Replace Settings configure-dialog pointer blocking with hit-tested generic/Warnings changes, Default Model selection, and both Thinking Level steps through existing backend and undo authorities.
-- [ ] 3.3 Close Settings configure workflows on an outside primary press without a write or underlying action, including from step two; preserve Escape back/close, existing wheel behavior, and asynchronous persistence failure handling.
-- [ ] 3.4 Add owner-focused selector and Settings fixtures for independent keyboard focus, blended text-only hover, clicked-target actions, outside gesture ownership, clipped geometry, and async failure/reopen; update user-facing interaction documentation.
+- [x] 3.1 Adopt shared independent hover, direct clicked-choice activation, and outside cancellation in Launcher and shared A1-owned selectors while preserving existing input editing and leaving opaque extension surfaces and the comparison profile unchanged.
+- [x] 3.2 Replace Settings configure-dialog pointer blocking with hit-tested generic/Warnings changes, Default Model selection, and both Thinking Level steps through existing backend and undo authorities.
+- [x] 3.3 Close Settings configure workflows on an outside primary press without a write or underlying action, including from step two; preserve Escape back/close, existing wheel behavior, and asynchronous persistence failure handling.
+- [x] 3.4 Add owner-focused selector and Settings fixtures for independent keyboard focus, blended text-only hover, clicked-target actions, outside gesture ownership, clipped geometry, and async failure/reopen; update user-facing interaction documentation.

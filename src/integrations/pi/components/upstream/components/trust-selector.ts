@@ -4,13 +4,15 @@
  * Modifications: Source-synchronized trust port with injected public options and shared framing; bare
  * A1 opts into Title Case, selected backgrounds, circular navigation, aligned decisions and no
  * saved-path suffix while comparison styling and trust effects remain unchanged.
- * Deviations: owned-modal-shortcut-hints, standard-trust-dialog-styling.
+ * Deviations: owned-dialog-independent-mouse, owned-modal-shortcut-hints,
+ * standard-trust-dialog-styling.
  */
 import { wrapChoiceIndex } from "../../../../../contracts/presentation/index.js";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { Container, getKeybindings, Spacer, Text } from "@earendil-works/pi-tui";
+import { PiDialogChoice, paintPiDialogText } from "../../dialog-choice.js";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
-import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints, renderPiModalListRow } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 export interface TrustDecision { readonly path: string; readonly decision: boolean }
 export interface TrustUpdate { readonly path: string; readonly decision: boolean | null }
@@ -33,6 +35,7 @@ export class TrustSelectorComponent extends Container {
   private readonly listContainer: Container;
   private readonly trustOptions: readonly TrustOption[];
   private readonly standardStyle: boolean;
+  private readonly onSelect: (selection: { readonly trusted: boolean; readonly updates: readonly TrustUpdate[] }) => void;
   readonly handleInput: (data: string) => void;
 
   constructor(options: {
@@ -46,6 +49,7 @@ export class TrustSelectorComponent extends Container {
   }) {
     super();
     this.trustOptions = options.trustOptions;
+    this.onSelect = options.onSelect;
     this.standardStyle = options.standardStyle === true;
     const isSaved = (option: TrustOption) => option.savedPath !== undefined
       && options.savedDecision?.decision === option.trusted
@@ -96,14 +100,10 @@ export class TrustSelectorComponent extends Container {
       const selected = index === this.selectedIndex;
       const prefix = selected ? piTheme().fg("accent", "→ ") : "  ";
       if (this.standardStyle) {
-        this.listContainer.addChild({
-          render: width => {
-            const theme = piTheme();
-            const arrow = selected ? theme.fg("accent", "→ ") : "  ";
-            return [renderPiModalListRow(`${arrow}${theme.fg("text", option.label)}`, width, selected)];
-          },
-          invalidate: () => {},
-        });
+        this.listContainer.addChild(new PiDialogChoice(hovered => {
+          const arrow = selected ? piTheme().fg("accent", "→ ") : "  ";
+          return `${arrow}${paintPiDialogText(hovered, "text", option.label)}`;
+        }, selected, () => this.onSelect({ trusted: option.trusted, updates: option.updates })));
       } else {
         const label = selected ? piTheme().fg("accent", option.label) : piTheme().fg("text", option.label);
         this.listContainer.addChild(new Text(`${prefix}${label}`, 0, 0));

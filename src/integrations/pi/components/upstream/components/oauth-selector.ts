@@ -5,14 +5,15 @@
  * roles, Title Case and circular navigation. Configured status uses a muted dot, success-green
  * configured text and trailing checkmark without method/source qualifiers. Omit decorative
  * preferred-partner badges while retaining filtering, paging, actions and comparison presentation.
- * Deviations: standard-sign-in-dialog-styling.
+ * Deviations: owned-dialog-independent-mouse, standard-sign-in-dialog-styling.
  */
 import { Container, fuzzyFilter, getKeybindings, getSelectPageIndex, Input, Spacer, Text, TruncatedText } from "@earendil-works/pi-tui";
 import { wrapChoiceIndex } from "../../../../../contracts/presentation/index.js";
 import type { OwnedUiShellAuthProviderOption as Provider } from "../../../../../contracts/owned-ui/index.js";
 import { DynamicBorder } from "../../../startup-public.js";
+import { PiDialogChoice, paintPiDialogText } from "../../dialog-choice.js";
 import { addPiModalHeader, addPiModalSearchInput, adoptPiModalFrame } from "../../modal-frame.js";
-import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalListRow, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 const MAX_VISIBLE = 8;
 
@@ -92,15 +93,11 @@ export class AuthProviderSelector extends Container {
     for (let index = start; index < end; index++) {
       const provider = this.#filtered[index]!;
       const selected = index === this.#index;
-      this.#list.addChild({
-        render: width => {
-          const theme = piTheme();
-          const prefix = selected ? theme.fg("accent", "→ ") : "  ";
-          const type = this.#showTypes ? theme.fg("muted", ` [${provider.authType === "api_key" ? "API key" : "subscription"}]`) : "";
-          return [renderPiModalListRow(`${prefix}${theme.fg("text", provider.label)}${type}${providerStatus(provider)}`, width, selected)];
-        },
-        invalidate: () => {},
-      });
+      this.#list.addChild(new PiDialogChoice(hovered => {
+        const prefix = selected ? piTheme().fg("accent", "→ ") : "  ";
+        const type = this.#showTypes ? paintPiDialogText(hovered, "muted", ` [${provider.authType === "api_key" ? "API key" : "subscription"}]`) : "";
+        return `${prefix}${paintPiDialogText(hovered, "text", provider.label)}${type}${providerStatus(provider, hovered)}`;
+      }, selected, () => this.#select(provider.id)));
     }
     if (start > 0 || end < this.#filtered.length) this.#list.addChild(new TruncatedText(piTheme().fg("muted", `  (${this.#index + 1}/${this.#filtered.length})`), 0, 0));
     if (this.#filtered.length === 0) {
@@ -110,9 +107,8 @@ export class AuthProviderSelector extends Container {
   }
 }
 
-function providerStatus(provider: Provider): string {
-  const theme = piTheme();
-  const separator = theme.fg("muted", " • ");
-  if (provider.status === undefined) return separator + theme.fg("muted", "not configured");
-  return separator + theme.fg("success", "configured ✓");
+function providerStatus(provider: Provider, hovered: boolean): string {
+  const separator = paintPiDialogText(hovered, "muted", " • ");
+  if (provider.status === undefined) return separator + paintPiDialogText(hovered, "muted", "not configured");
+  return separator + paintPiDialogText(hovered, "success", "configured ✓");
 }

@@ -81,6 +81,9 @@ describe("direct footer name editing", () => {
           value.shell.runtime.renderNow();
           const region = value.shell.root.chrome.footerName?.region(command)!;
           value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
+          expect(value.shell.root.usesDefaultInputSurface()).toBe(true);
+          value.shell.runtime.renderNow();
+          value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
           await vi.waitFor(() => expect(value.shell.root.chrome.footerName?.activeControl).toBe(command));
         }
         clickName(value);
@@ -224,7 +227,7 @@ describe("direct footer name editing", () => {
   it.each([
     ["name", "models"], ["name", "thinking"], ["models", "name"],
     ["models", "thinking"], ["thinking", "name"], ["thinking", "models"],
-  ] as const)("replaces a slash-opened %s dialog with %s without applying unsaved edits", async (from, to) => {
+  ] as const)("cancels slash-opened %s before a separate footer click opens %s",  async (from, to) => {
     const value = await namedFixture();
     const title = (command: string) => command === "name" ? "Session Name" : command === "models" ? "Models" : "Thinking Level";
     try {
@@ -237,6 +240,10 @@ describe("direct footer name editing", () => {
       value.shell.root.handleInput(from === "name" ? "unsaved name" : from === "models" ? "gpt" : "low");
       value.shell.runtime.renderNow();
       const region = value.shell.root.chrome.footerName?.region(to)!;
+      value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
+      expect(value.shell.root.usesDefaultInputSurface()).toBe(true);
+      expect(value.shell.root.chrome.footerName?.activeControl).not.toBe(to);
+      value.shell.runtime.renderNow();
       value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
       await vi.waitFor(() => expect(stripTerminalSequences(value.shell.root.render(80).join("\n"))).toContain(title(to)));
       expect(value.shell.root.usesDefaultInputSurface()).toBe(false);
@@ -284,6 +291,8 @@ describe("direct footer name editing", () => {
       expect(value.shell.root.usesDefaultInputSurface()).toBe(true);
       await value.shell.runWorkflow({ command: "thinking", argument: "" });
       click();
+      expect(value.shell.root.usesDefaultInputSurface()).toBe(true);
+      click();
       await vi.waitFor(() => expect(stripTerminalSequences(value.shell.root.render(80).join("\n"))).toContain("Models"));
       expect(value.shell.root.chrome.footerName?.activeControl).toBe("models");
       expect(value.shell.root.editor.getText()).toBe("retained provider draft");
@@ -298,9 +307,10 @@ describe("direct footer name editing", () => {
       value.shell.runtime.renderNow();
       const region = value.shell.root.chrome.footerName?.region("name")!;
       value.shell.showSelector("Overlay", [{ id: "one", label: "One" }], () => {});
+      await vi.dynamicImportSettled();
       value.shell.runtime.renderNow();
       value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
-      expect(value.shell.readiness().overlayOpen).toBe(true);
+      expect(value.shell.readiness().overlayOpen).toBe(false);
       expect(value.shell.root.usesDefaultInputSurface()).toBe(true);
       expect(value.shell.root.editor.getText()).toBe("retained draft");
     } finally { await value.shell.dispose(); }

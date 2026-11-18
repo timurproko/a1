@@ -271,7 +271,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     } finally { await value.shell.dispose(); }
   });
 
-  it("holds a name-to-thinking replacement until the lazy dialog is ready", async () => {
+  it("holds a fresh thinking launch after an outside-dismissed name dialog until ready", async () => {
     const gate = Promise.withResolvers<void>();
     const lazySelectors: PiShellLazySelectorLoader = {
       prepare: async () => {},
@@ -287,6 +287,9 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
         expect(value.shell.root.chrome.footerName?.activeControl).toBe("name");
       });
       const region = value.shell.root.chrome.footerName?.region("thinking")!;
+      value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
+      expect(value.shell.root.usesDefaultInputSurface()).toBe(true);
+      value.shell.runtime.renderNow(true);
       const writesBefore = value.terminal.writes.length;
       value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
       expect(value.shell.runtime.presentationHeld).toBe(true);
@@ -317,6 +320,9 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
         expect(value.shell.root.chrome.footerName?.activeControl).toBe("name");
       });
       const region = value.shell.root.chrome.footerName?.region("thinking")!;
+      value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
+      expect(value.shell.root.usesDefaultInputSurface()).toBe(true);
+      value.shell.runtime.renderNow();
       value.terminal.input(`\x1b[<0;${region.columnStart};${region.rowStart}M\x1b[<0;${region.columnStart};${region.rowStart}m`);
       await vi.waitFor(() => expect(stripTerminalSequences(value.shell.root.render(100).join("\n"))).toContain("Thinking unavailable"));
       expect(value.shell.runtime.presentationHeld).toBe(false);
@@ -870,12 +876,14 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     }));
 
     await shell.submit("/login");
+    await vi.dynamicImportSettled();
     const title = bare ? "Select Authentication Method" : "Select authentication method:";
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain(title);
     terminal.input("\r");
     await vi.dynamicImportSettled();
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("OpenAI");
     terminal.input("\x1b");
+    await vi.dynamicImportSettled();
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain(title);
     terminal.input("\r");
     terminal.input("\r");

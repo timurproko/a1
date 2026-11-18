@@ -1,4 +1,5 @@
 export {
+  centeredDialogBounds,
   configureDialogChoiceCapacity,
   configureDialogTextRows,
   configureDialogWidth,

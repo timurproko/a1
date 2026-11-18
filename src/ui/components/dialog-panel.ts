@@ -108,6 +108,13 @@ function dialogPanelLayout(width: number, theme: UiTheme): DialogPanelLayout {
   };
 }
 
+/** The exact centered panel rectangle shared by composition and pointer routing (zero-based origin). */
+export function centeredDialogBounds(rect: PaneRect, rowCount: number): { readonly top: number; readonly left: number; readonly width: number; readonly height: number } {
+  const width = configureDialogWidth(rect.width);
+  const height = Math.min(Math.max(0, rect.height), rowCount);
+  return { top: Math.max(0, Math.floor((rect.height - height) / 2)), left: Math.max(0, Math.floor((rect.width - width) / 2)), width, height };
+}
+
 /** Dims a completed screen and overlays one full-intensity panel without disturbing ANSI tails. */
 export function renderCenteredDialogOverlay(
   frame: readonly string[],
@@ -117,10 +124,10 @@ export function renderCenteredDialogOverlay(
 ): readonly string[] {
   const width = Math.max(0, rect.width);
   const height = Math.max(0, rect.height);
-  const panelWidth = configureDialogWidth(width);
-  const visibleDialog = dialogRows.slice(0, height);
-  const top = Math.max(0, Math.floor((height - visibleDialog.length) / 2));
-  const left = Math.max(0, Math.floor((width - panelWidth) / 2));
+  const bounds = centeredDialogBounds(rect, dialogRows.length);
+  const panelWidth = bounds.width;
+  const visibleDialog = dialogRows.slice(0, bounds.height);
+  const { top, left } = bounds;
 
   return Array.from({ length: height }, (_, row) => {
     const backdrop = dimStyledLine(frame[row] ?? "", width);

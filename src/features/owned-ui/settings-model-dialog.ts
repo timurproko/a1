@@ -2,6 +2,7 @@ import { DIALOG_BACK_SHORTCUT_HINT, DIALOG_CLOSE_SHORTCUT_HINT, wrapChoiceIndex 
 import type { DialogRow } from "../../ui/components/index.js";
 import {
   LineInput,
+  type DialogPointer,
   ShortcutRegistry,
   assertNoShortcutConflicts,
   configureDialogChoiceCapacity,
@@ -39,6 +40,8 @@ assertNoShortcutConflicts(MODEL_SHORTCUTS.assemble());
  */
 export interface StructuredEdit {
   readonly entry: OwnedUiSettingsEntry;
+  readonly pointer: DialogPointer<number>;
+  windowStart: number;
   readonly flags: readonly string[];
   readonly modelDialog: "thinking" | "default" | null;
   /** Searchable flag dialog for owned tab-bar configuration. */
@@ -83,20 +86,7 @@ export function modelDialogKey(open: StructuredEdit, data: string, key: string, 
       open.index = wrapChoiceIndex(open.index, action === "next" ? 1 : -1, flags.length);
       return { consumed: true };
     }
-    if (action === "select") {
-      const selected = flags[open.index];
-      if (selected === undefined) return { consumed: true, render: false };
-      if (open.modelDialog === "default") selectDefaultModel(open, selected.key, actions);
-      else {
-        open.modelIndex = open.index;
-        open.modelKey = selected.key;
-        open.step = "level";
-        const options = modelLevelOptions(open, selected);
-        const current = structuredValue(open.entry, open.record)[selected.key];
-        open.index = Math.max(0, options.findIndex(option => option.value === current));
-      }
-      return { consumed: true };
-    }
+    if (action === "select") return activateModelDialog(open, open.index, actions);
     if (open.filter === null) return { consumed: true, render: false };
     handleLineInputKey(open.filter, data);
     open.index = 0;
@@ -114,17 +104,35 @@ export function modelDialogKey(open: StructuredEdit, data: string, key: string, 
     open.index = wrapChoiceIndex(open.index, action === "next" ? 1 : -1, choices.length);
     return { consumed: true };
   }
-  if (action === "select") {
-    const choice = choices[open.index];
+  if (action === "select") return activateModelDialog(open, open.index, actions);
+  return { consumed: true, render: false };
+}
+
+/** Activate an explicit semantic choice, without borrowing the keyboard-active row for a mouse click. */
+export function activateModelDialog(open: StructuredEdit, index: number, actions: ModelDialogActions): PaneInputResult {
+  open.pointer.invalidate();
+  if (open.modelDialog === "default" || open.step === "model") {
+    const selected = filteredModelFlags(open)[index];
+    if (selected === undefined) return { consumed: true, render: false };
+    if (open.modelDialog === "default") selectDefaultModel(open, selected.key, actions);
+    else {
+      open.modelIndex = open.index;
+      open.modelKey = selected.key;
+      open.step = "level";
+      const options = modelLevelOptions(open, selected);
+      const current = structuredValue(open.entry, open.record)[selected.key];
+      open.index = Math.max(0, options.findIndex(option => option.value === current));
+    }
+  } else {
+    const selected = open.entry.flags.find(flag => flag.key === open.modelKey);
+    const choice = selected === undefined ? undefined : modelLevelOptions(open, selected)[index];
     if (selected === undefined || choice === undefined) return { consumed: true, render: false };
     const previous = { ...open.record };
     open.record[selected.key] = choice.value;
-    const forward = { ...open.record };
-    actions.save(open, previous, forward);
+    actions.save(open, previous, { ...open.record });
     returnToModels(open);
-    return { consumed: true };
   }
-  return { consumed: true, render: false };
+  return { consumed: true };
 }
 
 export function modelDialogLines(open: StructuredEdit, width: number, height: number, theme: UiTheme): readonly string[] {
@@ -140,7 +148,9 @@ export function modelDialogLines(open: StructuredEdit, width: number, height: nu
       }));
     const description = open.error ?? "Select the model used for new sessions";
     const visible = dialogWindow(rows, open.index, configureDialogChoiceCapacity(height, true, configureDialogTextRows(description, width)));
+    open.windowStart = open.index - visible.index;
     return renderSteppedDialogPanel({
+      ...(flags.length === 0 ? {} : { pointer: open.pointer }),
       title: "Default Model", description, input: open.filter ?? new LineInput(""),
       rows: visible.rows, index: visible.index, hint: MODEL_SHORTCUTS.hintEntries(MODEL_SCOPE),
     }, width, theme);
@@ -156,7 +166,9 @@ export function modelDialogLines(open: StructuredEdit, width: number, height: nu
       }));
     const description = "Select a model to configure";
     const visible = dialogWindow(allRows, open.index, configureDialogChoiceCapacity(height, true, configureDialogTextRows(description, width)));
+    open.windowStart = open.index - visible.index;
     return renderSteppedDialogPanel({
+      ...(flags.length === 0 ? {} : { pointer: open.pointer }),
       title: "Thinking Level",
       step: 1,
       steps: 2,
@@ -176,7 +188,9 @@ export function modelDialogLines(open: StructuredEdit, width: number, height: nu
   }));
   const description = `Select default thinking level for ${selected?.label ?? open.modelKey ?? "model"}`;
   const visible = dialogWindow(allRows, open.index, configureDialogChoiceCapacity(height, false, configureDialogTextRows(description, width)));
+  open.windowStart = open.index - visible.index;
   return renderSteppedDialogPanel({
+    pointer: open.pointer,
     title: "Thinking Level",
     step: 2,
     steps: 2,

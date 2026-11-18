@@ -94,6 +94,20 @@ function matchesQuery(model: ModelsDialogModel, query: string): boolean {
   return `${model.id} ${model.name} ${model.provider} ${fullModelId(model)}`.toLowerCase().includes(normalized);
 }
 
+function emptyModelsText(query: string, filter: ModelsDialogFilter): string {
+  if (query.trim().length > 0) return "No matching models";
+  return filter === "scoped" ? "No scoped models" : "No models available. Use /login to add providers.";
+}
+
+function sortedModels(models: readonly ModelsDialogModel[]): ModelsDialogModel[] {
+  return [...models].sort((left, right) => left.provider.localeCompare(right.provider) || left.id.localeCompare(right.id));
+}
+
+function modelBulkTargets(rows: readonly ModelsDialogRow[], query: string, filter: ModelsDialogFilter, models: readonly ModelsDialogModel[]): readonly string[] {
+  // Compatibility: a live search narrows bulk actions to the visible rows, as in the pinned selector.
+  return query.length > 0 || filter === "scoped" ? rows.map(row => row.fullId) : models.map(fullModelId);
+}
+
 function keyLabel(action: Parameters<ReturnType<typeof getKeybindings>["getKeys"]>[0]): string {
   return getKeybindings().getKeys(action)
     .map(key => key.split("+").map(part => process.platform === "darwin" && part.toLowerCase() === "alt" ? "option" : part).join("+"))
@@ -126,9 +140,7 @@ export class ModelsDialogComponent implements Component, Focusable {
   #preferredId: string | undefined;
   #refreshStatus: { readonly message: string; readonly kind: "warning" } | undefined;
   readonly #pointer = new DialogPointer<string>();
-  #geometry: string | undefined;
   #disposed = false;
-  #focused = false;
 
   constructor(config: ModelsDialogConfig, callbacks: ModelsDialogCallbacks) {
     this.#callbacks = callbacks;
@@ -137,18 +149,17 @@ export class ModelsDialogComponent implements Component, Focusable {
     this.#savedScopeIds = [...config.savedScopeIds];
     this.#filter = config.initialFilter ?? "all";
     if (config.initialQuery) this.#input.setValue(config.initialQuery);
-    this.#replaceModels(config.models);
+    this.#models = sortedModels(config.models);
     const rows = this.#rows();
     const activeIndex = rows.findIndex(row => row.fullId === this.#activeModelId);
     this.#selectedIndex = activeIndex >= 0 ? activeIndex : 0;
   }
 
   get focused(): boolean {
-    return this.#focused;
+    return this.#input.focused;
   }
 
   set focused(value: boolean) {
-    this.#focused = value;
     this.#input.focused = value;
   }
 
@@ -177,7 +188,7 @@ export class ModelsDialogComponent implements Component, Focusable {
   updateModels(models: readonly ModelsDialogModel[]): void {
     const selectedId = this.selectedModelId;
     this.#pointer.invalidate();
-    this.#replaceModels(models);
+    this.#models = sortedModels(models);
     this.#restoreSelection(selectedId);
   }
 
@@ -254,12 +265,12 @@ export class ModelsDialogComponent implements Component, Focusable {
       return;
     }
     if (kb.matches(data, "app.models.enableAll")) {
-      const targets = this.#bulkTargets(rows);
+      const targets = modelBulkTargets(rows, this.query, this.#filter, this.#models);
       this.#setScope([...this.#scopeIds, ...targets.filter(id => !this.#scopeIds.includes(id))], selected?.fullId);
       return;
     }
     if (kb.matches(data, "app.models.clearAll")) {
-      const targets = new Set(this.#bulkTargets(rows));
+      const targets = new Set(modelBulkTargets(rows, this.query, this.#filter, this.#models));
       this.#setScope(this.#scopeIds.filter(id => !targets.has(id)), selected?.fullId);
       return;
     }
@@ -294,9 +305,6 @@ export class ModelsDialogComponent implements Component, Focusable {
   }
 
   render(width: number): string[] {
-    const geometry = `${width}/${this.#callbacks.viewportHeight?.() ?? 24}`;
-    if (geometry !== this.#geometry) this.#pointer.invalidate();
-    this.#geometry = geometry;
     const theme = piTheme();
     this.#title.setText(theme.fg("accent", theme.bold(MODELS_TITLE))
       + (this.dirty ? theme.fg("warning", " (unsaved)") : ""));
@@ -339,7 +347,7 @@ export class ModelsDialogComponent implements Component, Focusable {
     if (!compact) push();
 
     if (rows.length === 0) {
-      push(theme.fg("muted", `  ${this.#emptyText()}`));
+      push(theme.fg("muted", `  ${emptyModelsText(this.query, this.#filter)}`));
     } else {
       for (let index = startIndex; index < endIndex; index += 1) {
         const row = rows[index]!;
@@ -382,16 +390,6 @@ export class ModelsDialogComponent implements Component, Focusable {
     ];
   }
 
-  #emptyText(): string {
-    if (this.#input.getValue().trim().length > 0) return "No matching models";
-    if (this.#filter === "scoped") return "No scoped models";
-    return "No models available. Use /login to add providers.";
-  }
-
-  #replaceModels(models: readonly ModelsDialogModel[]): void {
-    this.#models = [...models].sort((left, right) => left.provider.localeCompare(right.provider) || left.id.localeCompare(right.id));
-  }
-
   #rows(): readonly ModelsDialogRow[] {
     const query = this.#input.getValue();
     const byId = new Map(this.#models.map(model => [fullModelId(model), model]));
@@ -403,11 +401,6 @@ export class ModelsDialogComponent implements Component, Focusable {
         })
       : this.#models;
     return ordered.filter(model => matchesQuery(model, query)).map(model => ({ fullId: fullModelId(model), model }));
-  }
-
-  #bulkTargets(rows: readonly ModelsDialogRow[]): readonly string[] {
-    // Compatibility: like the pinned scoped selector, a live search narrows bulk actions to the visible rows.
-    return this.#input.getValue().length > 0 || this.#filter === "scoped" ? rows.map(row => row.fullId) : this.#models.map(fullModelId);
   }
 
   #clampSelection(rows: readonly ModelsDialogRow[]): void {

@@ -1119,7 +1119,7 @@ describe("the settings screen", () => {
     expect(shown).not.toContain("→ gpt-5 [openai]");
 
     const beforePointer = modalScreen(target);
-    target.onMouse?.({ kind: "press", button: 0, row: 20, column: 20 }, HOST);
+    target.onMouse?.({ kind: "motion", button: 3, row: 20, column: 20 }, HOST);
     expect(modalScreen(target)).toEqual(beforePointer);
     expect(backing.writes).toHaveLength(0);
 
@@ -1176,7 +1176,7 @@ describe("the settings screen", () => {
     expect(shown).not.toContain("gpt-5 [openai]");
 
     const beforePointer = modalScreen(target);
-    target.onMouse?.({ kind: "press", button: 0, row: 20, column: 20 }, HOST);
+    target.onMouse?.({ kind: "motion", button: 3, row: 20, column: 20 }, HOST);
     expect(modalScreen(target)).toEqual(beforePointer);
     expect(backing.writes).toHaveLength(0);
 
@@ -1265,26 +1265,116 @@ describe("the settings screen", () => {
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: true, unknownTools: false } });
   });
 
-  it("consumes pointer editing and dialog-area wheel input without changing a structured dialog", async () => {
+  it("hovers independently, changes only the clicked structured row, and keeps wheel input non-activating", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Warnings");
     target.onInput?.(ENTER, HOST);
-
     const before = screen(target);
     const row = before.findIndex(line => line.includes("Unknown tools"));
-    const valueColumn = (before[row] ?? "").indexOf("false") + 1;
-    for (const event of [
-      { kind: "motion" as const, button: 0, row: row + 1, column: valueColumn },
-      { kind: "press" as const, button: 0, row: row + 1, column: valueColumn },
-    ]) {
-      expect(target.onMouse?.(event, HOST)).toEqual({ consumed: true, render: false });
-    }
-    expect(screen(target)).toEqual(before);
-    const dialog = modalScreen(target);
-    expect(target.onMouse?.({ kind: "wheel-down", button: 0, row: row + 1, column: valueColumn }, HOST))
-      .toEqual({ consumed: true });
-    expect(modalScreen(target)).toEqual(dialog);
+    const column = before[row]!.indexOf("Unknown tools") + 1;
+    const active = before.find(line => line.includes("→ Anthropic extra usage"));
+    const hover = vi.fn((_token: UiThemeToken, text: string) => text);
+    const host = { ...HOST, theme: { ...PANEL_THEME, hover } };
+    target.render({ width: 80, height: 24 }, host);
+    expect(target.onMouse?.({ kind: "motion", button: 3, row: row + 1, column }, host)).toEqual({ consumed: true, render: true });
+    target.render({ width: 80, height: 24 }, host);
+    expect(hover).toHaveBeenCalledWith("text", expect.stringMatching(/^Unknown tools\s*$/u));
+    expect(screen(target).find(line => line.includes("→ Anthropic extra usage"))).toBe(active);
     expect(writes).toHaveLength(0);
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column }, HOST);
+    expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: true, unknownTools: true } });
+    expect(screen(target).find(line => line.includes("→ Anthropic extra usage"))).toBe(active);
+    const dialog = modalScreen(target);
+    target.onMouse?.({ kind: "wheel-down", button: 0, row: row + 1, column }, HOST);
+    expect(modalScreen(target)).toEqual(dialog);
+    expect(writes).toHaveLength(1);
+  });
+
+  it.each([false, true])("clicks Default Model directly and retains asynchronous failure handling (failure %s)", async fail => {
+    const backing = defaultModelDialogPort(fail);
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "clicked-default", agent: backing.port });
+    await session.load();
+    const target = settingsApp(session);
+    selectRow(target, "Default model"); target.onInput?.(ENTER, HOST);
+    const before = screen(target);
+    const row = before.findIndex(line => line.includes("gpt-5.3-codex-spark [openai]"));
+    const column = before[row]!.indexOf("gpt-5.3") + 1;
+    target.onMouse?.({ kind: "motion", button: 3, column, row: row + 1 }, HOST);
+    expect(modalScreen(target).find(line => line.includes("→"))).toContain("gpt-5 [openai]");
+    expect(backing.writes).toHaveLength(0);
+    target.onMouse?.({ kind: "press", button: 0, column, row: row + 1 }, HOST);
+    expect(modalScreen(target)).toEqual([]);
+    await settleChanges();
+    if (fail) {
+      expect(modalScreen(target).join("\n")).toContain("Could not save: settings are read-only");
+      expect(backing.writes).toHaveLength(0);
+    } else {
+      expect(backing.writes).toEqual([{ key: "defaultModel", value: "openai/gpt-5.3-codex-spark" }]);
+      expect(modalScreen(target)).toEqual([]);
+    }
+  });
+
+  it("clicks the explicit model and level in Thinking Level without hover moving the keyboard target", async () => {
+    const backing = modelDialogPort();
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "clicked-thinking", agent: backing.port });
+    await session.load();
+    const target = settingsApp(session);
+    selectRow(target, "Default thinking level per model"); target.onInput?.(ENTER, HOST);
+    const click = (needle: string) => {
+      const lines = screen(target);
+      const row = lines.findIndex(line => line.includes(needle));
+      expect(row).toBeGreaterThanOrEqual(0);
+      const column = lines[row]!.indexOf(needle) + 1;
+      target.onMouse?.({ kind: "motion", button: 3, column, row: row + 1 }, HOST);
+      return { kind: "press" as const, button: 0, column, row: row + 1 };
+    };
+    target.onMouse?.(click("gpt-5.3-codex-spark [openai]"), HOST);
+    expect(modalScreen(target).join("\n")).toContain("step 2/2");
+    expect(modalScreen(target).join(" ").replace(/\s+/gu, " ")).toContain("gpt-5.3-codex-spark [openai]");
+    const high = click("high");
+    expect(modalScreen(target).find(line => line.includes("→"))).toContain("low");
+    expect(backing.writes).toHaveLength(0);
+    target.onMouse?.(high, HOST);
+    await settleChanges();
+    expect(backing.writes.at(-1)).toEqual({ key: "modelThinkingLevels", value: { "openai/gpt-5": "high", "openai/gpt-5.3-codex-spark": "high" } });
+    expect(modalScreen(target).join("\n")).toContain("step 1/2");
+  });
+
+  it.each(["Warnings", "Default Model", "Thinking step 1", "Thinking step 2"])("outside dismissal of %s consumes its gesture without a write", async kind => {
+    const backing = kind === "Warnings" ? port() : kind === "Default Model" ? defaultModelDialogPort() : modelDialogPort();
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "outside", agent: backing.port });
+    await session.load();
+    const target = settingsApp(session);
+    selectRow(target, kind === "Warnings" ? "Warnings" : kind === "Default Model" ? "Default model" : "Default thinking level per model");
+    target.onInput?.(ENTER, HOST);
+    if (kind === "Thinking step 2") target.onInput?.(ENTER, HOST);
+    expect(modalScreen(target).length).toBeGreaterThan(0);
+    target.onMouse?.({ kind: "press", button: 2, column: 1, row: 1 }, HOST);
+    expect(modalScreen(target).length).toBeGreaterThan(0);
+    target.onMouse?.({ kind: "press", button: 0, column: 1, row: 1 }, HOST);
+    expect(modalScreen(target)).toEqual([]);
+    expect(target.onMouse?.({ kind: "motion", button: 0, column: 45, row: 5 }, HOST)).toEqual({ consumed: true, render: false });
+    expect(target.onMouse?.({ kind: "release", button: 0, column: 45, row: 5 }, HOST)).toEqual({ consumed: true, render: false });
+    expect(backing.writes).toHaveLength(0);
+  });
+
+  it("rejects stale panel bounds after resize and activates only the repainted compact model", async () => {
+    const backing = modelDialogPort();
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "resized", agent: backing.port });
+    await session.load();
+    const target = settingsApp(session);
+    selectRow(target, "Default thinking level per model"); target.onInput?.(ENTER, HOST);
+    const before = screen(target);
+    const row = before.findIndex(line => line.includes("gpt-5.3-codex-spark [openai]"));
+    const compact = { ...HOST, getSize: () => ({ width: 48, height: 10 }) };
+    target.onMouse?.({ kind: "press", button: 0, column: 16, row: row + 1 }, compact);
+    expect(modalScreen(target).join("\n")).toContain("step 1/2");
+    target.onInput?.(DOWN, HOST);
+    const lines = target.render({ width: 48, height: 10 }, compact).map(stripTerminalSequences);
+    const compactRow = lines.findIndex(line => line.includes("gpt-5.3-codex-spark"));
+    target.onMouse?.({ kind: "press", button: 0, column: lines[compactRow]!.indexOf("gpt-5.3") + 1, row: compactRow + 1 }, compact);
+    expect(modalScreen(target, 48, 10).join("\n")).toContain("step 2/2");
+    expect(backing.writes).toHaveLength(0);
   });
 
   it("scrolls settings content behind an unchanged structured dialog", async () => {

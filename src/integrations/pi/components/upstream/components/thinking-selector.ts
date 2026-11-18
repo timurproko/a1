@@ -13,9 +13,9 @@
  * the shared bare-A1 blue selection surface only around the rendered item span, with the existing
  * accent arrow, normal-text level, and preserved current/default/description roles. The comparison
  * profile retains the public pinned component.
- * Deviations: owned-modal-shortcut-hints, owned-level-cycle-shortcut, owned-thinking-selector-heading,
- * owned-thinking-selector-controls, owned-dialog-ctrl-c-cancel, owned-standard-dialog-selection,
- * owned-dialog-search-marker.
+ * Deviations: owned-dialog-independent-mouse, owned-modal-shortcut-hints, owned-level-cycle-shortcut,
+ * owned-thinking-selector-heading, owned-thinking-selector-controls, owned-dialog-ctrl-c-cancel,
+ * owned-standard-dialog-selection, owned-dialog-search-marker.
  */
 import {
 	Container,
@@ -28,13 +28,14 @@ import {
 	SelectList,
 	type SelectListLayoutOptions,
 	Spacer,
-	type TuiMouseEvent,
-	type TuiMouseEventResult,
 	Text,
+  truncateToWidth,
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
+import { PiOwnedSelectList } from "../../dialog-select-list.js";
+import { paintPiDialogText } from "../../dialog-choice.js";
 import { addPiModalHeader, addPiModalSearchInput, adoptPiModalFrame } from "../../modal-frame.js";
-import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalListRow, renderPiModalShortcutHints } from "../../theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 export type ThinkingSelectorLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
@@ -56,30 +57,6 @@ const LEVEL_DESCRIPTIONS: Record<ThinkingSelectorLevel, string> = {
 interface ThinkingSelectList {
 	readonly list: SelectList;
 	readonly presentation: Component;
-}
-
-class ThinkingSelectListPresentation implements Component {
-	private readonly list: SelectList;
-	private readonly items: readonly SelectItem[];
-
-	constructor(list: SelectList, items: readonly SelectItem[]) {
-		this.list = list;
-		this.items = items;
-	}
-
-	invalidate(): void {
-		this.list.invalidate();
-	}
-
-	handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
-		return this.list.handleMouse(event);
-	}
-
-	render(width: number): string[] {
-		const selected = this.list.getSelectedItem();
-		const selectedIndex = selected === null ? -1 : this.items.findIndex((item) => item.value === selected.value);
-		return this.list.render(width).map((row, index) => renderPiModalListRow(row, width, index === selectedIndex));
-	}
 }
 
 /** Bare-A1 thinking-level selector with profile-resolved shortcut presentation. */
@@ -200,7 +177,16 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 		const currentIndex = themedItems.findIndex((item) => item.value === preselect);
 		if (currentIndex !== -1) list.setSelectedIndex(currentIndex);
 		list.onSelect = (item) => this.onSelect(item.value as ThinkingSelectorLevel);
-		return { list, presentation: new ThinkingSelectListPresentation(list, themedItems) };
+    const presentation = new PiOwnedSelectList(list, themedItems, Math.max(1, themedItems.length), (item, selected, hovered, width) => {
+      if (!hovered) return list.render(width)[themedItems.indexOf(item)] ?? "";
+      const level = item.value as ThinkingSelectorLevel;
+      const current = level === this.currentLevel;
+      const marker = level === this.defaultThinkingLevel ? paintPiDialogText(true, "text", "◉") : paintPiDialogText(true, "dim", "○");
+      const padding = " ".repeat(levelWidth - level.length + (current ? 0 : 2));
+      const content = `${selected ? piTheme().fg("accent", "→ ") : "  "}${marker} ${paintPiDialogText(true, "text", level)}${current ? ` ${paintPiDialogText(true, "success", "✓")}` : ""}${padding} ${paintPiDialogText(true, "muted", LEVEL_DESCRIPTIONS[level])}`;
+      return truncateToWidth(content, Math.max(0, width - 2), "");
+    });
+    return { list, presentation };
 	}
 
 	private applyFilter(query: string): void {

@@ -64,9 +64,10 @@ describe("standard sign-in and trust presentation", () => {
     expect(cellStyle(row, "n")).toEqual(cellStyle(piTheme().fg("muted", "n"), "n"));
   });
 
-  it("standardizes the retained internal fork picker while preserving its wraparound controller", () => {
+  it("standardizes the retained internal fork picker while preserving its wraparound controller", async () => {
     const chosen = vi.fn();
     const fork = createPiShellUserMessageSelector([{ id: "first", label: "First" }, { id: "last", label: "Last" }], chosen, () => {}, "first", true);
+    await fork.ready;
     const title = fork.render(80).find(row => stripTerminalSequences(row).includes("Fork from Message"))!;
     expect(cellStyle(title, "F")).toEqual(cellStyle(piTheme().fg("accent", "F"), "F"));
     fork.handleInput?.("\u001b[A");
@@ -93,10 +94,11 @@ describe("standard sign-in and trust presentation", () => {
     model.dispose?.();
   });
 
-  it("gives internal generic choices the same title, foreground and selected background roles", () => {
+  it("gives internal generic choices the same title, foreground and selected background roles", async () => {
     const chosen = vi.fn();
     const options = [{ id: "first", label: "Primary", description: "metadata" }, { id: "last", label: "Other" }];
     const component = createPiShellSelector({ title: "Choose internal option:", options, onSelect: chosen, onCancel() {} }, true);
+    await component.ready;
     expect(stripTerminalSequences(component.render(80)[0]!)).toContain("Choose Internal Option");
     const row = component.render(80).find(row => stripTerminalSequences(row).includes("→"))!;
     expect(cellStyle(row, "P")).toEqual(cellStyle(piTheme().fg("text", "P"), "P"));
@@ -105,12 +107,13 @@ describe("standard sign-in and trust presentation", () => {
     component.handleInput?.("\u001b[A"); component.handleInput?.("\r");
     expect(chosen).toHaveBeenCalledWith("last");
   });
-  it("styles and cycles nested internal authentication choices without restyling external/comparison content", () => {
+  it("styles and cycles nested internal authentication choices without restyling external/comparison content", async () => {
     const title = "Select Amazon Bedrock authentication method:";
     const choices = ["Bearer token", "AWS profile", "Existing AWS credential chain"];
     const select = vi.fn();
     const owned = createPiShellExtensionSelector(title, choices, select, () => {}, true);
     const comparison = createPiShellExtensionSelector(title, choices, () => {}, () => {});
+    await owned.ready;
     expect(stripTerminalSequences(owned.render(80)[1]!)).toContain("Select Amazon Bedrock Authentication Method");
     expect(stripTerminalSequences(comparison.render(80)[1]!)).toContain(title);
     owned.handleInput?.("\u001b[A");
@@ -158,7 +161,7 @@ describe("standard sign-in and trust presentation", () => {
     const selected = vi.fn();
     const method = createPiShellExtensionSelector("Select Authentication Method", ["Account", "API Key"], selected, () => {}, true);
     const auth = createPiShellAuthProviderSelector("login", providers, selected, () => {}, undefined, true);
-    await auth.ready;
+    await Promise.all([method.ready, auth.ready]);
     for (const accent of ["blue", "pink"] as const) {
       setPiAccentColor(accent);
       for (const component of [method, auth]) {
