@@ -9,7 +9,7 @@ The maintainer integration decision accepts these scenarios:
 - Models supports clicked model text, scope circles, and filters while retaining its input-dock presentation and restoring the prompt on close.
 - Launcher and owned selectors accept mouse choices while Settings supports Warnings, Default Model, and both Thinking Level steps through existing write authority.
 - Resize and content changes discard stale pointer targets, and comparison mode and opaque extension-owned custom surfaces retain their existing policy.
-- Ordinary Settings labels, values, and enabled numeric controls use the same blended text-only hover instead of pure white.
+- Ordinary Settings values and enabled numeric controls use blended text-only hover instead of pure white; labels and section titles remain unchanged on hover.
 - Settings configure pickers stay within 20 rows and ten visible choices, with wheel, track paging, and captured thumb dragging following live Agent scrollbar preferences.
 
 ```openspec-delivery
@@ -29,13 +29,13 @@ The maintainer integration decision accepts these scenarios:
     "Models supports clicked model text, scope circles, and filters while retaining its input-dock presentation and restoring the prompt on close.",
     "Launcher and owned selectors accept mouse choices while Settings supports Warnings, Default Model, and both Thinking Level steps through existing write authority.",
     "Resize and content changes discard stale pointer targets, and comparison mode and opaque extension-owned custom surfaces retain their existing policy.",
-    "Ordinary Settings labels, values, and enabled numeric controls use the same blended text-only hover instead of pure white.",
+    "Ordinary Settings values and enabled numeric controls use blended text-only hover instead of pure white; labels and section titles remain unchanged on hover.",
     "Settings configure pickers stay within 20 rows and ten visible choices, with wheel, track paging, and captured thumb dragging following live Agent scrollbar preferences."
   ],
-  "archiveDigest": "6cc265b01548eb916c7f7da52ca0d84fa7f5b15309f19a4e90ee7dbbf60fa5e0",
-  "specDigest": "3cc1c0c8695101003e13e0d92e4fee46c30cbd0e072b7441de2bc5da75a0722a",
-  "tasksDigest": "02945d2e26c233fb0f65f0dd24b8b6e21c6485d9393aeff3794b117eb5247a63",
-  "evidenceDigest": "af5d1f2e499d246690011347f73d8f06da7e15ce4438236dfb8e9b64af0b9c31",
+  "archiveDigest": "101bde6e7758506e4f4ce4f9ac1c5e861dc7d47b92f22c5d736b2a61910805b5",
+  "specDigest": "90df91fe259dbf77b28203ccda7340aba1b095ae1a5f154f1a6c6338245556ec",
+  "tasksDigest": "6da47a63b3ef80d7b69ff83be46c51190ce178fd4576a8667187d158cf37b9bb",
+  "evidenceDigest": "4d3f618e64ab051637754e6bd35e7dc0040ec30e9731ef0606049d54383cdb9f",
   "knownGaps": []
 }
 ```
