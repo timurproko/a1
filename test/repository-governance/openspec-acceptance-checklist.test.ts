@@ -28,7 +28,7 @@ const record = (): AcceptanceRecord => ({
 });
 
 describe("implementation-specific acceptance checklist", () => {
-  it("extracts one to ten final reviewed behavior checks outside metadata fences", () => {
+  it("extracts final reviewed behavior checks outside metadata fences", () => {
     expect(parseImplementationAcceptanceChecks(sourceBody())).toEqual(checks);
     expect(parseImplementationAcceptanceChecks(sourceBody([checks[0]!]))).toEqual([checks[0]]);
     expect(acceptanceChecklistDigest(checks)).toMatch(/^[a-f0-9]{64}$/);
@@ -64,7 +64,7 @@ describe("implementation-specific acceptance checklist", () => {
 
   it.each([
     ["mixed plain/task syntax", () => progressBody().replace(`- [x] ${progressItems[1]}`, `- ${progressItems[1]}`), "implementation-progress-item"],
-    ["uppercase marker", () => progressBody(["x", "X"]), "implementation-progress-item"],
+    ["malformed marker", () => progressBody(["x", "y"]), "implementation-progress-item"],
     ["duplicate item", () => progressBody(["x", "x"], [progressItems[0], progressItems[0]]), "implementation-progress-duplicate"],
     ["generic CI item", () => progressBody(["x", "x"], [progressItems[0], "Run the required CI checks."]), "implementation-progress-generic"],
     ["empty item", () => progressBody(["x"], [""]), "implementation-progress-item"],
@@ -72,10 +72,10 @@ describe("implementation-specific acceptance checklist", () => {
     expect(() => parseImplementationProgress(body())).toThrow(code);
   });
 
-  it("rejects validation items only where implementation-only progress is asserted", () => {
+  it("permits meaningful validation vocabulary without making it acceptance evidence", () => {
     const merged = progressBody(["x", "x"], [progressItems[0], "Validate the scrollbar across supported terminals and fonts."]);
     const { items } = parseImplementationProgress(merged);
-    expect(() => assertImplementationOnlyProgress(items)).toThrow("implementation-progress-validation");
+    expect(() => assertImplementationOnlyProgress(items)).not.toThrow();
     expect(parseImplementationAcceptanceScenarios(merged, 3)).toEqual(checks);
     expect(() => assertImplementationOnlyProgress(parseImplementationProgress(progressBody(["x", "x"])).items)).not.toThrow();
   });
@@ -90,27 +90,30 @@ describe("implementation-specific acceptance checklist", () => {
       .toThrow("acceptance-layout-phase");
     expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("## Implementation", "## Intent"), 3))
       .toThrow("acceptance-layout-sections");
-    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("Used by CI to link this PR", "Machine data links this PR"), 3))
-      .toThrow("acceptance-layout-automation");
-    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("Make overflowing content easier to navigate without losing pane context.", "- Add a scrollbar."), 3))
-      .toThrow("acceptance-layout-proposal");
-    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("Make overflowing content easier to navigate without losing pane context.", "Improve navigation. Preserve pane context. Add more detail."), 3))
-      .toThrow("acceptance-layout-proposal");
+    expect(parseImplementationAcceptanceScenarios(version3Body().replace("Used by CI to link this PR", "Machine data links this PR"), 3)).toEqual(checks);
+    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("</summary>", ""), 3)).toThrow("acceptance-layout-automation");
+    expect(() => parseImplementationAcceptanceScenarios(version3Body().replace("Make overflowing content easier to navigate without losing pane context.", ""), 3)).toThrow("acceptance-layout-proposal");
+    expect(parseImplementationAcceptanceScenarios(version3Body().replace("Make overflowing content easier to navigate without losing pane context.", "Improve navigation. Preserve pane context. Add more detail."), 3)).toEqual(checks);
   });
 
   it.each([
     ["missing", "## Summary\nNo handoff.", "acceptance-checklist-missing"],
     ["empty", sourceBody([]), "acceptance-checklist-count"],
-    ["too many", sourceBody(Array.from({ length: MAX_ACCEPTANCE_CHECKS + 1 }, (_value, index) => `Scrollbar row ${index} stays aligned with the viewport while the pane scrolls.`)), "acceptance-checklist-count"],
     ["duplicate", sourceBody([checks[0]!, checks[0]!.toUpperCase()]), "acceptance-checklist-duplicate"],
     ["generic review", sourceBody(["Review the linked implementation PR."]), "acceptance-checklist-generic"],
     ["generic CI", sourceBody(["Confirm the required CI checks passed."]), "acceptance-checklist-generic"],
     ["generic gap", sourceBody(["Confirm there are no blocking gaps."]), "acceptance-checklist-generic"],
     ["generic approval", sourceBody(["Approve the implementation."]), "acceptance-checklist-generic"],
     ["checkbox source", sourceBody(["[ ] Scrollbar behavior appears when content overflows the viewport."]), "acceptance-checklist-item"],
-    ["oversized", sourceBody([`Scrollbar behavior ${"x".repeat(400)}`]), "acceptance-checklist-item"],
   ])("rejects %s handoff checks", (_name, body, code) => {
     expect(() => parseImplementationAcceptanceChecks(body)).toThrow(code);
+  });
+
+  it("accepts long linked scenarios, uppercase progress marks and more than ten meaningful outcomes", () => {
+    expect(MAX_ACCEPTANCE_CHECKS).toBe(Infinity);
+    const scenarios = Array.from({ length: 12 }, (_, index) => `Scrollbar row ${index} preserves ${"viewport context ".repeat(30)}as described at https://example.test/${index}.`);
+    expect(parseImplementationAcceptanceScenarios(version3Body(scenarios), 3)).toEqual(scenarios);
+    expect(parseImplementationProgress(progressBody(["X"], ["Test viewport coverage"]))).toMatchObject({ complete: true });
   });
 
   it("renders a plain implementation reference and permits checkbox-state edits only", () => {

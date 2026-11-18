@@ -55,6 +55,23 @@ describe("internal naming syntax policy", () => {
     expect(inspectTypeScript("src/unrelated.ts", source).internal).not.toEqual([]);
   });
 
+  it.each([
+    ["scripts/governance/delivery-contract.mjs", "a1"],
+    ["scripts/governance/delivery-control.mjs", "a1"],
+    ["scripts/governance/delivery-case-verifier.mjs", "a1"],
+    ["test/repository-governance/portable-delivery-cases.node.mjs", "a1"],
+    ["test/repository-governance/delivery-progress.node.mjs", "a1InstallationRequired"],
+    ["test/repository-governance/portable-delivery-cases.node.mjs", "a1InstallationRequired"],
+  ])("preserves frozen serialized fields only at their declared boundary: %s %s", (path, name) => {
+    const source = `const selected = wire.${name};\nconst output = { ${name}: false };`;
+    const result = inspectTypeScript(path, source);
+    expect(result.internal).toEqual([]);
+    expect(result.external).toHaveLength(2);
+    expect(inspectTypeScript("src/unrelated.ts", source).internal).toHaveLength(2);
+    expect(inspectTypeScript(path, `const ${name} = false;`).internal).toHaveLength(1);
+    expect(inspectTypeScript(path, "const output = { a1Internal: false };").internal).toHaveLength(1);
+  });
+
   it("parses the owned Python helper language without an external interpreter", () => {
     expect(inspect('class A1Worker:\n  def run(self):\n    return 1\n', "py").internal).not.toEqual([]);
     expect(inspect('text = "A1 normal output"\n# a1_comment\n', "py").internal).toEqual([]);

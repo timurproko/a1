@@ -1,4 +1,4 @@
-import { classifyDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
+import { inspectDocumentationScope } from "./documentation-diff-scope.mjs";
 import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
 import { archiveFailure, CHANGE, SHA } from "./openspec-archive-policy.mjs";
 
@@ -21,17 +21,17 @@ function snapshotHasChange(snapshot, change) {
 export function inspectUnassociatedActiveDelivery({ pull, files, base, head }) {
   if (!pull || !Number.isSafeInteger(pull.changed_files) || pull.changed_files !== files?.length
     || !SHA.test(pull.base?.sha ?? "") || !SHA.test(pull.head?.sha ?? "")) throw archiveFailure("association-diff-identity");
-  const paths = classifyDocumentationAutoMerge(files);
-  if (!paths.examinedPaths.length) throw archiveFailure("association-diff");
+  const paths = inspectDocumentationScope(files);
+  if (!paths.valid || !paths.examinedPaths.length) throw archiveFailure("association-diff");
   const changes = [...new Set(paths.examinedPaths.map(activeChange).filter(Boolean))].sort();
   const blocking = changes.filter(change => {
     const inBase = snapshotHasChange(base, change);
     const inHead = snapshotHasChange(head, change);
-    return inHead && (!inBase || !paths.eligible);
+    return inHead && (!inBase || !paths.documentationOnly);
   });
   return blocking.length
-    ? { blocked: true, reason: "missing-implementation-association", changes: blocking, documentationOnly: paths.eligible }
-    : { blocked: false, reason: changes.length ? "existing-active-documentation" : "no-active-delivery-path", changes, documentationOnly: paths.eligible };
+    ? { blocked: true, reason: "missing-implementation-association", changes: blocking, documentationOnly: paths.documentationOnly }
+    : { blocked: false, reason: changes.length ? "existing-active-documentation" : "no-active-delivery-path", changes, documentationOnly: paths.documentationOnly };
 }
 
 /** Load complete changed paths and immutable OpenSpec trees through the trusted GitHub reader. */

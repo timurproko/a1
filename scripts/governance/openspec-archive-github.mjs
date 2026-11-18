@@ -5,6 +5,7 @@ import { parseImplementationAcceptanceScenarios } from "./openspec-acceptance-ch
 import { assertManualAcceptanceMerge, assertVersion3AcceptanceMerge, digest, requireAcceptance } from "./openspec-acceptance-policy.mjs";
 import { parseAssociationRepair } from "./openspec-association-repair.mjs";
 import { parseConditionalAcceptance, verifyConditionalAcceptance } from "./openspec-delivery-policy.mjs";
+import { verifyNativeArmBinding } from "./delivery-native-arm.mjs";
 
 export const ACTIVE_TO_ARCHIVE_RENAME_POLICY = true;
 export const ASSOCIATION_REPAIR_POLICY = true;
@@ -167,6 +168,7 @@ export async function validateVersion3Candidate(reader, number) {
     }
     if (path.startsWith("openspec/specs/") && !specPaths.has(path)) throw archiveFailure("delivery-unexpected-openspec-path", path);
   }
+  if (pull.auto_merge) await verifyNativeArmBinding(reader, pull);
   return { disposition: "ready-for-maintainer-integration", pull, implementation, targetSha: target.object.sha, ...value };
 }
 
@@ -229,6 +231,7 @@ export async function loadVersion3Acceptance(reader, source) {
   const permission = await reader.get(`${reader.prefix}/collaborators/${actor}/permission`);
   const events = await reader.pages(`/issues/${pull.number}/timeline`, 1000);
   const integration = assertVersion3AcceptanceMerge(pull, permission.permission, events);
+  if (integration.kind === "human-auto-merge") await verifyNativeArmBinding(reader, pull, { events, permission: permission.permission });
   const delivery = await inspectVersion3DeliverySnapshot(reader, pull, implementation, pull.head.sha, { allowLegacyVersion3Phase: true });
   await verifyAssociationRepairSource(reader, pull, delivery.associationRepair);
   const validation = await findImplementationValidation(reader, pull);

@@ -134,7 +134,7 @@ export class PiWorktreeTransitions {
       if (old.pendingMessageCount > 0 || old.hasPendingBashMessages) throw new Error("queued input must finish before project-context replacement; pending messages were preserved");
       const result = await this.#reader.applyControl!(pending.identity.sessionId, pending.identity.sessionFile, pending.request, prepareContext, signal);
       this.#blocked = undefined;
-      const cleanup = pending.request.action === "complete-worktree"
+      const cleanup = pending.request.action === "complete-worktree" || pending.request.action === "remove-local-worktree"
         ? await this.#reader.settleShell?.(pending.identity.sessionId, pending.identity.sessionFile, signal) : null;
       return `${describe(result)}${trustDiagnostic ? `\n${trustDiagnostic}` : ""}${cleanup ? `\n${cleanup}` : ""}`;
     } catch (error) {

@@ -2,11 +2,12 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "rootDir": "src",
+    "allowJs": true,
     "outDir": "dist",
     "types": ["node"],
     "sourceMap": false,
     "declarationMap": false
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/foundation/lifecycle/*.mjs"],
   "exclude": ["dist", "node_modules", "test"]
 }

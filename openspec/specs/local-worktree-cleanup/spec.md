@@ -62,7 +62,7 @@ The separately confirmed closed-unmerged discard operation SHALL be the only loc
 
 Cleanup SHALL act automatically only on locally registered paths bound to the Git common directory, repository identity, candidate label, associated PR, worktree role, expected HEAD, and any exact local topic ref. For implementation-bound delivery the candidate label SHALL remain the OpenSpec change identity. For standalone documentation it SHALL be an audit label only and remote eligibility SHALL come exclusively from the complete trusted documentation evidence, never from that caller-selected label. Registration SHALL NOT itself authorize deletion. The owning delivery session SHALL explicitly release the candidate to the local cleanup service after stopping its use; a resumed session SHALL acquire ownership before touching it. Claim, release, and cleanup SHALL be mutually exclusive. Active, unknown-owner, stale-owner, and Git-locked worktrees SHALL remain protected; process disappearance or elapsed time alone SHALL NOT release ownership.
 
-The only unregistered paths cleanup MAY remove are (a) an empty directory tree directly under the approved worktree root through the existing empty-directory requirement, and (b) one exact Git worktree through an explicitly confirmed `retire-redundant` invocation satisfying the redundant-retirement requirement. The latter is candidate-scoped maintainer authority, SHALL NOT be exercised by automatic sweep/queue/watch, and SHALL NOT create general adoption authority.
+The separately requested local-only operation MAY bind one exact registered Git checkout under its publication/preservation contract without automatic adoption authority. Outside that explicit operation, the only unregistered paths cleanup MAY remove are (a) an empty directory tree directly under the approved worktree root through the existing empty-directory requirement, and (b) one exact Git worktree through an explicitly confirmed `retire-redundant` invocation satisfying the redundant-retirement requirement. The latter is candidate-scoped maintainer authority, SHALL NOT be exercised by automatic sweep/queue/watch, and SHALL NOT create general adoption authority.
 
 #### Scenario: Owner has finished with the checkout
 - **WHEN** the owner explicitly releases a registered worktree and no session holds it
@@ -96,7 +96,7 @@ The only unregistered paths cleanup MAY remove are (a) an empty directory tree d
 
 ### Requirement: Local identity and content checks fail closed
 
-A registered candidate SHALL remain a worktree of the expected repository, resolve inside the approved `.worktrees/` root, and have exactly its registered branch attachment. For a completed-delivery candidate the registered head and the live HEAD SHALL each equal or be an ancestor of the associated merged PR head, or of a separately registered acceptance checkout's verified merge commit, so that every reachable commit was accepted; a HEAD holding any commit outside that merged head SHALL block. An explicitly confirmed redundant candidate SHALL instead satisfy its exact fresh-`origin/develop`, no-PR, no-remote, and unregistered identity gates. Mere ancestry, age, naming similarity, or closed state alone SHALL NOT authorize deletion. Primary and current working directories, protected or reserved branches, path escapes, symlink or junction substitutions of the worktree path, and ambiguous identities SHALL be excluded.
+A registered candidate SHALL remain a worktree of the expected repository, resolve inside the approved `.worktrees/` root, and have exactly its registered branch attachment. For a completed-delivery candidate the registered head and the live HEAD SHALL each equal or be an ancestor of the associated merged PR head, or of a separately registered acceptance checkout's verified merge commit, so that every reachable commit was accepted; a HEAD holding any commit outside that merged head SHALL block. An explicitly confirmed redundant candidate SHALL instead satisfy its exact fresh-`origin/develop`, no-PR, no-remote, and unregistered identity gates. Explicit local-only removal SHALL instead require fresh containment of local HEAD in the named remote branch and preserve remote/local refs by default. Mere ancestry, age, naming similarity, or closed state alone SHALL NOT authorize deletion. Primary and current working directories, protected or reserved branches, path escapes, symlink or junction substitutions of the worktree path, and ambiguous identities SHALL be excluded.
 
 Immediately before removal, cleanup SHALL verify staged, unstaged, and all untracked content, actual nested repositories, registered gitlinks/submodules, and submodule changes. Staged, unstaged, untracked, unknown ignored, special, nested-repository, or submodule content SHALL block removal. Links SHALL block except for exact disposable-root links and descendant links admitted and revalidated by the generated-content requirement. Repository-owned generated paths covered by the central disposal policy MAY be removed only after their ignored/path/type boundaries pass. A tracked regular `.gitmodules` file by itself SHALL be treated as repository content, not proof of a nested repository; actual nested `.git` metadata, gitlink index entries, configured submodules, and submodule state SHALL remain blockers. Cleanup SHALL offer no local force option and SHALL NOT infer that arbitrary ignored content is disposable.
 
@@ -137,7 +137,7 @@ Immediately before removal, cleanup SHALL verify staged, unstaged, and all untra
 - **THEN** cleanup SHALL block before journaled worktree removal
 
 ### Requirement: Cleanup is local, opt-in, bounded, and resumable
-The repository SHALL provide read-only preview, one explicit hand-off operation, one explicit exact-candidate completed-delivery operation, one explicit released-candidate sweep, one explicit exact-candidate closed-unmerged discard operation, and separately enabled local queue execution with both one-pass and watch modes. Invoking an exact-candidate operation SHALL authorize only its named candidate; invoking the sweep SHALL exercise only the authority each released registration's hand-off or exact-candidate release already granted; neither SHALL enable or scan the persistent queue. The discard operation SHALL additionally require an explicit closed-unmerged discard confirmation on every invocation. Delivery guidance SHALL use hand-off at maintainer hand-off, the sweep at the start of every delivery session and on verified or reported merge, completed-delivery cleanup for an exact integrated candidate, and discard only after a maintainer explicitly rejects the exact unmerged candidate; low-level registration/release and queue/watch modes SHALL remain available for diagnostics, pending legacy delivery, and separately authorized background reconciliation.
+The repository SHALL provide a separate exact published local-only removal operation and read-only preview, one explicit hand-off operation, one explicit exact-candidate completed-delivery operation, one explicit released-candidate sweep, one explicit exact-candidate closed-unmerged discard operation, and separately enabled local queue execution with both one-pass and watch modes. Invoking an exact-candidate operation SHALL authorize only its named candidate; invoking the sweep SHALL exercise only the authority each released registration's hand-off or exact-candidate release already granted; neither SHALL enable or scan the persistent queue. The discard operation SHALL additionally require an explicit closed-unmerged discard confirmation on every invocation. Delivery guidance SHALL use hand-off at maintainer hand-off, an optional separately scoped sweep rather than a prerequisite for planning or session start, completed-delivery cleanup for an exact integrated candidate, and discard only after a maintainer explicitly rejects the exact unmerged candidate; low-level registration/release and queue/watch modes SHALL remain available for diagnostics, pending legacy delivery, and separately authorized background reconciliation.
 
 While watch mode is running, it SHALL retry pending archive/ref/cleanliness conditions on bounded intervals without another deletion prompt for already released eligible completed-delivery candidates. Queue/watch and sweep SHALL NOT infer or execute rejected-work discard authority. If watch is stopped or the machine is offline, the next enabled queue invocation or the next sweep SHALL resume evaluation; cleanup SHALL NOT promise immediate execution while no local process is running. Disabling the queue SHALL prevent `once`/`watch` deletion without revoking a later explicit hand-off, sweep, exact-candidate `complete`, or `discard` invocation.
 
@@ -845,3 +845,41 @@ Before destructive work on a candidate, completed-delivery cleanup (`complete`, 
 
 - **WHEN** no A1 claim store exists on the machine
 - **THEN** cleanup SHALL behave as before
+
+### Requirement: Published local removal is independent of delivery acceptance
+
+An explicit request SHALL permit removing one exact owned non-primary checkout whose HEAD is freshly verified equal to or ancestral to its named live remote branch. Open/draft PR, pending CI, unfinished implementation, absent acceptance/archive and present remote ref SHALL not block this route. Dirty, unpublished/divergent, unknown-ignored, nested/submodule/private/KEEP, unsafe-link, locked or unverifiably owned candidates SHALL remain. Reuse scoped locks, bounded inspection, rechecks, approved disposables and journaled non-force removal. Preserve remote refs/PRs and local branches by default. The operation SHALL not enable sweeps, terminate processes, discard remote work or declare acceptance. Ref deletion requires separate explicit scope.
+
+#### Scenario: Continue on another machine
+- **WHEN** commits are published and preservation checks pass for the requested checkout
+- **THEN** local removal SHALL succeed with an open PR
+- **AND** remote work and the local branch SHALL remain
+
+#### Scenario: Remote advanced safely
+- **WHEN** the live remote tip contains local HEAD
+- **THEN** publication SHALL be verified without identical tips
+
+#### Scenario: Clean but unpushed
+- **WHEN** commits are not remote-contained or remote evidence is unavailable
+- **THEN** the checkout SHALL remain with a publication blocker
+
+#### Scenario: Ignored data is valuable
+- **WHEN** outer clean status hides unknown ignored data, nested Git, private content or KEEP
+- **THEN** removal SHALL preserve it and report the blocker
+
+#### Scenario: Local retirement is retried
+- **WHEN** exact removal resumes after interruption or completion
+- **THEN** only its recorded identity SHALL be reconciled without deleting retained refs or recreated resources
+- **AND** sweeps SHALL distinguish local retirement from accepted delivery
+
+### Requirement: Portable handoff distinguishes publication and ownership
+
+Handoff SHALL identify repository, branch, change/PR, observed heads, publication verification, unfinished work and optional path. Clean status, detach or release SHALL not prove push. Remote-only handoff SHALL need no local registration. Existing cleanup handoff remains compatible and describes only its local effect; automatic cleanup enrollment is separately explicit.
+
+#### Scenario: Detached but unpushed
+- **WHEN** a claim is released with local-only commits
+- **THEN** the report SHALL disclose unpublished work rather than availability elsewhere
+
+#### Scenario: No-checkout planning handoff
+- **WHEN** a draft is created remotely
+- **THEN** its PR/branch/head SHALL be reported without an invented local path or cleanup claim

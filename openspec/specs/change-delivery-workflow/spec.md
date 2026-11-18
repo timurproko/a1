@@ -6,7 +6,7 @@ Define explicit planning approval, same-PR implementation and finalization, manu
 ## Requirements
 
 ### Requirement: Specification approval precedes implementation
-A new implementation-bound OpenSpec change SHALL begin as planning artifacts in one normally named draft pull request. Every newly authored version-3 OpenSpec delivery PR SHALL use one human-readable structure: `## Proposal` as its first nonblank content with one or two sentences explaining intent, `## Implementation` with concrete delivery details, final `## Acceptance` outcomes when complete, and last `## Automation` with required machine linkage in a clearly explained collapsed disclosure. The body SHALL NOT add a quoted `Phase: Proposal` or `Phase: Implementation` line. GitHub draft/ready state, the visible sections, and explicit maintainer authorization SHALL communicate delivery posture without a redundant phase banner. After merge, verification SHALL derive `Archived` without editing the accepted PR body. The body SHALL omit routine validation command listings. A request to prepare, write, design, or update a specification SHALL authorize only planning, not implementation. Implementation SHALL begin only after the maintainer approves the plan and explicitly requests implementation; the planning PR SHALL NOT need to merge first. Approved implementation SHALL continue in the same worktree, branch, commit history, and pull request, including its related documentation.
+A new implementation-bound OpenSpec change SHALL begin as planning artifacts in one normally named draft pull request. Every newly authored version-3 OpenSpec delivery PR SHALL use one human-readable structure: `## Proposal` as its first nonblank content with concise prose explaining intent, `## Implementation` with concrete delivery details, final `## Acceptance` outcomes when complete, and last `## Automation` with required machine linkage in a clearly explained collapsed disclosure. The body SHALL NOT add a quoted `Phase: Proposal` or `Phase: Implementation` line. GitHub draft/ready state, the visible sections, and explicit maintainer authorization SHALL communicate delivery posture without a redundant phase banner. After merge, verification SHALL derive `Archived` without editing the accepted PR body. The body SHALL omit routine validation command listings. A request to prepare, write, design, or update a specification SHALL authorize only planning, not implementation. Implementation SHALL begin only after the maintainer approves the plan and explicitly requests implementation; the planning PR SHALL NOT need to merge first. Approved implementation SHALL continue in the same repository, branch, commit history, change, and pull request, using an owned implementation checkout that MAY be created later or on another machine, including its related documentation.
 
 After implementation and required task/evidence preparation are complete, the same branch SHALL be finalized by conservatively synchronizing its deltas, staging its dated archive and conditional delivery record, and removing its active-change copy. The PR SHALL remain draft until that final candidate is ready for exact-head CI and review. One ordinary exact-head workflow SHALL validate both the finalized record and all applicable product/governance scopes and SHALL expose the stable protected check when they succeed. Applicable scopes SHALL be selected by the same impact classification as any other pull request; the implementation association SHALL disable only the documentation-only and version-only shortcuts and SHALL NOT force complete conservative coverage. The finalized PR SHALL integrate only after required validation and an authorized maintainer chooses that exact candidate by directly merging it, personally arming native auto-merge, or explicitly requesting the active agent's protected expected-head merge while the candidate is currently eligible. That exact-candidate decision SHALL be the final implementation acceptance and merge authorization. No manual body-phase promotion or second phase-only workflow run SHALL be required.
 
@@ -16,7 +16,7 @@ Approved refinements SHALL update the affected planning artifacts coherently bef
 - **WHEN** the user asks an agent to plan a new implementation-bound change
 - **THEN** the agent SHALL create OpenSpec artifacts in a normally named draft PR whose first nonblank body content is `## Proposal`
 - **AND** the body SHALL NOT contain a quoted proposal or implementation phase line
-- **AND** `Proposal` SHALL explain the intent in one or two sentences
+- **AND** `Proposal` SHALL explain the intent in concise prose
 - **AND** the following `Implementation` bullets SHALL summarize what the implementation is meant to accomplish
 - **AND** SHALL keep machine linkage last under `Automation` in an explained collapsed disclosure rather than presenting JSON or validation commands as the main description
 - **AND** SHALL NOT implement, finalize, or merge the behavior merely because planning validation passes
@@ -37,7 +37,7 @@ Approved refinements SHALL update the affected planning artifacts coherently bef
 
 #### Scenario: User approves implementation in the draft PR
 - **WHEN** the maintainer approves the plan and explicitly requests implementation
-- **THEN** the agent SHALL continue in the same worktree, branch, history, and PR without a planning merge
+- **THEN** the agent SHALL continue in the same repository, branch, history, change, and PR in an owned implementation checkout without a planning merge
 - **AND** SHALL NOT add or replace a body phase line merely to record the transition
 - **AND** plan approval SHALL NOT count as final implementation acceptance or merge authorization
 
@@ -78,8 +78,17 @@ Approved refinements SHALL update the affected planning artifacts coherently bef
 - **THEN** its product and governance scopes SHALL be those the impact classifier selects from its complete change
 - **AND** the finalized delivery record SHALL be validated in the same run
 
+#### Scenario: Remote planning without a checkout
+- **WHEN** planning is requested from another directory or machine
+- **THEN** selected planning artifacts SHALL be published with explicit repository/base/head and unchecked outcomes
+- **AND** no worktree, attachment, dependency setup or sweep SHALL be required
+- **AND** implementation and merge remain unauthorized until requested
+
 ### Requirement: Auto-merge eligibility uses an exact documentation allowlist
-A pull request SHALL be eligible for automation-owned squash integration only when it is non-draft, not implementation-bound, and every changed and renamed-from path is under `openspec/**`, under `docs/**`, or is exactly the root `README.md`. Any pull request containing another path SHALL be classified as code/operational, regardless of whether it claims to preserve behavior. Classification SHALL examine the complete pull-request diff and lifecycle association and SHALL fail closed.
+
+This requirement governs ordinary documentation auto-merge only. Existing release-specific automation SHALL remain unchanged under its existing eligibility and authorization rules; this clarification SHALL NOT expand its authority, reclassify release PRs as routine documentation or convert the existing release route to manual integration.
+
+Within ordinary documentation auto-merge, a pull request SHALL be eligible for automation-owned squash integration only when it is non-draft, not implementation-bound, and every changed and renamed-from path is under `openspec/**`, under `docs/**`, or is exactly the root `README.md`. Any pull request containing another path SHALL be classified as code/operational, regardless of whether it claims to preserve behavior. Classification SHALL examine the complete pull-request diff and lifecycle association and SHALL fail closed. Governance, agent-authority, cleanup-policy and privileged-workflow documentation SHALL be excluded even under allowed paths. Delivery hold and no-auto-merge opt-out SHALL prevent unattended integration.
 
 An explicit implementation association or introduction of a new active OpenSpec change SHALL hold the PR outside documentation-owned integration even when its current diff is documentation-only. Removing the association SHALL NOT make a newly introduced active change eligible. Malformed or ambiguous lifecycle metadata SHALL block automation. Existing-change standalone planning revisions, ordinary docs, and generated archive follow-ups without an implementation-bound hold SHALL retain documentation auto-merge eligibility. A finalized version-3 candidate MAY separately retain native auto-merge personally armed by an authorized maintainer; that human choice SHALL NOT make it documentation-auto-merge eligible or grant repository automation merge authority.
 
@@ -90,7 +99,7 @@ For an eligible documentation pull request, automation MAY arm auto-merge while 
 - **THEN** automation SHALL arrange squash integration behind its required validation
 
 #### Scenario: Maintained documentation-only pull request
-- **WHEN** every changed path is under `docs/**` and the PR is non-draft and not implementation-bound
+- **WHEN** every changed path is routine non-governance documentation under `docs/**` and the PR is non-draft, unheld and not implementation-bound
 - **THEN** automation SHALL arrange squash integration behind its required validation
 
 #### Scenario: Root README-only pull request
@@ -98,7 +107,7 @@ For an eligible documentation pull request, automation MAY arm auto-merge while 
 - **THEN** automation SHALL arrange squash integration behind its required validation
 
 #### Scenario: Documentation surfaces are combined
-- **WHEN** every changed and renamed-from path is under `openspec/**`, under `docs/**`, or exactly root `README.md`, and no lifecycle exclusion applies
+- **WHEN** every changed and renamed-from path is under `openspec/**`, under `docs/**`, or exactly root `README.md`, and no lifecycle, governance, hold or opt-out exclusion applies
 - **THEN** automation SHALL classify the pull request as documentation-only and arrange squash integration behind its required validation
 
 #### Scenario: Validation and reconciliation race
@@ -160,10 +169,18 @@ For an eligible documentation pull request, automation MAY arm auto-merge while 
 - **THEN** the archived planning artifacts SHALL NOT themselves establish an implementation-bound hold
 - **AND** documentation integration SHALL proceed behind required validation
 
+#### Scenario: Authority-changing documentation
+- **WHEN** instructions or policy change delivery, cleanup or privileged authority, including through renames
+- **THEN** the PR SHALL remain outside routine docs integration
+
+#### Scenario: Explicit documentation hold
+- **WHEN** eligible docs are held or opted out
+- **THEN** automation SHALL not arm or exercise integration
+
 ### Requirement: Code integration requires local maintainer acceptance
 Every code/operational pull request SHALL remain open after automated validation until an authorized maintainer chooses its integration. The agent SHALL provide exact applicable local run or inspection instructions and SHALL NOT infer acceptance from CI success. Manual validation SHALL remain the maintainer's optional choice and SHALL NOT be a prerequisite for finalization or integration.
 
-For a finalized single-PR OpenSpec delivery, the pull request SHALL present one to three implementation-specific acceptance scenarios as plain bullets. The maintainer SHALL NOT need to check boxes or perform a separate acceptance edit: manually merging the exact current head after review, personally enabling native auto-merge for that unchanged head, or explicitly instructing the active agent to merge that identified currently mergeable head SHALL mean the maintainer accepts the listed scenarios and authorizes protected integration. A delegated agent SHALL refresh authoritative state immediately before merging, require the instructed exact head, current target, finalized binding, successful required exact-head validation, positive mergeability, and an authorized human GitHub principal, and SHALL use a protected expected-head squash merge without administrative bypass. Any new commit, acceptance-list change, target advance, failed or pending gate, ambiguous request, or unavailable state SHALL cancel that authority and require a fresh maintainer integration decision.
+For a finalized single-PR OpenSpec delivery, the pull request SHALL present one or more implementation-specific acceptance scenarios as plain bullets. The maintainer SHALL NOT need to check boxes or perform a separate acceptance edit: manually merging the exact current head after review, personally enabling native auto-merge for that unchanged head, or explicitly instructing the active agent to merge that identified currently mergeable head SHALL mean the maintainer accepts the listed scenarios and authorizes protected integration. A delegated agent SHALL refresh authoritative state immediately before merging, require the instructed exact head, current target, finalized binding, successful required exact-head validation, positive mergeability, and an authorized human GitHub principal, and SHALL use a protected expected-head squash merge without administrative bypass. Any new commit, acceptance-list change, target advance, failed or pending gate, ambiguous request, or unavailable state SHALL cancel that authority and require a fresh maintainer integration decision.
 
 An agent SHALL NOT treat implementation approval, green CI, a standing preference, or an earlier merge request for another candidate as integration authority. It SHALL NOT wait for pending validation, arm auto-merge, use merge queue, use an App/bot or workflow identity, bypass protection, or retry against a changed candidate. Repository automation SHALL remain unable to merge an implementation-bound pull request through this delegated route.
 
@@ -183,8 +200,8 @@ An agent SHALL NOT treat implementation approval, green CI, a standing preferenc
 
 #### Scenario: Maintainer accepts and enables auto-merge
 - **WHEN** an authorized maintainer reviews the finalized current-head candidate and personally enables native auto-merge
-- **THEN** the arm SHALL constitute acceptance of the listed scenarios for that exact candidate
-- **AND** GitHub MAY integrate it only after required current-head validation succeeds
+- **THEN** recognition and integration SHALL follow R09-R10 in `docs/delivery-rules.md` and `repositories.a1.acceptanceBinding` in `docs/delivery-adapters.json`
+- **AND** an agent- or bot-armed implementation route SHALL remain forbidden under R10
 
 #### Scenario: Maintainer requests an agent merge
 - **WHEN** an authorized maintainer explicitly instructs the active agent to merge one identified finalized candidate that is currently green and mergeable
@@ -415,12 +432,12 @@ The finalization operation SHALL be deterministic and idempotent for the same in
 - **AND** closure SHALL NOT be recorded as completed acceptance or archival
 
 ### Requirement: Plain acceptance scenarios are bound to the final candidate
-A version-3 delivery SHALL contain one to three concise, distinct behavior-and-expected-result scenarios in a final `Acceptance` section of the ordinary PR and in its committed conditional acceptance manifest. They SHALL be plain bullets, not checkboxes. Generic review, CI, no-gap, approval, archive, source-task, or automated-test boilerplate SHALL be rejected. The trusted candidate check SHALL require exact normalized membership between the PR list and manifest and SHALL bind the manifest to the finalized change identity and archive contents.
+A version-3 delivery SHALL contain one or more concise, distinct behavior-and-expected-result scenarios in a final `Acceptance` section of the ordinary PR and in its committed conditional acceptance manifest. They SHALL be plain bullets, not checkboxes. Generic review, CI, no-gap, approval, archive, source-task, or automated-test boilerplate SHALL be rejected. The trusted candidate check SHALL require exact normalized membership between the PR list and manifest and SHALL bind the manifest to the finalized change identity and archive contents.
 
-Automation SHALL validate structure, objective evidence, finalization, and exact current-head CI without asserting that human scenarios passed. Only an authorized human's non-automatic merge of that exact head SHALL activate the conditional manifest as acceptance. A body edit, changed manifest, changed head, missing check, or contradictory acceptance evidence SHALL fail closed or require renewed validation.
+Automation SHALL validate structure, objective evidence, finalization, and exact current-head CI without asserting that human scenarios passed. Activation of the conditional manifest SHALL follow R09-R10 in `docs/delivery-rules.md` and `repositories.a1.acceptanceBinding` in `docs/delivery-adapters.json`. The native toggle alone is not acceptance evidence. A body edit, changed manifest, changed head, missing check, or contradictory acceptance evidence SHALL fail closed or require renewed validation.
 
 #### Scenario: Candidate presents specific scenarios
-- **WHEN** a finalized implementation provides one to three unique observable scenarios as plain bullets
+- **WHEN** a finalized implementation provides one or more unique observable scenarios as plain bullets
 - **THEN** trusted validation SHALL match them exactly to the committed conditional manifest
 - **AND** SHALL leave the actual acceptance decision to manual merge
 
@@ -440,21 +457,17 @@ Automation SHALL validate structure, objective evidence, finalization, and exact
 
 ### Requirement: Agents use the standardized completed-worktree cleanup procedure
 
-When the owning agent hands a validated candidate to the maintainer for review and authorized manual merge, it SHALL invoke the repository's standard hand-off command from the primary checkout with the exact worktree, change, and pull-request identity, and SHALL invoke it again after any repair push. Every delivery session SHALL begin, before creating a worktree, by invoking the repository's standard sweep from the primary checkout and relaying its per-candidate outcomes in one line; a session that verifies or is told of a merge SHALL invoke the sweep, or the exact-candidate completed-delivery command, at that point. Pending or blocked sweep results SHALL NOT delay the new delivery.
-
-An agent MAY invoke the repository's exact redundant-worktree retirement command only after the maintainer explicitly requests cleanup of that exact unmanaged scope. The operation SHALL remain subject to its confirmation, no-registration, no-PR, no-remote, clean-content, fresh-target-ancestry, identity, journaling, non-force, and compare-and-delete safeguards. The agent SHALL NOT infer this authority from age, ancestry, branch naming, a missing remote, or a general sweep, and SHALL NOT apply it to any open, PR-associated, registered, dirty, locked, active, or excluded worktree.
-
-The agent SHALL NOT manually choose disposable paths, recursively delete generated content, unlink generated junctions, directly remove a worktree, or delete a local topic branch as an improvised substitute. The repository command's result SHALL be the authority for reporting local cleanup success or the reason a worktree or branch remains retained.
+Repository tooling SHALL own bounded removal and exact reporting. Analysis, planning and remote administration SHALL NOT require a sweep or registration. A sweep SHALL be optional and separately scoped. Exact operations SHALL evaluate only the named checkout. Automatic completion keeps its evidence gates; explicit local removal uses publication/preservation without declaring acceptance. Generic cleanup SHALL NOT authorize remote deletion, unknown-file disposal or ownership takeover.
 
 #### Scenario: Validated candidate is handed off
-- **WHEN** the stable protected aggregate succeeds and the agent hands the unchanged candidate to the maintainer
-- **THEN** the agent SHALL run the standard hand-off command once for that exact worktree and report the released registration
-- **AND** SHALL NOT wait for the merge, start a watcher, or remove anything
+- **WHEN** a candidate is handed off
+- **THEN** the report SHALL identify repository/branch/change/PR, observed head, publication state and optional path
+- **AND** cleanup enrollment SHALL remain separate and optional
 
 #### Scenario: New session sweeps earlier deliveries
-- **WHEN** a delivery session starts in the primary checkout
-- **THEN** the agent SHALL run the standard sweep before creating its worktree and relay each candidate's outcome
-- **AND** SHALL proceed with the new delivery regardless of `pending`, `awaiting-discard`, `deferred`, or blocked results
+- **WHEN** a delivery session starts
+- **THEN** a sweep SHALL be optional and scoped
+- **AND** unrelated pending cleanup SHALL NOT delay work
 
 #### Scenario: Verified delivery is ready for local cleanup
 - **WHEN** the agent has verified authorized merge, integrated archive/specs, required exact-head validation, and remote topic-ref absence within its own session
@@ -472,9 +485,9 @@ The agent SHALL NOT manually choose disposable paths, recursively delete generat
 - **AND** SHALL NOT adopt it, delete content manually, force-remove it, or broaden authority to another checkout
 
 #### Scenario: Standard cleanup reports a blocker
-- **WHEN** the command reports unknown content, active ownership, identity drift, unavailable evidence, a nested repository/submodule, escaping link, unique commit, PR/remote presence, or another safety blocker
-- **THEN** the agent SHALL retain the worktree and report that blocker
-- **AND** SHALL NOT bypass the command with force removal or ad hoc file deletion
+- **WHEN** the selected operation finds unsafe content/ownership/identity or missing preservation evidence
+- **THEN** it SHALL retain the resource without force fallback
+- **AND** an open PR or present remote alone SHALL NOT block published local-only removal
 
 ### Requirement: Selected complete PR validation gates repair handoff without a dispatch cycle
 A delivery whose trusted PR selection requires Full regression SHALL use that PR-attached complete run as a required exact-final-head handoff gate together with the existing protected aggregate. It SHALL not require a second manual Full regression dispatch merely to repeat successful selected PR execution. Draft implementation runs MAY provide investigation and pre-finalization evidence but SHALL not certify later heads, authorize implementation without approval, finalize a draft, or establish human acceptance.
@@ -517,19 +530,7 @@ Implementation, substantive tasks, focused evidence, and gap disposition SHALL b
 
 ### Requirement: Agents bind the owning session to the active delivery worktree
 
-Every delivery agent SHALL establish an owned task worktree and explicitly scope repository operations to its exact canonical path. Repository delivery SHALL support agents outside A1 using ordinary Git and SHALL NOT require an installed A1 product, an active A1 shell-tool runtime, or an A1 footer association for those agents.
-
-After the standard cleanup sweep, the agent SHALL inspect `git worktree list --porcelain`. It MAY create a fresh worktree at an unused task path on a new topic branch from current `origin/develop`, unless the maintainer selected another base. Before planning, implementation, test, or delivery-documentation edits, it SHALL verify the exact worktree root, common Git repository, intended branch, and working-tree state. A path or branch collision SHALL NOT authorize force creation, overwriting, or adoption of the existing checkout.
-
-An existing worktree MAY be reused only when its exact branch, OpenSpec change, and pull request match the requested stream and the agent has established its own continuing ownership or an explicit handoff from the previous owner or maintainer without conflicting ownership evidence. Similar names, files, task descriptions, recent activity, clean status, or ancestry SHALL NOT establish permission to adopt a worktree. Git inventory SHALL remain advisory and SHALL NOT be described as atomic editing exclusion. A released cleanup registration SHALL be claimed through the existing cleanup ownership protocol before reuse; a foreign owned registration, Git lock, known live editing claim, or unverifiable handoff SHALL block reuse. Missing A1 integration alone SHALL NOT be treated as a conflicting or unverifiable owner.
-
-Within an active A1 shell-tool runtime, the agent SHALL use `a1 session worktrees` and `a1 session link-worktree <absolute-worktree>` to acquire the runtime's editing claim and associate its exact task worktree. A conflicting or unverifiable live-session claim, failed association, or different returned path SHALL remain a pre-edit failure for that runtime. External agents SHALL use the Git path instead of fabricating A1 session identity or switching applications. Claude Code sessions with the established worktree integration SHALL continue following the separate Claude Code hook requirement; that adapter SHALL NOT be required of other agents.
-
-The primary checkout SHALL remain on `develop`. Repository reads, edits, Git operations, builds, and tests SHALL explicitly address the task worktree. Context verification or runtime association SHALL NOT grant acceptance, finalization, merge, deletion, cleanup authority, or a change to process/tool cwd. Scratch SHALL remain under the task worktree's ignored `.artifacts/` root.
-
-Resuming or switching streams SHALL repeat exact-context and ownership verification before editing. A known owner conflict SHALL NOT be bypassed, unlinked, recovered, or waited out. An agent MAY create a fresh separate worktree where safe, but SHALL preserve the existing delivery's branch/history/PR and SHALL NOT force a branch checked out by another owner or create a replacement PR to evade ownership. If no safe continuation exists it SHALL report the concrete blocker. Handoffs SHALL name the exact worktree, branch, change, and PR.
-
-For A1 sessions, successful runtime association SHALL continue to drive bounded footer repository and PR discovery; a draft PR need not exist when linking first succeeds. External agents SHALL have no footer requirement. Cleanup ownership and runtime editing claims SHALL remain independent; neither SHALL imply authority to override the other.
+Before implementation edits, agents SHALL establish an owned isolated checkout and scope local operations to its canonical root while primary stays on develop. Analysis, planning-only publication and remote administration SHALL NOT require checkout/sweep/claim. A1 enter/attach success SHALL be authoritative without a second inventory approval. External agents SHALL use ordinary Git without runtime installation. Branch/history/change/PR identity SHALL survive machine changes. Owned dirty edits SHALL be preserved; collisions, divergence, foreign/locked checkouts and live/unverifiable owners SHALL not authorize reset or takeover. Runtime and cleanup claims remain separate protections coordinated by tooling.
 
 #### Scenario: External agent starts a new delivery without A1
 
@@ -542,7 +543,7 @@ For A1 sessions, successful runtime association SHALL continue to drive bounded 
 
 - **GIVEN** an existing worktree matches the requested branch, change, and PR and has an explicit ownership handoff with no conflicting editor or Git lock
 - **WHEN** the agent verifies its exact context and successfully claims any released cleanup registration
-- **THEN** it MAY resume in that same worktree, branch, history, and PR without an A1 footer association
+- **THEN** it MAY resume in an owned checkout on the same branch, history, and PR without an A1 footer association
 
 #### Scenario: Familiar checkout has no ownership evidence
 
@@ -559,7 +560,7 @@ For A1 sessions, successful runtime association SHALL continue to drive bounded 
 #### Scenario: Active A1 session links its delivery
 
 - **GIVEN** the agent runs inside an active A1 shell-tool session
-- **WHEN** it begins or resumes a delivery
+- **WHEN** it begins or resumes implementation
 - **THEN** it SHALL require successful atomic linking of the exact task worktree before edits
 - **AND** a conflict or failed link SHALL preserve the previous association and stop edits in the candidate checkout
 - **AND** bounded footer discovery SHALL identify the linked branch's PR once it exists
@@ -577,16 +578,15 @@ For A1 sessions, successful runtime association SHALL continue to drive bounded 
 - **AND** it SHALL NOT fall back to editing the primary checkout
 
 #### Scenario: Linking does not transfer other authority
-
-- **WHEN** an agent establishes or resumes an owned task worktree through any supported environment
-- **THEN** approval, finalization, exact-head CI, maintainer integration, and guarded cleanup SHALL retain their existing independent requirements
-- **AND** command paths and scratch SHALL remain explicitly scoped to that worktree
+- **WHEN** implementation context is acquired
+- **THEN** publication, acceptance, merge and deletion permissions SHALL remain separate
+- **AND** remote planning SHALL remain available without attachment
 
 #### Scenario: Start a feature from the primary checkout
 
 - **GIVEN** a delivery session starts in the primary checkout on develop
 - **WHEN** it creates a fresh feature worktree from the selected target
-- **THEN** it SHALL establish exact Git context and ownership before writing planning or implementation files
+- **THEN** it SHALL establish exact Git context and ownership before writing implementation files
 - **AND** an active A1 session SHALL also acquire its runtime claim and association
 - **AND** external agents SHALL not need A1 integration
 
@@ -628,7 +628,7 @@ For A1 sessions, successful runtime association SHALL continue to drive bounded 
 
 #### Scenario: Worktree association fails
 
-- **WHEN** inventory or linking inside an active A1 runtime fails, is unavailable, reports a conflicting owner, or confirms another path
+- **WHEN** attachment inside an active A1 runtime fails, is unavailable, reports a conflicting owner, or confirms another path
 - **THEN** that session SHALL report the blocker and stop before edits in the candidate checkout
 - **AND** it SHALL NOT spoof a successful association, override ownership, or edit primary instead
 - **AND** an external agent with no A1 runtime SHALL follow the ordinary Git path and its independent ownership checks
@@ -687,18 +687,12 @@ The corrective pull request SHALL implement recurrence prevention, synchronize e
 
 ### Requirement: Agents keep repository-delivery scratch files inside the owning worktree
 
-When a delivery agent directly chooses and materializes a transient file for repository work, it SHALL place that file beneath the exact `.artifacts/` root of the repository worktree that owns the operation. Covered files SHALL include pull-request or comment body files, command-interchange payloads, captured command/query output, temporary patches or diffs, and ad hoc delivery logs. A delivery with a linked task worktree SHALL use that worktree's `.artifacts/` root and SHALL NOT select the primary checkout, another worktree, the operating-system temporary directory, the user's home or desktop, or a sibling path for its scratch file.
-
-Agent-created scratch content under `.artifacts/` SHALL remain ignored, unstaged, uncommitted, disposable, and non-authoritative. Durable source or implementation evidence SHALL be promoted to its declared tracked location rather than cited from disposable scratch. Availability of `.artifacts/` SHALL NOT authorize an agent to materialize credentials, tokens, or other content prohibited by the repository's data policy. Cleanup SHALL continue to apply the existing exact-root containment, link, special-file, nested-repository, and bounded-inspection safeguards; this requirement SHALL NOT broaden deletion authority.
-
-This requirement SHALL govern paths directly selected by an agent. It SHALL NOT relocate temporary storage internally selected by Git, GitHub CLI, OpenSpec, language/package tooling, test frameworks, product runtime code, or other invoked tools, and SHALL NOT prohibit hermetic test fixtures whose temporary-path behavior is part of the test contract.
+Implementation scratch SHALL remain ignored, secret-free and non-authoritative beneath its checkout artifact root. Remote-only planning/administration SHALL allow stdin, memory or isolated session scratch without a checkout. Durable source/evidence SHALL not be scratch-only. Internal temp storage remains tool-owned. These permissions SHALL not broaden credential persistence, private disclosure or deletion.
 
 #### Scenario: Agent prepares a pull-request body file
-
-- **GIVEN** a delivery agent needs a file for `gh pr create --body-file` or `gh pr edit --body-file`
-- **WHEN** the agent chooses the file's path
-- **THEN** it SHALL create a purpose-specific descendant beneath the owning worktree's exact `.artifacts/` root
-- **AND** it SHALL NOT write that body file beneath `$TMPDIR`, `%TEMP%`, `/tmp`, the user's home or desktop, or another checkout
+- **WHEN** a remote-only operation needs a PR body
+- **THEN** stdin, memory or isolated secret-free scratch SHALL be allowed without a worktree
+- **AND** implementation files SHALL continue using their artifact root
 
 #### Scenario: Linked task worktree owns the scratch file
 
@@ -787,11 +781,7 @@ A live-session editing claim SHALL be identified by the owning runtime and the a
 
 ### Requirement: Implementation progress is visible without changing acceptance semantics
 
-Every newly authored version-3 implementation-bound pull request SHALL present its approved scope under `Implementation` as one or more distinct Markdown task-list items, with no fixed maximum item count. Each item SHALL describe a delivered implementation outcome at a useful review granularity and SHALL remain separate from the detailed OpenSpec task ledger. Generic CI, review, approval, acceptance, merge, or archive steps SHALL NOT be represented as implementation-progress items, and no item SHALL name running, verifying, validating, recording evidence for, or manually testing work.
-
-The agent SHALL leave each item unchecked during planning and SHALL change only its checkbox marker to checked after the associated code and its tests are written and detailed task bookkeeping is complete. Executing tests SHALL belong to CI after readiness, and manual validation SHALL NOT gate a checkbox. Adding, removing, reordering, or changing item wording after approval SHALL be an implementation-scope refinement requiring explicit maintainer approval and coherent planning-artifact reconciliation; affected scope SHALL remain unchecked until complete.
-
-A pull request using Implementation task-list syntax SHALL NOT become ready or finalize while any item is unchecked or malformed. Historical version-3 pull requests containing only plain Implementation bullets, or items written under the earlier wording rule, SHALL remain readable without body rewrites. Final `Acceptance` scenarios SHALL remain plain bullets, SHALL NOT inherit Implementation checkbox state, and SHALL continue to become accepted only through authorized maintainer integration of the exact validated head.
+New linked drafts SHALL use one or more meaningful unchecked outcomes without an arbitrary maximum. Tasks SHALL map to outcomes without process duplication. Local progress SHALL be recorded promptly and PR completion synchronized to published work at coherent checkpoints and before handoff. Push SHALL NOT be required before the next local outcome. Implementation, observed checks, required CI and optional acceptance remain distinct. Material changes require approval; clarification/reordering without behavioral change do not. Structural ambiguity, missing identity or incomplete work SHALL block readiness; prose limits, links or testing/coverage vocabulary alone SHALL not. Legacy reading and exact acceptance binding remain compatible.
 
 #### Scenario: Draft exposes approved implementation scope
 
@@ -813,28 +803,23 @@ A pull request using Implementation task-list syntax SHALL NOT become ready or f
 - **AND** it SHALL NOT combine unrelated outcomes merely to meet a maximum item count
 
 #### Scenario: Agent completes one scope item
-
-- **WHEN** the associated code and its tests are written and the detailed OpenSpec tasks are complete
-- **THEN** the agent SHALL change only that PR-body item's marker from unchecked to checked
-- **AND** the unchanged item wording and ordering SHALL continue to describe the approved scope
+- **WHEN** an outcome is complete
+- **THEN** local tasks SHALL be updated and PR progress synchronized when published
+- **AND** another local outcome MAY begin first
 
 #### Scenario: Item names validation instead of an outcome
-
-- **WHEN** a draft's Implementation item starts with a run, verify, validate, confirm, prove, or test instruction, mentions manual testing, records or captures evidence, or delivers work with coverage, evidence, or validation
-- **THEN** draft promotion and the local delivery body check SHALL refuse it with `implementation-progress-validation`
-- **AND** post-merge readers SHALL continue to accept merged bodies written under the earlier wording rule
+- **WHEN** an item describes actual test development or coverage
+- **THEN** wording alone SHALL not block readiness
+- **AND** unperformed checks or acceptance SHALL not be claimed
 
 #### Scenario: Implementation scope changes after approval
-
-- **WHEN** an item must be added, removed, reordered, or rewritten
-- **THEN** the change SHALL require explicit maintainer refinement approval and coherent updates to the planning artifacts
-- **AND** new or affected scope SHALL remain unchecked until its code and tests are written
+- **WHEN** behavior or scope changes materially
+- **THEN** approval and planning updates SHALL precede implementation
+- **AND** wording-only edits SHALL not require approval
 
 #### Scenario: Checklist remains incomplete at readiness
-
-- **WHEN** a version-3 candidate uses Implementation task-list syntax and at least one item is unchecked, mixed with plain bullets, malformed, duplicated, or generic process boilerplate
-- **THEN** trusted finalization SHALL fail closed with an actionable implementation-progress reason
-- **AND** it SHALL NOT interpret partial implementation progress as acceptance
+- **WHEN** required outcomes/tasks are incomplete or structure is ambiguous
+- **THEN** readiness SHALL be blocked for that reason, not prose style
 
 #### Scenario: Historical body uses plain Implementation bullets
 
@@ -860,37 +845,32 @@ Every repository agent that performs approved implementation-bound work SHALL re
 
 ### Requirement: Agents own progress while automation owns readiness
 
-The detailed task ledger SHALL hold one task group per approved `Implementation` item, in the same order. While a pull request remains draft, the agent SHALL deliver one item at a time: write that outcome's code and tests, complete its detailed task bookkeeping, commit and push, and then check that item before starting the next outcome. The agent SHALL NOT hold completed items back for handoff. A defect found after an item is checked SHALL be fixed in a later commit; CI, broad test runs, and manual validation SHALL NOT delay a check. Before checking the final item, the agent SHALL add plain `Acceptance`, finish every pre-ready task and gap disposition, and reconcile and push the branch. The final checkbox update SHALL complete the agent-owned implementation job; the agent SHALL NOT invoke the ready mutation.
+Agents SHALL own truthful task and published progress; automation SHALL own readiness. Checkpoints MAY contain multiple outcomes without intermediate push barriers. Before final publication authors SHALL complete required inputs, plain Acceptance, reconciliation and structure checks. Delivery hold SHALL pause readiness. Implementation requests/checks SHALL not imply acceptance, merge or deletion.
 
 #### Scenario: One implementation outcome finishes
-
-- **WHEN** an agent writes one approved outcome's code and tests and completes its detailed task bookkeeping
-- **THEN** the agent SHALL commit and push that outcome and update only that PR-body item's marker while the pull request remains draft
-- **AND** other incomplete implementation outcomes SHALL remain unchecked
+- **WHEN** an outcome finishes
+- **THEN** local tasks SHALL be updated promptly and PR progress at publication
+- **AND** unfinished work SHALL stay unchecked
 
 #### Scenario: Several outcomes are approved
-
-- **WHEN** an approved plan has more than one Implementation item
-- **THEN** each item SHALL be checked after its own pushed commit and before work on the next item starts
-- **AND** the items SHALL NOT all be checked together at handoff
+- **WHEN** multiple outcomes are approved
+- **THEN** agents MAY publish coherent groups
+- **AND** local-only and published progress SHALL be distinguished
 
 #### Scenario: Root guidance carries the rule
 
 - **WHEN** an agent of any runtime loads the repository's root instructions
-- **THEN** it SHALL receive the same single Implementation progress paragraph from `AGENTS.md`
+- **THEN** it SHALL follow the exact R17 routing paragraph in `AGENTS.md` to the shared `docs/delivery-rules.md` contract, including R05 progress rules
 - **AND** `CLAUDE.md` and the delivery skill SHALL refer to that paragraph rather than restate it
 
 #### Scenario: Outcome awaits only CI or manual validation
-
-- **WHEN** an outcome's code and tests are written but its tests can run only in CI or its behavior has not been manually validated
-- **THEN** the agent SHALL check that item
-- **AND** CI after readiness and the maintainer's optional review SHALL provide that validation
+- **WHEN** implementation is written/published but CI or optional observation is pending
+- **THEN** implementation progress MAY be complete
+- **AND** validation SHALL remain explicitly unperformed
 
 #### Scenario: Final implementation outcome finishes
-
-- **WHEN** the last implementation outcome and every pre-ready input are complete
-- **THEN** the agent SHALL finish acceptance, reconciliation, push, and final progress by checking the last item
-- **AND** trusted automation, not the agent, SHALL own the ready-for-review transition
+- **WHEN** all pre-ready inputs are published
+- **THEN** automation MAY promote only the valid unheld snapshot
 
 #### Scenario: Implementation cannot finish
 
@@ -906,11 +886,11 @@ The detailed task ledger SHALL hold one task group per approved `Implementation`
 
 ### Requirement: Trusted automation promotes only a complete draft snapshot
 
-The trusted default-branch finalization entrypoint SHALL mark a draft ready only when one exact same-repository version-3 snapshot targets `develop`, has every current-form `Implementation` item checked, contains valid plain `Acceptance`, and satisfies existing pre-finalization checks for association, detailed tasks, evidence, gaps, target, head, and body. It SHALL re-read and match the PR identity, repository, base, head, body, open state, and draft state immediately before mutation. When every task-list `Implementation` item is checked but promotion is refused for a content reason, the finalization run SHALL fail visibly with that stable reason instead of completing successfully.
+The trusted default-branch finalization entrypoint SHALL mark a draft ready only when one exact same-repository version-3 snapshot targets `develop`, has every current-form `Implementation` item checked, contains valid plain `Acceptance`, and satisfies existing pre-finalization checks for association, detailed tasks, evidence, gaps, target, head, and body. A delivery hold SHALL prevent promotion. It SHALL re-read and match hold state and the PR identity, repository, base, head, body, open state, and draft state immediately before mutation. When every task-list `Implementation` item is checked but promotion is refused for a content reason, the finalization run SHALL fail visibly with that stable reason instead of completing successfully.
 
 #### Scenario: Final checkbox exposes an eligible draft
 
-- **WHEN** a draft version-3 task-list candidate has every Implementation item checked and every exact pre-finalization input is valid
+- **WHEN** a draft version-3 task-list candidate has every Implementation item checked, no hold and every exact pre-finalization input is valid
 - **AND** its final re-read matches the inspected snapshot
 - **THEN** trusted automation SHALL mark that pull request ready for review
 - **AND** the resulting event SHALL invoke ordinary finalization followed by exact-head CI
@@ -934,6 +914,11 @@ The trusted default-branch finalization entrypoint SHALL mark a draft ready only
 - **WHEN** the final pre-mutation re-read differs from the inspected head, body, base, repository identity, open state, or draft state
 - **THEN** the promotion attempt SHALL stop without mutating readiness
 - **AND** a later bounded event MAY inspect the new snapshot independently
+
+#### Scenario: Completed candidate is held
+- **WHEN** delivery-hold is present
+- **THEN** promotion/finalization/automated refresh/auto-merge SHALL remain paused
+- **AND** release SHALL trigger fresh bounded reconciliation
 
 ### Requirement: Draft promotion preserves compatibility and integration authority
 
@@ -959,13 +944,12 @@ The ready mutation SHALL edit no body, branch content, task, evidence, specifica
 
 ### Requirement: Agents verify the delivery body before the final checkbox
 
-The repository SHALL provide a local delivery body check that applies the same version-3 association, Implementation progress, layout, and Acceptance validators as trusted promotion to a body file or pull request and reports the stable reason for any defect. Before checking the final `Implementation` item, the agent SHALL run that check against the intended final body and SHALL NOT check the final item while it reports a defect.
+One validator SHALL serve local inspection and trusted promotion. Machine association, unambiguous sections/checklists, required completion and acceptance binding SHALL remain hard checks. Meaningful prose SHALL not fail solely for sentence/byte/count limits, coverage/testing words, links or notation. Checkpoints MAY validate internally without a separate ritual.
 
 #### Scenario: Final body contains a rejected item
-
-- **WHEN** an agent checks an intended final body whose Acceptance item contains an angle-bracket placeholder, HTML, a URL, or an `@` mention
-- **THEN** the check SHALL exit unsuccessfully with the same stable reason trusted promotion would report
-- **AND** the agent SHALL correct the body before checking the final Implementation item
+- **WHEN** machine linkage or required structure is malformed or incomplete
+- **THEN** validation SHALL name the defect and block readiness
+- **AND** harmless wording SHALL not be a defect
 
 #### Scenario: Final body is valid
 
@@ -974,21 +958,22 @@ The repository SHALL provide a local delivery body check that applies the same v
 - **AND** detailed tasks, evidence, and target state SHALL remain subject to the existing pre-finalization checks
 
 ### Requirement: Agents push after targeted checks and rely on CI after readiness
-Before pushing implementation commits to the draft pull request, agents SHALL run only quick targeted checks for what they changed: the repository type check, the test files that cover the changed code, and strict validation of the OpenSpec change. Agents SHALL NOT run preflight, `test:fast`, `test:full`, `test:release`, or broad directory-level test runs as a precondition for pushing. Agents SHALL check each Implementation item once its code, tests, and task bookkeeping are written. Exact-head CI that runs after the final item is checked and the pull request becomes ready SHALL be the validation authority. Agents MAY run a broader local command to reproduce a failure CI already reported, or when the maintainer explicitly asks for one.
+
+Agents SHALL choose focused checks proportional to impact and honestly report results. Broader checks MAY be used for impact, diagnosis or explicit requests without mandatory repeated pre-push loops. Known failures SHALL not be hidden or reported as success. Publication, implementation completion and exact-head CI remain separate.
 
 #### Scenario: Agent pushes implementation
-- **WHEN** an agent has written code and tests for an approved Implementation outcome
-- **THEN** it SHALL run the type check, the touched test files, and strict change validation, and push once they pass
-- **AND** it SHALL NOT run preflight or a broad test suite before that push
+- **WHEN** a coherent checkpoint is published
+- **THEN** focused results and limitations SHALL be reported truthfully
+- **AND** repeated broad validation SHALL not be compulsory
 
 #### Scenario: A targeted check fails
 - **WHEN** one of the targeted checks fails before a push
 - **THEN** the agent SHALL fix the cause and rerun that check before pushing
 
 #### Scenario: CI fails after readiness
-- **WHEN** exact-head CI fails on a ready implementation pull request
-- **THEN** the fix SHALL be pushed to the same branch and pull request
-- **AND** the new head SHALL be revalidated by CI rather than by a full local run
+- **WHEN** required CI fails
+- **THEN** repairs SHALL use the same branch/PR with proportionate diagnostics
+- **AND** the new head SHALL require its own CI
 
 #### Scenario: Agent reproduces a reported failure
 - **WHEN** CI has reported a specific failure and the agent needs to investigate it
@@ -1016,12 +1001,13 @@ The repository SHALL provide Claude Code `WorktreeCreate` and `WorktreeRemove` c
 - **THEN** the remove hook SHALL decline and the worktree SHALL remain until `local-worktree-cleanup.mjs` removes it with verified evidence
 
 ### Requirement: Trusted automation re-promotes a complete finalized draft
-When a finalized version-3 pull request is returned to draft with every Implementation item still checked, trusted finalization SHALL run on that conversion and SHALL mark it ready again once its body fence names the exact head as finalized and the tree holds exactly that archived form with no active change. It SHALL keep every other promotion check and SHALL NOT write the branch while promoting.
+
+A finalized draft SHALL retain archive/history. Delivery hold SHALL keep it paused. Without hold policy MAY re-promote only a freshly verified complete snapshot with matching head/archive/tasks/body/target. Release SHALL re-evaluate current state without hand-restoring active artifacts or inferring merge authority.
 
 #### Scenario: Finalized pull request returned to draft
-- **WHEN** a maintainer or agent converts a finalized, fully checked pull request to draft
-- **THEN** trusted automation SHALL mark it ready again
-- **AND** the following reconciliation SHALL find it already finalized and change nothing
+- **WHEN** a finalized complete PR returns to draft
+- **THEN** hold SHALL keep it paused until released
+- **AND** an unheld valid snapshot MAY resume idempotently
 
 #### Scenario: Fence no longer matches the tree
 - **WHEN** the body fence names the head as finalized but the tree lacks that archive or holds the active change again
@@ -1080,3 +1066,46 @@ When the maintainer explicitly approves an already presented concrete plan and r
 
 - **WHEN** the maintainer approves and requests implementation
 - **THEN** the existing separate exact-candidate integration authorization and protected merge gates SHALL remain unchanged
+
+### Requirement: Both repositories implement one exact delivery contract
+
+Delivery simplification SHALL use the byte-identical `portable-delivery-v1` rulebook, adapter table, verification cases and digest manifest supplied by this change. Implementers SHALL copy them unchanged to the R17 destinations and use only the listed repository-specific bindings. They SHALL NOT paraphrase shared policy, change expected cases, invent exceptions or override OpenSpec.
+
+#### Scenario: Agent installs repository guidance
+- **WHEN** the approved delivery implementation installs guidance
+- **THEN** the four contract files SHALL match the approved planning bytes and SHA-256 digests
+- **AND** `AGENTS.md` SHALL contain the exact R17 routing paragraph once while other repository-owned entries link rather than restate policy
+
+#### Scenario: Existing implementation predates the contract
+- **WHEN** work has already started under an earlier plan
+- **THEN** the agent SHALL preserve it and record the inspected head, rule/case reconciliation, corrections and blockers before further affected implementation
+- **AND** unrelated completed tasks SHALL remain truthful without automatically discarding work
+
+#### Scenario: Shared verification is executed
+- **WHEN** either repository verifies implementation conformance
+- **THEN** its test bindings SHALL consume every identical case and assert actual behavior against the unchanged expected results
+- **AND** dropped cases, changed contract bytes, adapter drift or framework overrides SHALL fail verification rather than be silently accepted
+
+#### Scenario: Implementer encounters ambiguity
+- **WHEN** a requirement conflicts with the exact contract or a policy decision is unspecified
+- **THEN** the affected action SHALL stop for explicit clarification without inventing an exception
+- **AND** a contract refinement SHALL require matching approved updates in both repositories before affected implementation
+
+### Requirement: Workflow simplification preserves the OpenSpec framework
+
+Workflow simplification SHALL be limited to repository-owned delivery tooling and guidance around the unchanged OpenSpec framework. It SHALL NOT modify, regenerate, replace, or override OpenSpec skills (including `openspec-*`), generated OpenSpec/`opsx` commands, framework implementation, schemas, templates, or lifecycle semantics. Project-specific proposals, designs, tasks and specification deltas MAY be edited without granting framework-change authority. Repository guidance SHALL NOT shadow or override OpenSpec instructions. Any outcome requiring a framework change SHALL be reported as blocked and moved to a separate explicitly approved scope.
+
+#### Scenario: Repository delivery guidance is simplified
+- **WHEN** this change simplifies root instructions, the repository-owned delivery skill, runbooks or project context
+- **THEN** the changes SHALL use supported integration points without changing or overriding OpenSpec skills or framework behavior
+- **AND** project-specific planning artifacts SHALL remain distinct from protected framework assets
+
+#### Scenario: Implementation diff is reviewed
+- **WHEN** the implementation candidate is reviewed
+- **THEN** the complete diff, including additions, deletions and rename sources/destinations, SHALL leave protected OpenSpec skills, commands and framework assets unchanged
+- **AND** repository guidance SHALL be inspected for indirect overrides, not only changes to protected paths
+
+#### Scenario: Simplification would require a framework change
+- **WHEN** a proposed outcome cannot be delivered without changing or overriding OpenSpec
+- **THEN** the agent SHALL report that outcome as blocked and seek a separate explicitly approved scope
+- **AND** it SHALL NOT bundle the framework change into this delivery

@@ -13,7 +13,8 @@ const TRUSTED_EVENTS = ["pull_request_target", "workflow_dispatch"];
 
 function summaryLine(number, result) {
   const detail = result.reason ? ` (${result.reason})` : "";
-  const commits = result.commits?.length ? `; pushed ${result.commits.map(commit => `${commit.kind} ${commit.sha.slice(0, 8)}`).join(", ")}` : "";
+  const published = result.pushedHead && result.pushedHead !== result.head && result.commits?.at(-1)?.sha === result.pushedHead;
+  const commits = published ? `; pushed ${result.commits.map(commit => `${commit.kind} ${commit.sha.slice(0, 8)}`).join(", ")}` : "";
   const body = result.bodyUpdated ? "; body fence updated" : "";
   return `- PR #${number}: ${result.disposition}${detail}${commits}${body}${result.archive ? `; archive ${result.archive}` : ""}`;
 }
