@@ -75,6 +75,90 @@ async function settled(): Promise<void> {
 }
 
 describe("unified Models dialog", () => {
+  it("keeps keyboard selection and its background while hovering and clicking another model", () => {
+    withDialog((dialog, callbacks) => {
+      const before = dialog.render(100);
+      const row = before.findIndex(line => stripTerminalSequences(line).includes("claude [anthropic]")) + 1;
+      const active = before.find(line => stripTerminalSequences(line).includes("→ ○ gpt-5"));
+      dialog.handleLocalMouse({ kind: "motion", button: 3, column: 7, row });
+      const hovered = dialog.render(100);
+      expect(dialog.selectedModelId).toBe(ids.gpt5);
+      expect(hovered.find(line => stripTerminalSequences(line).includes("→ ○ gpt-5"))).toBe(active);
+      expect(cellStyle(hovered[row - 1]!, "c")).not.toEqual(cellStyle(before[row - 1]!, "c"));
+      expect(cellStyle(hovered[row - 1]!, "[")).not.toEqual(cellStyle(before[row - 1]!, "["));
+      expect(cellBackgroundAt(hovered[row - 1]!, 6)).toBe("default");
+      dialog.handleInput(ENTER);
+      expect(callbacks.onSelect).toHaveBeenLastCalledWith(ids.gpt5);
+      callbacks.onSelect.mockClear();
+      dialog.render(100);
+      dialog.handleLocalMouse({ kind: "press", button: 0, column: 7, row });
+      expect(callbacks.onSelect).toHaveBeenCalledExactlyOnceWith(ids.claude);
+      expect(dialog.selectedModelId).toBe(ids.gpt5);
+    });
+  });
+
+  it("toggles the clicked scope and filter without redirecting keyboard scope actions", () => {
+    withDialog((dialog, callbacks) => {
+      const lines = dialog.render(100);
+      const row = lines.findIndex(line => stripTerminalSequences(line).includes("claude [anthropic]")) + 1;
+      dialog.handleLocalMouse({ kind: "press", button: 0, column: 4, row });
+      expect(dialog.scopeIds).toEqual([ids.claude]);
+      expect(dialog.selectedModelId).toBe(ids.gpt5);
+      expect(callbacks.onSelect).not.toHaveBeenCalled();
+      dialog.handleInput(SPACE);
+      expect(dialog.scopeIds).toEqual([ids.claude, ids.gpt5]);
+      dialog.render(100);
+      dialog.handleLocalMouse({ kind: "press", button: 0, column: 16, row: 3 });
+      expect(dialog.filter).toBe("scoped");
+      expect(dialog.selectedModelId).toBe(ids.gpt5);
+      dialog.render(100);
+      dialog.handleLocalMouse({ kind: "press", button: 0, column: 10, row: 3 });
+      expect(dialog.filter).toBe("all");
+      expect(callbacks.onSave).not.toHaveBeenCalled();
+    });
+  });
+
+  it("uses compact current geometry and invalidates targets after refresh and disposal", () => {
+    withDialog((_unused, callbacks) => {
+      const dialog = new ModelsDialogComponent({ models, activeModelId: ids.gpt5, scopeIds: [], savedScopeIds: [] }, { ...callbacks, viewportHeight: () => 8 });
+      const lines = dialog.render(30);
+      const row = lines.findIndex(line => stripTerminalSequences(line).includes("gpt-5 [openai]")) + 1;
+      expect(row).toBe(5);
+      dialog.handleLocalMouse({ kind: "press", button: 0, column: 6, row });
+      expect(callbacks.onSelect).toHaveBeenLastCalledWith(ids.gpt5);
+      callbacks.onSelect.mockClear();
+      dialog.render(5);
+      dialog.handleLocalMouse({ kind: "press", button: 0, column: 6, row });
+      expect(callbacks.onSelect).not.toHaveBeenCalled();
+      dialog.render(30);
+      dialog.updateModels(models.slice(0, 1));
+      dialog.handleLocalMouse({ kind: "press", button: 0, column: 6, row });
+      expect(callbacks.onSelect).not.toHaveBeenCalled();
+      dialog.render(30);
+      dialog.dispose();
+      dialog.handleLocalMouse({ kind: "press", button: 0, column: 6, row });
+      expect(callbacks.onSelect).not.toHaveBeenCalled();
+    });
+  });
+
+  it("retains mouse, leave, and cancel through the deferred dialog port", async () => {
+    const callbacks = spies();
+    const dialog = createPiShellModelsDialog({ models, activeModelId: ids.gpt5, scopeIds: [], savedScopeIds: [], ...callbacks });
+    try {
+      await dialog.ready;
+      const lines = dialog.render(100);
+      const row = lines.findIndex(line => stripTerminalSequences(line).includes("claude [anthropic]")) + 1;
+      dialog.handleLocalMouse?.({ kind: "motion", button: 3, column: 7, row });
+      expect(dialog.render(100)[row - 1]).not.toBe(lines[row - 1]);
+      dialog.clearMouseHover?.();
+      expect(dialog.render(100)).toEqual(lines);
+      dialog.handleLocalMouse?.({ kind: "press", button: 0, column: 7, row });
+      expect(callbacks.onSelect).toHaveBeenCalledExactlyOnceWith(ids.claude);
+      dialog.cancelDialog?.();
+      expect(callbacks.onCancel).toHaveBeenCalledOnce();
+    } finally { dialog.dispose?.(); }
+  });
+
   it("never renders a loading status while deferring the controller and retains early search input", async () => {
     const dialog = createPiShellModelsDialog({ models, activeModelId: ids.gpt5, scopeIds: [], savedScopeIds: [], ...spies() });
     try {

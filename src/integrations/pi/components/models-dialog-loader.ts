@@ -34,6 +34,9 @@ export function createDeferredModelsDialog(options: ModelsDialogConfig & ModelsD
       else if (data === "\u001b" || data === "\u0003") options.onCancel();
       else if (pending.length < 32) pending.push(data);
     },
+    handleLocalMouse: event => dialog?.handleLocalMouse(event),
+    clearMouseHover: () => dialog?.clearMouseHover(),
+    cancelDialog: () => { if (!closed) options.onCancel(); },
     invalidate: () => dialog?.invalidate(),
     setFocused: value => { focused = value; if (dialog !== undefined) dialog.focused = value; },
     dispose: () => { closed = true; pending.length = 0; dialog?.dispose(); },

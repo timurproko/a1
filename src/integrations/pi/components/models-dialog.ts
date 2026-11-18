@@ -7,12 +7,14 @@ import {
   type Component,
   type Focusable,
 } from "@earendil-works/pi-tui";
+import { DialogPointer, type DialogPointerTarget, type PaneMouseEvent } from "../../../ui/components/index.js";
 import { DynamicBorder } from "../startup-public.js";
 import { PiModalFrame, renderPiModalSearchInput } from "./modal-frame.js";
 import {
   DIALOG_CLOSE_SHORTCUT_HINT,
   paintPiBorder,
   piTheme,
+  piUiTheme,
   renderPiModalListRow,
   renderPiModalShortcutHints,
   type PiModalShortcutHint,
@@ -123,6 +125,8 @@ export class ModelsDialogComponent implements Component, Focusable {
   #selectedIndex = 0;
   #preferredId: string | undefined;
   #refreshStatus: { readonly message: string; readonly kind: "warning" } | undefined;
+  readonly #pointer = new DialogPointer<string>();
+  #geometry: string | undefined;
   #disposed = false;
   #focused = false;
 
@@ -172,6 +176,7 @@ export class ModelsDialogComponent implements Component, Focusable {
   /** Replace the catalog after a refresh; query, filter, surviving selection, scope edits, and dirty state stay. */
   updateModels(models: readonly ModelsDialogModel[]): void {
     const selectedId = this.selectedModelId;
+    this.#pointer.invalidate();
     this.#replaceModels(models);
     this.#restoreSelection(selectedId);
   }
@@ -183,13 +188,36 @@ export class ModelsDialogComponent implements Component, Focusable {
 
   dispose(): void {
     this.#disposed = true;
+    this.#pointer.invalidate();
   }
 
   invalidate(): void {
+    this.#pointer.invalidate();
     this.#input.invalidate();
   }
 
+  clearMouseHover(): void { this.#pointer.clearHover(); }
+  cancelDialog(): void { if (!this.#disposed) this.#callbacks.onCancel(); }
+
+  handleLocalMouse(event: PaneMouseEvent): void {
+    if (this.#disposed) return;
+    const action = this.#pointer.handle(event);
+    if (action?.startsWith("model:")) this.#callbacks.onSelect(action.slice(6));
+    else if (action?.startsWith("scope:")) {
+      const id = action.slice(6);
+      this.#setScope(this.#scopeIds.includes(id) ? this.#scopeIds.filter(value => value !== id) : [...this.#scopeIds, id], this.selectedModelId);
+      this.#pointer.invalidate();
+    } else if (action === "all" || action === "scoped") {
+      const selected = this.selectedModelId;
+      this.#filter = action;
+      this.#restoreSelection(selected);
+      this.#pointer.invalidate();
+    }
+    this.#callbacks.requestRender();
+  }
+
   handleInput(data: string): void {
+    this.#pointer.invalidate();
     const kb = getKeybindings();
     const rows = this.#rows();
     this.#clampSelection(rows);
@@ -266,6 +294,9 @@ export class ModelsDialogComponent implements Component, Focusable {
   }
 
   render(width: number): string[] {
+    const geometry = `${width}/${this.#callbacks.viewportHeight?.() ?? 24}`;
+    if (geometry !== this.#geometry) this.#pointer.invalidate();
+    this.#geometry = geometry;
     const theme = piTheme();
     this.#title.setText(theme.fg("accent", theme.bold(MODELS_TITLE))
       + (this.dirty ? theme.fg("warning", " (unsaved)") : ""));
@@ -281,29 +312,44 @@ export class ModelsDialogComponent implements Component, Focusable {
     const height = this.#callbacks.viewportHeight?.() ?? 24;
     const compact = height < 13;
     const capacity = Math.max(1, Math.min(MAX_VISIBLE_ROWS, height - (compact ? 7 : 13)));
+    const inputRows = renderPiModalSearchInput(this.#input, width);
+    const startIndex = Math.max(0, Math.min(this.#selectedIndex - Math.floor(capacity / 2), rows.length - capacity));
+    const endIndex = Math.min(startIndex + capacity, rows.length);
+    const firstChoiceRow = 3 + inputRows.length + (compact ? 1 : 3);
+    const targets: DialogPointerTarget<string>[] = [
+      { key: "all", row: 3, columnStart: 10, columnEnd: Math.min(width + 1, 12) },
+      { key: "scoped", row: 3, columnStart: 16, columnEnd: Math.min(width + 1, 21) },
+    ];
+    for (let index = startIndex; index < endIndex; index++) {
+      const row = rows[index]!;
+      const screenRow = firstChoiceRow + index - startIndex;
+      targets.push({ key: `scope:${row.fullId}`, row: screenRow, columnStart: 4, columnEnd: Math.min(width + 1, 4) },
+        { key: `model:${row.fullId}`, row: screenRow, columnStart: 6,
+          columnEnd: Math.min(width + 1, 5 + visibleWidth(`${row.model.id} [${row.model.provider}]`)) });
+    }
+    this.#pointer.replace(targets);
+    const paint = (token: "dim" | "mdHeading" | "text" | "muted", value: string, key: string) => this.#pointer.paint(piUiTheme(), token, value, key);
 
     push(theme.fg("dim", "Filter: ")
-      + theme.fg(this.#filter === "all" ? "mdHeading" : "dim", "all")
+      + paint(this.#filter === "all" ? "mdHeading" : "dim", "all", "all")
       + theme.fg("dim", " | ")
-      + theme.fg(this.#filter === "scoped" ? "mdHeading" : "dim", "scoped"));
+      + paint(this.#filter === "scoped" ? "mdHeading" : "dim", "scoped", "scoped"));
     if (!compact) push();
-    for (const line of renderPiModalSearchInput(this.#input, width)) push(line);
+    for (const line of inputRows) push(line);
     if (!compact) push();
 
     if (rows.length === 0) {
       push(theme.fg("muted", `  ${this.#emptyText()}`));
     } else {
-      const startIndex = Math.max(0, Math.min(this.#selectedIndex - Math.floor(capacity / 2), rows.length - capacity));
-      const endIndex = Math.min(startIndex + capacity, rows.length);
       for (let index = startIndex; index < endIndex; index += 1) {
         const row = rows[index]!;
         const selected = index === this.#selectedIndex;
         const scoped = this.#scopeIds.includes(row.fullId);
         // Invariant: arrow, scope marker, model id, [provider], then the active checkmark.
         const prefix = selected ? theme.fg("accent", "→ ") : "  ";
-        const marker = scoped ? theme.fg("text", "●") : theme.fg("dim", "○");
-        const label = selected ? theme.fg("text", row.model.id) : row.model.id;
-        const provider = theme.fg("muted", `[${row.model.provider}]`);
+        const marker = paint(scoped ? "text" : "dim", scoped ? "●" : "○", `scope:${row.fullId}`);
+        const label = selected || this.#pointer.hovered === `model:${row.fullId}` ? paint("text", row.model.id, `model:${row.fullId}`) : row.model.id;
+        const provider = paint("muted", `[${row.model.provider}]`, `model:${row.fullId}`);
         const active = row.fullId === this.#activeModelId ? ` ${theme.fg("success", "✓")}` : "";
         push(renderPiModalListRow(`${prefix}${marker} ${label} ${provider}${active}`, width, selected));
       }

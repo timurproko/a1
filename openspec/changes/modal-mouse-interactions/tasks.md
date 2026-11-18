@@ -7,10 +7,10 @@
 
 ## 2. In-place Models mouse interaction
 
-- [ ] 2.1 Render and hit-test Models row text, scope markers, and all/scoped filter controls from the same clipped layout without moving keyboard selection on hover.
-- [ ] 2.2 Dispatch clicked model/scope/filter actions through existing workflows and retain dirty scope, save/order shortcuts, active-model markers, deferred loading, and catalog-refresh semantics.
-- [ ] 2.3 Add outside cancellation for the docked Models surface and preserve prompt restoration and non-dismissing outside wheel scrolling.
-- [ ] 2.4 Add focused Models, deferred-adapter/presenter, and shell fixtures proving keyboard-active A remains the Enter target while the pointer hovers B, direct clicked-target actions, compact/resize geometry, and restoration.
+- [x] 2.1 Render and hit-test Models row text, scope markers, and all/scoped filter controls from the same clipped layout without moving keyboard selection on hover.
+- [x] 2.2 Dispatch clicked model/scope/filter actions through existing workflows and retain dirty scope, save/order shortcuts, active-model markers, deferred loading, and catalog-refresh semantics.
+- [x] 2.3 Add outside cancellation for the docked Models surface and preserve prompt restoration and non-dismissing outside wheel scrolling.
+- [x] 2.4 Add focused Models, deferred-adapter/presenter, and shell fixtures proving keyboard-active A remains the Enter target while the pointer hovers B, direct clicked-target actions, compact/resize geometry, and restoration.
 
 ## 3. Mouse interaction across owned selector and configure dialogs
 
