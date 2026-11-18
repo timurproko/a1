@@ -252,7 +252,15 @@ export async function requestSessionControl(options: SessionControlRequestOption
   return await new Promise((done, reject) => {
     const socket = createConnection(endpoint);
     const requestId = randomUUID();
-    const timer = setTimeout(() => { socket.destroy(); reject(fail("request-expired", "Session request timed out; application was not acknowledged.")); }, Math.max(1, deadline - Date.now()));
+    // Timers may wake before the wall-clock deadline carried to the server. Never report expiry
+    // while a queued request is still eligible for application there.
+    const expire = () => {
+      const remaining = deadline - Date.now();
+      if (remaining > 0) { timer = setTimeout(expire, remaining); return; }
+      socket.destroy();
+      reject(fail("request-expired", "Session request timed out; application was not acknowledged."));
+    };
+    let timer = setTimeout(expire, Math.max(1, deadline - Date.now()));
     const finish = () => { clearTimeout(timer); socket.destroy(); };
     socket.on("error", () => { finish(); reject(fail("session-unavailable", "The selected session could not be reached.")); });
     socket.on("close", () => { clearTimeout(timer); reject(fail("session-unavailable", "The selected session closed before acknowledgement.")); });
