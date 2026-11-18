@@ -1,5 +1,5 @@
 /** Prepare an explicit stable-release draft; only the ordinary human Publish release action authorizes publication. */
-import { pathToFileURL } from "node:url";
+import { realpath } from "node:fs/promises";
 import { ensurePublicationDependencies } from "../development/dependency-bootstrap.mjs";
 import { ReleaseUsageError, parseReleaseArguments } from "./release-arguments.mjs";
 
@@ -19,7 +19,7 @@ export async function main(args, runtime) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && await realpath(new URL(import.meta.url)) === await realpath(process.argv[1]).catch(() => null)) {
   const controller = new AbortController();
   const abort = () => controller.abort(new Error("release canceled; validation keeps running, and rerunning the command resumes waiting for it"));
   process.on("SIGINT", abort); process.on("SIGTERM", abort);
