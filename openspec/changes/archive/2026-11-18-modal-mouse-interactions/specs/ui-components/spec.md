@@ -61,6 +61,22 @@ Outside cancellation SHALL close or resolve the workflow rather than merely hide
 - **THEN** it SHALL NOT activate a choice, write a setting, or dismiss the dialog
 - **AND** existing wheel behavior SHALL remain available
 
+### Requirement: Ordinary Settings hover shares the dialog foreground blend
+
+The shared Settings list-row renderer SHALL apply the same 75% ordinary-foreground / 25% current-accent text-only hover used by owned dialogs to hovered labels, muted values, and enabled numeric controls. Hover SHALL NOT replace a muted value with pure terminal white, add a background, move the keyboard-active row, or change the value's write behavior. Keyboard-active row backgrounds, alignment, clipping, disabled-control treatment, and ordinary non-hover semantic roles SHALL remain unchanged. Theme adapters without a hover painter SHALL retain their ordinary foreground treatment rather than fabricate an accent.
+
+#### Scenario: Hover a value while another row is keyboard-active
+
+- **WHEN** the pointer rests on a Settings value belonging to a row other than the keyboard-active row
+- **THEN** the value SHALL receive the shared accent blend based on its normal muted foreground
+- **AND** the keyboard-active row and Enter target SHALL remain unchanged
+
+#### Scenario: Hover labels and enabled controls
+
+- **WHEN** the pointer rests over a Settings label or enabled numeric minus/plus control
+- **THEN** only that actionable text SHALL receive the same foreground blend
+- **AND** no new background SHALL be introduced and disabled controls SHALL retain their disabled presentation
+
 ## MODIFIED Requirements
 
 ### Requirement: Unified Models uses the existing in-place input surface

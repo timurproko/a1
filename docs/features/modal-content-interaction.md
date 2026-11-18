@@ -6,6 +6,8 @@ Bare A1 supports mouse choices in Models, Launcher, Thinking Level, Skills, auth
 
 Moving the pointer over a different choice does not move the keyboard-active row, its arrow, or its background highlight. Enter, Space, and other keyboard actions still target the keyboard-active item. Hover changes only the actionable text's foreground: 75% of its ordinary color plus 25% of the current accent. Primary text and metadata retain distinct colors. Hover adds no background, reverse video, or underline; a keyboard-active row keeps its existing background.
 
+The ordinary Settings list uses that same foreground-only blend for hovered labels, muted values, and enabled numeric minus/plus controls. Values no longer brighten to pure white. Disabled controls retain their disabled appearance; the keyboard-active row keeps its existing background and focus. Scalar value menus retain their existing policy.
+
 Clicking a visible choice invokes that choice's existing action directly. Keyboard shortcuts, setting write authority, default/current markers, undo, and asynchronous error handling remain in effect. Titles, blank rows, panel padding, and informational shortcut hints are not inferred buttons.
 
 In the in-place Models dialog:

@@ -649,7 +649,8 @@ describe("the settings screen", () => {
   // Rationale: the selected value keeps its semantic foreground while the item gains a surface.
   it("paints the selected row with an accent cursor, text label, muted value, and highlight", async () => {
     const { app: target } = await app();
-    const named = () => target.render({ width: 80, height: 24 }, NAMING_HOST).map(line => line.trimEnd());
+    const hoverHost = { ...NAMING_HOST, theme: { ...NAMING_THEME, hover: (token: UiThemeToken, text: string) => `~${token}:${text}~` } };
+    const named = () => target.render({ width: 80, height: 24 }, hoverHost).map(line => line.trimEnd());
     const lines = named();
     const selectedRow = lines.findIndex(line => line.includes("<accent>→ </accent>"));
     expect(selectedRow).toBeGreaterThanOrEqual(0);
@@ -667,7 +668,7 @@ describe("the settings screen", () => {
     const pointed = named()[selectedRow]!;
     expect(pointed).toContain("<text>Update");
     expect(pointed).toMatch(/^ <highlight>.*<\/highlight>$/u);
-    expect(pointed).toMatch(/\s+auto<\/highlight>$/u);
+    expect(pointed).toContain("~muted:auto~");
     expect(pointed).not.toContain("<muted>auto");
     expect(pointed).not.toContain("<accent>auto");
   });

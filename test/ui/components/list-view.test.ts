@@ -19,6 +19,31 @@ function render(state: { selected: boolean; hovered: boolean; region: "label" | 
 }
 
 describe("list rows against the reader's terminal", () => {
+  it.each([false, true])("tints the hovered semantic span without moving the keyboard background (selected %s)", selected => {
+    const theme = { ...NAMING_THEME, hover: (token: UiThemeToken, text: string) => `~${token}:${text}~` };
+    const rest = renderListRow(row, { selected, hovered: false, region: "value" }, 24, 200, theme);
+    const value = renderListRow(row, { selected, hovered: true, region: "value" }, 24, 200, theme);
+    expect(value).toContain("~muted:light~");
+    expect(value.includes("<highlight>")).toBe(rest.includes("<highlight>"));
+    expect(value).not.toContain("~text:Theme");
+    const label = renderListRow(row, { selected, hovered: true, region: "label" }, 24, 200, theme);
+    expect(label).toContain("~text:Theme");
+    expect(label).toContain("<muted>light</muted>");
+    expect(label.includes("<highlight>")).toBe(rest.includes("<highlight>"));
+  });
+
+  it("uses the same blend for enabled stepper controls without changing disabled controls or the value", () => {
+    const theme = { ...NAMING_THEME, hover: (token: UiThemeToken, text: string) => `~${token}:${text}~` };
+    const number = { key: "number", label: "Count", value: "6", stepper: { lower: true, raise: false } };
+    const minus = renderListRow(number, { selected: false, hovered: true, region: "minus" }, 24, 200, theme);
+    expect(minus).toContain("~dim:- ~");
+    expect(minus).toContain("<muted>6</muted>");
+    expect(minus).toContain("<disabled> +</disabled>");
+    const disabled = renderListRow(number, { selected: false, hovered: true, region: "plus" }, 24, 200, theme);
+    expect(disabled).not.toContain("~dim:");
+    expect(disabled).toContain("<disabled> +</disabled>");
+  });
+
   it("renders a group name as a bold Markdown heading", () => {
     expect(renderGroupHeader("Generic", 80, NAMING_THEME)).toBe(" <mdHeading><b>Generic</b></mdHeading>");
   });
@@ -57,17 +82,17 @@ describe("list rows against the reader's terminal", () => {
     expect(valueOf(selectedPointed)).toBe(valueOf(unselectedPointed));
     expect(selectedPointed).toContain("<text>Theme");
     expect(selectedPointed).toMatch(/^<highlight>.*<\/highlight>$/u);
-    expect(selectedPointed).not.toContain("<muted>light");
+    expect(selectedPointed).toContain("<muted>light</muted>");
     expect(selectedPointed).not.toContain("<accent>light");
   });
 
-  it("brightens a pointed-at value to the terminal's own foreground", () => {
+  it("keeps the ordinary foreground when a theme has no hover painter", () => {
     const quiet = render({ selected: false, hovered: false, region: "label" });
     const pointed = render({ selected: false, hovered: true, region: "value" });
 
     expect(quiet).toContain("<muted>light</muted>");
     expect(pointed).toContain("light");
-    expect(pointed).not.toContain("<muted>light");
+    expect(pointed).toContain("<muted>light</muted>");
     expect(pointed).not.toContain("<text>light");
   });
 });

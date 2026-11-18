@@ -9,9 +9,30 @@ import {
   renderPiModalListRow,
 } from "../../../../src/integrations/pi/components/theme.js";
 import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
+import { renderListRow } from "../../../../src/ui/components/index.js";
 import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
 
 describe("standard dialog selection rows", () => {
+  it.each(["truecolor", "256color"] as const)("shares the subtle foreground hover with Settings values (%s)", mode => {
+    withPiParityColorMode(mode, () => {
+      const previous = piTheme();
+      try {
+        applyPiTheme("dark", false, mode);
+        const theme = piUiTheme();
+        for (const selected of [false, true]) {
+          const row = { key: "setting", label: "Setting", value: "auto" };
+          const rest = renderListRow(row, { selected, hovered: false, region: "value" }, 24, 80, theme);
+          const hover = renderListRow(row, { selected, hovered: true, region: "value" }, 24, 80, theme);
+          expect(cellStyle(hover, "u")).toEqual(cellStyle(theme.hover!("muted", "u"), "u"));
+          expect(cellStyle(hover, "u")).not.toEqual(cellStyle(rest, "u"));
+          expect(cellStyle(hover, "u")).not.toEqual(cellStyle(theme.fg("accent", "u"), "u"));
+          expect(cellBackgroundAt(hover, 24)).toBe(cellBackgroundAt(rest, 24));
+          expect(stripTerminalSequences(hover)).toBe(stripTerminalSequences(rest));
+        }
+      } finally { applyPiThemeInstance(previous); }
+    });
+  });
+
   it("retains explicit pointer and cancellation capabilities through component ports", () => {
     const component = { render: () => [], invalidate() {}, handleLocalMouse: vi.fn(), clearMouseHover: vi.fn(), cancelDialog: vi.fn() };
     const port = componentPort(component);

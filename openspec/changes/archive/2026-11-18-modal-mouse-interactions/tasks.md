@@ -12,9 +12,18 @@
 - [x] 2.3 Add outside cancellation for the docked Models surface and preserve prompt restoration and non-dismissing outside wheel scrolling.
 - [x] 2.4 Add focused Models, deferred-adapter/presenter, and shell fixtures proving keyboard-active A remains the Enter target while the pointer hovers B, direct clicked-target actions, compact/resize geometry, and restoration.
 
-## 3. Mouse interaction across owned selector and configure dialogs
+## 3. Mouse interaction and consistent Settings hover
 
 - [x] 3.1 Adopt shared independent hover, direct clicked-choice activation, and outside cancellation in Launcher and shared A1-owned selectors while preserving existing input editing and leaving opaque extension surfaces and the comparison profile unchanged.
 - [x] 3.2 Replace Settings configure-dialog pointer blocking with hit-tested generic/Warnings changes, Default Model selection, and both Thinking Level steps through existing backend and undo authorities.
 - [x] 3.3 Close Settings configure workflows on an outside primary press without a write or underlying action, including from step two; preserve Escape back/close, existing wheel behavior, and asynchronous persistence failure handling.
 - [x] 3.4 Add owner-focused selector and Settings fixtures for independent keyboard focus, blended text-only hover, clicked-target actions, outside gesture ownership, clipped geometry, and async failure/reopen; update user-facing interaction documentation.
+- [x] 3.5 Apply the shared text-only 75/25 foreground hover to ordinary Settings labels, values, and enabled numeric controls while preserving independent keyboard focus and the existing row background.
+- [x] 3.6 Reconcile the four CI-reported modal/transcript copy fixtures with outside-dismissal gesture ownership while preserving subsequent transcript scrolling and copying.
+
+## 4. Bounded Settings configure dialogs with settings-aware scrolling
+
+- [ ] 4.1 Cap configure-panel height and visible choice count while retaining title, description, search, active row, and close guidance on compact terminals.
+- [ ] 4.2 Add independent list scroll state with shared scrollbar geometry, appearance, thin/thick glyphs, hover/drag activity, track paging, and timed auto fade driven by live effective Settings values.
+- [ ] 4.3 Route wheel input inside the configure panel to its list using shared speed, capture scrollbar drags through release, preserve keyboard selection, and keep outside-wheel/background ownership intact.
+- [ ] 4.4 Add focused long-catalog, wheel-speed, thumb-drag, track-page, auto/always/hidden, resize, filtering, step-transition, and hit-target fixtures; document the bounded picker behavior.

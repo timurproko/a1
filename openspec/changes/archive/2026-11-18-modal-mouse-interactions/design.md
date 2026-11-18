@@ -50,6 +50,14 @@ For in-place Models, an outside primary press cancels before ordinary transcript
 - Other owned dialogs: Launcher/shared selector callback ownership; Settings generic changes, two-step model/level choices, default-model persistence failure/reopen, outside-close from either step, unchanged wheel behavior, and no Settings-list click-through.
 - Run only changed-code typechecks, directly relevant test files, and strict OpenSpec validation locally. Broad suites and physical desktop automation are not part of this plan. No manual result or implementation evidence is claimed during planning.
 
+## Approved Settings refinements
+
+Ordinary Settings hover must use the same 75% normal foreground / 25% accent blend as owned dialogs, including labels, muted values, and enabled numeric controls. It must not brighten values to pure terminal white, add a hover background, or move keyboard selection. Scalar value menus retain their existing policy.
+
+Configure panels must no longer expand with tall terminals or large model catalogs. Limit the panel's height budget to 20 rows and its choice window to ten items, reducing the window further on compact terminals while keeping title/search/guidance. Own a list scroll offset independently from keyboard selection: wheel and rail gestures move the viewport without selecting or changing a value; keyboard navigation reveals its active choice when necessary. Use the existing shared scrollbar geometry, glyphs, track/thumb roles, minimum thumb size, drag math, track paging, appearance policy, linger, and live effective scrollbarSpeed. Reserve the rail column consistently for auto/always and remove it for hidden. Wheel reports inside the panel belong to its list; only outside wheel reports retain background Settings scrolling. A rail drag remains captured through motion outside the panel and release rather than dismissing or clicking through. Filter, step, replacement, and geometry transitions reset stale pointer/drag state and clamp/reveal the appropriate choice.
+
+The existing three delivery outcomes remain ordered; ordinary Settings hover extends outcome 3. Bounded configure-panel scrolling is outcome 4 with its own tasks group and progress checkbox. The CI-reported four stale modal/transcript-copy assertions are repaired within outcome 3 without weakening post-dismissal copy behavior.
+
 ## Risks and boundaries
 
 Port wrappers can silently drop pointer capabilities; exercise public adapters/loaders and shell composition, not only controllers. Keyboard-active row background expectations must not be weakened to implement hover. Terminal-default and 256-color conversion can collapse nearby colors; preserve the semantic blend policy instead of hardcoding palette literals. Never infer cancellation from an arbitrary extension's keyboard input or mutate copied upstream/controller internals when a supported owned adapter can provide semantic behavior.

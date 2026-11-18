@@ -74,25 +74,24 @@ export function renderListRow(
   const labelColumn = Math.max(displayWidth(row.label), valueColumn - 4 - (row.stepper === undefined ? 0 : STEPPER_RESERVE));
   const labelPadded = `${row.label}${" ".repeat(Math.max(0, labelColumn - displayWidth(row.label)))}`;
   const leftRaw = `${cursor}${labelPadded}`;
-  const left = state.selected
-    ? `${theme.fg("accent", cursor)}${theme.fg("text", labelPadded)}`
-    : `${cursor}${theme.plain(labelPadded)}`;
+  const ordinaryLabel = state.selected ? theme.fg("text", labelPadded) : theme.plain(labelPadded);
+  const label = state.hovered && state.region === "label" ? theme.hover?.("text", labelPadded) ?? ordinaryLabel : ordinaryLabel;
+  const left = `${state.selected ? theme.fg("accent", cursor) : cursor}${label}`;
   const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
 
-  // Rationale: the value keeps the same semantic foreground on selected and unselected
-  // rows; pointer hover brightens it without moving keyboard selection.
-  const valueHovered = state.hovered && state.region !== "label";
-  const stepper = row.stepper !== undefined && valueHovered;
-  const value = valueHovered ? theme.plain(row.value) : theme.fg("muted", row.value);
+  // Invariant: hover tints the ordinary semantic foreground, never substitutes terminal white.
+  const valueHovered = state.hovered && state.region === "value";
+  const stepper = row.stepper !== undefined && state.hovered && state.region !== "label";
+  const value = valueHovered ? theme.hover?.("muted", row.value) ?? theme.fg("muted", row.value) : theme.fg("muted", row.value);
 
   const minus = stepper
     ? row.stepper?.lower === true
-      ? state.region === "minus" ? theme.plain("- ") : theme.fg("dim", "- ")
+      ? state.region === "minus" ? theme.hover?.("dim", "- ") ?? theme.fg("dim", "- ") : theme.fg("dim", "- ")
       : theme.disabled("- ")
     : "";
   const plus = stepper
     ? row.stepper?.raise === true
-      ? state.region === "plus" ? theme.plain(" +") : theme.fg("dim", " +")
+      ? state.region === "plus" ? theme.hover?.("dim", " +") ?? theme.fg("dim", " +") : theme.fg("dim", " +")
       : theme.disabled(" +")
     : "";
 
