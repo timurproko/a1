@@ -28,8 +28,8 @@ The maintainer integration decision accepts these scenarios:
     "Launcher and owned selectors accept mouse choices while Settings supports Warnings, Default Model, and both Thinking Level steps through existing write authority.",
     "Resize and content changes discard stale pointer targets, and comparison mode and opaque extension-owned custom surfaces retain their existing policy."
   ],
-  "archiveDigest": "a44a7734a3e395fd21f73719e48ce77da1ca67497bb40cd51bb096f6f43f9a56",
-  "specDigest": "4b02c75dd4f00cb4574bee4de6db797db70f8baa14b1fea477aac93ac070835d",
+  "archiveDigest": "8de579bcfdbe47c9f0eb6bd75ef92a4870c6bb1deb616282ff1ff4e3cbe3259b",
+  "specDigest": "9bb5e0d181b2c75429963439281d93a979da3c49edce839c2a8fd5a30e919a26",
   "tasksDigest": "6bbab478dab60e5ddd71ac449379bf4d9bd8c2d4da61c2a4f05d57894ab64389",
   "evidenceDigest": "0f00aa6ccb037d38a36c47a61541714d74c74a33f35c98b0ef0c4389d339182a",
   "knownGaps": []
