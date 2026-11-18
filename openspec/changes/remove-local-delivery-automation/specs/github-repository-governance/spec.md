@@ -12,6 +12,17 @@ The repository SHALL forward pull-request delivery events to the reusable workfl
 - **WHEN** the caller workflow declares a step or script of its own, or references another reusable workflow
 - **THEN** the governance check SHALL report it as untrusted drift
 
+### Requirement: Documentation changes keep generated governance evidence current
+A documentation-only pull request SHALL remain exempt from product builds and product test suites, but it SHALL run every lightweight governance consistency check whose input surface includes its changed paths. OpenSpec changes SHALL additionally pass strict OpenSpec validation. Every other pull request SHALL retain its impact-selected validation.
+
+#### Scenario: OpenSpec archive changes a governed inventory
+- **WHEN** archiving an OpenSpec change removes or shifts an inventoried occurrence
+- **THEN** that pull request's required validation SHALL detect the stale inventory
+
+#### Scenario: Documentation does not affect generated governance
+- **WHEN** the changed documentation leaves all governed inventories current
+- **THEN** validation SHALL avoid product builds and tests while allowing the documentation path to complete
+
 ## MODIFIED Requirements
 
 ### Requirement: Verified release reopening pull requests auto-merge
@@ -56,11 +67,6 @@ An eligible reopening PR SHALL be integrated only after current-head required va
 **Migration**: None; the Delivery workflow forwards events to the shared workflow.
 
 ### Requirement: Documentation cannot stale generated governance evidence
-**Reason**: This automation is owned by the shared delivery workflow in `timurproko/MyGitWorkflows`; the repository keeps no delivery, archive, acceptance or documentation auto-merge policy.
-
-**Migration**: None; the Delivery workflow forwards events to the shared workflow.
-
-### Requirement: Live acceptance proves repository lifecycle outcomes
 **Reason**: This automation is owned by the shared delivery workflow in `timurproko/MyGitWorkflows`; the repository keeps no delivery, archive, acceptance or documentation auto-merge policy.
 
 **Migration**: None; the Delivery workflow forwards events to the shared workflow.

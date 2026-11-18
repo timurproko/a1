@@ -7,7 +7,7 @@ Change delivery (draft promotion, OpenSpec finalization, the delivery check, rea
 - Remove the repository's delivery, acceptance, archive, association, ready-refresh and merged-branch scripts with their tests, and the delivery and cleanup runbooks.
 - Reduce pull-request validation to tests: remove the acceptance-record and finalized-delivery jobs and the acceptance route. Readiness still defers a linked pull request until the shared workflow records its finalized head, using a small local reader of that record.
 - **BREAKING** Remove documentation auto-merge. Documentation pull requests follow the ordinary path. Automatic merging remains only for verified release reopening pull requests, and the manager no longer disarms auto-merge on other pull requests.
-- Remove the local worktree cleanup tooling, the Claude worktree hooks and `.a1/worktree.json`. `a1 worktree complete` still leaves the checkout; removal is done with the shared `delivery cleanup` command.
+- Remove the local worktree cleanup tooling and the Claude worktree hooks. `.a1/worktree.json` now calls the shared `delivery cleanup` command, so `a1 worktree complete` keeps working.
 - Replace the repository's delivery skill and the delivery sections of `AGENTS.md` and `openspec/config.yaml` with a pointer to the shared skill.
 - Retire the `change-delivery-workflow`, `local-worktree-cleanup` and `openspec-acceptance-review` capabilities and the delivery requirements of `github-repository-governance` and `continuous-integration`.
 
@@ -32,5 +32,5 @@ None.
 - `.github/workflows/ci.yml`, `.github/workflows/documentation-auto-merge.yml` (renamed), `.github/workflows/delivery.yml`.
 - `scripts/governance/**`, `scripts/release/development-validation-readiness.mjs`, `scripts/release/pr-full-regression.mjs`, `test/repository-governance/**`.
 - `config/github-repository-governance.json`, `config/validation-ownership.json`, naming and identity inventories.
-- `AGENTS.md`, `.agents/skills/change-delivery`, `.claude/settings.json`, `.a1/worktree.json`, `openspec/config.yaml`, `docs/**`.
+- `AGENTS.md`, `.agents/skills/change-delivery`, `.claude/settings.json`, `.a1/worktree.json`, `openspec/config.yaml`, `docs/**`, and one test that read the deleted runbook.
 - No product source under `src/` changes.

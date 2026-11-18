@@ -2,7 +2,7 @@
   "cleanup": [
     "node",
     "--eval",
-    "require(\"node:child_process\").execFileSync(\"delivery\", [\"cleanup\", \"--apply\", \"--path\", process.argv[1]], { stdio: \"inherit\", shell: true })",
+    "require(\"node:child_process\").execSync(\"delivery cleanup --apply --path \\\"\" + process.argv[1] + \"\\\"\", { stdio: \"inherit\" })",
     "{worktree}"
   ]
 }
