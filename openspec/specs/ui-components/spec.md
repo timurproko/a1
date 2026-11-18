@@ -860,3 +860,65 @@ Outside cancellation SHALL close or resolve the workflow rather than merely hide
 - **WHEN** a wheel or non-primary report occurs inside or outside an owned dialog
 - **THEN** it SHALL NOT activate a choice, write a setting, or dismiss the dialog
 - **AND** existing wheel behavior SHALL remain available
+
+### Requirement: Ordinary Settings hover shares the dialog foreground blend
+
+The shared Settings list-row renderer SHALL apply the same 75% ordinary-foreground / 25% current-accent text-only hover used by owned dialogs to hovered labels, muted values, and enabled numeric controls. Hover SHALL NOT replace a muted value with pure terminal white, add a background, move the keyboard-active row, or change the value's write behavior. Keyboard-active row backgrounds, alignment, clipping, disabled-control treatment, and ordinary non-hover semantic roles SHALL remain unchanged. Theme adapters without a hover painter SHALL retain their ordinary foreground treatment rather than fabricate an accent.
+
+#### Scenario: Hover a value while another row is keyboard-active
+
+- **WHEN** the pointer rests on a Settings value belonging to a row other than the keyboard-active row
+- **THEN** the value SHALL receive the shared accent blend based on its normal muted foreground
+- **AND** the keyboard-active row and Enter target SHALL remain unchanged
+
+#### Scenario: Hover labels and enabled controls
+
+- **WHEN** the pointer rests over a Settings label or enabled numeric minus/plus control
+- **THEN** only that actionable text SHALL receive the same foreground blend
+- **AND** no new background SHALL be introduced and disabled controls SHALL retain their disabled presentation
+
+### Requirement: Configure pickers use a bounded settings-aware choice viewport
+
+Settings configure panels SHALL use a height budget of at most 20 terminal rows and at most ten visible choices, further reducing the window on compact terminals before dropping the title, active search or choice, and shortcut guidance. Their list scroll offset SHALL be independent from keyboard selection. Wheel input anywhere inside a panel SHALL scroll only that list by the currently effective shared `scrollbarSpeed` distance without selecting a choice, writing a setting, or scrolling the background. Keyboard navigation SHALL reveal its active choice when necessary. Filtering, step changes, replacement, and geometry changes SHALL clear obsolete hit and drag state and clamp or reveal the appropriate visible window.
+
+The viewport SHALL reuse the Agent/Settings shared scrollbar geometry, minimum thumb size, drag math, track paging, accent-thumb/dim-track roles, and thin `┃` or thick `▐` glyphs. It SHALL read the currently effective `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` through the same Settings authority, including accepted values awaiting source reflection. `always` SHALL draw an overflowing rail; `auto` SHALL draw it during hover/drag and the shared scroll linger then clear it without new input; `hidden` SHALL draw no rail and expose no rail hit target. Auto/always SHALL consistently reserve the shared gap and rail cell while hidden or fitting; hidden SHALL reserve neither. Pressing the track SHALL page, and a primary thumb drag SHALL remain captured outside the panel through release without dismissing or activating a choice. Non-primary presses SHALL NOT page or drag. Closing the workflow SHALL stop rail timers.
+
+#### Scenario: Open a large model catalog on a tall terminal
+
+- **WHEN** Default Model or Thinking Level opens with more than ten available models on a tall terminal
+- **THEN** its configure panel SHALL remain within the 20-row budget with at most ten visible choices and retained title, search, and close guidance
+- **AND** the panel SHALL NOT grow to fill the screen merely because the catalog or terminal is taller
+
+#### Scenario: Scroll without changing the keyboard action target
+
+- **WHEN** the user sends wheel input inside the configure panel while item A is keyboard-active
+- **THEN** only the visible choice window SHALL move by the configured shared wheel distance
+- **AND** Enter SHALL still act on A even if A is temporarily outside that window
+- **AND** later keyboard navigation SHALL reveal its new active choice
+
+#### Scenario: Drag or page the configure rail
+
+- **WHEN** the user primary-drags the thumb outside the configure panel or primary-presses above or below the thumb
+- **THEN** the shared rail policy SHALL clamp the new list offset or page by the visible list height
+- **AND** the gesture SHALL NOT dismiss the panel, move keyboard selection, write a value, or act on the screen behind it
+
+#### Scenario: Follow live scrollbar preferences
+
+- **WHEN** the effective scrollbar appearance, thin/thick style, or normal/fast/high speed changes while a configure panel is open
+- **THEN** subsequent composition and wheel input SHALL use the same live policy as the Agent viewport
+- **AND** hidden rails SHALL have no interactive rail column while wheel scrolling remains available
+- **AND** changing only style or appearance SHALL NOT reset the independently scrolled choice window
+
+#### Scenario: Keep auto rails transient
+
+- **WHEN** an overflowing configure list uses auto appearance and has no pointer or scroll activity
+- **THEN** its reserved rail cells SHALL remain blank
+- **WHEN** the pointer enters the rail or the list scrolls
+- **THEN** the rail SHALL appear using the configured glyphs and shared linger
+- **AND** leaving the rail and expiry of the linger SHALL clear it through a bounded repaint timer that stops on close
+
+#### Scenario: Match choice actions to a scrolled and resized window
+
+- **WHEN** the user scrolls, filters, resizes, or changes the configure step and then clicks a visible choice
+- **THEN** only the semantic choice at that currently painted location SHALL activate
+- **AND** stale coordinates and the rail's reserved gap SHALL NOT activate a former choice
