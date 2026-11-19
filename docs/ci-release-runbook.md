@@ -490,13 +490,6 @@ Rules that do not bend:
 - **Release reopening auto-merge fails:** leave the pull request open, inspect its exact
   changed-file classification, docs-sensitive inventory, and workflow permissions,
   and never broaden the allowlist to make one pull request pass.
-- **Merged-branch cleanup fails:** inspect the bounded PR/ref/SHA disposition. Never
-  delete an advanced or protected ref merely because its name matches an old PR.
-- **Ready pull-request refresh fails:** read the per-PR disposition in the run summary.
-  A `blocked` PR needs its conflict with `develop` resolved by hand; a `deferred` PR is
-  re-evaluated on the next pass. A credential or permission failure means the App
-  secrets are missing or underprivileged; restore them rather than updating branches
-  with another token.
 - **Repository governance drifts:** run the read-only checker, review every reported
   path, and use the confirmed apply mode only for an accepted mutable policy change.
 - **A Pi upgrade proposal needs a re-run:** the sync never force-pushes over `chore/pi-<version>` once it carries a commit the bot did not author; a scheduled re-run posts its fresh verdicts as another sync report comment headed with the version and date and never edits the description. The description is the ordinary delivery layout: check each generated implementation outcome as its work completes, including one the report shows nothing for, never rewrite the generated items, and let trusted readiness promote the all-checked draft like any other. To re-run the derived steps and gates on the reviewer's head, dispatch the workflow with `refresh` and the `version`; it checks out the proposal branch, skips bump, evaluation, install, and merge, and reports without pushing. A branch whose commits are all the bot's is recreated from `develop` as before.
@@ -584,14 +577,9 @@ operation.
 
 ## Branch protection rationale
 
-One person maintains this repository, and a PR author cannot approve their own PR.
-The `protect-develop` ruleset therefore requires a pull request, green
-`Development validation required` and `delivery / Delivery check`, and resolved review
-threads, but zero approving reviews. The repository admin may bypass it for pull
-requests only: any pull request can be merged without waiting for checks, and nothing
-reaches `develop` without one. `master` and release tags
-are written only after publication and are protected from force-push, movement, and
-deletion.
+The `develop` ruleset, the release-tag ruleset and the Actions event policy are declared in
+`protection/repositories.json` of `timurproko/MyWorkflows` and applied with `delivery protect`.
+`master` and release tags are written only after publication.
 
 Do not add direct-push bypasses. Approval count, strict-base validation, repository
 merge methods, Actions allowance/SHA enforcement, Dependabot, and npm environment

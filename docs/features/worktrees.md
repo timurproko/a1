@@ -82,11 +82,3 @@ A1 reads the declaration from the verified primary checkout, never the task chec
 | `cleanup-skipped` | Repository identity changed, another live/unverifiable claim exists, or the request expired. |
 
 In all these cleanup outcomes the session is already detached and remains operational in its startup context. Do not attach a partially removed checkout again. Attachment and completion do not grant merge authority.
-
-## Shared repository guidance
-
-Use this identical block in repositories, without another inventory approval gate:
-
-> In an active A1 session, prefer the `worktree` tool; `a1 worktree enter <branch>` with optional `--repo <absolute-path>` and `a1 worktree attach <absolute-path>` remain shell alternatives. Work in the returned directory only after runtime confirmation; a queued request is not attachment success. A1 reloads project resources after resolving target trust. Keep the task attached after implementation completion and review handoff so follow-up fixes retain its checkout and PR. After a verified merge, use `worktree complete` or `a1 worktree complete`: tools return to startup and cleanup runs from the selected repository's primary checkout, so never clean the attached checkout directly. Detach only when explicitly requested or switching tasks; it preserves files and branches. Runtime shutdown releases claims automatically. A1 owns coordination, retries, and recovery; inventory is informational. Outside A1, use ordinary Git worktrees.
-
-Install an A1 release exposing this interface before integrating a repository's instruction migration. Older releases may expose only session-context aliases, require startup inside Git, or return quietly for unknown commands. A migration PR does not prove that the installed runtime supports these controls.
