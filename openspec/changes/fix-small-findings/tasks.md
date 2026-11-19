@@ -6,9 +6,9 @@
 
 ## 2. Fork prompt explains a session open in another process
 
-- [ ] 2.1 The fork-prompt request gains `reason: "open-elsewhere"`, passed from the `SessionWriterConflict` path
-- [ ] 2.2 The console prompt prints "Session is open in another A1 process." for that reason
-- [ ] 2.3 Tests cover the new header and keep the cross-project and missing-folder texts
+- [x] 2.1 The fork-prompt request gains `reason: "open-elsewhere"`, passed from the `SessionWriterConflict` path
+- [x] 2.2 The console prompt prints "Session is open in another A1 process." for that reason
+- [x] 2.3 Tests cover the new header and keep the cross-project and missing-folder texts
 
 ## 3. Prompt-history border counter reads History N/M
 

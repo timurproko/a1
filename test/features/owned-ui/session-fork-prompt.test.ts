@@ -38,6 +38,20 @@ describe("pre-resource session fork confirmation", () => {
     input.destroy(); output.destroy();
   });
 
+  it("explains a session open in another A1 process instead of a different project", async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    let transcript = "";
+    output.on("data", chunk => { transcript += chunk.toString(); });
+    const result = createConsoleSessionForkPrompt({ input, output })({ sourceCwd: "D:/work", reason: "open-elsewhere" });
+    input.write("y\n");
+    expect(await result).toBe(true);
+    expect(transcript).toContain("Session is open in another A1 process.");
+    expect(transcript).not.toContain("different project");
+    expect(transcript).toContain("Fork this session into current directory? [y/N]");
+    input.destroy(); output.destroy();
+  });
+
   it("cancels on EOF and releases its input listener", async () => {
     const input = new PassThrough();
     const output = new PassThrough();
