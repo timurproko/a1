@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The copy of templates/workflow-bootstrap.mjs from timurproko/MyWorkflows that this repository runs from its
+// Provenance: the copy of templates/workflow-bootstrap.mjs from timurproko/MyWorkflows that this repository runs from its
 // `prepare` script, so every agent that installs dependencies has the shared delivery workflow.
 // It downloads timurproko/MyWorkflows to ~/.workflow when this machine does not have it, then lets that copy keep
 // itself current and link its skill and `delivery` command. This file is the one piece a repository must carry,
