@@ -1,0 +1,762 @@
+{
+  "schema": "a1-development-validation-aggregate-v3",
+  "mode": "conservative",
+  "selectionId": "e08634d341bf335006859ad63164d6d8a3f7ddd10933bcf837ce93a2ec22339d",
+  "selectedOwners": [
+    "history-compatibility",
+    "image-compatibility",
+    "launch-integration",
+    "package-contracts",
+    "pi-release-resume",
+    "startup",
+    "structured-runtime",
+    "unix-containment",
+    "update-performance"
+  ],
+  "deferredOwners": [
+    "update-predecessor"
+  ],
+  "evidenceCount": 9,
+  "attempts": [
+    {
+      "job": "core:win32:x64:24",
+      "attempt": 1,
+      "reused": false
+    },
+    {
+      "job": "resource:win32:x64:24",
+      "attempt": 1,
+      "reused": false
+    },
+    {
+      "job": "containment:darwin:arm64:24",
+      "attempt": 1,
+      "reused": false
+    },
+    {
+      "job": "compatibility:win32:x64:22",
+      "attempt": 1,
+      "reused": false
+    },
+    {
+      "job": "containment:linux:x64:24",
+      "attempt": 1,
+      "reused": false
+    },
+    {
+      "job": "promoted:win32:x64:24",
+      "attempt": 1,
+      "reused": false
+    },
+    {
+      "job": "package:win32:x64:22",
+      "attempt": 1,
+      "reused": false
+    },
+    {
+      "job": "pi:win32:x64:24",
+      "attempt": 1,
+      "reused": false
+    },
+    {
+      "job": "startup:win32:x64:22",
+      "attempt": 1,
+      "reused": false
+    }
+  ],
+  "reused": [],
+  "head": "0d5e3127b04452ec239953a5ee275f0250cbda20",
+  "runId": "35101146571",
+  "runAttempt": 1,
+  "classifierMs": 245,
+  "aggregateProcessingMs": 19,
+  "criticalPathMs": 305288,
+  "runnerMs": 1758127,
+  "maxScopeMs": 186225,
+  "scopes": [
+    {
+      "job": "compatibility",
+      "id": "vitest-explicit-history-compatibility",
+      "scope": "history-compatibility",
+      "durationMs": 7707
+    },
+    {
+      "job": "compatibility",
+      "id": "vitest-explicit-image-compatibility",
+      "scope": "image-compatibility",
+      "durationMs": 13937
+    },
+    {
+      "job": "containment",
+      "id": "vitest-explicit-history-compatibility",
+      "scope": "history-compatibility",
+      "durationMs": 5454
+    },
+    {
+      "job": "containment",
+      "id": "vitest-explicit-image-compatibility",
+      "scope": "image-compatibility",
+      "durationMs": 9738
+    },
+    {
+      "job": "containment",
+      "id": "vitest-explicit-unix-containment",
+      "scope": "unix-containment",
+      "durationMs": 11101
+    },
+    {
+      "job": "containment",
+      "id": "vitest-package-smoke-1",
+      "scope": "package-smoke",
+      "durationMs": 1929
+    },
+    {
+      "job": "containment",
+      "id": "vitest-package-smoke-2",
+      "scope": "package-smoke",
+      "durationMs": 22470
+    },
+    {
+      "job": "containment",
+      "id": "vitest-explicit-history-compatibility",
+      "scope": "history-compatibility",
+      "durationMs": 4267
+    },
+    {
+      "job": "containment",
+      "id": "vitest-explicit-image-compatibility",
+      "scope": "image-compatibility",
+      "durationMs": 6469
+    },
+    {
+      "job": "containment",
+      "id": "vitest-explicit-unix-containment",
+      "scope": "unix-containment",
+      "durationMs": 5535
+    },
+    {
+      "job": "containment",
+      "id": "vitest-package-smoke-1",
+      "scope": "package-smoke",
+      "durationMs": 1167
+    },
+    {
+      "job": "containment",
+      "id": "vitest-package-smoke-2",
+      "scope": "package-smoke",
+      "durationMs": 17711
+    },
+    {
+      "job": "core",
+      "id": "typecheck",
+      "scope": "typecheck",
+      "durationMs": 3646
+    },
+    {
+      "job": "core",
+      "id": "architecture",
+      "scope": "architecture",
+      "durationMs": 2080
+    },
+    {
+      "job": "core",
+      "id": "vitest-explicit-pr-core-tests",
+      "scope": "pr-core-tests",
+      "durationMs": 5563
+    },
+    {
+      "job": "core",
+      "id": "vitest-explicit-pr-selected-tests-1",
+      "scope": "pr-selected-tests",
+      "durationMs": 82613
+    },
+    {
+      "job": "core",
+      "id": "vitest-explicit-pr-selected-tests-2",
+      "scope": "pr-selected-tests",
+      "durationMs": 65246
+    },
+    {
+      "job": "core",
+      "id": "vitest-explicit-pr-selected-tests-3",
+      "scope": "pr-selected-tests",
+      "durationMs": 52024
+    },
+    {
+      "job": "package",
+      "id": "vitest-package-contracts",
+      "scope": "package-contracts",
+      "durationMs": 139037
+    },
+    {
+      "job": "pi",
+      "id": "candidate-engine-conformance-report",
+      "scope": "pi-engine-conformance",
+      "durationMs": 1227
+    },
+    {
+      "job": "pi",
+      "id": "vitest-explicit-pi-engine-conformance",
+      "scope": "pi-engine-conformance",
+      "durationMs": 4292
+    },
+    {
+      "job": "pi",
+      "id": "vitest-explicit-release-update",
+      "scope": "release-update",
+      "durationMs": 72442
+    },
+    {
+      "job": "pi",
+      "id": "vitest-package-smoke-1",
+      "scope": "package-smoke",
+      "durationMs": 5540
+    },
+    {
+      "job": "pi",
+      "id": "vitest-package-smoke-2",
+      "scope": "package-smoke",
+      "durationMs": 78682
+    },
+    {
+      "job": "promoted",
+      "id": "vitest-explicit-launch-integration",
+      "scope": "launch-integration",
+      "durationMs": 3785
+    },
+    {
+      "job": "promoted",
+      "id": "vitest-explicit-structured-runtime-integration",
+      "scope": "structured-runtime-integration",
+      "durationMs": 1272
+    },
+    {
+      "job": "promoted",
+      "id": "vitest-isolated-timing",
+      "scope": "update-performance",
+      "durationMs": 27256
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-1",
+      "scope": "pr-selected-resource",
+      "durationMs": 7592
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-2",
+      "scope": "pr-selected-resource",
+      "durationMs": 1799
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-3",
+      "scope": "pr-selected-resource",
+      "durationMs": 1631
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-4",
+      "scope": "pr-selected-resource",
+      "durationMs": 1980
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-5",
+      "scope": "pr-selected-resource",
+      "durationMs": 1727
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-6",
+      "scope": "pr-selected-resource",
+      "durationMs": 14118
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-7",
+      "scope": "pr-selected-resource",
+      "durationMs": 1838
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-8",
+      "scope": "pr-selected-resource",
+      "durationMs": 1620
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-9",
+      "scope": "pr-selected-resource",
+      "durationMs": 3062
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-10",
+      "scope": "pr-selected-resource",
+      "durationMs": 5109
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-11",
+      "scope": "pr-selected-resource",
+      "durationMs": 11288
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-12",
+      "scope": "pr-selected-resource",
+      "durationMs": 2993
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-13",
+      "scope": "pr-selected-resource",
+      "durationMs": 8018
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-14",
+      "scope": "pr-selected-resource",
+      "durationMs": 20625
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-15",
+      "scope": "pr-selected-resource",
+      "durationMs": 6561
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-16",
+      "scope": "pr-selected-resource",
+      "durationMs": 3191
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-17",
+      "scope": "pr-selected-resource",
+      "durationMs": 59059
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-18",
+      "scope": "pr-selected-resource",
+      "durationMs": 8204
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-19",
+      "scope": "pr-selected-resource",
+      "durationMs": 37397
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-20",
+      "scope": "pr-selected-resource",
+      "durationMs": 17618
+    },
+    {
+      "job": "resource",
+      "id": "vitest-fast-resource-sensitive-21",
+      "scope": "pr-selected-resource",
+      "durationMs": 12459
+    },
+    {
+      "job": "startup",
+      "id": "vitest-package-startup",
+      "scope": "package-startup",
+      "durationMs": 186225
+    }
+  ],
+  "targets": {
+    "criticalPathLimitMs": 480000,
+    "scopeLimitMs": 300000,
+    "criticalPathMet": true,
+    "scopeMet": true
+  },
+  "availableQueueMs": null,
+  "availableQueueReason": "GitHub job availability timestamp is not exposed inside the runner",
+  "jobs": [
+    {
+      "job": "compatibility",
+      "platform": "win32",
+      "architecture": "x64",
+      "node": 22,
+      "attempt": 1,
+      "reused": false,
+      "setupMs": 66633,
+      "gateMs": 22077,
+      "runnerMs": 88710,
+      "invocations": 3,
+      "cacheState": "setup-node-download-cache",
+      "scopeDurations": [
+        {
+          "id": "vitest-explicit-history-compatibility",
+          "scope": "history-compatibility",
+          "durationMs": 7707
+        },
+        {
+          "id": "vitest-explicit-image-compatibility",
+          "scope": "image-compatibility",
+          "durationMs": 13937
+        }
+      ]
+    },
+    {
+      "job": "containment",
+      "platform": "darwin",
+      "architecture": "arm64",
+      "node": 24,
+      "attempt": 1,
+      "reused": false,
+      "setupMs": 41432,
+      "gateMs": 52165,
+      "runnerMs": 93597,
+      "invocations": 7,
+      "cacheState": "setup-node-download-cache",
+      "scopeDurations": [
+        {
+          "id": "vitest-explicit-history-compatibility",
+          "scope": "history-compatibility",
+          "durationMs": 5454
+        },
+        {
+          "id": "vitest-explicit-image-compatibility",
+          "scope": "image-compatibility",
+          "durationMs": 9738
+        },
+        {
+          "id": "vitest-explicit-unix-containment",
+          "scope": "unix-containment",
+          "durationMs": 11101
+        },
+        {
+          "id": "vitest-package-smoke-1",
+          "scope": "package-smoke",
+          "durationMs": 1929
+        },
+        {
+          "id": "vitest-package-smoke-2",
+          "scope": "package-smoke",
+          "durationMs": 22470
+        }
+      ]
+    },
+    {
+      "job": "containment",
+      "platform": "linux",
+      "architecture": "x64",
+      "node": 24,
+      "attempt": 1,
+      "reused": false,
+      "setupMs": 27021,
+      "gateMs": 36194,
+      "runnerMs": 63215,
+      "invocations": 7,
+      "cacheState": "setup-node-download-cache",
+      "scopeDurations": [
+        {
+          "id": "vitest-explicit-history-compatibility",
+          "scope": "history-compatibility",
+          "durationMs": 4267
+        },
+        {
+          "id": "vitest-explicit-image-compatibility",
+          "scope": "image-compatibility",
+          "durationMs": 6469
+        },
+        {
+          "id": "vitest-explicit-unix-containment",
+          "scope": "unix-containment",
+          "durationMs": 5535
+        },
+        {
+          "id": "vitest-package-smoke-1",
+          "scope": "package-smoke",
+          "durationMs": 1167
+        },
+        {
+          "id": "vitest-package-smoke-2",
+          "scope": "package-smoke",
+          "durationMs": 17711
+        }
+      ]
+    },
+    {
+      "job": "core",
+      "platform": "win32",
+      "architecture": "x64",
+      "node": 24,
+      "attempt": 1,
+      "reused": false,
+      "setupMs": 76579,
+      "gateMs": 211716,
+      "runnerMs": 288295,
+      "invocations": 7,
+      "cacheState": "setup-node-download-cache",
+      "scopeDurations": [
+        {
+          "id": "typecheck",
+          "scope": "typecheck",
+          "durationMs": 3646
+        },
+        {
+          "id": "architecture",
+          "scope": "architecture",
+          "durationMs": 2080
+        },
+        {
+          "id": "vitest-explicit-pr-core-tests",
+          "scope": "pr-core-tests",
+          "durationMs": 5563
+        },
+        {
+          "id": "vitest-explicit-pr-selected-tests-1",
+          "scope": "pr-selected-tests",
+          "durationMs": 82613
+        },
+        {
+          "id": "vitest-explicit-pr-selected-tests-2",
+          "scope": "pr-selected-tests",
+          "durationMs": 65246
+        },
+        {
+          "id": "vitest-explicit-pr-selected-tests-3",
+          "scope": "pr-selected-tests",
+          "durationMs": 52024
+        }
+      ]
+    },
+    {
+      "job": "package",
+      "platform": "win32",
+      "architecture": "x64",
+      "node": 22,
+      "attempt": 1,
+      "reused": false,
+      "setupMs": 85212,
+      "gateMs": 162596,
+      "runnerMs": 247808,
+      "invocations": 3,
+      "cacheState": "setup-node-download-cache",
+      "scopeDurations": [
+        {
+          "id": "vitest-package-contracts",
+          "scope": "package-contracts",
+          "durationMs": 139037
+        }
+      ]
+    },
+    {
+      "job": "pi",
+      "platform": "win32",
+      "architecture": "x64",
+      "node": 24,
+      "attempt": 1,
+      "reused": false,
+      "setupMs": 75160,
+      "gateMs": 165180,
+      "runnerMs": 240340,
+      "invocations": 7,
+      "cacheState": "setup-node-download-cache",
+      "scopeDurations": [
+        {
+          "id": "candidate-engine-conformance-report",
+          "scope": "pi-engine-conformance",
+          "durationMs": 1227
+        },
+        {
+          "id": "vitest-explicit-pi-engine-conformance",
+          "scope": "pi-engine-conformance",
+          "durationMs": 4292
+        },
+        {
+          "id": "vitest-explicit-release-update",
+          "scope": "release-update",
+          "durationMs": 72442
+        },
+        {
+          "id": "vitest-package-smoke-1",
+          "scope": "package-smoke",
+          "durationMs": 5540
+        },
+        {
+          "id": "vitest-package-smoke-2",
+          "scope": "package-smoke",
+          "durationMs": 78682
+        }
+      ]
+    },
+    {
+      "job": "promoted",
+      "platform": "win32",
+      "architecture": "x64",
+      "node": 24,
+      "attempt": 1,
+      "reused": false,
+      "setupMs": 93531,
+      "gateMs": 32671,
+      "runnerMs": 126202,
+      "invocations": 4,
+      "cacheState": "setup-node-download-cache",
+      "scopeDurations": [
+        {
+          "id": "vitest-explicit-launch-integration",
+          "scope": "launch-integration",
+          "durationMs": 3785
+        },
+        {
+          "id": "vitest-explicit-structured-runtime-integration",
+          "scope": "structured-runtime-integration",
+          "durationMs": 1272
+        },
+        {
+          "id": "vitest-isolated-timing",
+          "scope": "update-performance",
+          "durationMs": 27256
+        }
+      ]
+    },
+    {
+      "job": "resource",
+      "platform": "win32",
+      "architecture": "x64",
+      "node": 24,
+      "attempt": 1,
+      "reused": false,
+      "setupMs": 35224,
+      "gateMs": 270045,
+      "runnerMs": 305269,
+      "invocations": 22,
+      "cacheState": "setup-node-download-cache",
+      "scopeDurations": [
+        {
+          "id": "vitest-fast-resource-sensitive-1",
+          "scope": "pr-selected-resource",
+          "durationMs": 7592
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-2",
+          "scope": "pr-selected-resource",
+          "durationMs": 1799
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-3",
+          "scope": "pr-selected-resource",
+          "durationMs": 1631
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-4",
+          "scope": "pr-selected-resource",
+          "durationMs": 1980
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-5",
+          "scope": "pr-selected-resource",
+          "durationMs": 1727
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-6",
+          "scope": "pr-selected-resource",
+          "durationMs": 14118
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-7",
+          "scope": "pr-selected-resource",
+          "durationMs": 1838
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-8",
+          "scope": "pr-selected-resource",
+          "durationMs": 1620
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-9",
+          "scope": "pr-selected-resource",
+          "durationMs": 3062
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-10",
+          "scope": "pr-selected-resource",
+          "durationMs": 5109
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-11",
+          "scope": "pr-selected-resource",
+          "durationMs": 11288
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-12",
+          "scope": "pr-selected-resource",
+          "durationMs": 2993
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-13",
+          "scope": "pr-selected-resource",
+          "durationMs": 8018
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-14",
+          "scope": "pr-selected-resource",
+          "durationMs": 20625
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-15",
+          "scope": "pr-selected-resource",
+          "durationMs": 6561
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-16",
+          "scope": "pr-selected-resource",
+          "durationMs": 3191
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-17",
+          "scope": "pr-selected-resource",
+          "durationMs": 59059
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-18",
+          "scope": "pr-selected-resource",
+          "durationMs": 8204
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-19",
+          "scope": "pr-selected-resource",
+          "durationMs": 37397
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-20",
+          "scope": "pr-selected-resource",
+          "durationMs": 17618
+        },
+        {
+          "id": "vitest-fast-resource-sensitive-21",
+          "scope": "pr-selected-resource",
+          "durationMs": 12459
+        }
+      ]
+    },
+    {
+      "job": "startup",
+      "platform": "win32",
+      "architecture": "x64",
+      "node": 22,
+      "attempt": 1,
+      "reused": false,
+      "setupMs": 97780,
+      "gateMs": 206911,
+      "runnerMs": 304691,
+      "invocations": 3,
+      "cacheState": "setup-node-download-cache",
+      "scopeDurations": [
+        {
+          "id": "vitest-package-startup",
+          "scope": "package-startup",
+          "durationMs": 186225
+        }
+      ]
+    }
+  ]
+}

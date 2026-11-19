@@ -1,0 +1,47 @@
+{
+  "schema": "a1-identity-candidate-inspection-v1",
+  "recordedAt": "2026-08-20T09:48:17.392Z",
+  "sourceCommit": "8305b2d74d240fe79c60e46b4101cf68cc84e4e1",
+  "published": false,
+  "tarball": {
+    "filename": "timurproko-a1-0.1.0.tgz",
+    "integrity": "sha512-TrwY97d4SbcSZiiFO/tAHaIpYPFICH1T5EZXvnM/GoKIxD1p01prAie/Oec4o4+oe3Q1q4KaG/c29ySHSDvWBg==",
+    "shasum": "b6234786f110d5b6ca462a0c8519e4874c5a7541",
+    "sha256": "04c5def3dfad8a84a3416313e970d9a5c34b8a7d227d22245b86f3d1d9b722af",
+    "fileCount": 460,
+    "legacyNamedEntries": []
+  },
+  "manifest": {
+    "name": "@timurproko/a1",
+    "version": "0.1.0",
+    "bin": {
+      "a1": "bin/a1.js"
+    }
+  },
+  "identity": {
+    "schema": "a1-product-identity-v1",
+    "displayName": "A1",
+    "commandName": "a1",
+    "packageName": "@timurproko/a1",
+    "facadeFrozen": true
+  },
+  "runtimeSmoke": {
+    "arguments": [
+      "agent"
+    ],
+    "status": 2,
+    "stderr": "Bare a1 is the A1 agent experience; there is no agent subcommand.\nUsage: a1 | a1 pi | a1 sandbox | a1 version | a1 update | a1 update:next",
+    "legacyDiagnostic": false
+  },
+  "nativeArtifact": {
+    "path": "native/terminal-host/target/debug/a1-terminal-host.exe",
+    "exists": true,
+    "sha256": "d1437d46d469a8823565a0428b57a1888bb327c2ce26d3cb51c0fb6fc88e4165"
+  },
+  "verdicts": {
+    "solePublicA1Bin": true,
+    "identityAuthorityPackaged": true,
+    "a1Diagnostic": true,
+    "zeroLegacyNamedPackageEntries": true
+  }
+}

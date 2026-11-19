@@ -1,0 +1,783 @@
+{
+  "schema": "resume-fixture-diagnostic-observation-v1",
+  "sourceHead": "47d2adbe26e7d13ad1b98ecafccedcc92209d75e",
+  "sourceState": "working tree with uncommitted readiness diagnostics on the recorded head",
+  "nodeVersion": "v24.16.0",
+  "platform": "win32",
+  "candidateSha256": "7d924dd4a6cfafd0cc009ad1338085a9e489322a8d998c8fff3159f509020f81",
+  "command": "VALIDATION_CANDIDATE_TARBALL=\"$PWD/.artifacts/validation/package/candidate.tgz\" node node_modules/vitest/vitest.mjs run test/foundation/release/session-resume.integration.test.ts --no-file-parallelism --testTimeout=120000",
+  "preparation": "npm run build; npm exec --yes --package npm@11.13.0 -- node scripts/release/prepare-validation-package.mjs",
+  "result": {
+    "testsPassed": 7,
+    "testsFailed": 0,
+    "vitestDurationSeconds": 65.76
+  },
+  "interpretation": "One focused local debugging execution with a fresh extracted candidate. Does not reproduce or resolve the hosted CI failure; no CI or startup-budget acceptance claim.",
+  "phases": [
+    {
+      "phase": "load-candidate",
+      "status": "passed",
+      "durationMs": 36
+    },
+    {
+      "phase": "extract-candidate",
+      "status": "passed",
+      "durationMs": 483
+    },
+    {
+      "phase": "launch-1-ready",
+      "status": "passed",
+      "durationMs": 21370
+    },
+    {
+      "phase": "launch-1-close",
+      "status": "passed",
+      "durationMs": 1409
+    },
+    {
+      "phase": "launch-2-ready",
+      "status": "passed",
+      "durationMs": 2488
+    },
+    {
+      "phase": "launch-2-close",
+      "status": "passed",
+      "durationMs": 183
+    },
+    {
+      "phase": "after-each-close",
+      "status": "passed",
+      "durationMs": 0
+    },
+    {
+      "phase": "launch-3-ready",
+      "status": "passed",
+      "durationMs": 2347
+    },
+    {
+      "phase": "launch-3-close",
+      "status": "passed",
+      "durationMs": 187
+    },
+    {
+      "phase": "launch-4-ready",
+      "status": "passed",
+      "durationMs": 2385
+    },
+    {
+      "phase": "launch-4-close",
+      "status": "passed",
+      "durationMs": 230
+    },
+    {
+      "phase": "after-each-close",
+      "status": "passed",
+      "durationMs": 0
+    },
+    {
+      "phase": "launch-5-ready",
+      "status": "passed",
+      "durationMs": 2315
+    },
+    {
+      "phase": "launch-5-close",
+      "status": "passed",
+      "durationMs": 229
+    },
+    {
+      "phase": "launch-6-ready",
+      "status": "passed",
+      "durationMs": 2815
+    },
+    {
+      "phase": "launch-6-close",
+      "status": "passed",
+      "durationMs": 185
+    },
+    {
+      "phase": "after-each-close",
+      "status": "passed",
+      "durationMs": 0
+    },
+    {
+      "phase": "after-each-close",
+      "status": "passed",
+      "durationMs": 0
+    },
+    {
+      "phase": "launch-8-ready",
+      "status": "passed",
+      "durationMs": 2415
+    },
+    {
+      "phase": "launch-8-close",
+      "status": "passed",
+      "durationMs": 196
+    },
+    {
+      "phase": "after-each-close",
+      "status": "passed",
+      "durationMs": 0
+    },
+    {
+      "phase": "after-each-close",
+      "status": "passed",
+      "durationMs": 0
+    },
+    {
+      "phase": "launch-12-ready",
+      "status": "passed",
+      "durationMs": 2633
+    },
+    {
+      "phase": "launch-11-ready",
+      "status": "passed",
+      "durationMs": 2634
+    },
+    {
+      "phase": "launch-11-close",
+      "status": "passed",
+      "durationMs": 195
+    },
+    {
+      "phase": "launch-12-close",
+      "status": "passed",
+      "durationMs": 184
+    },
+    {
+      "phase": "after-each-close",
+      "status": "passed",
+      "durationMs": 0
+    }
+  ],
+  "readiness": [
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 1,
+      "passed": true,
+      "elapsedMs": 21375,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 6898,
+      "markerRequired": true,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 10
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 77
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 19408
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 19451
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 19658
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 20755
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 21135
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 21145
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 21179
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 21180
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 21184
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 21253
+        }
+      ]
+    },
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 2,
+      "passed": true,
+      "elapsedMs": 2491,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 6898,
+      "markerRequired": true,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 9
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 110
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 140
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 192
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 338
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 1729
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 2233
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 2244
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 2269
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 2270
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 2274
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 2339
+        }
+      ]
+    },
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 3,
+      "passed": true,
+      "elapsedMs": 2349,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 7122,
+      "markerRequired": true,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 9
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 116
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 146
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 198
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 337
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 1678
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 2151
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 2161
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 2184
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 2185
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 2188
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 2253
+        }
+      ]
+    },
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 4,
+      "passed": true,
+      "elapsedMs": 2386,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 7151,
+      "markerRequired": true,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 10
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 118
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 146
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 195
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 337
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 1661
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 2129
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 2141
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 2165
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 2166
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 2170
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 2234
+        }
+      ]
+    },
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 5,
+      "passed": true,
+      "elapsedMs": 2319,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 7122,
+      "markerRequired": false,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 11
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 110
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 137
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 190
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 324
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 1653
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 2111
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 2121
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 2146
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 2147
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 2151
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 2212
+        }
+      ]
+    },
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 6,
+      "passed": true,
+      "elapsedMs": 2825,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 7122,
+      "markerRequired": true,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 9
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 106
+        },
+        {
+          "phase": "durable-validation-start",
+          "elapsedMs": 122
+        },
+        {
+          "phase": "durable-validation-complete",
+          "elapsedMs": 127
+        },
+        {
+          "phase": "replacement-supervisor-start",
+          "elapsedMs": 128
+        },
+        {
+          "phase": "replacement-supervisor-ready",
+          "elapsedMs": 328
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 328
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 382
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 571
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 2017
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 2527
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 2538
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 2565
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 2566
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 2569
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 2654
+        }
+      ]
+    },
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 8,
+      "passed": true,
+      "elapsedMs": 2423,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 6749,
+      "markerRequired": false,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 11
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 126
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 167
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 228
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 362
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 1752
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 2218
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 2226
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 2251
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 2252
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 2256
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 2327
+        }
+      ]
+    },
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 12,
+      "passed": true,
+      "elapsedMs": 2637,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 7151,
+      "markerRequired": true,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 9
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 115
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 144
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 194
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 352
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 1875
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 2376
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 2389
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 2418
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 2419
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 2422
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 2499
+        }
+      ]
+    },
+    {
+      "schema": "a1-resume-readiness-diagnostic-v1",
+      "launchId": 11,
+      "passed": true,
+      "elapsedMs": 2643,
+      "exitCode": null,
+      "signalCode": null,
+      "closed": false,
+      "spawnFailed": false,
+      "outputBytes": 6898,
+      "markerRequired": true,
+      "markerPresent": true,
+      "tracePresent": true,
+      "truncated": false,
+      "invalidRecords": 0,
+      "readyTrace": true,
+      "lastPhase": "first-input-ready-render",
+      "phases": [
+        {
+          "phase": "command-invoked",
+          "elapsedMs": 11
+        },
+        {
+          "phase": "bootstrap-start",
+          "elapsedMs": 117
+        },
+        {
+          "phase": "bootstrap-selected",
+          "elapsedMs": 149
+        },
+        {
+          "phase": "guardian-start",
+          "elapsedMs": 201
+        },
+        {
+          "phase": "guardian-connected",
+          "elapsedMs": 362
+        },
+        {
+          "phase": "ui-entry",
+          "elapsedMs": 1875
+        },
+        {
+          "phase": "ui-modules-loaded",
+          "elapsedMs": 2378
+        },
+        {
+          "phase": "settings-loaded",
+          "elapsedMs": 2391
+        },
+        {
+          "phase": "pi-services",
+          "elapsedMs": 2420
+        },
+        {
+          "phase": "resource-discovery",
+          "elapsedMs": 2421
+        },
+        {
+          "phase": "session-created",
+          "elapsedMs": 2424
+        },
+        {
+          "phase": "first-input-ready-render",
+          "elapsedMs": 2501
+        }
+      ]
+    }
+  ]
+}

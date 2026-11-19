@@ -1,0 +1,30 @@
+{
+  "schema": "pi-api-boundary-final-gates-v1",
+  "recordedAt": "2026-08-20T16:57:58.771Z",
+  "sourceCommit": "fa1a646eb8d165cab20f512c969f565e6bec12d9",
+  "platform": "win32-x64",
+  "commands": [
+    {
+      "command": "npm run check",
+      "passed": true,
+      "summary": "typecheck, architecture, customization, deprecated dependency, 120-file/662-test Vitest, and mandatory release gates passed"
+    },
+    {
+      "command": "npm audit --omit=dev --audit-level=high",
+      "passed": true,
+      "summary": "0 vulnerabilities"
+    },
+    {
+      "command": "npm pack --dry-run --json --ignore-scripts",
+      "passed": true,
+      "summary": "package-content dry run recorded without lifecycle scripts"
+    }
+  ],
+  "hashes": {
+    "package.json": "32a891dc8887d0a6239c71be4ff5939ffd83855e3cc780e7dc50e29fc716cad5",
+    "package-lock.json": "b9ddca297136cd5f2808e7142da41f43493b7e5da62b67f421b369052aa3fa34",
+    "evidence/owned-pi-ui-foundation/pinned-pi-source-port-ledger.json": "9c18fb3b04d4d27b87c30dcc4a85431763483140c68a8d457eb2d8ddc0c0a5ee",
+    "artifacts/release-verdicts/win32-x64.json": "58ede7db68206f9959b45c4eaad15349d3e9d81e68e6869b149e8a0f49cf219b",
+    "artifacts/harden-pi-api-boundary-pack-dry-run.json": "eb6c60c114d665c475a2ca6b04181a226f5021bf8e6992c463c306ea2cbd12f0"
+  }
+}

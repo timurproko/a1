@@ -1,0 +1,22 @@
+{
+  "schema": "a1-runtime-payload-baseline-v1",
+  "platform": "win32-x64",
+  "source": "exact repository build using the pinned dependency closure",
+  "before": {
+    "files": 13557,
+    "bytes": 97622426,
+    "coldCompositionImportMs": 17800,
+    "warmCompositionImportMs": 1470
+  },
+  "layeredRuntime": {
+    "productFiles": 439,
+    "dependencyFiles": 6209,
+    "dependencyBytes": 44433595,
+    "excludedDependencyFiles": 7302,
+    "excludedDependencyBytes": 55378954,
+    "uncertaintyRetainedFiles": 1082,
+    "warmupImportMs": 4007
+  },
+  "decision": "warmup-required",
+  "reason": "The observed un-warmed composition exceeded the five-second post-update budget. Warmup remains enabled until accepted exact-package launch evidence demonstrates that it can be removed."
+}

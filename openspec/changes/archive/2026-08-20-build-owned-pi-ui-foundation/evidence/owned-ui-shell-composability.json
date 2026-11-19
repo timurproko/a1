@@ -1,0 +1,25 @@
+{
+  "schema": "addone-owned-ui-shell-composability-v1",
+  "change": "build-owned-pi-ui-foundation",
+  "recordedAt": "2026-08-17T06:29:55.603Z",
+  "task": "9.1",
+  "result": "passed",
+  "contracts": [
+    "src/foundation/owned-ui-contracts/model.ts",
+    "src/foundation/owned-ui-contracts/extension-ui.ts",
+    "src/foundation/pi-engine-adapter/workflows.ts"
+  ],
+  "compositionBoundary": "Future structured tabs can own multiple engine/shell instances through typed snapshots, events, commands, workflow requests, and extension UI ports without importing terminal hosts or creating PTYs.",
+  "proof": [
+    "test/foundation/owned-ui-contracts/contracts.test.ts",
+    "test/foundation/owned-ui-contracts/extension-ui-contract.test.ts",
+    "test/repository-governance/terminal-architecture-policy.test.ts",
+    "test/repository-governance/native-host-boundary.test.ts"
+  ],
+  "architecture": {
+    "terminalHostImportedByContracts": false,
+    "ptyCreatedByContracts": false,
+    "interactiveModeMutation": false,
+    "deepPiImports": false
+  }
+}

@@ -1,0 +1,19 @@
+# Design
+
+## Why the journal keeps dead entries
+
+Cleanup's authority model is deliberately one-directional: an entry leaves the journal only after the reconciler removes its worktree and ref under full evidence, or the maintainer discards it. Both paths need the evidence to verify, and both were written for candidates that still exist. #452 and #461 fit neither: their evidence is permanently unverifiable, and there is nothing on disk or in `refs/heads/` to remove. Every sweep therefore re-runs the full evidence load (about 24 requests each) only to report `blocked` again, and the report noise hides real blockers.
+
+## Retirement is not deletion
+
+The new step asks a narrower question than removal does: is there anything left that cleanup could delete? The answer is computed locally and fails closed on any doubt. The path must not exist; Git's inventory must hold no row for it, or only this candidate's own prunable row whose `gitdir` names the removed pointer (the shape #453 already retires); and the exact local topic ref must be absent. Only when all three hold does retirement consult GitHub, and then only for the cheap, mutable fact that the pull request is merged into `develop` in this repository (`merged`, `merge_commit_sha`, base and head repository), not for the full archive and acceptance evidence that is known to be unverifiable. The entry is then journaled `state: done`, `step: complete` with a new completion note `retired-nothing-left` and the reason the ordinary evidence gave, so `status` and reports still show why it never completed normally. Nothing is deleted, so no deletion authority is needed beyond the release the owner already gave; a present path, row, or ref makes the entry fall back to the ordinary blocked outcome untouched.
+
+`forget` covers the case retirement cannot: a pull request that is not merged (rejected and closed, or unlinked) whose leftovers the maintainer already removed by hand. It is an explicit per-entry command with a confirmation flag, verifies the same three absences under the mutation lock, and records `forgotten`. It never contacts GitHub because there is no evidence it could act on, and it never deletes.
+
+## Stale base at merge time
+
+The delivery workflow already states that an advanced target baseline requires renewed validation, and the finalization workflow re-runs on `synchronize`, so the mechanism to keep manifests current exists; what was missing is GitHub refusing the merge until it ran. `strict_required_status_checks_policy: true` on the `develop` ruleset makes a pull request whose base moved report `BEHIND`; "Update branch" adds a merge commit, which triggers re-finalization with digests computed against the merged bytes, then exact-head validation, and only then does the merge button return. The governance specification treats strict-base policy as an explicit specification decision, so the change edits the specification and `config/github-repository-governance.json` together; the check command reports the live difference until the maintainer applies the reviewed definition with `check-github-repository-governance.mjs --apply --confirm apply-a1-github-governance`. The cost is one extra "Update branch" click and one more CI run when two deliveries land close together, which is exactly the case that produced the drift.
+
+## What this is measured by
+
+After merge and one `sweep`, entries #452 and #461 report `retired-nothing-left` with their original reasons, the following sweep reports neither, and `status` shows them `done`. A fixture entry whose path is gone but whose ref still exists stays `blocked`. `forget` on an entry with an existing ref refuses. `check-github-repository-governance.mjs --check` reports exactly one difference (the strict policy) until the maintainer applies it, then none; a pull request opened against a base that later advances shows `BEHIND` instead of a merge button.

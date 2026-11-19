@@ -1,0 +1,74 @@
+{
+  "schema": "a1-durable-oracle-audit-v1",
+  "sourceBaseline": "29cc4c03684ca05451c5e6f93b45810f261eb95b",
+  "classifications": [
+    {
+      "previousTests": [
+        "test/repository-governance/integration-dependency-graph.test.ts",
+        "test/repository-governance/revision-dependencies.test.ts"
+      ],
+      "previousOracle": "whole-repository source graph and revision snapshot implementation",
+      "classification": "retired-implementation-mechanism",
+      "replacement": [
+        "config/validation-ownership.json",
+        "test/repository-governance/validation-ownership.test.ts",
+        "test/repository-governance/integration-impact.test.ts"
+      ],
+      "retainedContract": "Changed tests, shared support, source/destination path ownership, invalidators, and unknown-path fallback remain covered without source-parser authority."
+    },
+    {
+      "previousTest": "test/repository-governance/integration-selection-replay.test.ts",
+      "previousOracle": "openspec/changes/archive/2026-09-15-shorten-development-validation/evidence/integration-impact-replay.json",
+      "classification": "one-time-finalization-evidence",
+      "replacement": [
+        "test/repository-governance/validation-ownership.test.ts",
+        "test/repository-governance/integration-impact.test.ts"
+      ],
+      "retainedContract": "Coarse owner selection, changed tests, shared support, rename/delete handling, invalidators, and unknown-path fallback are generated from hermetic inputs."
+    },
+    {
+      "previousTest": "test/repository-governance/package-download-cache.test.ts",
+      "previousOracle": "openspec/changes/archive/2026-09-15-shorten-development-validation/evidence/package-download-cache-local.json",
+      "classification": "hermetic-evidence-tooling",
+      "replacement": ["test/repository-governance/package-download-cache.test.ts"],
+      "retainedContract": "Install arguments, exact candidate payload identity, tampering, unsafe paths, cache bounds, and independent fresh prefixes use temporary fixtures."
+    },
+    {
+      "previousTest": "test/features/launch/terminal-colour-fidelity.test.ts",
+      "previousOracle": "exact OpenSpec handoff sentence",
+      "classification": "current-behavior",
+      "replacement": ["test/features/launch/terminal-colour-fidelity.test.ts"],
+      "retainedContract": "The executable scripts/dev shell entry, inherited terminal streams, and semantic prohibition on direct Node handoff remain enforced without pinning one sentence."
+    },
+    {
+      "previousTest": "test/repository-governance/terminal-host-proof-gate.test.ts",
+      "previousOracle": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-spike-acceptance-record.json",
+      "classification": "structured-current-policy",
+      "replacement": ["config/terminal-host-proof-policy.json", "test/repository-governance/terminal-host-proof-gate.test.ts"],
+      "retainedContract": "Physical acceptance thresholds, stop/go authority, and non-waivability are stable structured policy; the original record remains historical evidence."
+    },
+    {
+      "previousTest": "test/repository-governance/terminal-host-provenance.test.ts",
+      "previousOracle": "active-change terminal-host task and provenance evidence",
+      "classification": "structured-current-policy",
+      "replacement": ["config/terminal-host-provenance.json", "test/repository-governance/terminal-host-provenance.test.ts"],
+      "retainedContract": "The current provenance checker uses stable policy input and hermetic malformed fixtures; one-time task records remain untouched."
+    },
+    {
+      "pattern": "openspec/changes/* paths in documentation lifecycle and product-identity tests",
+      "classification": "hermetic-evidence-tooling",
+      "replacement": [
+        "test/repository-governance/docs-sensitive-governance.test.ts",
+        "test/repository-governance/product-identity-governance.test.ts",
+        "test/repository-governance/product-identity-inventory.test.ts"
+      ],
+      "retainedContract": "Temporary synthetic active/archive paths verify readers and generators without requiring a repository-history identity."
+    }
+  ],
+  "auditResult": {
+    "permanentTestsReadingMutableActiveChangeEvidence": 0,
+    "acceptedEvidenceDeleted": false,
+    "currentProductAssertionsRemoved": false,
+    "completeSuiteOwnershipRetained": true
+  }
+}

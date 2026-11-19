@@ -1,0 +1,34 @@
+{
+  "schema": "a1-development-validation-failed-attempt-v1",
+  "run": {
+    "id": 34980645276,
+    "head": "76417d43156bb308b18da0a3cf472b06fa4da5c1",
+    "statusAtCapture": "in_progress",
+    "conclusionAtCapture": "",
+    "createdAt": "2026-09-15T14:17:39Z",
+    "updatedAt": "2026-09-15T14:19:34Z",
+    "url": "https://github.com/timurproko/a1/actions/runs/34980645276"
+  },
+  "failure": {
+    "jobId": 104420432670,
+    "job": "Resource-sensitive fast partition",
+    "conclusion": "failure",
+    "test": "test/integrations/pi/components/editor-text-paste.test.ts",
+    "assertion": "invalidates an older redo branch when a new paste edit is admitted",
+    "observed": "paste reservation marker remained pending after Vitest default one-second polling window",
+    "expected": "anew paste",
+    "cause": "test polled editor text instead of awaiting the existing bounded paste job completion handshake"
+  },
+  "preservedSemantics": {
+    "productTimeoutsChanged": false,
+    "testTimeoutsChanged": false,
+    "retriesChanged": false,
+    "assertionChanged": false,
+    "workloadChanged": false
+  },
+  "fix": {
+    "description": "expose and await the exact fixture paste-result promise before asserting editor replacement",
+    "focusedEvidence": "20 targeted cases across 10 fresh Vitest processes and one complete 28-test file passed; typecheck passed"
+  },
+  "authorization": "failed attempt only; cannot authorize acceptance"
+}

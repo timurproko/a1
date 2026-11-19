@@ -1,0 +1,35 @@
+{
+  "schema": "addone-package-structure-comparison-v1",
+  "recordedAt": "2026-08-13T14:27:00Z",
+  "version": "0.1.5-dev.8",
+  "before": {
+    "fileCount": 129,
+    "compiledJavaScriptModules": 30
+  },
+  "after": {
+    "fileCount": 141,
+    "compiledJavaScriptModules": 33
+  },
+  "explanation": "The increase is the declared owner index modules and their declaration/source-map outputs. Existing production modules moved under src/cli, src/features/launch, and src/foundation owners.",
+  "requiredPackageEntries": [
+    "bin/addone.js",
+    "bin/addone-ui.js",
+    "bin/addone-supervisor.js",
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "forbiddenPackagePathCount": 0,
+  "forbiddenPatterns": [
+    "node_modules",
+    "test/",
+    "openspec/"
+  ],
+  "validation": [
+    "npm run build",
+    "npm run typecheck",
+    "npm run check:architecture",
+    "11 focused owner test files; 48 tests"
+  ],
+  "outcome": "passed"
+}

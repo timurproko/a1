@@ -1,0 +1,16 @@
+## 1. Gate refinement
+
+- [x] 1.1 In `module-graph-policy.mjs`, classify a module as type-only when its source has no runtime export, and let `findUnreachableModules` reach a type-only module through static edges from a reachable importer; add fixture cases for a type-only module reached by `import type` (passes) and an ordinary module reached only by `import type` (fails).
+- [x] 1.2 Add `src/integrations/pi/engine/conformance.ts` to `entryModules`.
+
+## 2. Deletions
+
+- [x] 2.1 Delete `src/cli/version.ts`, `src/composition/agent-engine-bridge.ts`, `src/composition/process.ts`, `src/features/owned-ui/customization.ts`, `src/features/owned-ui/diagnostics.ts`, `src/integrations/pi/engine/model-auth-integration.ts`, `src/integrations/pi/engine/resource-extension-integration.ts`, `src/integrations/pi/engine/workflow-controllers.ts`, `src/integrations/pi/session-ui/route-host.ts`, `src/ui/components/prompt-row.ts`, and `src/integrations/pi/components/upstream/components/{custom-entry,first-time-setup,markdown-transform}.ts`.
+- [x] 2.2 Delete `test/composition/composition.test.ts`, `test/features/owned-ui/customization.test.ts`, `test/features/owned-ui/diagnostics.test.ts`, `test/integrations/pi/engine/model-auth-integration.test.ts`, `test/integrations/pi/engine/resource-extension-integration.test.ts`, `test/integrations/pi/engine/workflow-controllers.test.ts`; remove the three vendored-component cases from `test/integrations/pi/components/pinned-reconciled-source-ports.test.ts`.
+- [x] 2.3 Drop the corresponding lines from `src/cli/index.ts`, `src/composition/index.ts`, `src/features/owned-ui/index.ts`, `src/integrations/pi/engine/index.ts`, and `src/integrations/pi/session-ui/index.ts` and `export * from "./conformance.js"` from the engine barrel so the declared entry has no importer; `conformance.test.ts` and `candidate-capability-mutations.test.ts` import the conformance module directly; `pi-session-ui-responsibilities.test.ts` now asserts no session-ui file declares or re-exports the route types; `test/composition/composition.test.ts` is removed from `config/validation-ownership.json` and `config/validation-suites.json` (PR-core count 7 to 6 in `validation-suite-policy.test.ts`); the stale coverage entry for `workflow-controllers.test.ts` is dropped from `pinned-pi-command-workflow-outcomes.json`.
+- [x] 2.4 The ledger requires one record per pinned upstream unit, so the three records are reclassified `public-api-reuse` / `available-through-pinned-package` with the shared components barrel as destination (the pinned package still ships them) instead of being removed; counts stay 109 records, 29 behaviors.
+
+## 3. Allowlist and proof
+
+- [x] 3.1 Remove the deleted modules, `engine/conformance.ts`, and `prompt-input-port.ts` from `unreachableModules`; keep the workspace subsystem and `tui-runtime/conformance.ts`.
+- [x] 3.2 Run `npm run check:architecture`, `npm run typecheck`, the repository-governance, composition, owned-ui, engine, components, and session-ui suites, and `check:code-documentation`; record outcomes: `check:architecture` OK (allowlist 31 to 16 unreachable, 3 entries), `npm run typecheck` clean, `check:code-documentation` OK, affected suites 2180 passed with load-only timeouts in `editor-text-paste` (28 passed alone), `terminal-architecture-policy`, and two build-dependent integration tests.

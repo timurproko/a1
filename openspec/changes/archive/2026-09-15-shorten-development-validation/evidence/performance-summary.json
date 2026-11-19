@@ -1,0 +1,68 @@
+{
+  "schema": "a1-development-validation-performance-summary-v1",
+  "baseline": {
+    "runId": 34883033336,
+    "head": "47d2adbe26e7d13ad1b98ecafccedcc92209d75e",
+    "conclusion": "failure",
+    "fastJobMs": 653000,
+    "startupJobMs": 353000,
+    "ordinaryGateMs": 354985,
+    "interpretation": "Pre-optimization failed observation; retained separately and not a successful median."
+  },
+  "acceptedObservation": {
+    "runId": 34961661496,
+    "head": "1b7859fe08f6b5d1abf2b7953cb706c2445021f4",
+    "selectionMode": "conservative",
+    "selectionId": "717fc8a62792e5c1f62c00b1c27f2c5eb05aba4a21a5192e4c239b5192f3d3ce",
+    "fallback": "manual-no-comparison",
+    "criticalPathMs": 622778,
+    "runnerMs": 2125191,
+    "fastJobMs": 285000,
+    "resourceJobMs": 194000,
+    "startupJobMs": 294000,
+    "startupGateMs": 199401,
+    "result": "passed"
+  },
+  "goals": {
+    "ordinaryFeedback": {
+      "target": "120000-180000ms",
+      "observedJobMs": 285000,
+      "met": false,
+      "note": "The accepted conservative-full manual fallback is not an unrelated-change observation; ordinary fast remained above the aspirational range."
+    },
+    "startupSensitiveFeedback": {
+      "target": "under 300000ms",
+      "observedJobMs": 294000,
+      "met": true,
+      "note": "Met in one accepted conservative-full observation, not the required three startup-sensitive observations."
+    }
+  },
+  "downloadCacheControl": {
+    "environment": "local Windows Node 24/npm 12",
+    "coldMs": 21831,
+    "warmOfflineMs": 11136,
+    "freshPrefixBoth": true,
+    "identicalPayloadFiles": 598,
+    "identicalPayloadBytes": 8697980,
+    "hostedColdCacheControl": false
+  },
+  "fullRegression": {
+    "runId": 34973476437,
+    "head": "4a22f53e4ac00aa89c9156ebfb6df4b4edd54b4a",
+    "result": "passed",
+    "laneMs": {
+      "windowsNode22": 2259612,
+      "windowsNode24": 1715777,
+      "linuxNode24": 628862,
+      "macosNode24": 551011
+    }
+  },
+  "tradeoffs": {
+    "increasedRunnerCost": "Accepted conservative manual fallback used 2125191 runner-ms across nine modular semantic cells; parallel isolation improves feedback but does not claim lower total compute.",
+    "deferredCleanup": "Failed Windows startup attempt 34969354537 deferred cleanup of a locked fixture; that attempt remains failed and is not blended into acceptance.",
+    "selectionLimitation": "GitHub did not enqueue ready/synchronize PR events. Supported manual dispatch selected every retained owner, so hosted unrelated and startup-only classes were not observed.",
+    "observationGap": "There are not three independent first-attempt hosted observations for each unrelated, startup-sensitive, and conservative-full class, and no hosted cold-cache control.",
+    "maintainerDisposition": "On 2026-09-15 the maintainer explicitly accepted the unavailable complete hosted observation set as a documented known gap and requested continuation after current CI. Missing samples remain unperformed and support no median, range, speedup, or completed-performance claim.",
+    "publication": "No package was published."
+  }
+}

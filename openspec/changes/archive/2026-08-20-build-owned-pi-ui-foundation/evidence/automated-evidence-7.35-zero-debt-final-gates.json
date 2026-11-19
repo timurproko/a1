@@ -1,0 +1,60 @@
+{
+  "tasks": ["7.17", "7.35"],
+  "result": "pass",
+  "pinnedPi": {
+    "version": "0.84.2",
+    "commit": "914cf1472e715297caa30db4b9535d534a9eb718"
+  },
+  "immutableAcceptedBaseline": "084d0fb7e4004bc4b83a0b28c8aaea736b558d44",
+  "cleanupCommits": ["1dffe4b", "e0f25cb", "1b8eabc", "6f53a71", "faa9109", "1627896"],
+  "sourceCoverage": {
+    "records": 109,
+    "behaviorMappings": 29,
+    "classifications": {
+      "public-reuse": 62,
+      "host-adapter": 27,
+      "owned-source-port": 20
+    },
+    "approvedDeviations": 7,
+    "unmappedInteractiveModules": 0,
+    "unapprovedDeviations": 0,
+    "absentDestinations": 0,
+    "staleReviewStatuses": 0
+  },
+  "architectureDebt": {
+    "prohibitedRuntimeOrPackagePatches": 0,
+    "genericVisibleWorkflowFallbacks": 0,
+    "renderedStringStatusSubstitutions": 0,
+    "silentWidthRewrites": 0,
+    "stringNamedEngineReflectionSites": 0,
+    "productionPiAdapterTypeEscapes": 0,
+    "monolithicShellComponentsLines": 6,
+    "customizationPrerequisite": "pass"
+  },
+  "validation": {
+    "npmRunCheck": "pass",
+    "testFiles": 88,
+    "tests": 490,
+    "releaseIntegrationTests": 3,
+    "architectureAndSourceLedger": "pass",
+    "deprecatedDependencyPolicy": "pass",
+    "terminalParity": {
+      "mode": "default regular with focused optional-fullscreen conformance",
+      "checkpoints": 54,
+      "differences": 0,
+      "piRawCaptureSha256": "e195e711d954a8006f25480375fd11e4ddc14638e1a9e70543c5c6e4814fa705",
+      "addoneRawCaptureSha256": "016aa21fd499d0bbde2834f0bb296252e945f866f1b33f0084800236af60bfb2",
+      "reportSha256": "d7d3b44afd37191fe9e4b62a43c383fee576dbebb7d142389c51f873237fd554"
+    },
+    "releaseVerdict": {
+      "path": "artifacts/release-verdicts/win32-x64.json",
+      "sha256": "ace8e45e125d24688418e7a09efd069b6541d7263c7bc562625866873e48e95e"
+    },
+    "npmAudit": "0 vulnerabilities",
+    "npmPackDryRun": "pass: 451 entries",
+    "strictOpenSpecValidation": "pass",
+    "packageLockSha256": "92a6d524d36e4364ed2264dae0b921464fe20444dc0814140175cd1455cb6e30"
+  },
+  "acceptedBehaviorChange": "none",
+  "customUxState": "architecture prerequisite satisfied; custom UX remains blocked pending publication/handoff decisions"
+}

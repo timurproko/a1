@@ -1,0 +1,57 @@
+{
+  "schema": "a1-development-publication-acceptance-v1",
+  "capturedAt": "2026-09-06",
+  "source": {
+    "pullRequest": 260,
+    "mergeCommit": "e334076a137497e5dc06ccf521020348a75dc48c",
+    "workflowRun": 34033203416,
+    "workflowUrl": "https://github.com/timurproko/a1/actions/runs/34033203416",
+    "invocation": "npm run develop",
+    "authoritativeBranch": "develop",
+    "invocationCount": 1
+  },
+  "candidate": {
+    "version": "0.1.8-dev.260",
+    "packageArtifact": "release-package-0.1.8-dev.260",
+    "sourceCommit": "e334076a137497e5dc06ccf521020348a75dc48c"
+  },
+  "windowsValidation": {
+    "defenderRealTimeProtection": true,
+    "automaticRetries": 0,
+    "node22": {
+      "jobId": 101486908145,
+      "jobName": "Validate win32-node22",
+      "conclusion": "success",
+      "packageInstallCommandCount": 1,
+      "packageInstallDurationMs": 189050,
+      "artifact": "release-validation-0.1.8-dev.260-win32-node22"
+    },
+    "node24": {
+      "jobId": 101486908184,
+      "jobName": "Validate win32-node24",
+      "conclusion": "success",
+      "packageInstallCommandCount": 1,
+      "packageInstallDurationMs": 204490,
+      "artifact": "release-validation-0.1.8-dev.260-win32-node24"
+    }
+  },
+  "crossPlatformValidation": {
+    "darwinNode24": {
+      "jobId": 101486908236,
+      "conclusion": "success"
+    },
+    "linuxNode24": {
+      "jobId": 101486908207,
+      "conclusion": "success"
+    }
+  },
+  "publication": {
+    "publisherJobId": 101487723805,
+    "publisherConclusion": "success",
+    "aggregateJobId": 101487770687,
+    "aggregateConclusion": "success",
+    "registryTag": "next",
+    "registryVersion": "0.1.8-dev.260",
+    "registryIntegrity": "sha512-D1CSX+zsKk5RTq+ySG0HmxWwDv77lnHXHzh38AkR6CFPv9U4cPlQ6VQZ+M0Y+7dL2IzhnbqRGMIEui61CKSl2A=="
+  }
+}

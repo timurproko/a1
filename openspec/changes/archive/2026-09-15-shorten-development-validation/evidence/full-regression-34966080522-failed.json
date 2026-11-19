@@ -1,0 +1,52 @@
+{
+  "schema": "a1-full-regression-attempt-v1",
+  "run": {
+    "id": 34966080522,
+    "status": "completed",
+    "conclusion": "failure",
+    "head": "c91c7faf7e27fa6570a8921026dacf60f134b4f6",
+    "event": "workflow_dispatch",
+    "createdAt": "2026-09-15T11:57:05Z",
+    "updatedAt": "2026-09-15T12:28:37Z",
+    "url": "https://github.com/timurproko/a1/actions/runs/34966080522"
+  },
+  "lanes": [
+    {
+      "name": "Full documentation review",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/timurproko/a1/actions/runs/34966080522/job/104370757754"
+    },
+    {
+      "name": "Complete non-physical regression (windows-2025, node 22)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/timurproko/a1/actions/runs/34966080522/job/104370857416"
+    },
+    {
+      "name": "Complete non-physical regression (windows-2025, node 24)",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/timurproko/a1/actions/runs/34966080522/job/104370857448"
+    },
+    {
+      "name": "Complete non-physical regression (ubuntu-24.04, node 24)",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/timurproko/a1/actions/runs/34966080522/job/104370857466"
+    },
+    {
+      "name": "Complete non-physical regression (macos-15, node 24)",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/timurproko/a1/actions/runs/34966080522/job/104370857467"
+    }
+  ],
+  "result": {
+    "windowsNode22": "passed",
+    "otherThree": "each failed only resource-sensitive-validation.test.ts; all other tests in the first invocation passed"
+  },
+  "diagnosis": "The nested runTierPlan test inherited VALIDATION_BUILD_READY=1 from Full regression. Authenticated prerequisite reuse correctly skipped its mocked candidate-build execution, contradicting the test call-list fixture only.",
+  "followUp": "Set VALIDATION_BUILD_READY=0 only in the nested fixture environment so it deterministically exercises fresh-build planning under either parent environment.",
+  "acceptance": "failed attempt retained and cannot authorize acceptance"
+}

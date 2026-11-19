@@ -1,0 +1,36 @@
+## 1. Lock the region behavior
+
+- [x] 1.1 Add focused viewport fixtures that reproduce a document anchor projecting into pinned dock row indices while edge-held scrolling expands a selection upward and downward.
+- [x] 1.2 Cover forward and reverse ranges, repeated scroll ticks, source endpoints leaving either viewport edge, and changing dock height; assert transcript-only paint/copy never gains dock text or full-width dock padding.
+- [x] 1.3 Add explicit transcript-to-dock and dock-to-transcript fixtures that expose gesture-origin ownership at the content boundary.
+
+## 2. Bound scrolling selection projection
+
+- [x] 2.1 Derive a document-only versus complete-frame visual region from retained semantic endpoint anchors without replacing document/dock identity.
+- [x] 2.2 Clip document-only visible selection to transcript rows for paint, selected text, copyability, and frame-copy capture while preserving correct full-edge behavior for off-screen endpoints.
+- [x] 2.3 Preserve editor-originated selection, scrollbar/control/modal gesture ownership, selection auto-scroll cadence, row reuse/damage accounting, and `a1 pi` behavior.
+
+## 3. Prove integrated behavior
+
+- [x] 3.1 Add session-shell terminal-cell evidence showing edge-scroll selection stays in the content area and clears no fixed shell surface.
+- [x] 3.2 Run focused text-selection, viewport, session-shell, scrollbar-edge, and terminal-paint tests plus build, typecheck, strict OpenSpec, changed-documentation, and diff validation; record exact evidence without weakening scrollbar assertions.
+- [x] 3.3 Reconcile current `origin/develop`, document any known gap, and prepare a build-first Windows Terminal handoff for content-bounded selection before trusted finalization.
+
+## 4. Refine gesture-origin ownership
+
+- [x] 4.1 Bound direct transcript-to-dock pointer crossing by the fixed transcript anchor while retaining dock-originated selection.
+- [x] 4.2 Replace explicit-crossing expectations with viewport, controller, and shell evidence that transcript-originated paint and copy stop at the content edge even at the scroll limit.
+- [x] 4.3 Re-run focused and governance validation, update implementation evidence and acceptance wording, then prepare the refined handoff.
+
+## 5. Keep selection attached to scrolling source
+
+- [x] 5.1 Exclude the sticky prompt's complete replacement row from pointer anchoring, selection paint, and visible-frame copy while retaining normal prompt-row selection when unpinned.
+- [x] 5.2 Prove a retained selection shrinks and disappears as its source rows scroll out instead of transferring to sticky prompt, jump/status, or dock rows.
+- [x] 5.3 Re-run focused and governance validation, update evidence and acceptance wording, and prepare the final manual handoff.
+
+## 6. Refine selection feel
+
+- [x] 6.1 Paint the scroll-to-bottom control above selection and remove its cells from visible-frame copy.
+- [x] 6.2 Keep the final content row selectable by starting downward auto-scroll only below it, and align per-tick edge distance with the declared one, two, or three rows.
+- [x] 6.3 Start edge auto-scroll only for a transcript-originated selection, so dock selection never moves the transcript.
+- [x] 6.4 Re-run focused and governance validation, repin the startup graph baseline for the reviewed growth, and update evidence and the manual handoff.

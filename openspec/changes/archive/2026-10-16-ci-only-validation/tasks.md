@@ -1,0 +1,4 @@
+## 1. Guidance
+
+- [x] 1.1 Replace the push-after-green-preflight step in the change-delivery skill with quick targeted checks before pushing and reliance on CI after readiness.
+- [x] 1.2 Replace the preflight rule in the OpenSpec project workflow context and the pre-push instruction in the validation guide with the targeted checks, describing preflight as an optional reproduction tool.

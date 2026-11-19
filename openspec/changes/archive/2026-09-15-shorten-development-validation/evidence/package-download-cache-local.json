@@ -1,0 +1,62 @@
+{
+  "schema": "a1-package-download-cache-audit-v1",
+  "sourceHead": "967584314716f231393659e3f18ff4ff4561d98f",
+  "platform": "win32",
+  "architecture": "x64",
+  "nodeVersion": "v24.16.0",
+  "npmVersion": "12.0.2",
+  "candidateSha256": "7d924dd4a6cfafd0cc009ad1338085a9e489322a8d998c8fff3159f509020f81",
+  "productionMode": "prefer-offline-with-network-fallback",
+  "attempts": [
+    {
+      "kind": "cold",
+      "mode": "prefer-offline-empty-cache",
+      "durationMs": 21831,
+      "prefixFresh": true,
+      "cacheBefore": {
+        "files": 0,
+        "bytes": 0
+      },
+      "cacheAfter": {
+        "files": 529,
+        "bytes": 85949834
+      },
+      "payload": {
+        "name": "@timurproko/a1",
+        "version": "0.1.8-dev",
+        "bin": {
+          "a1": "bin/cli.js"
+        },
+        "files": 598,
+        "bytes": 8697980,
+        "sha256": "4e91259c6d516aee1ae48ed7b23e57334f9f56a1a9dd70646beaf3de4432367d"
+      }
+    },
+    {
+      "kind": "warm",
+      "mode": "offline-same-cache",
+      "durationMs": 11136,
+      "prefixFresh": true,
+      "cacheBefore": {
+        "files": 529,
+        "bytes": 85949834
+      },
+      "cacheAfter": {
+        "files": 530,
+        "bytes": 86042866
+      },
+      "payload": {
+        "name": "@timurproko/a1",
+        "version": "0.1.8-dev",
+        "bin": {
+          "a1": "bin/cli.js"
+        },
+        "files": 598,
+        "bytes": 8697980,
+        "sha256": "4e91259c6d516aee1ae48ed7b23e57334f9f56a1a9dd70646beaf3de4432367d"
+      }
+    }
+  ],
+  "cleanup": "passed",
+  "failure": null
+}

@@ -1,0 +1,173 @@
+{
+  "schema": "a1-development-validation-acceptance-v1",
+  "run": {
+    "id": 34961661496,
+    "conclusion": "success",
+    "createdAt": "2026-09-15T11:08:25Z",
+    "event": "workflow_dispatch",
+    "headSha": "1b7859fe08f6b5d1abf2b7953cb706c2445021f4",
+    "status": "completed",
+    "updatedAt": "2026-09-15T11:19:44Z",
+    "url": "https://github.com/timurproko/a1/actions/runs/34961661496"
+  },
+  "selection": {
+    "base": "d5d7c1b100158e9d0efdb44f0490ced2ee4ea266",
+    "head": "1b7859fe08f6b5d1abf2b7953cb706c2445021f4",
+    "mode": "conservative",
+    "selectionId": "717fc8a62792e5c1f62c00b1c27f2c5eb05aba4a21a5192e4c239b5192f3d3ce",
+    "fallback": "manual-no-comparison",
+    "selectedOwners": [
+      "history-compatibility",
+      "image-compatibility",
+      "launch-integration",
+      "package-contracts",
+      "pi-release-resume",
+      "startup",
+      "structured-runtime",
+      "unix-containment",
+      "update-performance",
+      "update-predecessor"
+    ]
+  },
+  "aggregate": {
+    "schema": "a1-development-validation-aggregate-v1",
+    "mode": "conservative",
+    "selectionId": "717fc8a62792e5c1f62c00b1c27f2c5eb05aba4a21a5192e4c239b5192f3d3ce",
+    "selectedOwners": [
+      "history-compatibility",
+      "image-compatibility",
+      "launch-integration",
+      "package-contracts",
+      "pi-release-resume",
+      "startup",
+      "structured-runtime",
+      "unix-containment",
+      "update-performance",
+      "update-predecessor"
+    ],
+    "evidenceCount": 9,
+    "head": "1b7859fe08f6b5d1abf2b7953cb706c2445021f4",
+    "runId": "34961661496",
+    "runAttempt": 1,
+    "classifierMs": 355,
+    "criticalPathMs": 622778,
+    "runnerMs": 2125191,
+    "availableQueueMs": null,
+    "availableQueueReason": "GitHub job availability timestamp is not exposed inside the runner",
+    "jobs": [
+      {
+        "job": "compatibility",
+        "platform": "win32",
+        "architecture": "x64",
+        "node": 22,
+        "setupMs": 85462,
+        "gateMs": 16050,
+        "runnerMs": 101512,
+        "invocations": 2,
+        "cacheState": "setup-node-download-cache"
+      },
+      {
+        "job": "containment",
+        "platform": "darwin",
+        "architecture": "arm64",
+        "node": 24,
+        "setupMs": 39017,
+        "gateMs": 59696,
+        "runnerMs": 98713,
+        "invocations": 5,
+        "cacheState": "setup-node-download-cache"
+      },
+      {
+        "job": "containment",
+        "platform": "linux",
+        "architecture": "x64",
+        "node": 24,
+        "setupMs": 33726,
+        "gateMs": 37372,
+        "runnerMs": 71098,
+        "invocations": 5,
+        "cacheState": "setup-node-download-cache"
+      },
+      {
+        "job": "fast",
+        "platform": "win32",
+        "architecture": "x64",
+        "node": 24,
+        "setupMs": 66829,
+        "gateMs": 207766,
+        "runnerMs": 274595,
+        "invocations": 5,
+        "cacheState": "setup-node-download-cache"
+      },
+      {
+        "job": "package",
+        "platform": "win32",
+        "architecture": "x64",
+        "node": 22,
+        "setupMs": 75686,
+        "gateMs": 157133,
+        "runnerMs": 232819,
+        "invocations": 3,
+        "cacheState": "setup-node-download-cache"
+      },
+      {
+        "job": "pi",
+        "platform": "win32",
+        "architecture": "x64",
+        "node": 24,
+        "setupMs": 91531,
+        "gateMs": 166447,
+        "runnerMs": 257978,
+        "invocations": 6,
+        "cacheState": "setup-node-download-cache"
+      },
+      {
+        "job": "promoted",
+        "platform": "win32",
+        "architecture": "x64",
+        "node": 24,
+        "setupMs": 72016,
+        "gateMs": 550762,
+        "runnerMs": 622778,
+        "invocations": 4,
+        "cacheState": "setup-node-download-cache"
+      },
+      {
+        "job": "resource",
+        "platform": "win32",
+        "architecture": "x64",
+        "node": 24,
+        "setupMs": 31698,
+        "gateMs": 152903,
+        "runnerMs": 184601,
+        "invocations": 1,
+        "cacheState": "setup-node-download-cache"
+      },
+      {
+        "job": "startup",
+        "platform": "win32",
+        "architecture": "x64",
+        "node": 22,
+        "setupMs": 81696,
+        "gateMs": 199401,
+        "runnerMs": 281097,
+        "invocations": 3,
+        "cacheState": "setup-node-download-cache"
+      }
+    ]
+  },
+  "jobDurationsSeconds": {
+    "fast": 285,
+    "resource": 194,
+    "startup": 294,
+    "package": 245,
+    "pi": 269,
+    "promoted": 636,
+    "compatibility": 120,
+    "linux": 80,
+    "macos": 109,
+    "rendering": 313
+  },
+  "result": "passed",
+  "limitations": "Manual Development dispatch because GitHub did not enqueue pull_request ready/synchronize events; manual fallback conservatively selected every retained owner. This is one conservative-full observation, not three observations for every representative class."
+}

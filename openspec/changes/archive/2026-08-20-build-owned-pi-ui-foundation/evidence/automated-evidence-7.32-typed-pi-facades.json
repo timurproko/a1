@@ -1,0 +1,26 @@
+{
+  "task": "7.32",
+  "pinnedPiVersion": "0.84.2",
+  "pinnedPiCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
+  "acceptedVisibleBaseline": "084d0fb7e4004bc4b83a0b28c8aaea736b558d44",
+  "result": "pass",
+  "architecture": {
+    "engineDynamicCallSites": 0,
+    "productionAdapterUncheckedTypeEscapes": 0,
+    "publicExtensionBoundary": "validated ExtensionUIContext facade",
+    "unsupportedCapabilityBehavior": "bounded Pi workflow capability error"
+  },
+  "validation": {
+    "typecheck": "pass",
+    "architecture": "pass: 109 source records, 29 behavior mappings",
+    "focusedSuites": "pass: 15 files, 70 tests",
+    "terminalParity": "pass: 54 checkpoints, 0 differences",
+    "piRawCaptureSha256": "76e5e322bb2301d43cf4a94a56b0de0306799209aa21598b643946e98681ea56",
+    "addoneRawCaptureSha256": "374ee639a9a8fe1e92a6fd49ccc72567cc358f6c62875303916096730a590549"
+  },
+  "notes": [
+    "Public runtime/session/service capabilities are invoked through explicit structural members and requireCapability diagnostics rather than string-named reflection.",
+    "Nominal private Pi constructor and callback boundaries use checked Reflect construction/application followed by runtime shape or instanceof validation.",
+    "No accepted terminal frame or workflow changed."
+  ]
+}

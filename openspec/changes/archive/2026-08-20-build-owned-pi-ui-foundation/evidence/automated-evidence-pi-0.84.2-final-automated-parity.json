@@ -1,0 +1,60 @@
+{
+  "schema": "addone-owned-pi-ui-automated-evidence-v1",
+  "change": "build-owned-pi-ui-foundation",
+  "tasks": ["7.1", "7.6", "7.7", "7.14", "7.16", "7.17", "7.18", "7.19", "7.20", "7.21", "8.1", "8.4", "9.1"],
+  "recordedAt": "2026-08-17T06:29:55.603Z",
+  "source": {
+    "repository": "https://github.com/earendil-works/pi.git",
+    "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
+    "codingAgentVersion": "0.84.2",
+    "tuiVersion": "0.84.2"
+  },
+  "coverage": {
+    "sourceLedger": { "records": 109, "behaviors": 29, "unmapped": 0, "unapprovedDeviations": 0 },
+    "modalInventory": { "plannedRoutes": 0 },
+    "commands": { "advertised": 22, "hidden": 3, "settingsCallbacks": 32 },
+    "editor": ["autocomplete", "keybindings", "paste", "queue", "silent cancellation", "current-session history", "draft restoration"],
+    "root": ["startup resources", "chronological transcript", "footer/status", "focus", "resize", "all inventoried modal compositions"],
+    "extensions": ["select", "confirm", "input", "editor", "custom editor", "custom overlay", "widgets", "status", "working", "terminal input", "custom message/tool renderers", "reload rebinding"],
+    "terminal": ["stateful final-cell selection", "selection clearing before ordinary input", "selected/unselected Ctrl+C", "no copy flash", "three-row wheel", "nested scroll", "resize", "restoration"]
+  },
+  "terminalParity": {
+    "status": "passed",
+    "differences": 0,
+    "tolerances": ["differential-sgr-order", "transient-scrollbar-thumb-rounding"],
+    "checkpoints": [
+      "startup-resources", "editor-input", "settings-selector", "settings-navigation", "settings-cancel-restored",
+      "model-cancel-restored", "trust-selector", "trust-cancel-restored", "scoped-models-dirty", "scoped-models-saved-open",
+      "scoped-models-cancel-restored", "command-transcript", "stream-settlement", "session-selector-current", "session-selector-all",
+      "session-selector-cancel-restored", "history-previous", "history-draft-restored", "recoverable-error", "physical-wheel",
+      "narrow-resize", "restored-resize", "tree-selector", "tree-summary-choice", "tree-summary-cancel-restored",
+      "login-auth-type", "login-auth-cancel-restored", "reload-status", "reload-extension-stream", "changelog", "export-error"
+    ],
+    "piRawCaptureSha256": "24d4db3d47779238950e40e32b2879c3e820ff6f1007b1f12707038f75b41976",
+    "addOneRawCaptureSha256": "4d13e193f005db13d344e11d5d943c66834c75f1b3210e54df46ec03f4f447d8",
+    "artifacts": {
+      "reportSha256": "c4d6e7ac9cc26158b603b716df7e04546a84b54410ecd32cb48e4d47733425ac",
+      "upstreamSha256": "7ddb3b58ba8590d71900392b0fd716cf6d5692b5e8c6eb2d40fe17ce63a93279",
+      "addOneSha256": "f07b64e3a8a8b5c1c5ba60fa6209e0c8d0ead65a467b84503651761dfdaddc9e"
+    }
+  },
+  "intentionalMutations": {
+    "visual": { "exitCode": 1, "logSha256": "2c305bfce6299d79d40d61b96c5a4f303125fef4ec2ef0821722635865e86828" },
+    "inputScroll": { "exitCode": 1, "logSha256": "d6dc2ac0eaf6d0360b8b5aaf31f3ddd5c0af1398d31e1860dbf98d3cb52d0e67" }
+  },
+  "validation": {
+    "tests": "85 files, 452 tests passed",
+    "typecheck": "passed",
+    "architecture": "passed",
+    "sourceLedger": "passed",
+    "audit": "0 vulnerabilities",
+    "releaseGate": "passed",
+    "packageDryRun": "391 files, 333.3 kB packed, 1.7 MB unpacked",
+    "strictOpenSpecValidation": "passed"
+  },
+  "platform": {
+    "automated": "win32 x64 Node v24.16.0",
+    "deferred": ["linux", "darwin"]
+  },
+  "manualAcceptance": "pending fresh user-controlled a1 versus a1 pi comparison"
+}

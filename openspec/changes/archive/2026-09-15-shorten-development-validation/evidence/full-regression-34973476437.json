@@ -1,0 +1,1055 @@
+{
+  "schema": "a1-full-regression-acceptance-v1",
+  "run": {
+    "id": 34973476437,
+    "status": "completed",
+    "conclusion": "success",
+    "head": "4a22f53e4ac00aa89c9156ebfb6df4b4edd54b4a",
+    "event": "workflow_dispatch",
+    "createdAt": "2026-09-15T13:12:01Z",
+    "updatedAt": "2026-09-15T13:52:06Z",
+    "url": "https://github.com/timurproko/a1/actions/runs/34973476437"
+  },
+  "documentation": "success",
+  "lanes": [
+    {
+      "artifact": "full-regression-4a22f53e4ac00aa89c9156ebfb6df4b4edd54b4a-34973476437-1-macos-15-node24",
+      "platform": "darwin",
+      "architecture": "arm64",
+      "node": "v24.20.0",
+      "passed": true,
+      "durationMs": 551011,
+      "selected": [
+        "typecheck",
+        "architecture",
+        "fast-remainder",
+        "fast-resource-sensitive",
+        "documentation-full",
+        "naming-full",
+        "rendering-stability",
+        "dist-integration",
+        "launch-integration",
+        "pi-engine-conformance",
+        "release-update",
+        "update-performance",
+        "structured-runtime-integration",
+        "package-smoke",
+        "package-contracts",
+        "package-startup",
+        "image-compatibility",
+        "history-compatibility",
+        "unix-containment",
+        "dependency-policy",
+        "update-predecessor"
+      ],
+      "outcomes": [
+        {
+          "id": "candidate-build",
+          "exitCode": 0,
+          "durationMs": 0,
+          "skipped": "verified-existing-build"
+        },
+        {
+          "id": "candidate-pack",
+          "exitCode": 0,
+          "durationMs": 0,
+          "skipped": "verified-exact-package"
+        },
+        {
+          "id": "typecheck",
+          "exitCode": 0,
+          "durationMs": 5059
+        },
+        {
+          "id": "architecture",
+          "exitCode": 0,
+          "durationMs": 1317
+        },
+        {
+          "id": "code-documentation-full",
+          "exitCode": 0,
+          "durationMs": 0,
+          "skipped": "existing-full-documentation-review"
+        },
+        {
+          "id": "internal-naming-full",
+          "exitCode": 0,
+          "durationMs": 1799
+        },
+        {
+          "id": "candidate-engine-conformance-report",
+          "exitCode": 0,
+          "durationMs": 1065
+        },
+        {
+          "id": "deprecated-dependencies",
+          "exitCode": 0,
+          "durationMs": 3355
+        },
+        {
+          "id": "vitest-full-without-isolated",
+          "exitCode": 0,
+          "durationMs": 185898
+        },
+        {
+          "id": "vitest-fast-resource-sensitive",
+          "exitCode": 0,
+          "durationMs": 120749
+        },
+        {
+          "id": "vitest-isolated-timing",
+          "exitCode": 0,
+          "durationMs": 8745
+        },
+        {
+          "id": "vitest-package-smoke-1",
+          "exitCode": 0,
+          "durationMs": 2534
+        },
+        {
+          "id": "vitest-package-smoke-2",
+          "exitCode": 0,
+          "durationMs": 28272
+        },
+        {
+          "id": "vitest-isolated-suites",
+          "exitCode": 0,
+          "durationMs": 176660
+        },
+        {
+          "id": "vitest-package-contracts",
+          "exitCode": 0,
+          "durationMs": 14343
+        },
+        {
+          "id": "vitest-package-startup",
+          "exitCode": 0,
+          "durationMs": 825
+        }
+      ],
+      "candidate": {
+        "sha256": "2ccea6c6d3a23682d9d0ed86c438abf3ac9c514a70cc35fa4f10cede1a231297",
+        "size": 1702280,
+        "files": 599,
+        "payloadBytes": 8923646,
+        "entriesSha256": "541d86d1ffd9c18fe24ddb7788ea41d279ca6cd4683c97c5e4548be1c1603663"
+      },
+      "startupPhases": []
+    },
+    {
+      "artifact": "full-regression-4a22f53e4ac00aa89c9156ebfb6df4b4edd54b4a-34973476437-1-ubuntu-24.04-node24",
+      "platform": "linux",
+      "architecture": "x64",
+      "node": "v24.20.0",
+      "passed": true,
+      "durationMs": 628862,
+      "selected": [
+        "typecheck",
+        "architecture",
+        "fast-remainder",
+        "fast-resource-sensitive",
+        "documentation-full",
+        "naming-full",
+        "rendering-stability",
+        "dist-integration",
+        "launch-integration",
+        "pi-engine-conformance",
+        "release-update",
+        "update-performance",
+        "structured-runtime-integration",
+        "package-smoke",
+        "package-contracts",
+        "package-startup",
+        "image-compatibility",
+        "history-compatibility",
+        "unix-containment",
+        "dependency-policy",
+        "update-predecessor"
+      ],
+      "outcomes": [
+        {
+          "id": "candidate-build",
+          "exitCode": 0,
+          "durationMs": 0,
+          "skipped": "verified-existing-build"
+        },
+        {
+          "id": "candidate-pack",
+          "exitCode": 0,
+          "durationMs": 0,
+          "skipped": "verified-exact-package"
+        },
+        {
+          "id": "typecheck",
+          "exitCode": 0,
+          "durationMs": 2902
+        },
+        {
+          "id": "architecture",
+          "exitCode": 0,
+          "durationMs": 1346
+        },
+        {
+          "id": "code-documentation-full",
+          "exitCode": 0,
+          "durationMs": 0,
+          "skipped": "existing-full-documentation-review"
+        },
+        {
+          "id": "internal-naming-full",
+          "exitCode": 0,
+          "durationMs": 2332
+        },
+        {
+          "id": "candidate-engine-conformance-report",
+          "exitCode": 0,
+          "durationMs": 919
+        },
+        {
+          "id": "deprecated-dependencies",
+          "exitCode": 0,
+          "durationMs": 3062
+        },
+        {
+          "id": "vitest-full-without-isolated",
+          "exitCode": 0,
+          "durationMs": 179911
+        },
+        {
+          "id": "vitest-fast-resource-sensitive",
+          "exitCode": 0,
+          "durationMs": 134679
+        },
+        {
+          "id": "vitest-isolated-timing",
+          "exitCode": 0,
+          "durationMs": 8191
+        },
+        {
+          "id": "vitest-package-smoke-1",
+          "exitCode": 0,
+          "durationMs": 2173
+        },
+        {
+          "id": "vitest-package-smoke-2",
+          "exitCode": 0,
+          "durationMs": 27867
+        },
+        {
+          "id": "vitest-isolated-suites",
+          "exitCode": 0,
+          "durationMs": 246910
+        },
+        {
+          "id": "vitest-package-contracts",
+          "exitCode": 0,
+          "durationMs": 17242
+        },
+        {
+          "id": "vitest-package-startup",
+          "exitCode": 0,
+          "durationMs": 967
+        }
+      ],
+      "candidate": {
+        "sha256": "e31844b482dd9af350e0062aba068cb1c5ca84e8eb14b884c5c58060ddc4cdc0",
+        "size": 1720822,
+        "files": 599,
+        "payloadBytes": 8944080,
+        "entriesSha256": "2a42a983d3a7f577f967d489106d3684e0964edf677df99c78bac2a37a852f4c"
+      },
+      "startupPhases": []
+    },
+    {
+      "artifact": "full-regression-4a22f53e4ac00aa89c9156ebfb6df4b4edd54b4a-34973476437-1-windows-2025-node22",
+      "platform": "win32",
+      "architecture": "x64",
+      "node": "v22.23.2",
+      "passed": true,
+      "durationMs": 2259612,
+      "selected": [
+        "typecheck",
+        "architecture",
+        "fast-remainder",
+        "fast-resource-sensitive",
+        "documentation-full",
+        "naming-full",
+        "rendering-stability",
+        "dist-integration",
+        "launch-integration",
+        "pi-engine-conformance",
+        "release-update",
+        "update-performance",
+        "structured-runtime-integration",
+        "package-smoke",
+        "package-contracts",
+        "package-startup",
+        "image-compatibility",
+        "history-compatibility",
+        "unix-containment",
+        "dependency-policy",
+        "update-predecessor"
+      ],
+      "outcomes": [
+        {
+          "id": "candidate-build",
+          "exitCode": 0,
+          "durationMs": 12325,
+          "preparation": "receipt-missing-or-incompatible"
+        },
+        {
+          "id": "candidate-pack",
+          "exitCode": 0,
+          "durationMs": 14304,
+          "preparation": "receipt-missing-or-incompatible"
+        },
+        {
+          "id": "typecheck",
+          "exitCode": 0,
+          "durationMs": 2560
+        },
+        {
+          "id": "architecture",
+          "exitCode": 0,
+          "durationMs": 1612
+        },
+        {
+          "id": "code-documentation-full",
+          "exitCode": 0,
+          "durationMs": 0,
+          "skipped": "existing-full-documentation-review"
+        },
+        {
+          "id": "internal-naming-full",
+          "exitCode": 0,
+          "durationMs": 2467
+        },
+        {
+          "id": "candidate-engine-conformance-report",
+          "exitCode": 0,
+          "durationMs": 1100
+        },
+        {
+          "id": "deprecated-dependencies",
+          "exitCode": 0,
+          "durationMs": 4514
+        },
+        {
+          "id": "vitest-full-without-isolated",
+          "exitCode": 0,
+          "durationMs": 1069808
+        },
+        {
+          "id": "vitest-fast-resource-sensitive",
+          "exitCode": 0,
+          "durationMs": 191326
+        },
+        {
+          "id": "vitest-isolated-timing",
+          "exitCode": 0,
+          "durationMs": 25835
+        },
+        {
+          "id": "vitest-package-smoke-1",
+          "exitCode": 0,
+          "durationMs": 4786
+        },
+        {
+          "id": "vitest-package-smoke-2",
+          "exitCode": 0,
+          "durationMs": 63994
+        },
+        {
+          "id": "vitest-isolated-suites",
+          "exitCode": 0,
+          "durationMs": 224504
+        },
+        {
+          "id": "vitest-package-contracts",
+          "exitCode": 0,
+          "durationMs": 312320
+        },
+        {
+          "id": "vitest-package-startup",
+          "exitCode": 0,
+          "durationMs": 327412
+        }
+      ],
+      "candidate": {
+        "sha256": "507391f899a7a09ab68dbd7879889a3668ed58a4301708bc275b15c6b5739307",
+        "size": 1611812,
+        "files": 599,
+        "payloadBytes": 8707223,
+        "entriesSha256": "cee49783d52dd2b55ca1f8501428b1e475a9a0bd5fd6d894ad7458d67442cc10"
+      },
+      "startupPhases": [
+        {
+          "phase": "load-candidate",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "load-candidate",
+          "status": "passed",
+          "durationMs": 61
+        },
+        {
+          "phase": "clean-global-install",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "clean-global-install",
+          "status": "passed",
+          "durationMs": 249236
+        },
+        {
+          "phase": "defender-prerequisite",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "defender-prerequisite",
+          "status": "passed",
+          "durationMs": 831
+        },
+        {
+          "phase": "startup-proxy-synchronization",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "startup-proxy-synchronization",
+          "status": "passed",
+          "durationMs": 65
+        },
+        {
+          "phase": "startup-materialization",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "startup-materialization",
+          "status": "passed",
+          "durationMs": 20570
+        },
+        {
+          "phase": "startup-record-candidate",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "startup-record-candidate",
+          "status": "passed",
+          "durationMs": 90
+        },
+        {
+          "phase": "startup-certification",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "startup-certification",
+          "status": "passed",
+          "durationMs": 108
+        },
+        {
+          "phase": "startup-activation",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "startup-activation",
+          "status": "passed",
+          "durationMs": 51
+        },
+        {
+          "phase": "startup-declared-warmup",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "startup-declared-warmup",
+          "status": "passed",
+          "durationMs": 18870
+        },
+        {
+          "phase": "startup-supervisor-spawn",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "startup-supervisor-spawn",
+          "status": "passed",
+          "durationMs": 8
+        },
+        {
+          "phase": "startup-supervisor-ready",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "startup-supervisor-ready",
+          "status": "passed",
+          "durationMs": 318
+        },
+        {
+          "phase": "launch-observation-a1-post-update",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-observation-a1-post-update",
+          "status": "passed",
+          "durationMs": 1935
+        },
+        {
+          "phase": "launch-exit-a1-post-update",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-exit-a1-post-update",
+          "status": "passed",
+          "durationMs": 981
+        },
+        {
+          "phase": "supervisor-stop-a1",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "supervisor-stop-a1",
+          "status": "passed",
+          "durationMs": 4651
+        },
+        {
+          "phase": "launch-observation-a1-no-live-supervisor",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-observation-a1-no-live-supervisor",
+          "status": "passed",
+          "durationMs": 2038
+        },
+        {
+          "phase": "launch-exit-a1-no-live-supervisor",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-exit-a1-no-live-supervisor",
+          "status": "passed",
+          "durationMs": 183
+        },
+        {
+          "phase": "launch-observation-a1-warm",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-observation-a1-warm",
+          "status": "passed",
+          "durationMs": 1881
+        },
+        {
+          "phase": "launch-exit-a1-warm",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-exit-a1-warm",
+          "status": "passed",
+          "durationMs": 181
+        },
+        {
+          "phase": "launch-observation-pi-post-update",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-observation-pi-post-update",
+          "status": "passed",
+          "durationMs": 1847
+        },
+        {
+          "phase": "launch-exit-pi-post-update",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-exit-pi-post-update",
+          "status": "passed",
+          "durationMs": 159
+        },
+        {
+          "phase": "supervisor-stop-pi",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "supervisor-stop-pi",
+          "status": "passed",
+          "durationMs": 4650
+        },
+        {
+          "phase": "launch-observation-pi-no-live-supervisor",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-observation-pi-no-live-supervisor",
+          "status": "passed",
+          "durationMs": 1993
+        },
+        {
+          "phase": "launch-exit-pi-no-live-supervisor",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-exit-pi-no-live-supervisor",
+          "status": "passed",
+          "durationMs": 210
+        },
+        {
+          "phase": "launch-observation-pi-warm",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-observation-pi-warm",
+          "status": "passed",
+          "durationMs": 1874
+        },
+        {
+          "phase": "launch-exit-pi-warm",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-exit-pi-warm",
+          "status": "passed",
+          "durationMs": 163
+        },
+        {
+          "phase": "supervisor-final-stop",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "supervisor-final-stop",
+          "status": "passed",
+          "durationMs": 4664
+        },
+        {
+          "phase": "fixture-cleanup",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "fixture-cleanup",
+          "status": "deferred",
+          "durationMs": 7719
+        }
+      ]
+    },
+    {
+      "artifact": "full-regression-4a22f53e4ac00aa89c9156ebfb6df4b4edd54b4a-34973476437-1-windows-2025-node24",
+      "platform": "win32",
+      "architecture": "x64",
+      "node": "v24.20.0",
+      "passed": true,
+      "durationMs": 1715777,
+      "selected": [
+        "typecheck",
+        "architecture",
+        "fast-remainder",
+        "fast-resource-sensitive",
+        "documentation-full",
+        "naming-full",
+        "rendering-stability",
+        "dist-integration",
+        "launch-integration",
+        "pi-engine-conformance",
+        "release-update",
+        "update-performance",
+        "structured-runtime-integration",
+        "package-smoke",
+        "package-contracts",
+        "package-startup",
+        "image-compatibility",
+        "history-compatibility",
+        "unix-containment",
+        "dependency-policy",
+        "update-predecessor"
+      ],
+      "outcomes": [
+        {
+          "id": "candidate-build",
+          "exitCode": 0,
+          "durationMs": 0,
+          "skipped": "verified-existing-build"
+        },
+        {
+          "id": "candidate-pack",
+          "exitCode": 0,
+          "durationMs": 0,
+          "skipped": "verified-exact-package"
+        },
+        {
+          "id": "typecheck",
+          "exitCode": 0,
+          "durationMs": 3466
+        },
+        {
+          "id": "architecture",
+          "exitCode": 0,
+          "durationMs": 2012
+        },
+        {
+          "id": "code-documentation-full",
+          "exitCode": 0,
+          "durationMs": 0,
+          "skipped": "existing-full-documentation-review"
+        },
+        {
+          "id": "internal-naming-full",
+          "exitCode": 0,
+          "durationMs": 2801
+        },
+        {
+          "id": "candidate-engine-conformance-report",
+          "exitCode": 0,
+          "durationMs": 1271
+        },
+        {
+          "id": "deprecated-dependencies",
+          "exitCode": 0,
+          "durationMs": 4138
+        },
+        {
+          "id": "vitest-full-without-isolated",
+          "exitCode": 0,
+          "durationMs": 773421
+        },
+        {
+          "id": "vitest-fast-resource-sensitive",
+          "exitCode": 0,
+          "durationMs": 195990
+        },
+        {
+          "id": "vitest-isolated-timing",
+          "exitCode": 0,
+          "durationMs": 20757
+        },
+        {
+          "id": "vitest-package-smoke-1",
+          "exitCode": 0,
+          "durationMs": 4021
+        },
+        {
+          "id": "vitest-package-smoke-2",
+          "exitCode": 0,
+          "durationMs": 72693
+        },
+        {
+          "id": "vitest-isolated-suites",
+          "exitCode": 0,
+          "durationMs": 335854
+        },
+        {
+          "id": "vitest-package-contracts",
+          "exitCode": 0,
+          "durationMs": 135492
+        },
+        {
+          "id": "vitest-package-startup",
+          "exitCode": 0,
+          "durationMs": 163242
+        }
+      ],
+      "candidate": {
+        "sha256": "6cf6c93c85fd598f29e445506e9542706aa1a4d9c7b1fcb302e1c0d2cd49f44c",
+        "size": 1611810,
+        "files": 599,
+        "payloadBytes": 8707223,
+        "entriesSha256": "49d073d7e9ddba0e14b92525ffce19b8e8efe62a4a182158d8196996aadb0275"
+      },
+      "startupPhases": [
+        {
+          "phase": "load-candidate",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "load-candidate",
+          "status": "passed",
+          "durationMs": 56
+        },
+        {
+          "phase": "clean-global-install",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "clean-global-install",
+          "status": "passed",
+          "durationMs": 103590
+        },
+        {
+          "phase": "defender-prerequisite",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "defender-prerequisite",
+          "status": "passed",
+          "durationMs": 885
+        },
+        {
+          "phase": "startup-proxy-synchronization",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "startup-proxy-synchronization",
+          "status": "passed",
+          "durationMs": 73
+        },
+        {
+          "phase": "startup-materialization",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "startup-materialization",
+          "status": "passed",
+          "durationMs": 11747
+        },
+        {
+          "phase": "startup-record-candidate",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "startup-record-candidate",
+          "status": "passed",
+          "durationMs": 22
+        },
+        {
+          "phase": "startup-certification",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "startup-certification",
+          "status": "passed",
+          "durationMs": 35
+        },
+        {
+          "phase": "startup-activation",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "startup-activation",
+          "status": "passed",
+          "durationMs": 16
+        },
+        {
+          "phase": "startup-declared-warmup",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "startup-declared-warmup",
+          "status": "passed",
+          "durationMs": 6357
+        },
+        {
+          "phase": "startup-supervisor-spawn",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "startup-supervisor-spawn",
+          "status": "passed",
+          "durationMs": 10
+        },
+        {
+          "phase": "startup-supervisor-ready",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "startup-supervisor-ready",
+          "status": "passed",
+          "durationMs": 372
+        },
+        {
+          "phase": "launch-observation-a1-post-update",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-observation-a1-post-update",
+          "status": "passed",
+          "durationMs": 2366
+        },
+        {
+          "phase": "launch-exit-a1-post-update",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-exit-a1-post-update",
+          "status": "passed",
+          "durationMs": 660
+        },
+        {
+          "phase": "supervisor-stop-a1",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "supervisor-stop-a1",
+          "status": "passed",
+          "durationMs": 4728
+        },
+        {
+          "phase": "launch-observation-a1-no-live-supervisor",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-observation-a1-no-live-supervisor",
+          "status": "passed",
+          "durationMs": 2388
+        },
+        {
+          "phase": "launch-exit-a1-no-live-supervisor",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-exit-a1-no-live-supervisor",
+          "status": "passed",
+          "durationMs": 183
+        },
+        {
+          "phase": "launch-observation-a1-warm",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-observation-a1-warm",
+          "status": "passed",
+          "durationMs": 2346
+        },
+        {
+          "phase": "launch-exit-a1-warm",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-exit-a1-warm",
+          "status": "passed",
+          "durationMs": 194
+        },
+        {
+          "phase": "launch-observation-pi-post-update",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-observation-pi-post-update",
+          "status": "passed",
+          "durationMs": 2938
+        },
+        {
+          "phase": "launch-exit-pi-post-update",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-exit-pi-post-update",
+          "status": "passed",
+          "durationMs": 178
+        },
+        {
+          "phase": "supervisor-stop-pi",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "supervisor-stop-pi",
+          "status": "passed",
+          "durationMs": 4706
+        },
+        {
+          "phase": "launch-observation-pi-no-live-supervisor",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-observation-pi-no-live-supervisor",
+          "status": "passed",
+          "durationMs": 2609
+        },
+        {
+          "phase": "launch-exit-pi-no-live-supervisor",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-exit-pi-no-live-supervisor",
+          "status": "passed",
+          "durationMs": 184
+        },
+        {
+          "phase": "launch-observation-pi-warm",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-observation-pi-warm",
+          "status": "passed",
+          "durationMs": 2518
+        },
+        {
+          "phase": "launch-exit-pi-warm",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "launch-exit-pi-warm",
+          "status": "passed",
+          "durationMs": 179
+        },
+        {
+          "phase": "supervisor-final-stop",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "supervisor-final-stop",
+          "status": "passed",
+          "durationMs": 4691
+        },
+        {
+          "phase": "fixture-cleanup",
+          "status": "started",
+          "durationMs": 0
+        },
+        {
+          "phase": "fixture-cleanup",
+          "status": "deferred",
+          "durationMs": 6957
+        }
+      ]
+    }
+  ],
+  "result": "passed all four required platform/runtime lanes without publication"
+}

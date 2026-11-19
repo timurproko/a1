@@ -1,0 +1,63 @@
+{
+  "schema": "validation-prerequisite-local-observation-v1",
+  "sourceHead": "f364a1a076d20b44fcd5bd8b0f2ac942a705f21a",
+  "workingTree": "uncommitted receipt/workflow implementation on the recorded source head",
+  "build": {
+    "receiptId": "c3488e5d2bc79e95ff4800bed738c490d9da4ce2851a780ef2402df54390332d",
+    "toolchain": {
+      "platform": "win32",
+      "architecture": "x64",
+      "node": "v24.16.0",
+      "modules": "137",
+      "packageManager": "npm@11.13.0",
+      "typescript": "5.9.2",
+      "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+      "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)"
+    },
+    "inputs": {
+      "files": 303,
+      "bytes": 3727916,
+      "sha256": "32885df00bd3e5563960f013499dd85b20e614bafe37d51ba0afe28e65fd5756"
+    },
+    "artifacts": {
+      "files": 557,
+      "bytes": 8454514,
+      "sha256": "376d3b932f39665bd7a466b76a5911d3b7a73c3c425b258d5efadc3f58ab129f"
+    },
+    "native": {
+      "schema": "a1-process-guardian-artifact-v1",
+      "protocolVersion": 1,
+      "crateVersion": "0.1.0-dev",
+      "platform": "win32",
+      "architecture": "x64",
+      "filename": "process-guardian.exe",
+      "sha256": "fa58bb12575199f5f6df50d4adfdf8f35cca2a3742acd0ceb1b8a10a5af506ac",
+      "size": 172544
+    }
+  },
+  "package": {
+    "receiptId": "8b4780191226aedcf6f2bde49c7b0f2397a70dc1a62013d1ffe4e47e7aa5efed",
+    "buildReceiptId": "c3488e5d2bc79e95ff4800bed738c490d9da4ce2851a780ef2402df54390332d",
+    "producer": {
+      "platform": "win32",
+      "architecture": "x64",
+      "node": "v24.16.0"
+    },
+    "candidate": {
+      "path": ".artifacts/validation/package/candidate.tgz",
+      "sha256": "7d924dd4a6cfafd0cc009ad1338085a9e489322a8d998c8fff3159f509020f81",
+      "size": 1608944,
+      "name": "@timurproko/a1",
+      "version": "0.1.8-dev",
+      "files": 598,
+      "inventorySha256": "dc3e813ef9d7f5b1452367defc6f96bf4d8a217380b13763084ba5e931485ff6"
+    }
+  },
+  "commands": [
+    "node scripts/release/record-validation-prerequisite.mjs build",
+    "VALIDATION_BUILD_RECEIPT=\"$PWD/.artifacts/validation/receipts/build.json\" node scripts/release/prepare-validation-package.mjs",
+    "verifyBuildReceipt + verifyPackageReceipt"
+  ],
+  "result": "passed",
+  "limitations": "Focused local receipt and pack observation on Windows Node 24.16.0/npm 12.0.2; not current-head CI or package installation/startup acceptance. The product build predated the receipt implementation but all bound source/build inputs and emitted/native artifacts were recomputed and matched."
+}

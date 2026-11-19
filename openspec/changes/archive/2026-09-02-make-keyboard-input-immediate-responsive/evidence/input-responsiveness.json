@@ -1,0 +1,1739 @@
+{
+  "schema": "a1-input-responsiveness-evidence-v1",
+  "provenance": {
+    "baseline": "current source with coordination and viewport reuse disabled through evidence-only seams",
+    "candidate": "current source with production bare-A1 composition",
+    "comparison": "isolated a1-pi and source-traceable pinned-Pi component producers",
+    "wallClock": "diagnostic-only monotonic milliseconds"
+  },
+  "workloads": [
+    {
+      "id": "smoke-current-state",
+      "expectedInputRevisions": 7,
+      "semanticParity": true,
+      "producers": [
+        {
+          "producer": "bare-a1",
+          "variant": "baseline",
+          "structure": {
+            "receivedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "appliedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "presentedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              7,
+              7
+            ],
+            "inputDrivenFrames": 8,
+            "staleFrames": 0,
+            "finalBacklog": 0,
+            "maximumDeliveryBacklog": 0,
+            "maximumPendingPresentations": 0,
+            "dockOnlyFrames": 0,
+            "stableTranscriptBlockRenders": 0,
+            "terminalWrites": 7,
+            "terminalBytes": 972,
+            "fullscreenClears": 0
+          },
+          "diagnostics": {
+            "firstStateInputToWriteMs": 2.944500000000062,
+            "finalStateInputToWriteMs": 1.307800000000043,
+            "semanticMs": [
+              2.2671000000000276,
+              0.310399999999845,
+              0.15570000000025175,
+              0.3087000000000444,
+              0.4443999999998596,
+              0.36200000000008004,
+              0.9071999999996478
+            ],
+            "compositionMs": [
+              4.336800000000039,
+              0.3461000000002059,
+              0.2840000000001055,
+              0.24619999999958964,
+              0.6354000000001179,
+              0.2982999999999265,
+              0.2909999999997126,
+              0.2719999999999345,
+              0.25939999999991414
+            ],
+            "writeMs": [
+              0.03920000000016444,
+              0.010299999999915599,
+              0.010099999999965803,
+              0.003400000000056025,
+              0.004699999999957072,
+              0.0036000000000058208,
+              0.004500000000007276,
+              0.0065999999997075065,
+              0.0031999999996514816,
+              0.0019999999999527063,
+              0.001099999999951251
+            ]
+          },
+          "checkpoints": [
+            {
+              "name": "isolated",
+              "text": "a",
+              "actions": [],
+              "selected": null,
+              "viewportCause": "steady",
+              "viewportCompositions": {
+                "full": 2,
+                "dockOnly": 0
+              },
+              "transcriptBlockRenders": 0
+            },
+            {
+              "name": "rapid",
+              "text": "abcé",
+              "actions": [],
+              "selected": null,
+              "viewportCause": "steady",
+              "viewportCompositions": {
+                "full": 5,
+                "dockOnly": 0
+              },
+              "transcriptBlockRenders": 0
+            },
+            {
+              "name": "edit-submit",
+              "text": "",
+              "actions": [
+                "submit:abé"
+              ],
+              "selected": null,
+              "viewportCause": "steady",
+              "viewportCompositions": {
+                "full": 8,
+                "dockOnly": 0
+              },
+              "transcriptBlockRenders": 0
+            }
+          ]
+        },
+        {
+          "producer": "bare-a1",
+          "variant": "candidate",
+          "structure": {
+            "receivedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "appliedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "presentedRevisions": [
+              1,
+              4,
+              7,
+              7,
+              7
+            ],
+            "inputDrivenFrames": 4,
+            "staleFrames": 0,
+            "finalBacklog": 0,
+            "maximumDeliveryBacklog": 3,
+            "maximumPendingPresentations": 1,
+            "dockOnlyFrames": 2,
+            "stableTranscriptBlockRenders": 0,
+            "terminalWrites": 3,
+            "terminalBytes": 416,
+            "fullscreenClears": 0
+          },
+          "diagnostics": {
+            "firstStateInputToWriteMs": 7.955300000000079,
+            "finalStateInputToWriteMs": 2.0025000000000546,
+            "semanticMs": [
+              2.508600000000115,
+              0.28150000000005093,
+              0.12620000000015352,
+              0.2579999999998108,
+              0.41010000000005675,
+              0.3071999999997388,
+              0.7960000000002765
+            ],
+            "compositionMs": [
+              4.1983000000000175,
+              0.3773999999998523,
+              0.6036999999996624,
+              0.2930999999998676,
+              0.26969999999982974
+            ],
+            "writeMs": [
+              0.035899999999855936,
+              0.009399999999914144,
+              0.012200000000120781,
+              0.004299999999602733,
+              0.0041999999998552084,
+              0.003800000000410364,
+              0.0028999999999541615
+            ]
+          },
+          "checkpoints": [
+            {
+              "name": "isolated",
+              "text": "a",
+              "actions": [],
+              "selected": null,
+              "viewportCause": "dock-input",
+              "viewportCompositions": {
+                "full": 1,
+                "dockOnly": 1
+              },
+              "transcriptBlockRenders": 0
+            },
+            {
+              "name": "rapid",
+              "text": "abcé",
+              "actions": [],
+              "selected": null,
+              "viewportCause": "dock-input",
+              "viewportCompositions": {
+                "full": 1,
+                "dockOnly": 2
+              },
+              "transcriptBlockRenders": 0
+            },
+            {
+              "name": "edit-submit",
+              "text": "",
+              "actions": [
+                "submit:abé"
+              ],
+              "selected": null,
+              "viewportCause": "steady",
+              "viewportCompositions": {
+                "full": 2,
+                "dockOnly": 2
+              },
+              "transcriptBlockRenders": 0
+            }
+          ]
+        },
+        {
+          "producer": "a1-pi",
+          "variant": "candidate",
+          "structure": {
+            "receivedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "appliedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "presentedRevisions": [
+              1,
+              1,
+              2,
+              2,
+              3,
+              3,
+              4,
+              4,
+              5,
+              5,
+              6,
+              6,
+              7,
+              7,
+              7,
+              7,
+              7
+            ],
+            "inputDrivenFrames": 7,
+            "staleFrames": 0,
+            "finalBacklog": 0,
+            "maximumDeliveryBacklog": 0,
+            "maximumPendingPresentations": 0,
+            "dockOnlyFrames": 0,
+            "stableTranscriptBlockRenders": 0,
+            "terminalWrites": 21,
+            "terminalBytes": 909,
+            "fullscreenClears": 0
+          },
+          "diagnostics": {
+            "firstStateInputToWriteMs": 2.1574999999998,
+            "finalStateInputToWriteMs": 0.9983999999999469,
+            "semanticMs": [
+              1.566899999999805,
+              0.2124999999996362,
+              0.11130000000002838,
+              0.2539999999999054,
+              0.3593999999998232,
+              0.248899999999594,
+              0.7553000000002612
+            ],
+            "compositionMs": [
+              4.9284999999999854,
+              0.22690000000011423,
+              0.16259999999965657,
+              0.1495999999997366,
+              0.5014999999998508,
+              0.21430000000009386,
+              0.22929999999996653,
+              0.13459999999986394
+            ],
+            "writeMs": [
+              0.006400000000212458,
+              0.0078000000003157766,
+              0.011999999999716238,
+              0.0027000000000043656,
+              0.005100000000311411,
+              0.0024000000003070454,
+              0.0039000000001578883,
+              0.001299999999901047,
+              0.0018999999997504347,
+              0.0014999999998508429,
+              0.0025000000000545697,
+              0.0008000000002539309,
+              0.0012000000001535227,
+              0.0005999999998493877,
+              0.001299999999901047,
+              0.000600000000304135,
+              0.0018000000000029104,
+              0.000699999999596912,
+              0.0004999999996471161
+            ]
+          },
+          "checkpoints": [
+            {
+              "name": "isolated",
+              "text": "a",
+              "actions": [],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            },
+            {
+              "name": "rapid",
+              "text": "abcé",
+              "actions": [],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            },
+            {
+              "name": "edit-submit",
+              "text": "",
+              "actions": [
+                "submit:abé"
+              ],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            }
+          ]
+        },
+        {
+          "producer": "pinned-pi",
+          "variant": "candidate",
+          "structure": {
+            "receivedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "appliedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "presentedRevisions": [
+              1,
+              1,
+              2,
+              2,
+              3,
+              3,
+              4,
+              4,
+              5,
+              5,
+              6,
+              6,
+              7,
+              7,
+              7
+            ],
+            "inputDrivenFrames": 7,
+            "staleFrames": 0,
+            "finalBacklog": 0,
+            "maximumDeliveryBacklog": 0,
+            "maximumPendingPresentations": 0,
+            "dockOnlyFrames": 0,
+            "stableTranscriptBlockRenders": 0,
+            "terminalWrites": 14,
+            "terminalBytes": 885,
+            "fullscreenClears": 0
+          },
+          "diagnostics": {
+            "firstStateInputToWriteMs": 2.626800000000003,
+            "finalStateInputToWriteMs": 0.2806000000000495,
+            "semanticMs": [
+              0.8564000000001215,
+              0.12660000000005311,
+              0.0838000000003376,
+              0.1008999999999105,
+              0.3605999999999767,
+              0.21169999999983702,
+              0.10740000000032524
+            ],
+            "compositionMs": [
+              0.29719999999997526,
+              0.04030000000011569,
+              0.03129999999964639,
+              0.015199999999822467,
+              0.5178999999998268,
+              0.049099999999725696,
+              0.055600000000140426,
+              0.024400000000241562
+            ],
+            "writeMs": [
+              0.01040000000011787,
+              0.005500000000211003,
+              0.0028999999999541615,
+              0.004500000000007276,
+              0.01069999999981519,
+              0.002300000000104774,
+              0.0030999999999039574,
+              0.0019999999999527063,
+              0.0011999999996987754,
+              0.005100000000311411,
+              0.002300000000104774,
+              0.0009000000000014552,
+              0.0003999999998995918,
+              0.0007000000000516593,
+              0.0005000000001018634,
+              0.000600000000304135,
+              0.0003000000001520675,
+              0.0007000000000516593
+            ]
+          },
+          "checkpoints": [
+            {
+              "name": "isolated",
+              "text": "a",
+              "actions": [],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            },
+            {
+              "name": "rapid",
+              "text": "abcé",
+              "actions": [],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            },
+            {
+              "name": "edit-submit",
+              "text": "",
+              "actions": [
+                "submit:abé"
+              ],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "smoke-menu-stream",
+      "expectedInputRevisions": 4,
+      "semanticParity": true,
+      "producers": [
+        {
+          "producer": "bare-a1",
+          "variant": "baseline",
+          "structure": {
+            "receivedRevisions": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "appliedRevisions": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "presentedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              4,
+              4
+            ],
+            "inputDrivenFrames": 5,
+            "staleFrames": 0,
+            "finalBacklog": 0,
+            "maximumDeliveryBacklog": 0,
+            "maximumPendingPresentations": 0,
+            "dockOnlyFrames": 0,
+            "stableTranscriptBlockRenders": 0,
+            "terminalWrites": 4,
+            "terminalBytes": 3576,
+            "fullscreenClears": 0
+          },
+          "diagnostics": {
+            "firstStateInputToWriteMs": 6.1051000000002205,
+            "finalStateInputToWriteMs": 0.46849999999994907,
+            "semanticMs": [
+              1.2177000000001499,
+              0.17239999999992506,
+              0.04209999999966385,
+              0.07770000000027721
+            ],
+            "compositionMs": [
+              31.365800000000036,
+              0.6603999999997541,
+              4.222600000000057,
+              0.26450000000022555,
+              0.2383999999997286,
+              0.20220000000017535,
+              1.3807000000001608
+            ],
+            "writeMs": [
+              0.06649999999990541,
+              0.011199999999917054,
+              0.025200000000040745,
+              0.005200000000058935,
+              0.004200000000309956,
+              0.002599999999802094,
+              0.0041999999998552084,
+              0.004200000000309956,
+              0.0018000000000029104
+            ]
+          },
+          "checkpoints": [
+            {
+              "name": "stream",
+              "text": "",
+              "actions": [],
+              "selected": null,
+              "viewportCause": "geometry-change",
+              "viewportCompositions": {
+                "full": 2,
+                "dockOnly": 0
+              },
+              "transcriptBlockRenders": 0
+            },
+            {
+              "name": "navigate",
+              "text": "",
+              "actions": [],
+              "selected": null,
+              "viewportCause": "steady",
+              "viewportCompositions": {
+                "full": 5,
+                "dockOnly": 0
+              },
+              "transcriptBlockRenders": 1
+            },
+            {
+              "name": "activate",
+              "text": "",
+              "actions": [
+                "select:beta"
+              ],
+              "selected": "beta",
+              "viewportCause": "steady",
+              "viewportCompositions": {
+                "full": 6,
+                "dockOnly": 0
+              },
+              "transcriptBlockRenders": 0
+            }
+          ]
+        },
+        {
+          "producer": "bare-a1",
+          "variant": "candidate",
+          "structure": {
+            "receivedRevisions": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "appliedRevisions": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "presentedRevisions": [
+              3,
+              4,
+              4,
+              4
+            ],
+            "inputDrivenFrames": 3,
+            "staleFrames": 0,
+            "finalBacklog": 0,
+            "maximumDeliveryBacklog": 3,
+            "maximumPendingPresentations": 1,
+            "dockOnlyFrames": 0,
+            "stableTranscriptBlockRenders": 0,
+            "terminalWrites": 2,
+            "terminalBytes": 3370,
+            "fullscreenClears": 0
+          },
+          "diagnostics": {
+            "firstStateInputToWriteMs": 10.579200000000128,
+            "finalStateInputToWriteMs": 0.8176000000003114,
+            "semanticMs": [
+              1.6158999999997832,
+              0.13299999999981083,
+              0.028900000000248838,
+              0.07889999999997599
+            ],
+            "compositionMs": [
+              47.86729999999989,
+              1.4706999999998516,
+              7.023499999999785,
+              0.27789999999959036,
+              1.3006999999997788
+            ],
+            "writeMs": [
+              0.03929999999991196,
+              0.01190000000042346,
+              0.028099999999994907,
+              0.005700000000160799,
+              0.004699999999957072,
+              0.005499999999756255,
+              0.003200000000106229
+            ]
+          },
+          "checkpoints": [
+            {
+              "name": "stream",
+              "text": "",
+              "actions": [],
+              "selected": null,
+              "viewportCause": "geometry-change",
+              "viewportCompositions": {
+                "full": 2,
+                "dockOnly": 0
+              },
+              "transcriptBlockRenders": 0
+            },
+            {
+              "name": "navigate",
+              "text": "",
+              "actions": [],
+              "selected": null,
+              "viewportCause": "geometry-change",
+              "viewportCompositions": {
+                "full": 3,
+                "dockOnly": 0
+              },
+              "transcriptBlockRenders": 1
+            },
+            {
+              "name": "activate",
+              "text": "",
+              "actions": [
+                "select:beta"
+              ],
+              "selected": "beta",
+              "viewportCause": "steady",
+              "viewportCompositions": {
+                "full": 4,
+                "dockOnly": 0
+              },
+              "transcriptBlockRenders": 0
+            }
+          ]
+        },
+        {
+          "producer": "a1-pi",
+          "variant": "candidate",
+          "structure": {
+            "receivedRevisions": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "appliedRevisions": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "presentedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              4,
+              4
+            ],
+            "inputDrivenFrames": 4,
+            "staleFrames": 0,
+            "finalBacklog": 0,
+            "maximumDeliveryBacklog": 0,
+            "maximumPendingPresentations": 0,
+            "dockOnlyFrames": 0,
+            "stableTranscriptBlockRenders": 0,
+            "terminalWrites": 7,
+            "terminalBytes": 1067,
+            "fullscreenClears": 0
+          },
+          "diagnostics": {
+            "firstStateInputToWriteMs": 3.0380999999997584,
+            "finalStateInputToWriteMs": 1.584400000000187,
+            "semanticMs": [
+              0.93100000000004,
+              0.08159999999998035,
+              0.025799999999890133,
+              0.0808999999999287
+            ],
+            "compositionMs": [
+              17.487499999999727,
+              0.4533999999998741,
+              1.8385000000002947,
+              0.12720000000035725,
+              0.12259999999969295,
+              0.09979999999995925
+            ],
+            "writeMs": [
+              0.009799999999813735,
+              0.013699999999971624,
+              0.020799999999780994,
+              0.0039000000001578883,
+              0.00580000000036307,
+              0.002399999999852298,
+              0.0019999999999527063,
+              0.000699999999596912,
+              0.0005000000001018634
+            ]
+          },
+          "checkpoints": [
+            {
+              "name": "stream",
+              "text": "",
+              "actions": [],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            },
+            {
+              "name": "navigate",
+              "text": "",
+              "actions": [],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            },
+            {
+              "name": "activate",
+              "text": "",
+              "actions": [
+                "select:beta"
+              ],
+              "selected": "beta",
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            }
+          ]
+        },
+        {
+          "producer": "pinned-pi",
+          "variant": "candidate",
+          "structure": {
+            "receivedRevisions": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "appliedRevisions": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "presentedRevisions": [
+              1,
+              1,
+              2,
+              2,
+              3,
+              3,
+              4,
+              4
+            ],
+            "inputDrivenFrames": 4,
+            "staleFrames": 0,
+            "finalBacklog": 0,
+            "maximumDeliveryBacklog": 0,
+            "maximumPendingPresentations": 0,
+            "dockOnlyFrames": 0,
+            "stableTranscriptBlockRenders": 0,
+            "terminalWrites": 7,
+            "terminalBytes": 363,
+            "fullscreenClears": 0
+          },
+          "diagnostics": {
+            "firstStateInputToWriteMs": 2.679099999999835,
+            "finalStateInputToWriteMs": 0.3101999999998952,
+            "semanticMs": [
+              0.26390000000037617,
+              0.012299999999868305,
+              0.0045999999997548,
+              0.203899999999976
+            ],
+            "compositionMs": [
+              1.6527000000000953,
+              0.048500000000331056,
+              0.04059999999981301,
+              0.015899999999874126,
+              0.03929999999991196
+            ],
+            "writeMs": [
+              0.01209999999991851,
+              0.004799999999704596,
+              0.003400000000056025,
+              0.0037000000002080924,
+              0.010299999999915599,
+              0.0020999999997002305,
+              0.001099999999951251,
+              0.0014000000001033186,
+              0.001099999999951251,
+              0.0039000000001578883,
+              0.0020999999997002305
+            ]
+          },
+          "checkpoints": [
+            {
+              "name": "stream",
+              "text": "",
+              "actions": [],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            },
+            {
+              "name": "navigate",
+              "text": "",
+              "actions": [],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            },
+            {
+              "name": "activate",
+              "text": "",
+              "actions": [
+                "select:beta"
+              ],
+              "selected": "beta",
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "full-empty-transcript",
+      "expectedInputRevisions": 6,
+      "semanticParity": true,
+      "producers": [
+        {
+          "producer": "bare-a1",
+          "variant": "baseline",
+          "structure": {
+            "receivedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "appliedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "presentedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              6,
+              6
+            ],
+            "inputDrivenFrames": 7,
+            "staleFrames": 0,
+            "finalBacklog": 0,
+            "maximumDeliveryBacklog": 0,
+            "maximumPendingPresentations": 0,
+            "dockOnlyFrames": 0,
+            "stableTranscriptBlockRenders": 0,
+            "terminalWrites": 6,
+            "terminalBytes": 721,
+            "fullscreenClears": 0
+          },
+          "diagnostics": {
+            "firstStateInputToWriteMs": 4.843699999999899,
+            "finalStateInputToWriteMs": 1.5594999999998436,
+            "semanticMs": [
+              3.9226000000003296,
+              0.29739999999992506,
+              0.4411000000000058,
+              0.6820999999999913,
+              0.816899999999805,
+              0.16190000000005966
+            ],
+            "compositionMs": [
+              4.7215000000001055,
+              0.3380000000001928,
+              0.2638000000001739,
+              0.24699999999984357,
+              0.9479000000001179,
+              0.5500999999999294,
+              0.7743000000000393,
+              0.21309999999994034
+            ],
+            "writeMs": [
+              0.03470000000015716,
+              0.010099999999965803,
+              0.011500000000069122,
+              0.0027000000000043656,
+              0.0039999999999054126,
+              0.003000000000156433,
+              0.004899999999906868,
+              0.006699999999909778,
+              0.002199999999902502,
+              0.0017000000002553861
+            ]
+          },
+          "checkpoints": [
+            {
+              "name": "rapid",
+              "text": "long",
+              "actions": [],
+              "selected": null,
+              "viewportCause": "steady",
+              "viewportCompositions": {
+                "full": 5,
+                "dockOnly": 0
+              },
+              "transcriptBlockRenders": 0
+            },
+            {
+              "name": "barriers",
+              "text": "longpaste",
+              "actions": [],
+              "selected": null,
+              "viewportCause": "steady",
+              "viewportCompositions": {
+                "full": 7,
+                "dockOnly": 0
+              },
+              "transcriptBlockRenders": 0
+            }
+          ]
+        },
+        {
+          "producer": "bare-a1",
+          "variant": "candidate",
+          "structure": {
+            "receivedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "appliedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "presentedRevisions": [
+              4,
+              5,
+              6,
+              6,
+              6
+            ],
+            "inputDrivenFrames": 4,
+            "staleFrames": 0,
+            "finalBacklog": 0,
+            "maximumDeliveryBacklog": 4,
+            "maximumPendingPresentations": 1,
+            "dockOnlyFrames": 1,
+            "stableTranscriptBlockRenders": 0,
+            "terminalWrites": 3,
+            "terminalBytes": 307,
+            "fullscreenClears": 0
+          },
+          "diagnostics": {
+            "firstStateInputToWriteMs": 3.722400000000107,
+            "finalStateInputToWriteMs": 1.2728000000001884,
+            "semanticMs": [
+              2.280699999999797,
+              0.29140000000006694,
+              0.13450000000011642,
+              0.10709999999971842,
+              0.7701000000001841,
+              0.21359999999958745
+            ],
+            "compositionMs": [
+              4.426899999999932,
+              0.35829999999987194,
+              0.3000000000001819,
+              0.24099999999998545,
+              0.2494000000001506
+            ],
+            "writeMs": [
+              0.039099999999962165,
+              0.011199999999917054,
+              0.011500000000069122,
+              0.003400000000056025,
+              0.003699999999753345,
+              0.005200000000058935,
+              0.003200000000106229
+            ]
+          },
+          "checkpoints": [
+            {
+              "name": "rapid",
+              "text": "long",
+              "actions": [],
+              "selected": null,
+              "viewportCause": "dock-input",
+              "viewportCompositions": {
+                "full": 1,
+                "dockOnly": 1
+              },
+              "transcriptBlockRenders": 0
+            },
+            {
+              "name": "barriers",
+              "text": "longpaste",
+              "actions": [],
+              "selected": null,
+              "viewportCause": "steady",
+              "viewportCompositions": {
+                "full": 3,
+                "dockOnly": 1
+              },
+              "transcriptBlockRenders": 0
+            }
+          ]
+        },
+        {
+          "producer": "a1-pi",
+          "variant": "candidate",
+          "structure": {
+            "receivedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "appliedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "presentedRevisions": [
+              1,
+              1,
+              2,
+              2,
+              3,
+              3,
+              4,
+              4,
+              5,
+              5,
+              6,
+              6,
+              6,
+              6
+            ],
+            "inputDrivenFrames": 6,
+            "staleFrames": 0,
+            "finalBacklog": 0,
+            "maximumDeliveryBacklog": 0,
+            "maximumPendingPresentations": 0,
+            "dockOnlyFrames": 0,
+            "stableTranscriptBlockRenders": 0,
+            "terminalWrites": 17,
+            "terminalBytes": 657,
+            "fullscreenClears": 0
+          },
+          "diagnostics": {
+            "firstStateInputToWriteMs": 2.1502000000000407,
+            "finalStateInputToWriteMs": 0.5176000000001295,
+            "semanticMs": [
+              1.6147000000000844,
+              0.21680000000014843,
+              0.09499999999979991,
+              0.08150000000023283,
+              0.253400000000056,
+              0.08980000000019572
+            ],
+            "compositionMs": [
+              4.845800000000054,
+              0.19460000000026412,
+              0.16570000000001528,
+              0.14869999999973516,
+              0.2011000000002241,
+              0.15890000000035798,
+              0.09729999999990468
+            ],
+            "writeMs": [
+              0.007000000000061846,
+              0.008400000000165164,
+              0.010300000000370346,
+              0.0026000000002568413,
+              0.0037000000002080924,
+              0.002300000000104774,
+              0.002199999999902502,
+              0.0007000000000516593,
+              0.0014000000001033186,
+              0.001099999999951251,
+              0.001099999999951251,
+              0.000699999999596912,
+              0.0009000000000014552,
+              0.001299999999901047,
+              0.00040000000035433914,
+              0.0005000000001018634
+            ]
+          },
+          "checkpoints": [
+            {
+              "name": "rapid",
+              "text": "long",
+              "actions": [],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            },
+            {
+              "name": "barriers",
+              "text": "longpaste",
+              "actions": [],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            }
+          ]
+        },
+        {
+          "producer": "pinned-pi",
+          "variant": "candidate",
+          "structure": {
+            "receivedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "appliedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "presentedRevisions": [
+              1,
+              1,
+              2,
+              2,
+              3,
+              3,
+              4,
+              4,
+              5,
+              5,
+              6,
+              6
+            ],
+            "inputDrivenFrames": 6,
+            "staleFrames": 0,
+            "finalBacklog": 0,
+            "maximumDeliveryBacklog": 0,
+            "maximumPendingPresentations": 0,
+            "dockOnlyFrames": 0,
+            "stableTranscriptBlockRenders": 0,
+            "terminalWrites": 11,
+            "terminalBytes": 635,
+            "fullscreenClears": 0
+          },
+          "diagnostics": {
+            "firstStateInputToWriteMs": 4.050300000000334,
+            "finalStateInputToWriteMs": 0.37960000000020955,
+            "semanticMs": [
+              1.9377999999996973,
+              0.1366000000002714,
+              0.0818000000003849,
+              0.06399999999985084,
+              0.2235000000000582,
+              0.060899999999946886
+            ],
+            "compositionMs": [
+              0.29830000000038126,
+              0.04309999999986758,
+              0.032000000000152795,
+              0.015100000000074942,
+              0.014200000000073487,
+              0.028700000000299042,
+              0.05249999999978172
+            ],
+            "writeMs": [
+              0.011700000000018917,
+              0.005500000000211003,
+              0.0027000000000043656,
+              0.004200000000309956,
+              0.010999999999967258,
+              0.002300000000104774,
+              0.001099999999951251,
+              0.0016999999998006388,
+              0.001099999999951251,
+              0.003699999999753345,
+              0.0016999999998006388,
+              0.000600000000304135,
+              0.00029999999969732016,
+              0.0005000000001018634,
+              0.0005000000001018634
+            ]
+          },
+          "checkpoints": [
+            {
+              "name": "rapid",
+              "text": "long",
+              "actions": [],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            },
+            {
+              "name": "barriers",
+              "text": "longpaste",
+              "actions": [],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "full-long-transcript",
+      "expectedInputRevisions": 6,
+      "semanticParity": true,
+      "producers": [
+        {
+          "producer": "bare-a1",
+          "variant": "baseline",
+          "structure": {
+            "receivedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "appliedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "presentedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              6,
+              6
+            ],
+            "inputDrivenFrames": 7,
+            "staleFrames": 0,
+            "finalBacklog": 0,
+            "maximumDeliveryBacklog": 0,
+            "maximumPendingPresentations": 0,
+            "dockOnlyFrames": 0,
+            "stableTranscriptBlockRenders": 0,
+            "terminalWrites": 6,
+            "terminalBytes": 721,
+            "fullscreenClears": 0
+          },
+          "diagnostics": {
+            "firstStateInputToWriteMs": 4.614500000000135,
+            "finalStateInputToWriteMs": 1.8864999999996144,
+            "semanticMs": [
+              3.262699999999768,
+              0.3021000000003369,
+              0.1710000000002765,
+              0.1471999999998843,
+              1.335700000000088,
+              0.17970000000013897
+            ],
+            "compositionMs": [
+              100.09580000000005,
+              0.4331999999999425,
+              0.3340000000002874,
+              0.8348999999998341,
+              0.342200000000048,
+              0.38120000000026266,
+              0.8862999999996646,
+              33.90169999999989
+            ],
+            "writeMs": [
+              0.036200000000008004,
+              0.01209999999991851,
+              0.43420000000014625,
+              0.0032999999998537533,
+              0.004899999999906868,
+              0.003000000000156433,
+              0.004299999999602733,
+              0.007100000000264117,
+              0.002800000000206637,
+              0.0031999999996514816
+            ]
+          },
+          "checkpoints": [
+            {
+              "name": "rapid",
+              "text": "long",
+              "actions": [],
+              "selected": null,
+              "viewportCause": "steady",
+              "viewportCompositions": {
+                "full": 5,
+                "dockOnly": 0
+              },
+              "transcriptBlockRenders": 0
+            },
+            {
+              "name": "barriers",
+              "text": "longpaste",
+              "actions": [],
+              "selected": null,
+              "viewportCause": "steady",
+              "viewportCompositions": {
+                "full": 7,
+                "dockOnly": 0
+              },
+              "transcriptBlockRenders": 0
+            }
+          ]
+        },
+        {
+          "producer": "bare-a1",
+          "variant": "candidate",
+          "structure": {
+            "receivedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "appliedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "presentedRevisions": [
+              4,
+              5,
+              6,
+              6,
+              6
+            ],
+            "inputDrivenFrames": 4,
+            "staleFrames": 0,
+            "finalBacklog": 0,
+            "maximumDeliveryBacklog": 4,
+            "maximumPendingPresentations": 1,
+            "dockOnlyFrames": 1,
+            "stableTranscriptBlockRenders": 0,
+            "terminalWrites": 4,
+            "terminalBytes": 336,
+            "fullscreenClears": 0
+          },
+          "diagnostics": {
+            "firstStateInputToWriteMs": 10.063799999999901,
+            "finalStateInputToWriteMs": 1.264100000000326,
+            "semanticMs": [
+              4.333600000000388,
+              0.3087999999997919,
+              0.13439999999991414,
+              0.10410000000001673,
+              0.736699999999928,
+              0.17830000000003565
+            ],
+            "compositionMs": [
+              96.72490000000016,
+              0.6542999999996937,
+              0.9639000000001943,
+              0.31819999999970605,
+              0.2746999999999389,
+              22.295399999999972
+            ],
+            "writeMs": [
+              0.03890000000001237,
+              0.016700000000128057,
+              0.01859999999987849,
+              0.004099999999652937,
+              0.0048000000001593435,
+              0.0033000000003085006,
+              0.012299999999868305,
+              0.0025000000000545697
+            ]
+          },
+          "checkpoints": [
+            {
+              "name": "rapid",
+              "text": "long",
+              "actions": [],
+              "selected": null,
+              "viewportCause": "dock-input",
+              "viewportCompositions": {
+                "full": 2,
+                "dockOnly": 1
+              },
+              "transcriptBlockRenders": 0
+            },
+            {
+              "name": "barriers",
+              "text": "longpaste",
+              "actions": [],
+              "selected": null,
+              "viewportCause": "steady",
+              "viewportCompositions": {
+                "full": 4,
+                "dockOnly": 1
+              },
+              "transcriptBlockRenders": 0
+            }
+          ]
+        },
+        {
+          "producer": "a1-pi",
+          "variant": "candidate",
+          "structure": {
+            "receivedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "appliedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "presentedRevisions": [
+              1,
+              1,
+              2,
+              2,
+              3,
+              3,
+              4,
+              4,
+              5,
+              5,
+              6,
+              6,
+              6,
+              6
+            ],
+            "inputDrivenFrames": 6,
+            "staleFrames": 0,
+            "finalBacklog": 0,
+            "maximumDeliveryBacklog": 0,
+            "maximumPendingPresentations": 0,
+            "dockOnlyFrames": 0,
+            "stableTranscriptBlockRenders": 0,
+            "terminalWrites": 17,
+            "terminalBytes": 657,
+            "fullscreenClears": 0
+          },
+          "diagnostics": {
+            "firstStateInputToWriteMs": 5.091399999999794,
+            "finalStateInputToWriteMs": 1.305199999999786,
+            "semanticMs": [
+              3.526600000000144,
+              0.5895999999997912,
+              0.1048000000000684,
+              0.09769999999980428,
+              0.260899999999765,
+              0.08829999999989013
+            ],
+            "compositionMs": [
+              80.6541000000002,
+              0.25090000000000146,
+              0.4303999999997359,
+              0.44590000000016516,
+              0.1856999999999971,
+              0.7356999999997242,
+              0.12170000000014625
+            ],
+            "writeMs": [
+              0.0079000000000633,
+              0.009199999999964348,
+              0.02099999999973079,
+              0.002599999999802094,
+              0.005799999999908323,
+              0.002100000000154978,
+              0.003400000000056025,
+              0.0007000000000516593,
+              0.001299999999901047,
+              0.001299999999901047,
+              0.0013999999996485712,
+              0.0005999999998493877,
+              0.001099999999951251,
+              0.0022000000003572495,
+              0.0005000000001018634,
+              0.00040000000035433914
+            ]
+          },
+          "checkpoints": [
+            {
+              "name": "rapid",
+              "text": "long",
+              "actions": [],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            },
+            {
+              "name": "barriers",
+              "text": "longpaste",
+              "actions": [],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            }
+          ]
+        },
+        {
+          "producer": "pinned-pi",
+          "variant": "candidate",
+          "structure": {
+            "receivedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "appliedRevisions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "presentedRevisions": [
+              1,
+              1,
+              2,
+              2,
+              3,
+              3,
+              4,
+              4,
+              5,
+              5,
+              6,
+              6
+            ],
+            "inputDrivenFrames": 6,
+            "staleFrames": 0,
+            "finalBacklog": 0,
+            "maximumDeliveryBacklog": 0,
+            "maximumPendingPresentations": 0,
+            "dockOnlyFrames": 0,
+            "stableTranscriptBlockRenders": 0,
+            "terminalWrites": 11,
+            "terminalBytes": 635,
+            "fullscreenClears": 0
+          },
+          "diagnostics": {
+            "firstStateInputToWriteMs": 4.266399999999976,
+            "finalStateInputToWriteMs": 0.7060999999998785,
+            "semanticMs": [
+              1.1403000000000247,
+              0.1578999999996995,
+              0.09349999999994907,
+              0.12249999999994543,
+              0.2844999999997526,
+              0.06980000000021391
+            ],
+            "compositionMs": [
+              0.8650000000002365,
+              0.04179999999996653,
+              0.034500000000207365,
+              0.02099999999973079,
+              0.01989999999977954,
+              0.030099999999947613,
+              0.037400000000161526
+            ],
+            "writeMs": [
+              0.010499999999865395,
+              0.0048000000001593435,
+              0.00279999999975189,
+              0.00430000000005748,
+              0.022399999999834108,
+              0.0022999999996500264,
+              0.001299999999901047,
+              0.0022000000003572495,
+              0.0012000000001535227,
+              0.004500000000007276,
+              0.0029999999997016857,
+              0.0010000000002037268,
+              0.00029999999969732016,
+              0.0004999999996471161,
+              0.0005999999998493877
+            ]
+          },
+          "checkpoints": [
+            {
+              "name": "rapid",
+              "text": "long",
+              "actions": [],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            },
+            {
+              "name": "barriers",
+              "text": "longpaste",
+              "actions": [],
+              "selected": null,
+              "viewportCause": null,
+              "viewportCompositions": null,
+              "transcriptBlockRenders": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

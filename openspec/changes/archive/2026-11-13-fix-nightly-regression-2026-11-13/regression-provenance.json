@@ -1,0 +1,22 @@
+{
+  "schema": "a1-regression-triage-provenance-v1",
+  "candidate": {
+    "branch": "fix/nightly-regression-2026-11-13",
+    "change": "fix-nightly-regression-2026-11-13"
+  },
+  "sources": [
+    {
+      "workflowName": "Full regression",
+      "workflowFile": "full-regression.yml",
+      "runId": 43360249051,
+      "runNumber": 92,
+      "attempt": 1,
+      "event": "schedule",
+      "conclusion": "failure",
+      "headBranch": "develop",
+      "headSha": "41ab0cfa23a7793ed80bec89aff54c804d8973ec",
+      "url": "https://github.com/timurproko/a1/actions/runs/43360249051",
+      "createdAt": "2026-11-13T03:37:52Z"
+    }
+  ]
+}

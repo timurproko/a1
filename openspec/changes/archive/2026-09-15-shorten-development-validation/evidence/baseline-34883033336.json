@@ -1,0 +1,524 @@
+{
+  "schema": "development-validation-baseline-v1",
+  "runId": 34883033336,
+  "head": "47d2adbe26e7d13ad1b98ecafccedcc92209d75e",
+  "url": "https://github.com/timurproko/a1/actions/runs/34883033336",
+  "event": "workflow_dispatch",
+  "conclusion": "failure",
+  "interpretation": "Pre-optimization measurement with an unresolved failure, not a successful aggregate or a speedup claim. Phase diagnostics and public launch latency are separate clocks.",
+  "jobs": [
+    {
+      "name": "Detect change surface",
+      "conclusion": "success",
+      "startedAt": "2026-09-14T18:48:19Z",
+      "completedAt": "2026-09-14T18:48:32Z",
+      "durationSeconds": 13,
+      "url": "https://github.com/timurproko/a1/actions/runs/34883033336/job/104106732066"
+    },
+    {
+      "name": "Fast validation",
+      "conclusion": "failure",
+      "startedAt": "2026-09-14T18:48:38Z",
+      "completedAt": "2026-09-14T18:59:31Z",
+      "durationSeconds": 653,
+      "url": "https://github.com/timurproko/a1/actions/runs/34883033336/job/104106821859"
+    },
+    {
+      "name": "Rendering validation",
+      "conclusion": "success",
+      "startedAt": "2026-09-14T18:48:36Z",
+      "completedAt": "2026-09-14T18:53:42Z",
+      "durationSeconds": 306,
+      "url": "https://github.com/timurproko/a1/actions/runs/34883033336/job/104106821884"
+    },
+    {
+      "name": "Changed-file documentation validation",
+      "conclusion": "success",
+      "startedAt": "2026-09-14T18:48:37Z",
+      "completedAt": "2026-09-14T18:49:05Z",
+      "durationSeconds": 28,
+      "url": "https://github.com/timurproko/a1/actions/runs/34883033336/job/104106821886"
+    },
+    {
+      "name": "Process containment (macos-15)",
+      "conclusion": "success",
+      "startedAt": "2026-09-14T18:48:42Z",
+      "completedAt": "2026-09-14T18:50:58Z",
+      "durationSeconds": 136,
+      "url": "https://github.com/timurproko/a1/actions/runs/34883033336/job/104106821941"
+    },
+    {
+      "name": "Startup budget (windows-node22)",
+      "conclusion": "success",
+      "startedAt": "2026-09-14T18:48:37Z",
+      "completedAt": "2026-09-14T18:54:30Z",
+      "durationSeconds": 353,
+      "url": "https://github.com/timurproko/a1/actions/runs/34883033336/job/104106821962"
+    },
+    {
+      "name": "Internal naming validation",
+      "conclusion": "success",
+      "startedAt": "2026-09-14T18:48:36Z",
+      "completedAt": "2026-09-14T18:48:59Z",
+      "durationSeconds": 23,
+      "url": "https://github.com/timurproko/a1/actions/runs/34883033336/job/104106821971"
+    },
+    {
+      "name": "Process containment (ubuntu-24.04)",
+      "conclusion": "success",
+      "startedAt": "2026-09-14T18:48:36Z",
+      "completedAt": "2026-09-14T18:50:34Z",
+      "durationSeconds": 118,
+      "url": "https://github.com/timurproko/a1/actions/runs/34883033336/job/104106821985"
+    },
+    {
+      "name": "Documentation governance validation",
+      "conclusion": "skipped",
+      "startedAt": "2026-09-14T18:48:33Z",
+      "completedAt": "2026-09-14T18:48:32Z",
+      "durationSeconds": 0,
+      "url": "https://github.com/timurproko/a1/actions/runs/34883033336/job/104106823599"
+    },
+    {
+      "name": "Development validation required",
+      "conclusion": "failure",
+      "startedAt": "2026-09-14T18:59:34Z",
+      "completedAt": "2026-09-14T18:59:39Z",
+      "durationSeconds": 5,
+      "url": "https://github.com/timurproko/a1/actions/runs/34883033336/job/104110497146"
+    }
+  ],
+  "windowsSetup": {
+    "image": "windows-2025-vs2026",
+    "imageVersion": "20260907.229.1",
+    "npmDownloadCache": "hit",
+    "cacheKey": "node-cache-Windows-x64-npm-e234e3f90de50bf199e0f0d5b83f0b73488f6f9dc29fe5d8ce82773279d48484",
+    "source": "GitHub setup-node and runner-image logs from jobs 104106821859 and 104106821962",
+    "fixtureInstallCacheEffect": "not independently measured"
+  },
+  "gates": {
+    "ordinary/outcomes.json": {
+      "passed": true,
+      "durationMs": 354985,
+      "outcomes": [
+        {
+          "id": "candidate-build",
+          "exitCode": 0,
+          "durationMs": 15612
+        },
+        {
+          "id": "typecheck",
+          "exitCode": 0,
+          "durationMs": 3528
+        },
+        {
+          "id": "architecture",
+          "exitCode": 0,
+          "durationMs": 2035
+        },
+        {
+          "id": "vitest-fast",
+          "exitCode": 0,
+          "durationMs": 241046
+        },
+        {
+          "id": "vitest-fast-resource-sensitive",
+          "exitCode": 0,
+          "durationMs": 78263
+        },
+        {
+          "id": "vitest-explicit",
+          "exitCode": 0,
+          "durationMs": 14500
+        }
+      ]
+    },
+    "ordinary/resume-integration.json": {
+      "passed": false,
+      "durationMs": 196787,
+      "outcomes": [
+        {
+          "id": "candidate-build",
+          "exitCode": 0,
+          "durationMs": 0,
+          "skipped": "existing-explicit-build"
+        },
+        {
+          "id": "candidate-pack",
+          "exitCode": 0,
+          "durationMs": 2251
+        },
+        {
+          "id": "candidate-engine-conformance-report",
+          "exitCode": 0,
+          "durationMs": 1304
+        },
+        {
+          "id": "vitest-explicit",
+          "exitCode": 0,
+          "durationMs": 96690
+        },
+        {
+          "id": "vitest-isolated-timing",
+          "exitCode": 1,
+          "durationMs": 96539
+        }
+      ]
+    },
+    "startup/startup-node22.json": {
+      "passed": true,
+      "durationMs": 235330,
+      "outcomes": [
+        {
+          "id": "candidate-build",
+          "exitCode": 0,
+          "durationMs": 0,
+          "skipped": "existing-explicit-build"
+        },
+        {
+          "id": "candidate-pack",
+          "exitCode": 0,
+          "durationMs": 19749
+        },
+        {
+          "id": "vitest-package-install",
+          "exitCode": 0,
+          "durationMs": 215577
+        }
+      ]
+    }
+  },
+  "phases": [
+    {
+      "lane": "ordinary",
+      "fixture": "candidate-package",
+      "nodeVersion": "v24.20.0",
+      "candidateSha256": "37611ffe460b55bc376454f482ef7ae7f1cd6c925fa69c17a6b5ca925a030d18",
+      "outcomes": [
+        {
+          "phase": "npm-pack",
+          "status": "passed",
+          "durationMs": 1949
+        },
+        {
+          "phase": "native-mode-repair",
+          "status": "passed",
+          "durationMs": 184
+        },
+        {
+          "phase": "write-exact-candidate",
+          "status": "passed",
+          "durationMs": 2
+        }
+      ]
+    },
+    {
+      "lane": "startup",
+      "fixture": "candidate-package",
+      "nodeVersion": "v22.23.2",
+      "candidateSha256": "0d52d5fd3ee06e708c3780bab52d7b1a1def8cb48efd0eedb8ba1912c5b40f3a",
+      "outcomes": [
+        {
+          "phase": "npm-pack",
+          "status": "passed",
+          "durationMs": 19415
+        },
+        {
+          "phase": "native-mode-repair",
+          "status": "passed",
+          "durationMs": 198
+        },
+        {
+          "phase": "write-exact-candidate",
+          "status": "passed",
+          "durationMs": 2
+        }
+      ]
+    },
+    {
+      "lane": "startup",
+      "fixture": "package-install",
+      "nodeVersion": "v22.23.2",
+      "candidateSha256": "0d52d5fd3ee06e708c3780bab52d7b1a1def8cb48efd0eedb8ba1912c5b40f3a",
+      "outcomes": [
+        {
+          "phase": "load-candidate",
+          "status": "passed",
+          "durationMs": 61
+        },
+        {
+          "phase": "clean-global-install",
+          "status": "passed",
+          "durationMs": 118032
+        },
+        {
+          "phase": "proxy-synchronization",
+          "status": "passed",
+          "durationMs": 89
+        },
+        {
+          "phase": "layer-materialization",
+          "status": "passed",
+          "durationMs": 13404
+        },
+        {
+          "phase": "layer-reuse",
+          "status": "passed",
+          "durationMs": 6530
+        },
+        {
+          "phase": "backlog-setup",
+          "status": "passed",
+          "durationMs": 6640
+        },
+        {
+          "phase": "backlog-before-inventory",
+          "status": "passed",
+          "durationMs": 497
+        },
+        {
+          "phase": "backlog-worker",
+          "status": "passed",
+          "durationMs": 4438
+        },
+        {
+          "phase": "backlog-after-inventory",
+          "status": "passed",
+          "durationMs": 37
+        },
+        {
+          "phase": "defender-prerequisite",
+          "status": "passed",
+          "durationMs": 1312
+        },
+        {
+          "phase": "startup-materialization",
+          "status": "passed",
+          "durationMs": 12174
+        },
+        {
+          "phase": "startup-record-candidate",
+          "status": "passed",
+          "durationMs": 37
+        },
+        {
+          "phase": "startup-certification",
+          "status": "passed",
+          "durationMs": 39
+        },
+        {
+          "phase": "startup-activation",
+          "status": "passed",
+          "durationMs": 18
+        },
+        {
+          "phase": "startup-declared-warmup",
+          "status": "passed",
+          "durationMs": 8379
+        },
+        {
+          "phase": "startup-supervisor-spawn",
+          "status": "passed",
+          "durationMs": 10
+        },
+        {
+          "phase": "startup-supervisor-ready",
+          "status": "passed",
+          "durationMs": 392
+        },
+        {
+          "phase": "launch-observation-a1-post-update",
+          "status": "passed",
+          "durationMs": 3107
+        },
+        {
+          "phase": "launch-exit-a1-post-update",
+          "status": "passed",
+          "durationMs": 864
+        },
+        {
+          "phase": "supervisor-stop-a1",
+          "status": "passed",
+          "durationMs": 4706
+        },
+        {
+          "phase": "launch-observation-a1-no-live-supervisor",
+          "status": "passed",
+          "durationMs": 2810
+        },
+        {
+          "phase": "launch-exit-a1-no-live-supervisor",
+          "status": "passed",
+          "durationMs": 175
+        },
+        {
+          "phase": "launch-observation-a1-warm",
+          "status": "passed",
+          "durationMs": 2622
+        },
+        {
+          "phase": "launch-exit-a1-warm",
+          "status": "passed",
+          "durationMs": 207
+        },
+        {
+          "phase": "launch-observation-pi-post-update",
+          "status": "passed",
+          "durationMs": 2482
+        },
+        {
+          "phase": "launch-exit-pi-post-update",
+          "status": "passed",
+          "durationMs": 165
+        },
+        {
+          "phase": "supervisor-stop-pi",
+          "status": "passed",
+          "durationMs": 4670
+        },
+        {
+          "phase": "launch-observation-pi-no-live-supervisor",
+          "status": "passed",
+          "durationMs": 2808
+        },
+        {
+          "phase": "launch-exit-pi-no-live-supervisor",
+          "status": "passed",
+          "durationMs": 164
+        },
+        {
+          "phase": "launch-observation-pi-warm",
+          "status": "passed",
+          "durationMs": 2584
+        },
+        {
+          "phase": "launch-exit-pi-warm",
+          "status": "passed",
+          "durationMs": 170
+        },
+        {
+          "phase": "supervisor-final-stop",
+          "status": "passed",
+          "durationMs": 4657
+        },
+        {
+          "phase": "fixture-cleanup",
+          "status": "deferred",
+          "durationMs": 6478
+        }
+      ]
+    }
+  ],
+  "startup": {
+    "nodeVersion": "v22.23.2",
+    "automaticRetries": 0,
+    "measurements": [
+      {
+        "profileId": "a1",
+        "launchKind": "post-update",
+        "elapsedMs": 2960.63330078125
+      },
+      {
+        "profileId": "a1",
+        "launchKind": "no-live-supervisor",
+        "elapsedMs": 2743.771484375
+      },
+      {
+        "profileId": "a1",
+        "launchKind": "warm",
+        "elapsedMs": 2506.469970703125
+      },
+      {
+        "profileId": "pi",
+        "launchKind": "post-update",
+        "elapsedMs": 2386.8779296875
+      },
+      {
+        "profileId": "pi",
+        "launchKind": "no-live-supervisor",
+        "elapsedMs": 2737.7236328125
+      },
+      {
+        "profileId": "pi",
+        "launchKind": "warm",
+        "elapsedMs": 2487.06689453125
+      }
+    ]
+  },
+  "failure": {
+    "file": "test/foundation/release/session-resume.integration.test.ts",
+    "scenario": "creates, exits, and executes the default-store hint (compacted: false)",
+    "message": "Packaged launch not ready: ",
+    "waitLimitMs": 30000,
+    "scenarioDurationMs": 54662,
+    "failedAt": "first.ready(saved.marker)",
+    "traceRetained": false,
+    "rootCause": "unconfirmed"
+  },
+  "downloadedPhaseFiles": [
+    {
+      "path": "ordinary/phases/candidate-package-ab28801d-2fee-4f25-b84f-5789d9219a39.jsonl",
+      "sha256": "e7bdb31fb563b06f2684631f0033fc2105382cc241c500c3bf1562bf311cc52b"
+    },
+    {
+      "path": "startup/phases/candidate-package-6c67273d-20db-4845-b0a0-267ed1569c14.jsonl",
+      "sha256": "8c6e46029a77d1515567ce0f4f872266da9b9cf4e958d8bf6fb6dcd803eff096"
+    },
+    {
+      "path": "startup/phases/package-install-0ee88a42-65c3-4029-891f-f9c420788713.jsonl",
+      "sha256": "5980beee5d4548584e9bfd4122c8cbdec73665f08ccb32a22c3f7a10d8cd1365"
+    }
+  ],
+  "selection": {
+    "base": "d5d7c1b100158e9d0efdb44f0490ced2ee4ea266",
+    "head": "47d2adbe26e7d13ad1b98ecafccedcc92209d75e",
+    "ordinaryScopes": [
+      "typecheck",
+      "architecture",
+      "fast",
+      "dist-integration"
+    ],
+    "rendering": {
+      "tier": "full",
+      "reasons": [
+        "full-critical:.github/workflows/ci.yml",
+        "full-critical:.github/workflows/full-regression.yml"
+      ],
+      "fallbacks": [],
+      "changedPaths": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/full-regression.yml",
+        "config/product-identity-legacy-allowlist.json",
+        "config/product-identity-legacy-inventory.json",
+        "openspec/changes/archive/2026-09-14-defer-node24-startup-to-nightly/.openspec.yaml",
+        "openspec/changes/shorten-development-validation/.openspec.yaml",
+        "openspec/changes/shorten-development-validation/design.md",
+        "openspec/changes/shorten-development-validation/evidence/ownership-baseline.json",
+        "openspec/changes/shorten-development-validation/implementation-evidence.md",
+        "openspec/changes/shorten-development-validation/proposal.md",
+        "openspec/changes/shorten-development-validation/specs/continuous-integration/spec.md",
+        "openspec/changes/shorten-development-validation/specs/isolated-regression-testing/spec.md",
+        "openspec/changes/shorten-development-validation/tasks.md",
+        "scripts/release/prepare-validation-package.mjs",
+        "scripts/release/validation-phase.d.mts",
+        "scripts/release/validation-phase.mjs",
+        "test/foundation/release/package-install.integration.test.ts",
+        "test/repository-governance/impact-aware-validation-workflows.test.ts",
+        "test/repository-governance/validation-phase.test.ts"
+      ]
+    },
+    "documentation": {
+      "required": true,
+      "paths": [
+        "scripts/release/prepare-validation-package.mjs",
+        "scripts/release/validation-phase.d.mts",
+        "scripts/release/validation-phase.mjs",
+        "test/foundation/release/package-install.integration.test.ts",
+        "test/repository-governance/impact-aware-validation-workflows.test.ts",
+        "test/repository-governance/validation-phase.test.ts"
+      ]
+    },
+    "namingMode": "full",
+    "classifierMs": 270
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schema": "pi-api-boundary-final-acceptance-v1",
+  "acceptedAt": "2026-08-20T17:03:50.193Z",
+  "sourceCommit": "09c61337378cada3f399ce3eddf81ab66f77a821",
+  "change": "harden-pi-api-boundary",
+  "verdict": "accepted",
+  "strictValidation": "passed",
+  "architecture": "passed",
+  "typecheck": "passed",
+  "terminalParity": "passed-with-reviewed-deviations",
+  "manualCandidate": "ready-manual-execution-pending",
+  "workspacePrerequisite": {
+    "change": "evolve-bare-a1-into-multi-agent-workspace",
+    "task": "5.5",
+    "status": "satisfied",
+    "constraint": "consume only vendor-neutral owned ports; no Pi package, concrete adapter, or Pi-named feature dependency"
+  },
+  "evidenceHashes": {
+    "openspec/changes/harden-pi-api-boundary/evidence/final-gate-outcomes.json": "9657ba78c65b50873b00afaa0f773c198cc785c8af892aa21c48728c899050ff",
+    "openspec/changes/harden-pi-api-boundary/evidence/terminal-parity.json": "75d448960ea99f65761b462651818a9ce752726424c5489c7f3e2295db547245",
+    "openspec/changes/harden-pi-api-boundary/evidence/manual-candidate.json": "9fafabacba36acaf7a95ca073a0fd5c3ae6ec327c4eea60231591272e17717a8",
+    "openspec/changes/harden-pi-api-boundary/evidence/negative-boundary-certification.json": "a23404a418b9f91aa8402762974a4bf99ddb30bf6861be863dfb079052ba36ee"
+  }
+}

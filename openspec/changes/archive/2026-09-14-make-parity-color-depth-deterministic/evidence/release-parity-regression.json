@@ -1,0 +1,53 @@
+{
+  "schema": "a1-release-parity-regression-v1",
+  "rootCause": {
+    "lastPassingRun": 33198959119,
+    "lastPassingSource": "3db775cbc13ec1e64f66277697a471a01484fae6",
+    "lastPassingPackage": "0.1.8-dev.182",
+    "regressionPullRequest": 186,
+    "regressionCommit": "8c0f4859ba5016b7ec6006dd7f510e1ec753d9af",
+    "firstAffectedRun": 33488516900,
+    "firstAffectedPackage": "0.1.8-dev.192",
+    "finding": "PR #186 preserved semantic SGR in static and event-frame parity and added settings ANSI parity without declaring one terminal color capability for pinned and owned producers."
+  },
+  "repeatedFailures": [
+    { "run": 33488516900, "package": "0.1.8-dev.192" },
+    { "run": 33595519402, "package": "0.1.8-dev.203" },
+    { "run": 33606232364, "package": "0.1.8-dev.205" },
+    { "run": 33617331350, "package": "0.1.8-dev.209" },
+    { "run": 33619304128, "package": "0.1.8-dev.210" }
+  ],
+  "currentExactPackageEvidence": {
+    "run": 33619304128,
+    "source": "d86ea9933b44b2c8b6754eeaf076e1cff0fface5",
+    "package": "0.1.8-dev.210",
+    "buildAndPack": "passed",
+    "win32Node22": "passed",
+    "win32Node24": "passed",
+    "darwinNode24": { "status": "failed", "parityAssertions": 6 },
+    "linuxNode24": { "status": "failed", "parityAssertions": 6 }
+  },
+  "forcedCapabilityReproduction": {
+    "trueColorFalse": {
+      "staticMismatchedRows": 39,
+      "firstActualSgr": "38;5;241",
+      "firstExpectedSgr": "38;2;102;102;102"
+    },
+    "trueColorTrue": {
+      "focusedParityFiles": 3,
+      "focusedParityTests": 8,
+      "status": "passed"
+    }
+  },
+  "separateDiagnostic": {
+    "run": 33617331350,
+    "platform": "win32-node24",
+    "finding": "Three default five-second cohort-test timeouts occurred once.",
+    "nonRecurrence": [
+      { "run": 33595519402, "package": "0.1.8-dev.203", "win32Node24": "passed" },
+      { "run": 33606232364, "package": "0.1.8-dev.205", "win32Node24": "passed" },
+      { "run": 33619304128, "package": "0.1.8-dev.210", "win32Node24": "passed" }
+    ],
+    "disposition": "No timeout or serialization change without recurring independent evidence."
+  }
+}

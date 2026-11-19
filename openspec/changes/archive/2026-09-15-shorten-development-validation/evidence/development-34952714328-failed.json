@@ -1,0 +1,229 @@
+{
+  "schema": "a1-development-validation-attempt-v1",
+  "run": {
+    "id": 34952714328,
+    "head": "aee8194e8a1697e2e02eabb3b00db59e4092c691",
+    "event": "workflow_dispatch",
+    "status": "completed",
+    "conclusion": "failure",
+    "createdAt": "2026-09-15T09:29:01Z",
+    "updatedAt": "2026-09-15T09:49:52Z",
+    "url": "https://github.com/timurproko/a1/actions/runs/34952714328"
+  },
+  "selection": {
+    "base": "d5d7c1b100158e9d0efdb44f0490ced2ee4ea266",
+    "head": "aee8194e8a1697e2e02eabb3b00db59e4092c691",
+    "mode": "conservative",
+    "selectionId": "5c694c402c6f6f003d6825744c6a20b082f628a90d6f9f0c04c5c7512973c86f",
+    "fallback": "manual-no-comparison",
+    "selectedOwners": [
+      "history-compatibility",
+      "image-compatibility",
+      "launch-integration",
+      "package-contracts",
+      "pi-release-resume",
+      "startup",
+      "structured-runtime",
+      "unix-containment",
+      "update-performance",
+      "update-predecessor"
+    ]
+  },
+  "outcomes": [
+    {
+      "job": "compatibility",
+      "target": "win32/x64/node22",
+      "passed": true,
+      "runnerMs": 98709,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-explicit",
+          "durationMs": 15735,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "job": "containment",
+      "target": "linux/x64/node24",
+      "passed": true,
+      "runnerMs": 78142,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0
+        },
+        {
+          "id": "candidate-pack",
+          "durationMs": 1488,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-explicit",
+          "durationMs": 13540,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-isolated-timing",
+          "durationMs": 27354,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "job": "containment",
+      "target": "darwin/arm64/node24",
+      "passed": true,
+      "runnerMs": 101859,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0
+        },
+        {
+          "id": "candidate-pack",
+          "durationMs": 1775,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-explicit",
+          "durationMs": 22871,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-isolated-timing",
+          "durationMs": 33678,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "job": "fast",
+      "target": "win32/x64/node24",
+      "passed": false,
+      "runnerMs": 311315,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0
+        },
+        {
+          "id": "typecheck",
+          "durationMs": 3509,
+          "exitCode": 0
+        },
+        {
+          "id": "architecture",
+          "durationMs": 1978,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-fast",
+          "durationMs": 217443,
+          "exitCode": 1
+        }
+      ]
+    },
+    {
+      "job": "package",
+      "target": "win32/x64/node22",
+      "passed": true,
+      "runnerMs": 251672,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0
+        },
+        {
+          "id": "candidate-pack",
+          "durationMs": 20574,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-package-contracts",
+          "durationMs": 146801,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "job": "resource",
+      "target": "win32/x64/node24",
+      "passed": true,
+      "runnerMs": 216219,
+      "gates": [
+        {
+          "id": "vitest-fast-resource-sensitive",
+          "durationMs": 178781,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "job": "startup",
+      "target": "win32/x64/node22",
+      "passed": false,
+      "runnerMs": 284426,
+      "gates": [
+        {
+          "id": "candidate-build",
+          "durationMs": 0,
+          "exitCode": 0
+        },
+        {
+          "id": "candidate-pack",
+          "durationMs": 20205,
+          "exitCode": 0
+        },
+        {
+          "id": "vitest-package-startup",
+          "durationMs": 171346,
+          "exitCode": 1
+        }
+      ]
+    }
+  ],
+  "passedCells": [
+    "package",
+    "resource",
+    "compatibility",
+    "containment-linux",
+    "containment-darwin"
+  ],
+  "failures": [
+    {
+      "scope": "fast",
+      "detail": "One governance expected-list assertion omitted the newly isolated session-shell file; 304 other files and 3144 tests passed."
+    },
+    {
+      "scope": "startup",
+      "detail": "Generic matrix environment pointed non-guardian startup at a nonexistent workspace debug guardian manifest; exact packaged launch correctly failed first attempt."
+    },
+    {
+      "scope": "pi",
+      "detail": "Combined Pi plus four conservatively promoted full-only owners exceeded the 20-minute job limit after release and resume phases completed; promotion is split to an independent cell."
+    }
+  ],
+  "measurements": {
+    "packageJobMs": 270000,
+    "resourceJobMs": 228000,
+    "compatibilityJobMs": 115000,
+    "linuxJobMs": 85000,
+    "macosJobMs": 120000,
+    "startupJobMs": 297000,
+    "fastJobMs": 324000,
+    "piJobMs": 1214000,
+    "startupInstallMs": 126020,
+    "startupPackMs": 20205
+  },
+  "acceptance": "failed attempt retained; no failed check concealed"
+}

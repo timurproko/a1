@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-07
+goal: "Treat exact-head auto-merge armed by an authorized human as valid
+  version-3 acceptance and revalidate affected deliveries such as PR #709."

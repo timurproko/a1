@@ -1,0 +1,36 @@
+{
+  "schema": "a1-development-validation-attempt-v1",
+  "run": {
+    "id": 34956724120,
+    "head": "9ea7e421e3730bb502871780d6e601d3c6948b6b",
+    "event": "workflow_dispatch",
+    "status": "completed",
+    "conclusion": "failure",
+    "createdAt": "2026-09-15T10:12:40Z",
+    "updatedAt": "2026-09-15T10:27:32Z",
+    "url": "https://github.com/timurproko/a1/actions/runs/34956724120"
+  },
+  "semanticResults": {
+    "allSelectedCells": "passed",
+    "fastSeconds": 308,
+    "resourceSeconds": 198,
+    "startupSeconds": 317,
+    "packageSeconds": 448,
+    "piSeconds": 303,
+    "promotedSeconds": 818,
+    "compatibilitySeconds": 101,
+    "linuxSeconds": 89,
+    "macosSeconds": 103,
+    "renderingSeconds": 320
+  },
+  "aggregate": {
+    "passed": false,
+    "reason": "Merged artifact root also contained expected package, phases, and receipts directories; root scanner accepted only JSON files before filtering outcome files."
+  },
+  "followUp": "Allow only the three known support directories plus outcome/job-envelope JSON names; continue rejecting every unknown or unsupported entry.",
+  "goals": {
+    "ordinaryGoalMet": false,
+    "startupGoalMet": false
+  },
+  "acceptance": "failed required aggregate retained despite all semantic cells passing"
+}
