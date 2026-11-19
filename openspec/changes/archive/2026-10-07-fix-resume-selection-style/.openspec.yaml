@@ -1,4 +1,0 @@
-schema: spec-driven
-created: 2026-10-07
-goal: Make Resume Session navigation preserve row foregrounds while showing the
-  active session in success green.
