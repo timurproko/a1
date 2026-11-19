@@ -1,3 +1,7 @@
+## Purpose
+
+Decides how the CLI reports commands, options and inputs it does not support.
+
 ## ADDED Requirements
 
 ### Requirement: Unsupported input is reported plainly
