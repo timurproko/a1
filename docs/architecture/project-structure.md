@@ -97,34 +97,6 @@ Build output mirrors the production namespaces directly under ignored `dist/`, w
 
 Task checkouts live inside the primary repository's `.worktrees/<task-id>/`, not beside the repository. Creating, handing off and cleaning up a task checkout follows the shared `change-delivery` skill. The product command contract is documented in [Worktree commands](../features/worktrees.md).
 
-### Common Git workflow
-
-Keep primary on `develop` and run the delivery skill's bounded cleanup sweep. In A1, enter or attach once; success is authoritative and informational inventory is not a second approval gate. Outside A1, use ordinary Git without installing A1 or inventing runtime identities.
-
-For a new delivery, create a unique absent task path and a new topic branch from freshly fetched `origin/develop`, unless the maintainer selected another base. For example, with primary at `D:/Git/a1` and unused task/branch names:
-
-```bash
-cd /d/Git/a1 && git fetch origin develop && git worktree add -b feature/example-task .worktrees/example-task origin/develop && git -C .worktrees/example-task rev-parse --show-toplevel --git-common-dir && git -C .worktrees/example-task status --short --branch
-```
-
-For external agents, successful creation establishes provenance for a fresh checkout; verify the canonical root, common repository, branch, and local work before using it. Never force a collision or fall back to task edits in primary. A1 performs its own exact-context and editing-claim checks internally.
-
-### Resume and ownership
-
-Continue the same task's branch, change, and PR. A1 owns cooperative editing claims and preserves existing edits when resuming; external agents establish continuing ownership or an explicit handoff themselves. Attachment does not authorize merge or deletion.
-
-Do not replace a delivery's history or PR to evade a real ownership conflict. Handoffs name the absolute worktree, branch, change, PR, and editing handoff. Runtime coordination is cooperative, not exclusion against arbitrary external editors.
-
-### Environment-specific adapters
-
-A1 owns creation/attachment, bounded retries, and ordinary recovery behind its worktree commands. Successful attachment returns the canonical path and branch; no follow-up inventory check is required. The old session link/unlink commands remain compatible aliases. Rare installation/legacy coordination failures have an operator [recovery reference](../worktree-link-recovery.md), not an agent preflight procedure.
-
-Outside A1, any agent uses ordinary Git worktrees under `.worktrees/`, created from fresh `origin/develop`, and removes merged ones with the shared `delivery cleanup` command.
-
-A1's cwd-independent `worktree` control tool selects repositories explicitly and reloads target project resources after trust resolution, preserving the conversation and session writer. Shell commands queue the same transition; only the runtime's final confirmation establishes attachment. The immutable startup directory remains the detach destination, not a repository boundary. Runtime recreation occurs after requesting tools settle, without process-global chdir. Detach/disposal preserves Git data. After a verified merge, `a1 worktree complete` reloads startup context and detaches before running cleanup from the selected repository's verified primary checkout; completion refuses to remove a checkout containing startup. A definitively missing attachment fails its triggering tool once and restores startup resources at the idle boundary. An existing PR is not required. Absolute paths and independent terminals retain their meaning; new extension contexts use the new cwd and old captured contexts become stale. Attachment never creates a Git lock, changes cleanup registration, or grants acceptance, finalization, merge, or deletion authority.
-
-An agent that directly chooses a transient file path for a PR/comment body, command payload, captured output, temporary patch/diff, or ad hoc log must place it beneath the verified task worktree's exact `.artifacts/` root, never the primary checkout, another worktree, OS temp, home/desktop, or a sibling path. Such scratch remains ignored, unstaged, uncommitted, disposable, non-authoritative, and secret-free. This repository path rule does not relocate storage internally selected by tools, product runtime code, or hermetic tests.
-
 ## Documentation and comments
 
 - README explains installation, commands, and current limitations.
