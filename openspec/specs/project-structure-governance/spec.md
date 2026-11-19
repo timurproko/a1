@@ -6,31 +6,6 @@ Defines enforceable repository ownership, dependency, testing, documentation, an
 
 ## Requirements
 
-### Requirement: Every production module has one current owner
-Each production source file SHALL belong to one named foundation area or feature and SHALL implement a current contract exercised by production entry points or an explicitly retained public boundary. Code SHALL NOT remain solely for historical reference, speculative reuse, superseded architecture, or a deferred change. A subsystem whose OpenSpec change is on hold SHALL be removed from the active tree and preserved at a commit recorded in that change, optionally also on a named archive branch, and the owner registry, validation registries, control-store schema, and documentation SHALL stop describing it as present. A probe or fixture that only tests consume SHALL live under `test/support/` rather than in the production tree, and the architecture gate's unreachable-module allowlist SHALL be empty.
-
-#### Scenario: Audit finds an unreachable module
-- **WHEN** a production module has no current entry-point reachability, public consumer, or active contract
-- **THEN** the baseline consolidation SHALL delete it or move the required behavior under a current owner rather than retaining it as dormant code
-
-#### Scenario: Historical implementation is useful for reference
-- **WHEN** removed behavior may help a future investigation
-- **THEN** Git/OpenSpec history SHALL remain the reference and the obsolete implementation SHALL not remain in the active production tree
-
-#### Scenario: A deferred subsystem is archived
-- **WHEN** an OpenSpec change is placed on hold with its implementation already in the tree
-- **THEN** the implementation, its tests, its owner and validation registry entries, and its persisted schema SHALL be removed from `develop`
-- **AND** the change SHALL record the commit that holds the removed copy, and any archive branch, so resumption starts from the current codebase with that copy available for reference
-
-#### Scenario: A production module exists only for a test
-- **WHEN** a module under `src/` is reached by no production entry point and its only consumer is a test
-- **THEN** it SHALL move under `test/support/` and import the code it exercises through the owner's public entry, and the unreachable-module allowlist SHALL NOT retain an entry for it
-
-#### Scenario: A held plan is retired
-- **WHEN** the maintainer retires a held OpenSpec change instead of resuming it
-- **THEN** the change SHALL be archived with an acceptance record that certifies none of its tasks
-- **AND** evidence that current documentation or governance still references SHALL move to a scanned documentation path rather than into the archive
-
 ### Requirement: Features are cohesive and expose one public entry
 Each product feature SHALL own its implementation, tests, settings contract, and feature documentation under a recognizable feature name. Cross-feature production imports SHALL use the provider's public entry or an explicit foundation contract; consumers SHALL NOT deep-import another feature's private internals. Every owner's public entry SHALL list its exports by name rather than re-export whole modules, so the contract is readable in one place. Only the composition root MAY reach past a provider's public entry, with one further case: a module on the eager startup path MAY import a leaf of a provider whose public entry is a prohibited startup entry, because loading that barrel would pull the provider's whole graph into startup. The interactive session shell SHALL be an application-layer owner under `src/app` that composes the contracts, the vendor-neutral UI foundations, and the feature owners, and only composition SHALL import it; the shell SHALL receive vendor presentation through ports that composition injects and SHALL NOT import the Pi adapters. Three layer boundaries SHALL hold regardless of the owner dependency graph: contracts import nothing outside their own contract, vendor-neutral UI components import only contracts, and only the Pi adapters and the shipped entry scripts import the pinned Pi packages.
 
@@ -204,7 +179,7 @@ Retained first-party implementation comments SHALL declare one accepted intent: 
 ### Requirement: Repository governance is executable
 Architecture, documentation, and hygiene rules SHALL be enforced by deterministic checks that report stable rule identifiers and actionable path, line, and symbol violations where applicable. Checks SHALL cover feature dependency direction, forbidden deep imports, nested package/dependency state, generated artifacts in tracked source, prohibited terminal interception, stale redesign markers in current production documentation, production files with no declared ownership, and the complete first-party code-documentation policy. The code-documentation gate SHALL inspect the complete applicable tracked baseline without a grandfathered count, path allowlist, or accepted-violation snapshot and SHALL run in both fast pull-request validation and full release validation.
 
-One optional local command, `npm run preflight`, SHALL run the fast governance gates pull-request validation runs against the committed merge-base diff of the current head, in a fixed order, stopping at the first failure, using the same scripts, arguments, and rule identifiers as validation: the core job's install build and build receipt, type check, architecture, changed-file code documentation, release documentation, changed-file naming, docs governance, strict OpenSpec validation with the workflow's pinned validator, the delivery-guidance governance test, and the core job's changed test scopes. Uncommitted paths SHALL be reported rather than selected. Preflight SHALL NOT replace validation as the authority, and SHALL NOT be required before pushing.
+One optional local command, `npm run preflight`, SHALL run the fast governance gates pull-request validation runs against the committed merge-base diff of the current head, in a fixed order, stopping at the first failure, using the same scripts, arguments, and rule identifiers as validation: the core job's install build and build receipt, type check, architecture, changed-file code documentation, release documentation, changed-file naming, docs governance, strict OpenSpec validation with the workflow's pinned validator, and the core job's changed test scopes. Uncommitted paths SHALL be reported rather than selected. Preflight SHALL NOT replace validation as the authority, and SHALL NOT be required before pushing.
 
 #### Scenario: New code violates a boundary
 - **WHEN** a change introduces a forbidden dependency, unowned source location, nested lockfile, prohibited terminal mechanism, or code-documentation violation
@@ -251,22 +226,6 @@ Production source, scripts, workflows, current tests and fixtures, current docum
 #### Scenario: Archived record contains the old identity
 - **WHEN** an archived change or immutable historical evidence contains a factually correct legacy identity
 - **THEN** governance SHALL preserve and allow that record while proving no live runtime or generation path consumes it as current identity
-
-### Requirement: Development work is isolated and integrated once
-Planning and implementation SHALL occur in one detached worktree at `{working-dir}/.worktrees/<task-id>`, where `{working-dir}` is the agent session's initial working directory, based on current `origin/develop` unless another base is selected. `.worktrees/` SHALL be a child of that working directory; a sibling checkout path such as `{working-dir}-<task-id>` SHALL NOT be used. The primary worktree SHALL remain on `develop` for integration only. Coherent work for one request SHALL use one temporary pull-request branch, one relevant validation cycle, and one integration; planning SHALL NOT be merged separately when implementation is part of the same approved request.
-
-#### Scenario: Work begins
-- **WHEN** a request requires repository changes
-- **THEN** work SHALL begin in one detached worktree at `{working-dir}/.worktrees/<task-id>` rather than editing the primary worktree or creating a sibling checkout
-
-#### Scenario: Approved implementation has ready scope
-- **WHEN** the user requests implementation and its planning artifacts are ready
-- **THEN** the agent SHALL use those artifacts as context and begin implementation without proposing, revising, or separately merging them
-
-#### Scenario: Work is integrated
-- **WHEN** the requested change is coherent and its relevant validation passes
-- **THEN** it SHALL integrate through one pull request, after which its temporary remote branch and clean worktree SHALL be removed
-- **AND** unintegrated commits or changes SHALL never be discarded during cleanup
 
 ### Requirement: Recorded governance baseline paths exist
 Every repository source path recorded in a committed governance baseline under `config/baselines/` SHALL exist in the current tree. The architecture gate SHALL walk each baseline file, collect every recorded `src/`, `test/`, `scripts/`, or `bin/` source path regardless of the field that holds it, and fail with the baseline file and the missing path for each entry that no longer resolves. A baseline that records a historical snapshot rather than a current rule SHALL be removed from the tree rather than retained with stale entries; its history remains available through version control.
@@ -418,3 +377,18 @@ Every `scripts/**/*.mjs` file SHALL be referenced by `package.json`, a workflow 
 #### Scenario: A script is mentioned only in an archived change
 - **WHEN** the only mention of a script is under `openspec/changes/archive/`
 - **THEN** the architecture gate SHALL treat the script as unreferenced
+
+### Requirement: Every production module has a current owner and consumer
+Each production source file SHALL belong to one named foundation area or feature and SHALL implement a current contract exercised by production entry points or an explicitly retained public boundary. Code SHALL NOT remain solely for historical reference, speculative reuse, superseded architecture, or a deferred change. A probe or fixture that only tests consume SHALL live under `test/support/` rather than in the production tree, and the architecture gate's unreachable-module allowlist SHALL be empty.
+
+#### Scenario: Audit finds an unreachable module
+- **WHEN** a production module has no current entry-point reachability, public consumer, or active contract
+- **THEN** the architecture gate SHALL fail until it is deleted or its required behavior moves under a current owner
+
+#### Scenario: Historical implementation is useful for reference
+- **WHEN** removed behavior may help a future investigation
+- **THEN** Git/OpenSpec history SHALL remain the reference and the obsolete implementation SHALL not remain in the active production tree
+
+#### Scenario: A production module exists only for a test
+- **WHEN** a module under `src/` is reached by no production entry point and its only consumer is a test
+- **THEN** it SHALL move under `test/support/` and import the code it exercises through the owner's public entry, and the unreachable-module allowlist SHALL NOT retain an entry for it
