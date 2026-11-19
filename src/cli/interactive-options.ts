@@ -53,8 +53,8 @@ export function interactiveOptionHelp(): readonly string[] {
     "  --list-models [search]  Effective-profile catalog; no session/model call",
     "Instructions are positional; -- ends options and makes command words literal.",
     "Extension long flags require loaded registrations; use -- before their prompts.",
-    "Default Pi parity is being delivered in stages; machine/input/resource contracts not yet delivered fail explicitly.",
-    "Current argv input is NUL-free and bounded to 32768 UTF-8 bytes; larger input transport is pending.",
+    "Pi options not listed here are not supported and fail with an error.",
+    "Current argv input is NUL-free and bounded to 32768 UTF-8 bytes; larger input is not supported.",
   ];
 }
 
@@ -67,11 +67,11 @@ export function parseInteractiveCommand(arguments_: readonly string[], cwd = pro
     for (let index = 0; index < arguments_.length; index++) {
       const token = arguments_[index]!;
       if (!literal && token === "--") { literal = true; continue; }
-      if (token.startsWith("@")) throw new Error("File/image inputs are not available yet; the shared input transport is pending.");
+      if (token.startsWith("@")) throw new Error("File and image inputs (@path) are not supported.");
       if (literal || !token.startsWith("-")) { prompts.push(token); continue; }
       const name = token.split("=", 1)[0]!;
       if (name === "--runtime-options" || ["--help", "-h", "--version", "-v"].includes(name)) throw new Error(`Unsupported option in this invocation: ${name}`);
-      if (PENDING_OPTIONS.has(name)) throw new Error(`${name} is not available yet in this partial delivery of default Pi compatibility.`);
+      if (PENDING_OPTIONS.has(name)) throw new Error(`${name} is not supported.`);
       if (token === "--list-models") {
         if (catalog) throw new Error("--list-models may occur only once");
         catalog = true;
