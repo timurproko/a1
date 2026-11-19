@@ -53,3 +53,26 @@ export function cellBackgroundAt(row: string, column: number): string {
   }
   throw new Error(`Missing column ${column} in ${stripAnsi(row)}`);
 }
+
+/** Resolve whether SGR reverse video is active at one zero-based visible character column. */
+export function cellInverseAt(row: string, column: number): boolean {
+  let inverse = false;
+  let visibleColumn = 0;
+  for (const token of row.matchAll(/\x1b\[([\d;]*)m|([^\x1b])/gu)) {
+    if (token[1] !== undefined) {
+      const codes = token[1].split(";").map(Number);
+      for (let index = 0; index < codes.length; index++) {
+        const code = codes[index];
+        if (code === 0) inverse = false;
+        else if (code === 7) inverse = true;
+        else if (code === 27) inverse = false;
+        else if ((code === 38 || code === 48) && codes[index + 1] === 2) index += 4;
+        else if ((code === 38 || code === 48) && codes[index + 1] === 5) index += 2;
+      }
+    } else {
+      if (visibleColumn === column) return inverse;
+      visibleColumn += 1;
+    }
+  }
+  throw new Error(`Missing column ${column} in ${stripAnsi(row)}`);
+}

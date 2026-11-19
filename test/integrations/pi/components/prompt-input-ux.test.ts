@@ -6,10 +6,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiSessionViewModel, OwnedUiThinkingLevel } from "../../../../src/contracts/owned-ui/index.js";
 import { hyperlinkTargetAtColumn, LineInput, PromptInput, renderInputRow } from "../../../../src/ui/components/index.js";
 import { applyPiTheme, createPiKeybindingsHost, createPiShellEditor, createPiShellFooter, createPiShellHeader, createPiShellHotkeys, loadHistoryEditor, piTheme, PINNED_PI_BUILTIN_SLASH_COMMANDS, setPiAccentColor } from "../../../../src/integrations/pi/components/index.js";
-import { paintPiDialogHover } from "../../../../src/integrations/pi/components/theme.js";
+import { paintPiStatusHover } from "../../../support/status-hover-paint.js";
 import { createPiShellThinkingSelector } from "../../../../src/integrations/pi/components/thinking-selector-dialog.js";
 import { KeybindingsManager, useWindowsKeybindings } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
-import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
+import { cellBackgroundAt, cellInverseAt, cellStyle } from "../../../support/ansi-cell-style.js";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
 import { promptInputPresentation } from "../../../support/prompt-input-presentation.js";
 import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
@@ -261,7 +261,7 @@ describe("owned shared input and status presentation", () => {
     expect(input.getText()).toBe("");
   });
 
-  it("exports separate model and thinking spans with blended foreground-only hover", () => {
+  it("exports separate model and thinking spans with inverted hover", () => {
     const base = view();
     const footer = createPiShellFooter(base, "/WORK", "a1");
     const original = footer.render(80)[1]!;
@@ -274,13 +274,14 @@ describe("owned shared input and status presentation", () => {
       const hovered = footer.render(80)[1]!;
       expect(stripTerminalSequences(hovered)).toBe(stripTerminalSequences(original));
       const character = span.command === "models" ? "M" : "m";
-      expect(cellStyle(hovered, character)).toEqual(cellStyle(paintPiDialogHover(span.command === "models" ? "dim" : "thinkingMedium", character), character));
-      expect(cellStyle(hovered, character)).not.toEqual(cellStyle(original, character));
+      expect(cellStyle(hovered, character)).toEqual(cellStyle(paintPiStatusHover(span.command === "models" ? "dim" : "thinkingMedium", character), character));
+      expect(cellStyle(hovered, character)).toEqual(cellStyle(original, character));
       for (let column = span.column; column < span.column + span.width; column++) {
         expect(cellBackgroundAt(hovered, column)).toBe("default");
+        expect(cellInverseAt(hovered, column)).toBe(true);
       }
-      if (span.column > 0) expect(cellBackgroundAt(hovered, span.column - 1)).toBe("default");
-      if (span.column + span.width < 80) expect(cellBackgroundAt(hovered, span.column + span.width)).toBe("default");
+      if (span.column > 0) { expect(cellBackgroundAt(hovered, span.column - 1)).toBe("default"); expect(cellInverseAt(hovered, span.column - 1)).toBe(false); }
+      if (span.column + span.width < 80) { expect(cellBackgroundAt(hovered, span.column + span.width)).toBe("default"); expect(cellInverseAt(hovered, span.column + span.width)).toBe(false); }
     }
     for (let width = 1; width <= 80; width++) {
       footer.render(width);
@@ -317,8 +318,8 @@ describe("owned shared input and status presentation", () => {
       expect(plain.slice(span.column, span.column + span.width)).toBe(command === "models" ? "MODEL [PROVIDER]" : "medium");
       footer.setFooterHovered!(command);
       const hovered = footer.render(80)[1]!;
-      expect(cellStyle(hovered, "[")).toEqual(command === "models" ? cellStyle(paintPiDialogHover("dim", "["), "[") : cellStyle(wide, "["));
-      for (let col = from; col < from + "[PROVIDER]".length; col++) expect(cellBackgroundAt(hovered, col)).toBe("default");
+      expect(cellStyle(hovered, "[")).toEqual(command === "models" ? cellStyle(paintPiStatusHover("dim", "["), "[") : cellStyle(wide, "["));
+      for (let col = from; col < from + "[PROVIDER]".length; col++) { expect(cellBackgroundAt(hovered, col)).toBe("default"); expect(cellInverseAt(hovered, col)).toBe(command === "models"); }
     }
     const narrow = footer.render(30)[1]!;
     const narrowPlain = stripTerminalSequences(narrow);
