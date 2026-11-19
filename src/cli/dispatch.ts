@@ -204,7 +204,7 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
     return { kind: "error", message: PRODUCT_TEXT.diagnostic("unsupported reserved command; use -- before a literal instruction.") };
   }
   if (["config", "auth", "mcp"].includes(command ?? "")) {
-    return { kind: "error", message: PRODUCT_TEXT.diagnostic(`${command} is not available yet; resource/maintenance delivery is pending.`) };
+    return { kind: "error", message: PRODUCT_TEXT.diagnostic(`${command} is not supported.`) };
   }
   return parseInteractiveCommand(arguments_);
 }

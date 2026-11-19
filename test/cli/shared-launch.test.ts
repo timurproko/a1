@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { cliCapabilities, dispatchCli, parseCliCommand } from "../../src/cli/index.js";
 import { dispatchPiCompatibleCommand, parsePiCompatibleCommand } from "../../src/cli/pi-compatible.js";
+import { interactiveOptionHelp } from "../../src/cli/interactive-options.js";
 import { interactiveLaunchIntent } from "../../src/features/launch/index.js";
 
 const capabilities = cliCapabilities("1.0.0-dev.1");
@@ -54,8 +55,24 @@ describe("shared default public launch grammar", () => {
   });
 
   it.each(["--mode", "--print", "-p", "--tools", "--no-mcp", "--system-prompt", "--tui-mode", "--skill", "--offline", "--export"])("does not reinterpret pending core flag %s as extension input", flag => {
-    expect(parseCliCommand([flag], capabilities)).toMatchObject({ kind: "error", message: expect.stringContaining("not available yet") });
-    expect(parsePiCompatibleCommand([flag])).toMatchObject({ kind: "error", message: expect.stringContaining("not available yet") });
+    expect(parseCliCommand([flag], capabilities)).toMatchObject({ kind: "error", message: expect.stringContaining(`${flag} is not supported.`) });
+    expect(parsePiCompatibleCommand([flag])).toMatchObject({ kind: "error", message: expect.stringContaining(`${flag} is not supported.`) });
+  });
+
+  it.each(["config", "auth", "mcp"])("reports the unsupported %s command plainly", command => {
+    expect(parseCliCommand([command], capabilities)).toMatchObject({ kind: "error", message: expect.stringContaining(`${command} is not supported.`) });
+  });
+
+  it("reports file inputs as unsupported", () => {
+    expect(parseCliCommand(["@notes.md"], capabilities)).toMatchObject({ kind: "error", message: expect.stringContaining("File and image inputs (@path) are not supported.") });
+  });
+
+  it("keeps delivery-progress wording out of user-facing messages and help", () => {
+    const outputs = [
+      ...interactiveOptionHelp(),
+      ...[["config"], ["--offline"], ["@notes.md"]].map(args => JSON.stringify(parseCliCommand(args, capabilities))),
+    ].join("\n");
+    expect(outputs).not.toMatch(/deliver|not available yet|pending|parity|partial/i);
   });
 
   it("never executes maintenance after execution parsing or a literal boundary", async () => {
