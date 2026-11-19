@@ -2,12 +2,12 @@
  * Provenance: @earendil-works/pi-tui 1.5.2 (MIT), commit b4afdddf44e059c67ccf5097e5317d913521b470,
  * packages/tui/src/components/editor.ts.
  * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
- * types, typed persistent-history hooks, semantic border state with the user-approved numeric-only
- * history label with a three-cell inset and separate centered history-overflow cue, and history-count
+ * types, typed persistent-history hooks, semantic border state with the user-approved History N/M
+ * counter label with a three-cell inset and separate centered history-overflow cue, and history-count
  * retention during cursor placement within recalled multiline text. Public terminal runtime/exports
  * remain shared and unchanged. See docs/architecture/history-editor-provenance.md.
- * Deviations: compact-history-counter-label, history-overflow-cue-separation,
- * history-recall-cursor-retention, persistent-history-owned-editor-boundary.
+ * Deviations: history-counter-label, history-overflow-cue-separation, history-recall-cursor-retention,
+ * persistent-history-owned-editor-boundary.
  */
 import {
   CURSOR_MARKER,
@@ -632,7 +632,7 @@ export class HistoryEditorCore implements Component, Focusable {
 
 	protected renderTopBorder(width: number, hiddenLineCount: number): string {
 		if (this.persistentHistory && this.historyIndex >= 0) {
-			const history = `${this.history.length - this.historyIndex}/${this.history.length} `;
+			const history = `History ${this.history.length - this.historyIndex}/${this.history.length} `;
 			if (hiddenLineCount > 0) {
 				const historyStart = HISTORY_COUNTER_INSET;
 				const historyEnd = historyStart + visibleWidth(history);

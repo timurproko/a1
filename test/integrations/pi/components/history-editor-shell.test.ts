@@ -24,11 +24,10 @@ describe("history editor component boundary", () => {
         editor.setThinkingLevel(level);
         const rows = editor.render(80);
         const bar = (rule: string) => promptRuleText(rule, piTheme());
-        expect(rows[0]).toContain(piTheme().fg("dim", "1/1 "));
-        expect(rows[0]).not.toContain("History");
-        expect(stripTerminalSequences(rows[0]!).indexOf("1/1")).toBe(3);
+        expect(rows[0]).toContain(piTheme().fg("dim", "History 1/1 "));
+        expect(stripTerminalSequences(rows[0]!).indexOf("History 1/1")).toBe(3);
         expect(rows[0]).toContain(bar("── "));
-        expect(rows[0]).not.toContain(bar("1/1 "));
+        expect(rows[0]).not.toContain(bar("History 1/1 "));
         expect(cellStyle(rows[rows.length - 1]!, "─")).toEqual(cellStyle(bar("─"), "─"));
         expect(stripTerminalSequences(rows[rows.length - 1]!)).toBe("─".repeat(80));
       }
@@ -57,20 +56,20 @@ describe("history editor component boundary", () => {
       const bottom = rows.at(-1)!;
       const topPlain = stripTerminalSequences(top);
       const bottomPlain = stripTerminalSequences(bottom);
-      expect(top).toContain(piTheme().fg("dim", "1/1 "));
+      expect(top).toContain(piTheme().fg("dim", "History 1/1 "));
       expect(topPlain).not.toContain("·");
-      expect(topPlain).toBe("── 1/1 " + "─".repeat(27) + " ↑ 10 more " + "─".repeat(35));
+      expect(topPlain).toBe("── History 1/1 " + "─".repeat(19) + " ↑ 10 more " + "─".repeat(35));
       expect(bottomPlain).toBe("─".repeat(35) + " ↓ 3 more " + "─".repeat(35));
       expect(Math.abs(topPlain.indexOf(" ↑ 10 more ") * 2 + " ↑ 10 more ".length - 78)).toBeLessThanOrEqual(1);
       expect(bottomPlain.indexOf(" ↓ 3 more ") * 2 + " ↓ 3 more ".length).toBe(80);
       expect(cellStyle(top, "↑")).toEqual(cellStyle(bottom, "↓"));
       expect(cellStyle(top, "1")).not.toEqual(cellStyle(top, "↑"));
-      const shifted = editor.render(24)[0]!;
-      expect(shifted).toContain(piTheme().fg("dim", "1/1 "));
-      expect(stripTerminalSequences(shifted)).toBe("── 1/1  ↑ 10 more ──────");
-      const historyOnly = editor.render(19)[0]!;
-      expect(historyOnly).toContain(piTheme().fg("dim", "1/1 "));
-      expect(stripTerminalSequences(historyOnly)).toBe("── 1/1  ↑ 10 more ─");
+      const shifted = editor.render(30)[0]!;
+      expect(shifted).toContain(piTheme().fg("dim", "History 1/1 "));
+      expect(stripTerminalSequences(shifted)).toBe("── History 1/1  ↑ 10 more ────");
+      const historyOnly = editor.render(27)[0]!;
+      expect(historyOnly).toContain(piTheme().fg("dim", "History 1/1 "));
+      expect(stripTerminalSequences(historyOnly)).toBe("── History 1/1  ↑ 10 more ─");
 
       const comparison = createPiShellEditor({ ...options, keybindingProfile: "pi" });
       comparison.setText("line\n".repeat(20).trim());
@@ -108,7 +107,7 @@ describe("history editor component boundary", () => {
       }
       owned.recall!.replace(["saved"]); owned.setText(""); owned.handleInput?.("\x1b[A");
       expect(owned.getText()).toBe("saved");
-      expect(owned.render(50)[0]).toContain(piTheme().fg("dim", "1/1 "));
+      expect(owned.render(50)[0]).toContain(piTheme().fg("dim", "History 1/1 "));
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 });

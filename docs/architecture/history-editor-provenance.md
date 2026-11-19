@@ -39,10 +39,10 @@ snapshot installation and observation methods preserve input and undo state,
 freeze an active browse cycle, and change caret placement only in that mode.
 The editor renders position/overflow in its existing border. The position label
 uses an injected neutral status-text style (`dim`), while the surrounding rules
-retain the active input-border color, as clarified during manual review. The approved
-`show-autocomplete-above-prompt` review refinement omits the literal `History` title:
-`─── 1/100 ─…` keeps the same four-cell inset, count calculation, dim color, and
-clipping. When recalled input has hidden lines above, the approved
+retain the active input-border color, as clarified during manual review. The label reads
+`History N/M`: the maintainer restored the `History` title that the
+`show-autocomplete-above-prompt` refinement had removed, and `── History 1/100 ─…` keeps
+the three-cell inset, count calculation, dim color, and clipping. When recalled input has hidden lines above, the approved
 `separate-history-scroll-label` refinement keeps that count left-aligned without a
 separator and independently centers `↑ N more` in the active border color, matching
 the lower cue. At collision widths the history count remains visible while a complete

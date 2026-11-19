@@ -12,9 +12,9 @@
 
 ## 3. Prompt-history border counter reads History N/M
 
-- [ ] 3.1 `renderTopBorder` in `editor-core.ts` prefixes the counter with `History ` in both the plain and overflow-cue branches, without moving source lines
-- [ ] 3.2 The `editor-core.ts` header, ledger entry (modifications, `localSha256`, `compact-history-counter-label` deviation) and history-editor provenance doc describe the labelled counter
-- [ ] 3.3 Core and shell history-editor tests expect `History 100/100`, `History 1/100` and `History 1/1` in the dim label style
+- [x] 3.1 `renderTopBorder` in `editor-core.ts` prefixes the counter with `History ` in both the plain and overflow-cue branches, without moving source lines
+- [x] 3.2 The `editor-core.ts` header, ledger entry (modifications, `localSha256`, `compact-history-counter-label` deviation) and history-editor provenance doc describe the labelled counter
+- [x] 3.3 Core and shell history-editor tests expect `History 100/100`, `History 1/100` and `History 1/1` in the dim label style
 
 ## 4. README and CI comment match the code
 
