@@ -51,6 +51,8 @@ interface PendingPaste {
 
 const URL_SUBSTRING_PATTERN = /https?:\/\/[^\s\u0000-\u001f\u007f\]]+/giu;
 const URL_DISPLAY_LENGTH = 40;
+// Rationale: only a settings-driven (bare A1) limit is changeable, so only it names the setting.
+const FIXED_LIMIT = () => DEFAULT_PROMPT_IMAGE_LIMIT;
 
 function rejectedImageMarker(marker: string, error: ImageAttachmentError): string {
   return error.code === "image-count" ? marker : marker.replace("screenshot-", "failed-");
@@ -83,7 +85,7 @@ export class PromptChipStore {
     readonly preparation?: Omit<PastePreparationClientOptions, "onEvent">;
     readonly imageLimit?: () => number;
   } = {}) {
-    this.#imageLimit = options.imageLimit ?? (() => DEFAULT_PROMPT_IMAGE_LIMIT);
+    this.#imageLimit = options.imageLimit ?? FIXED_LIMIT;
     this.#isolated = options.isolated
       ? new PastePreparationClient({ ...options.preparation, ...(options.onEvent === undefined ? {} : { onEvent: options.onEvent }) })
       : undefined;
@@ -109,7 +111,7 @@ export class PromptChipStore {
       if (content?.kind === "image") {
         onImage();
         const imageLimit = this.#imageLimit();
-        if (this.#imageCount(currentText) >= imageLimit) throw new ImageAttachmentError("image-count", imageLimit);
+        if (this.#imageCount(currentText) >= imageLimit) throw new ImageAttachmentError("image-count", imageLimit, this.#imageLimit !== FIXED_LIMIT);
       }
       return content;
     });
@@ -149,7 +151,7 @@ export class PromptChipStore {
       if (fileName !== undefined) entry.fileName = fileName;
       onImage();
       const imageLimit = this.#imageLimit();
-      if (this.#imageCount(currentText) >= imageLimit) throw new ImageAttachmentError("image-count", imageLimit);
+      if (this.#imageCount(currentText) >= imageLimit) throw new ImageAttachmentError("image-count", imageLimit, this.#imageLimit !== FIXED_LIMIT);
     }, () => { entry.kind = "text"; });
     entry = { marker, job, references: 0, kind: "unknown", completion: job.result.catch(error => {
       this.#finishChipOwnership(owner, false);
@@ -279,7 +281,7 @@ export class PromptChipStore {
       assertImageEncodedSize(content.data);
       const image = canonicalizeClipboardImage(content);
       if (image === null) return "";
-      assertPromptImages([...this.prepareSubmission(currentText).images, { type: "image", ...image }], this.#imageLimit());
+      assertPromptImages([...this.prepareSubmission(currentText).images, { type: "image", ...image }], this.#imageLimit(), this.#imageLimit !== FIXED_LIMIT);
       const id = randomBytes(5).toString("hex");
       const tag = `[📷 screenshot-${id}]`;
       this.#chips.set(tag, {
@@ -485,7 +487,7 @@ export class PromptChipStore {
 
   prepareSubmission(text: string): PreparedPrompt {
     const expanded = this.#replaceResolvable(text, true);
-    assertPromptImages(expanded.images, this.#imageLimit());
+    assertPromptImages(expanded.images, this.#imageLimit(), this.#imageLimit !== FIXED_LIMIT);
     return { text: expanded.text, images: expanded.images };
   }
 

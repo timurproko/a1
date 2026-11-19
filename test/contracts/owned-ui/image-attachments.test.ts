@@ -42,7 +42,7 @@ describe("image admission policy", () => {
     let draft = "";
     for (let count = 0; count < 8; count++) draft += store.transformPastedContent({ kind: "image", data: "aA==", mimeType: "image/png" }, draft);
     expect(() => assertPromptImages(store.prepareSubmission(draft).images)).not.toThrow();
-    expect(() => store.transformPastedContent({ kind: "image", data: "aA==", mimeType: "image/png" }, draft)).toThrow("limited to 8");
+    expect(() => store.transformPastedContent({ kind: "image", data: "aA==", mimeType: "image/png" }, draft)).toThrow(/^A prompt is limited to 8 images\.$/u);
     expect(() => assertPromptImages(Array.from({ length: 9 }, () => image()))).not.toThrow();
     expect(() => assertPromptImages(Array.from({ length: MAX_PROMPT_IMAGES + 1 }, () => image())))
       .toThrow(`limited to ${MAX_PROMPT_IMAGES}`);
@@ -53,16 +53,16 @@ describe("image admission policy", () => {
   it("applies a live editor limit below and above the eight-image default", () => {
     let limit = 3;
     const store = new PromptChipStore({ imageLimit: () => limit });
-    expect(new ImageAttachmentError("image-count", 1).message)
-      .toBe("A prompt is limited to 1 image. To change the limit /settings.");
-    expect(new ImageAttachmentError("image-count", 8).message)
-      .toBe("A prompt is limited to 8 images. To change the limit /settings.");
+    expect(new ImageAttachmentError("image-count", 1).message).toBe("A prompt is limited to 1 image.");
+    expect(new ImageAttachmentError("image-count", 8, true).message)
+      .toBe("A prompt is limited to 8 images. To change it: Ctrl+P → Settings → Agent → Prompt image limit.");
+    expect(new ImageAttachmentError("image-count", 8, true).message).not.toContain("/settings");
     let draft = "";
     for (let count = 0; count < limit; count++) {
       draft += store.transformPastedContent({ kind: "image", data: "aA==", mimeType: "image/png" }, draft);
     }
     expect(() => store.transformPastedContent({ kind: "image", data: "aA==", mimeType: "image/png" }, draft))
-      .toThrow("limited to 3 images");
+      .toThrow("limited to 3 images. To change it: Ctrl+P → Settings → Agent → Prompt image limit.");
 
     limit = 10;
     for (let count = 3; count < limit; count++) {

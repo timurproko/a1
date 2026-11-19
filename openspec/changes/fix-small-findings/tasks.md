@@ -1,8 +1,8 @@
 ## 1. Image limit message names the real setting
 
-- [ ] 1.1 `ImageAttachmentError` takes an optional configurable flag; the hint reads "To change it: Ctrl+P → Settings → Agent → Prompt image limit." and is omitted otherwise
-- [ ] 1.2 `PromptChipStore` marks errors configurable only when given the settings-driven image limit
-- [ ] 1.3 Tests cover both message forms and reject the `/settings` wording
+- [x] 1.1 `ImageAttachmentError` takes an optional configurable flag; the hint reads "To change it: Ctrl+P → Settings → Agent → Prompt image limit." and is omitted otherwise
+- [x] 1.2 `PromptChipStore` marks errors configurable only when given the settings-driven image limit
+- [x] 1.3 Tests cover both message forms and reject the `/settings` wording
 
 ## 2. Fork prompt explains a session open in another process
 
