@@ -7,27 +7,28 @@ Defines the installed A1 command surface, immutable release behavior, and shared
 ## Requirements
 
 ### Requirement: Every package update is one immediate replacement command
-The installed application SHALL expose `a1 update` as the stable update command
-resolving npm tag `latest`, and `a1 update --develop` as the development-preview
-update command resolving the internal npm development dist-tag. A positive preview
-number or full numbered preview version MAY follow `--develop` to select one
-immutable publication; the preview number is the pull request number recorded in a
-published preview's manifest, or the trailing number of a preview published before
-pull requests were recorded. Invocation SHALL authorize the existing ownership-safe
+The installed application SHALL expose `a1 update` as the update command for the
+channel of the running release: npm tag `latest` for a stable build and the npm
+development dist-tag `next` for a `-dev.N` build. `a1 update --release` SHALL
+select `latest` from either channel and `a1 update --develop` SHALL select `next`.
+A positive preview number or full numbered preview version MAY follow `--develop`
+to select one immutable publication; the preview number is the pull request number
+recorded in a published preview's manifest, or the trailing number of a
+`<version>-dev.<number>` preview. Invocation SHALL authorize the ownership-safe
 replacement transaction and return to the invoking shell after reporting its final
 result.
 
-The application SHALL NOT expose any `update:<selector>` command or `a1 update self`
-alias. Removed forms SHALL be unsupported silent no-ops and SHALL NOT resolve the
-registry, start the interactive runtime, install anything, or print migration guidance.
+The application SHALL NOT accept any `update:<selector>` command or `a1 update self`.
+Each SHALL exit with status 2 and one diagnostic on stderr and SHALL NOT resolve the
+registry, start the interactive runtime, or install anything.
 
 #### Scenario: Replace the current preview
 - **WHEN** the user runs `a1 update --develop` while an older verified A1 release is active
-- **THEN** A1 SHALL perform the replacement transaction using the exact version selected by the internal development dist-tag and return to the terminal prompt
+- **THEN** A1 SHALL perform the replacement transaction using the exact version selected by the development dist-tag and return to the terminal prompt
 
 #### Scenario: Selected channel is current
 - **WHEN** the selected npm tag resolves to the exact active A1 release version
-- **THEN** A1 SHALL report that the channel is current without reinstalling it
+- **THEN** A1 SHALL report that it is up to date without reinstalling it
 
 #### Scenario: Ownership cannot be verified
 - **WHEN** A1 cannot prove that the update lease, transaction, or immutable release store belongs to the expected installation
@@ -55,44 +56,7 @@ registry, start the interactive runtime, install anything, or print migration gu
 
 #### Scenario: Removed update notation is used
 - **WHEN** the user runs `a1 update:develop`, `a1 update:107`, `a1 update:0.1.8-dev.107`, or `a1 update self`
-- **THEN** A1 SHALL exit successfully without output or side effects
-
-### Requirement: Version output follows the Pi command convention
-The installed application SHALL expose `a1 version` as the preferred version command and SHALL retain equivalent `a1 --version` and `a1 -v` compatibility forms. None of those forms SHALL start or mutate the interactive runtime, release store, active release, or update transaction. Stable releases and development builds SHALL both report `Current`, `Develop`, and `Release` in that order. Both SHALL discover authoritative package dist-tags as one coherent result; an absent development tag SHALL be unavailable without a diagnostic, while discovery failure SHALL make every remote field unavailable with one concise `A1` diagnostic, keep the `Current` line, and exit successfully.
-
-A development build SHALL append the recorded pull request to its `Current` line as ` (#<number>)` when its installed manifest records one. Both stable releases and development builds SHALL append the recorded pull request to their `Develop` line when the development head's published manifest records one and that manifest can be read within the discovery budget. A missing or unreadable record SHALL leave the bare version on that line without a diagnostic. Stable `Current` lines and `Release` lines SHALL NOT carry a pull request.
-
-#### Scenario: Stable release version
-- **WHEN** the user runs `a1 version`, `a1 --version`, or `a1 -v` from stable release `0.3.0`, the `next` dist-tag is `0.4.0-dev.123`, and the `latest` dist-tag is `0.3.1`
-- **THEN** every form SHALL print `Current: 0.3.0`, `Develop: 0.4.0-dev.123`, and `Release: 0.3.1` in that order, appending the development head's recorded pull request when available
-
-#### Scenario: Stable release version without registry access
-- **WHEN** the user runs `a1 version` from a stable release and dist-tag discovery fails
-- **THEN** A1 SHALL print `Current: <installed version>`, `Develop: unavailable`, and `Release: unavailable`, emit one concise `A1` diagnostic, and exit successfully
-
-#### Scenario: Stable release with a recorded development head
-- **WHEN** the user runs `a1 version` from stable release `0.3.0` whose installed manifest records pull request 100 and the `next` dist-tag is `0.4.0-dev.123` whose manifest records pull request 123
-- **THEN** A1 SHALL print `Current: 0.3.0` without pull-request attribution, `Develop: 0.4.0-dev.123 (#123)`, and the `Release` line
-
-#### Scenario: Development tag is absent
-- **WHEN** a stable release or development build discovers a valid `latest` dist-tag but no `next` dist-tag
-- **THEN** A1 SHALL print its Current line, `Develop: unavailable`, and the resolved Release line without a diagnostic
-
-#### Scenario: Development build versions
-- **WHEN** the user runs `a1 version`, `a1 --version`, or `a1 -v` from a development build
-- **THEN** every form SHALL display the same `Current`, `Develop`, and `Release` result in order, applying the declared unavailable behavior when remote channel metadata is absent or unreachable
-
-#### Scenario: Development build with recorded pull requests
-- **WHEN** the user runs `a1 version` from `0.2.7-dev.1217` whose manifest records pull request 842 and the `next` dist-tag is `0.2.7-dev.1218` whose manifest records pull request 828
-- **THEN** A1 SHALL print `Current: 0.2.7-dev.1217 (#842)`, `Develop: 0.2.7-dev.1218 (#828)`, and the `Release` line
-
-#### Scenario: Development build without a recorded pull request
-- **WHEN** the installed development manifest or development head manifest records no pull request, or the head manifest cannot be read from either installed channel
-- **THEN** that line SHALL print the bare version and A1 SHALL emit no diagnostic for the missing record
-
-#### Scenario: Old subcommand notation
-- **WHEN** the user runs the formerly unsupported `a1 version` notation
-- **THEN** A1 SHALL now treat it as the preferred equivalent of `a1 --version` and `a1 -v`
+- **THEN** A1 SHALL exit with status 2 after printing one diagnostic to stderr, with empty stdout and no registry, package, or runtime work
 
 ### Requirement: Stable platform claims require certification
 The owned terminal UI SHALL be pure JavaScript on Node and SHALL carry no platform-specific native artifact. A stable support claim for a platform SHALL require that platform's exact-package validation lane to pass; no physical terminal, native addon, or terminal-host certification SHALL be required or implied.
@@ -105,30 +69,15 @@ The owned terminal UI SHALL be pure JavaScript on Node and SHALL carry no platfo
 - **WHEN** a published package is unpacked on any platform
 - **THEN** it SHALL contain no `.node` addon, native manifest, or platform-specific directory
 
-### Requirement: Official npm distribution has one fresh package identity
-The official npm distribution SHALL be named `@timurproko/a1`, SHALL begin its independent stable version lineage at `0.1.0`, and SHALL declare only `a1` as a public executable. Internal process entry files MAY remain in the package payload but SHALL NOT be installed as public npm executables. After `@timurproko/a1@0.1.0` is verified, every published version of the obsolete `@timurproko/addone` package SHALL be deprecated toward `@timurproko/a1`. The obsolete package SHALL NOT be retained as a compatibility package; later unpublication MAY occur as owner-controlled registry administration when npm policy permits.
-
-#### Scenario: Inspect fresh package metadata
-- **WHEN** the exact stable `@timurproko/a1@0.1.0` tarball is packed
-- **THEN** its manifest SHALL name `@timurproko/a1` at version `0.1.0` and its npm bin map SHALL contain exactly the `a1` executable
-
-#### Scenario: Verify the fresh stable publication
-- **WHEN** `@timurproko/a1@0.1.0` has been published
-- **THEN** npm `latest` SHALL resolve to that exact version and registry integrity SHALL match the accepted tarball
-
-#### Scenario: Deprecate the obsolete package
-- **WHEN** the fresh stable publication has been verified and npm policy rejects whole-package deletion
-- **THEN** every published version of `@timurproko/addone` SHALL carry an npm deprecation directing users to `@timurproko/a1`, and current product behavior SHALL continue to reject the obsolete identity
-
 ### Requirement: Package identity is authoritative throughout release handling
-Version discovery, self-update, installed metadata lookup, immutable release derivation, release validation, publication evidence, and registry verification SHALL use `@timurproko/a1` as the sole accepted package identity. The product SHALL NOT implement a bridge release or compatibility path for installed `@timurproko/addone` packages or their materialized release state.
+Version discovery, self-update, installed metadata lookup, immutable release derivation, and update recovery SHALL use `@timurproko/a1`, taken from the single product identity authority, as the sole accepted package identity. A release manifest or recovery capsule naming any other package SHALL be rejected.
 
 #### Scenario: Materialize the new package
-- **WHEN** A1 derives or validates an immutable release from the installed package
-- **THEN** it SHALL accept `@timurproko/a1` metadata and SHALL reject `@timurproko/addone` as an unexpected package identity
+- **WHEN** A1 reads or validates an immutable release manifest or an update recovery capsule
+- **THEN** it SHALL accept `@timurproko/a1` metadata and SHALL reject any other package name as invalid
 
 #### Scenario: Query release channels
-- **WHEN** `a1 --version`, `a1 update`, or `a1 update:next` resolves npm metadata
+- **WHEN** `a1 version`, `a1 update`, or `a1 update --develop` resolves npm metadata
 - **THEN** every registry query and installation target SHALL reference `@timurproko/a1`
 
 ### Requirement: Interrupted update preserves the public command
@@ -151,7 +100,7 @@ After an update accepts cancellation or loses its invoking updater or terminal p
 - **THEN** A1 SHALL reject that evidence and SHALL NOT execute or install content from it
 
 ### Requirement: Interactive launch forms use the owned Pi UI pipeline directly
-Bare `a1` SHALL launch the A1-owned single-agent UI directly, and `a1 --session <path|id>` SHALL resume the selected session in that same UI. Prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1 surfaces withheld and Pi's ordinary profile selected. No launch form SHALL present a tab strip, start a resident host or bridge, run more than one agent, or introduce a PTY, terminal parser, or byte relay. The `solo`, `tabs`, and `ui` words SHALL NOT be exposed.
+Bare `a1` SHALL launch the A1-owned single-agent UI directly, and `a1 --session <path|id>` SHALL resume the selected session in that same UI. Prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1 surfaces withheld and Pi's ordinary profile selected. No launch form SHALL present a tab strip, start a resident host or bridge, run more than one agent, or introduce a PTY, terminal parser, or byte relay. The words `agent`, `solo`, `tabs`, and `ui` SHALL be reserved: as the first argument each SHALL be rejected with status 2 and one diagnostic rather than launched or treated as a prompt.
 
 #### Scenario: Launch bare A1
 - **WHEN** the user runs `a1`
@@ -170,12 +119,12 @@ Bare `a1` SHALL launch the A1-owned single-agent UI directly, and `a1 --session 
 - **THEN** A1 SHALL use the shared owned pipeline with product surfaces withheld and Pi's ordinary profile selected
 
 #### Scenario: Removed words are given
-- **WHEN** the user runs `a1 solo`, `a1 tabs`, or `a1 ui`
-- **THEN** A1 SHALL treat the word as outside the grammar and return quietly without selecting another runtime
+- **WHEN** the user runs `a1 solo`, `a1 tabs`, `a1 ui`, or `a1 agent`
+- **THEN** A1 SHALL exit with status 2 after one stderr diagnostic that names `--` as the way to pass a literal instruction, and SHALL select no runtime
 
 #### Scenario: Two launches select one session
 - **WHEN** two A1 processes select the same canonical session file
-- **THEN** the shared session-writer guard, implemented without native code, SHALL admit one writer and apply the existing safe conflict behavior to the other
+- **THEN** the shared session-writer guard, implemented without native code, SHALL admit one writer and apply the session-resume conflict behavior to the other
 
 ### Requirement: Interactive launch forms run as one directly attached process
 Every interactive launch SHALL run as one directly attached process tree: the launcher selects the approved immutable release and runs its UI entry with inherited standard streams, and nothing survives the launcher. The launcher SHALL start no supervisor, detached host, job object, or process group, SHALL NOT read terminal input or parse output, and SHALL NOT select a second rendering path. Closing the terminal SHALL end the tree through ordinary operating-system behavior.
@@ -195,66 +144,6 @@ Every interactive launch SHALL run as one directly attached process tree: the la
 #### Scenario: The UI exits uncleanly
 - **WHEN** the UI child ends with an unexpected status while the launcher still owns the terminal
 - **THEN** the launcher SHALL perform the bounded terminal reset and print the armed resume notice once, and SHALL NOT restart the child
-
-### Requirement: Help advertises the single-agent grammar and unsupported commands are quiet
-Help and usage SHALL advertise only the bare launch, the `--session` launch, the `session` context forms, and the direct `help`, `version`, `install`, `remove`, `uninstall`, `list`, and `update` forms, never `solo`, `tabs`, alias sections, or `a1 pi` package forms; `a1 help`, `--help`, and `-h` SHALL be equivalent. A word outside the grammar SHALL be a silent successful no-op that starts nothing. A malformed recognized command MAY fail with one focused diagnostic, never the complete help.
-
-#### Scenario: Help is requested
-- **WHEN** the user runs `a1 help`, `a1 --help`, or `a1 -h`
-- **THEN** A1 SHALL print the same direct-command list appropriate to that build and exit successfully without launching a runtime
-- **AND** the list SHALL omit `solo`, `tabs`, compatibility help/version flags, and `a1 pi` package aliases
-
-#### Scenario: Unknown top-level word is given
-- **WHEN** the user runs `a1 sdjjhd`, `a1 solo`, or `a1 tabs`
-- **THEN** A1 SHALL exit successfully with empty stdout and stderr and SHALL invoke no operation
-
-#### Scenario: Unknown Pi operation is given
-- **WHEN** the user runs `a1 pi sdjjhd`
-- **THEN** A1 SHALL exit successfully with empty stdout and stderr and SHALL invoke no operation
-
-#### Scenario: Recognized command is malformed
-- **WHEN** the user gives conflicting options to `a1 update`
-- **THEN** A1 SHALL fail before any operation with one concise diagnostic and without the complete help text
-
-#### Scenario: Package command help is explicitly requested
-- **WHEN** the user runs `a1 install --help`, `a1 remove -h`, `a1 uninstall --help`, `a1 list --help`, or `a1 update --help`
-- **THEN** A1 SHALL print the respective supported command help and exit successfully without profile preparation, package/model work, self-update, or runtime launch
-- **AND** help SHALL NOT advertise project-local packages, independent Pi updates, or other unsupported operations or options
-
-#### Scenario: Compatibility package command help is explicitly requested
-- **WHEN** the user requests help from a supported `a1 pi` package command
-- **THEN** A1 SHALL retain focused compatibility help without profile preparation, package/model work, or runtime launch
-
-#### Scenario: Focused package syntax guidance is needed
-- **WHEN** a recognized direct or compatibility package command has a missing source, unexpected argument, or genuinely unknown option
-- **THEN** A1 SHALL emit its pinned-style diagnostic and focused usage guidance for the invoked namespace rather than the complete command help
-
-#### Scenario: Update help is requested
-- **WHEN** the user runs `a1 update --help`
-- **THEN** A1 SHALL describe the stable, development, extension, model, and single-package update forms together and exit without updating
-
-### Requirement: Installed interactive startup is measurable and bounded across update, restart, and warm launches
-A1 SHALL measure invocation-to-first-usable-frame startup without changing normal terminal output. A first usable frame means the selected owned UI has painted and its editor accepts input. On the accepted Windows release runner, the first `a1` or `a1 pi` launch after a completed exact-package update or after a machine restart SHALL reach that state within 5 seconds, and a subsequent warm launch SHALL reach it within 3 seconds.
-
-#### Scenario: Launch follows a successful update
-- **WHEN** the exact packaged updater reports success and the user starts either supported interactive profile on the accepted Windows release runner
-- **THEN** the selected UI SHALL paint an input-ready frame within 5 seconds of command invocation
-
-#### Scenario: Launch follows machine restart
-- **WHEN** an approved active release remains installed and no A1 process has run since sign-out or machine restart
-- **THEN** either supported interactive profile SHALL validate the selected immutable content and paint an input-ready frame within 5 seconds of command invocation
-
-#### Scenario: Launch uses warmed immutable content
-- **WHEN** the same active release has already completed one interactive startup or update warmup on the accepted Windows release runner
-- **THEN** another supported interactive launch SHALL paint an input-ready frame within 3 seconds
-
-#### Scenario: Startup tracing is enabled
-- **WHEN** an isolated diagnostic run explicitly enables startup timing evidence
-- **THEN** A1 SHALL report bounded durations for bootstrap, durable release validation, UI child startup, UI module loading, Pi services, resource loading, session creation, and first render without exposing credentials or prompt/session content
-
-#### Scenario: Startup tracing is not enabled
-- **WHEN** the user performs an ordinary interactive launch
-- **THEN** A1 SHALL not print startup timing detail or an additional loading transcript
 
 ### Requirement: Interactive startup evaluates a bounded single-process readiness graph
 An installed interactive launch SHALL load and evaluate before first input-ready render only the runtime capabilities required to render the selected profile and safely accept user input. Settings, engine initialization, selected session state, model scope, executable resources, tools, extensions, and terminal behavior that affect the first accepted prompt SHALL be ready before that frame. Optional workflows and presentation features that do not affect those guarantees SHALL NOT enlarge the eager startup graph.
@@ -658,3 +547,90 @@ Bare A1 SHALL store implicit HTML and format-only JSONL session exports under `~
 - **WHEN** writing a default export fails
 - **THEN** the failure SHALL remain visible and cleanup SHALL remove only the reservation this invocation created
 - **AND** existing exports SHALL remain intact
+
+### Requirement: Version output reports the installed version and both channel heads
+`a1 version`, `a1 --version`, and `a1 -v` SHALL be equivalent, SHALL print `Current`, `Develop`, and `Release` lines in that order from stable and development builds alike, and SHALL NOT start or mutate the interactive runtime, release store, active release, or update transaction. `Current` SHALL be the version in the installed package manifest. `Release` and `Develop` SHALL be the `latest` and `next` npm dist-tags of the product package, read through npm and, when that fails, directly from the registry. An absent `next` tag SHALL print `Develop: unavailable` without a diagnostic. When neither source yields valid dist-tags, both remote lines SHALL print `unavailable`, one `A1` diagnostic SHALL go to stderr, and the command SHALL still exit 0. When `PI_OFFLINE` is truthy the command SHALL query nothing and print both remote lines as `unavailable` without a diagnostic. Any argument after the version word SHALL fail with status 2.
+
+A development build SHALL append ` (#<number>)` to its `Current` line when its installed manifest records a positive `publication.pullRequest`. Every build SHALL append the same form to the `Develop` line when the development head's published manifest records one. A missing or unreadable record SHALL leave the bare version without a diagnostic. A stable `Current` line and the `Release` line SHALL NOT carry a pull request. An installed manifest that cannot be read or holds no valid semantic version SHALL fail with status 1 and one diagnostic.
+
+#### Scenario: Stable release version
+- **WHEN** the user runs `a1 version`, `a1 --version`, or `a1 -v` from stable release `0.3.0`, the `next` dist-tag is `0.4.0-dev.123` recording pull request 123, and the `latest` dist-tag is `0.3.1`
+- **THEN** every form SHALL print `Current: 0.3.0`, `Develop: 0.4.0-dev.123 (#123)`, and `Release: 0.3.1` in that order and exit 0
+
+#### Scenario: Registry discovery fails
+- **WHEN** neither npm nor the registry returns valid dist-tags
+- **THEN** A1 SHALL print `Current: <installed version>`, `Develop: unavailable`, and `Release: unavailable`, emit one `A1` diagnostic on stderr, and exit 0
+
+#### Scenario: Development tag is absent
+- **WHEN** discovery returns a valid `latest` dist-tag but no `next` dist-tag
+- **THEN** A1 SHALL print its `Current` line, `Develop: unavailable`, and the resolved `Release` line without a diagnostic
+
+#### Scenario: Development build with recorded pull requests
+- **WHEN** the user runs `a1 version` from `0.2.7-dev.1217` whose manifest records pull request 842 and the `next` dist-tag is `0.2.7-dev.1218` whose manifest records pull request 828
+- **THEN** A1 SHALL print `Current: 0.2.7-dev.1217 (#842)`, `Develop: 0.2.7-dev.1218 (#828)`, and the `Release` line
+
+#### Scenario: No pull request is recorded
+- **WHEN** the installed development manifest or the development head manifest records no pull request, or the head manifest cannot be read
+- **THEN** that line SHALL print the bare version and A1 SHALL emit no diagnostic for the missing record
+
+#### Scenario: Offline mode is set
+- **WHEN** the user runs `a1 version` with `PI_OFFLINE=1`
+- **THEN** A1 SHALL print the `Current` line and both remote lines as `unavailable` without contacting npm and without a diagnostic
+
+### Requirement: The package declares one public executable
+The npm package SHALL be named `@timurproko/a1` and its manifest `bin` map SHALL contain exactly the `a1` executable pointing at the CLI entry named by the product identity authority. Other process entry files MAY ship in the package payload but SHALL NOT be registered as npm executables.
+
+#### Scenario: Inspect package metadata
+- **WHEN** the package manifest and lockfile are checked against the product identity authority
+- **THEN** both SHALL name `@timurproko/a1` and declare exactly one executable, `a1`
+- **AND** a different name or an additional executable SHALL fail the product-identity boundary check
+
+### Requirement: Help lists the command grammar and unrecognized input has defined outcomes
+`a1 help`, `a1 --help`, and `a1 -h` SHALL be equivalent, SHALL print the same command list to stdout, and SHALL exit 0 without launching a runtime. The list SHALL cover the bare launch, `--session`, `--session-color`, `--session-dir`, `help`, `version`, the interactive launch options, the `update` forms, `install`, `remove`, both `uninstall` forms, `list`, the `worktree` forms, the `api` form, and the `session` context aliases. It SHALL list `a1 pi` only in a prerelease build and SHALL NOT list `solo`, `tabs`, or `a1 pi` package forms. An argument after a help or version word SHALL fail with status 2.
+
+A first argument that is not a command word SHALL NOT be a no-op. An unreserved word SHALL be the first positional instruction of a normal launch. The reserved words `agent`, `solo`, `ui`, `tabs`, and any `update:<selector>` SHALL exit with status 2 and one diagnostic. `config`, `auth`, and `mcp` SHALL exit with status 2 and a diagnostic saying the command is not available. An unrecognized operation after `a1 pi`, and `a1 pi` itself in a stable build, SHALL exit 0 with empty stdout and stderr and invoke nothing. A malformed recognized command SHALL fail with status 2 and one focused diagnostic, never the complete help.
+
+#### Scenario: Help is requested
+- **WHEN** the user runs `a1 help`, `a1 --help`, or `a1 -h`
+- **THEN** A1 SHALL print the same command list for that build and exit 0 without launching a runtime
+- **AND** the list SHALL include `a1 pi` only when the build is a prerelease
+
+#### Scenario: An unreserved word is given
+- **WHEN** the user runs `a1 sdjjhd`
+- **THEN** A1 SHALL start a normal launch with `sdjjhd` as its instruction
+
+#### Scenario: A reserved word is given
+- **WHEN** the user runs `a1 solo`, `a1 tabs`, or `a1 update:next`
+- **THEN** A1 SHALL exit with status 2 after one stderr diagnostic and SHALL invoke no operation
+
+#### Scenario: Unknown Pi operation is given
+- **WHEN** the user runs `a1 pi sdjjhd`
+- **THEN** A1 SHALL exit 0 with empty stdout and stderr and SHALL invoke no operation
+
+#### Scenario: Recognized command is malformed
+- **WHEN** the user gives conflicting options to `a1 update`
+- **THEN** A1 SHALL fail with status 2 before any operation with one diagnostic and without the complete help text
+
+#### Scenario: Package command help is explicitly requested
+- **WHEN** the user runs `a1 install --help`, `a1 remove -h`, `a1 uninstall --help`, `a1 list --help`, or `a1 update --help`
+- **THEN** A1 SHALL print that command's help and exit 0 without profile preparation, package or model work, self-update, or runtime launch
+- **AND** `a1 update --help` SHALL list the current-channel, release, development, model, extension, and single-package forms together
+
+#### Scenario: Compatibility package command help is explicitly requested
+- **WHEN** the user requests help from a supported `a1 pi` package command
+- **THEN** A1 SHALL print help that names the `a1 pi` forms, without profile preparation, package or model work, or runtime launch
+
+#### Scenario: Focused package syntax guidance is needed
+- **WHEN** a recognized direct or `a1 pi` package command has a missing source, unexpected argument, or unknown option
+- **THEN** A1 SHALL exit with status 2 after a diagnostic and usage line for the invoked namespace rather than the complete command help
+
+### Requirement: Startup timing is traced only on request
+A1 SHALL record startup timing only when `A1_STARTUP_TRACE` names an evidence file. It SHALL then append one event per reached phase among `command-invoked`, `bootstrap-start`, `bootstrap-selected`, `durable-validation-start`, `durable-validation-complete`, `ui-entry`, `ui-modules-loaded`, `pi-services`, `resource-discovery`, `session-created`, `settings-loaded`, and `first-input-ready-render`. Each event SHALL carry the trace identity, phase, elapsed milliseconds since command invocation, process, profile, release and dependency-layer identifiers, Node version, and a file-read count, and SHALL carry no credential, prompt, or session content. Without the variable a launch SHALL perform no trace I/O and print no timing detail.
+
+#### Scenario: Startup tracing is enabled
+- **WHEN** a launch runs with `A1_STARTUP_TRACE` set to a file path
+- **THEN** A1 SHALL append a phase event for each phase it reaches, ending with `first-input-ready-render` once the editor accepts input
+
+#### Scenario: Startup tracing is not enabled
+- **WHEN** the user performs an ordinary interactive launch
+- **THEN** A1 SHALL write no trace file and SHALL print no startup timing detail or loading transcript
