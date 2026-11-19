@@ -6,61 +6,6 @@ Defines durable, profile-isolated recall of user-submitted prompts across bare-A
 
 ## Requirements
 
-### Requirement: Prompt history lives in profile-isolated application data
-Bare A1 SHALL keep durable prompt history at `<history-root>/history/<profile-id>.sqlite3` in Shared mode and at a distinct, session-specific database in the same history directory in Unique mode, separately from control metadata and agent resources. Without an explicit `A1_DATA_DIR`, the history root SHALL be `<effective-home>/.a1/data` on Windows, Linux, and macOS. The effective home SHALL follow the existing A1 launch-profile home policy, including `A1_PROFILE_HOME`. An explicit `A1_DATA_DIR` SHALL select the history root instead, retaining its existing path-resolution behavior. This history-only default change SHALL NOT relocate other product data, settings, agent resources, releases, runtime files, logs, or caches.
-
-Profile identity SHALL be stable for the same normalized effective A1 profile root across launches and releases, independent of cwd, session identity, and the history storage root. The existing profile identity algorithm, Shared database and sidecar paths, and database schema SHALL remain compatible. Different effective profile roots SHALL have different history identities. In Unique mode, a separate, stable, filesystem-safe identity SHALL be derived from that profile and the agent's durable session ID, with separate image sidecars. Different session IDs SHALL NOT share durable entries, while a resumed session SHALL reuse its own database and sidecars. An unavailable or invalid session ID SHALL NOT fall back to Shared storage.
-
-Default history access SHALL NOT probe, read, migrate, copy, merge, modify, delete, or fall back to the former platform history locations. If the selected new location has no database, A1 SHALL initialize an empty durable store through its ordinary enabled-history startup. Existing local recall and loaded-conversation fallback SHALL remain unchanged and SHALL NOT import old durable history. Disabled persistence and the Pi comparison SHALL NOT initialize A1 history storage or access either default history location.
-
-#### Scenario: Use the default Windows location
-- **WHEN** an enabled bare-A1 instance first needs history with effective home `C:/Users/Example` and no data-directory override
-- **THEN** its selected database and any journal sidecars SHALL live under `C:/Users/Example/.a1/data/history`
-- **AND** no history database SHALL be created under `%LOCALAPPDATA%/a1/history`, `~/.a1/agent`, `~/.a1/cache`, the repository, or the release payload
-- **AND** prompt content SHALL NOT be written into `control.sqlite3`
-
-#### Scenario: Override the application-data root
-- **WHEN** A1 starts with `A1_DATA_DIR` set to an isolated directory
-- **THEN** all selected history database and sidecar access SHALL use that directory's `history` child
-- **AND** it SHALL NOT read, copy, or mutate history at the default root
-- **AND** the override SHALL take precedence over `A1_PROFILE_HOME` for history storage without changing profile identity
-
-#### Scenario: Reuse a profile across projects and launches
-- **WHEN** two bare-A1 processes use Shared mode with the same effective profile and history root from different projects or release checkouts
-- **THEN** they SHALL address the same existing durable history without grouping recall by project or prioritizing the current session over committed recency
-
-#### Scenario: Keep overridden profiles separate
-- **WHEN** two different effective A1 profile roots share one history root
-- **THEN** each SHALL read and modify only its own history in either mode
-- **AND** matching prompt text or session labels SHALL NOT merge the profiles
-
-#### Scenario: Use the default Linux or macOS location
-- **WHEN** an enabled bare-A1 instance starts on Linux or macOS with effective home `H` and no data-directory override
-- **THEN** its selected database and sidecars SHALL live under `H/.a1/data/history`
-- **AND** setting `XDG_DATA_HOME` SHALL NOT relocate default prompt history
-- **AND** the existing platform locations for all other product data SHALL remain unchanged
-
-#### Scenario: Respect the effective profile home
-- **WHEN** A1 uses `A1_PROFILE_HOME=H` without an explicit data-directory override
-- **THEN** its default history root SHALL be `H/.a1/data`
-- **AND** it SHALL NOT use the operating-system home or the parent of a separately overridden agent-profile directory as an alternative default history root
-
-#### Scenario: Old default history exists on first launch after the change
-- **WHEN** no data-directory override is set, the selected profile database is absent, and history exists at the former platform default
-- **THEN** A1 SHALL begin with an empty durable history at the selected location
-- **AND** it SHALL NOT access or alter the old database or its sidecars
-- **AND** subsequent launches SHALL NOT perform automatic old-location cleanup or import
-
-#### Scenario: The selected history root is unavailable
-- **WHEN** the selected root cannot be opened or written
-- **THEN** A1 SHALL record a bounded, sanitized developer-only persistence failure without normal UI or terminal output and retain current-session functionality
-- **AND** it SHALL NOT fall back to the former platform root or another directory
-
-#### Scenario: Persistence is disabled or the comparison is launched
-- **WHEN** bare A1 starts with persistence disabled or the user launches the Pi comparison
-- **THEN** it SHALL NOT initialize, probe, or clean up A1's home or former default history stores
-- **AND** its existing current-session history behavior SHALL remain unchanged
-
 ### Requirement: Only classified user submissions enter durable recall
 A1 SHALL persist at most one history update per nonempty, successfully prepared interactive user submission, independently of provider completion. Eligible inputs SHALL include ordinary prompts, steering, follow-ups, inputs queued during compaction, nonempty user bash commands, and user-entered skill/template/extension slash inputs routed as prompts. Built-in workflow or owned-app commands that bypass existing history SHALL remain excluded. Durable history SHALL NOT be an event log of engine output, automatic extension messages, transcript replay, recovery callbacks, or unsubmitted suggestions.
 
@@ -137,47 +82,14 @@ Durable text SHALL be limited to 1 MiB UTF-8 per entry and 8 MiB per profile in 
 - **WHEN** one candidate exceeds 1 MiB
 - **THEN** it SHALL be skipped durably without truncation and a bounded persistence condition SHALL be reported without its content
 
-### Requirement: Bare A1 preserves v2 history navigation
-With persistent history enabled, bare A1's default editor SHALL offer a bounded, deduplicated recall list incorporating current-process input, saved history, and existing loaded-conversation fallback without persisting fallback reads. At history-navigation boundaries, Up toward older entries SHALL place the caret at the end of the recalled prompt; Down toward newer entries SHALL place it at the beginning. Leaving browsing SHALL restore the pre-navigation draft. Pinned multiline movement outside those boundaries, autocomplete priority, keybindings, selection, undo, and unrelated editor behavior SHALL remain intact.
-
-#### Scenario: Recall older multiline text
-- **WHEN** Up crosses the history boundary into an older multiline prompt
-- **THEN** that prompt SHALL replace the editor value and the caret SHALL land after the last character on its last line
-
-#### Scenario: Recall newer text or leave history
-- **WHEN** Down crosses the history boundary into a newer prompt
-- **THEN** the caret SHALL land at the beginning of its first line
-- **WHEN** Down leaves history past the newest entry
-- **THEN** normal draft restoration SHALL recover the pre-navigation draft rather than losing it to a refresh
-
-#### Scenario: Reach the end of history
-- **WHEN** navigation cannot move beyond the oldest entry
-- **THEN** neither selection nor caret position SHALL change and no unavailable-action message SHALL appear
-
-#### Scenario: Browse without adding an undo step for every recalled entry
-- **WHEN** the user enters history and steps through several prompts
-- **THEN** entering history SHALL preserve the source-derived single draft undo boundary
-- **AND** intermediate navigation SHALL NOT create the additional undo snapshots of ordinary programmatic text replacement
-- **AND** subsequent editing and undo SHALL retain the pinned grouping behavior apart from the explicitly declared caret placement
-
-#### Scenario: Restore a draft with live pasted content
-- **WHEN** the pre-navigation draft contains live paste markers and a nonterminal cursor position, and the user browses away and returns
-- **THEN** its text, cursor, and live paste backing SHALL be restored intact
-- **AND** history navigation SHALL NOT clear its paste store or re-normalize its contents as an ordinary set-text operation would
-
-#### Scenario: Type or submit recalled input
-- **WHEN** a prompt is recalled
-- **THEN** it SHALL become editable real input, not a ghost suggestion
-- **AND** it SHALL NOT execute until the user explicitly submits it
-
 ### Requirement: History position is shown in the existing editor border
-During history browsing, bare A1 SHALL show `History position/total` in the existing top editor border using its semantic border styling, without adding dock rows. The newest entry SHALL be numbered `total/total` and the oldest `1/total`. The indicator SHALL be absent outside browsing, retain applicable v2 overflow information, and fit the available terminal width.
+During history browsing, bare A1 SHALL show the numeric label `position/total`, without a `History` word, inset after the leading cells of the existing top editor border and styled by the editor's history-label style, without adding dock rows. The newest entry SHALL be numbered `total/total` and the oldest `1/total`. The indicator SHALL be absent outside browsing, retain the applicable hidden-line overflow information, and fit the available terminal width.
 
 #### Scenario: Browse three prompts
 - **WHEN** the user recalls the newest of three entries
-- **THEN** the border SHALL show `History 3/3`
+- **THEN** the border SHALL show `3/3`
 - **WHEN** the user reaches the oldest
-- **THEN** it SHALL show `History 1/3`
+- **THEN** it SHALL show `1/3`
 - **WHEN** the draft is restored
 - **THEN** the ordinary editor border SHALL return
 
@@ -230,9 +142,9 @@ A1 SHALL preserve committed history across ordinary restart and transactional cr
 - **AND** it SHALL NOT retry uncertain submissions automatically after losing the storage worker
 
 ### Requirement: History is private durable state rather than disposable cache
-A1 SHALL protect history files and sidecars with owner-restrictive access where supported and SHALL never include their contents in logs, crash records, or validation evidence. These protections SHALL apply at the home-based default as well as explicitly overridden roots. Documentation SHALL identify history as unencrypted potentially sensitive user text, state its default and override locations, explain retention and next-start opt-out, and describe removal only after all instances using that profile have stopped. Documentation SHALL explain that the default-location change starts fresh without importing or deleting the old history.
+A1 SHALL protect history files and sidecars with owner-restrictive access where supported and SHALL never include their contents in logs, crash records, or validation evidence. These protections SHALL apply at the home-based default as well as explicitly overridden roots. Documentation SHALL identify history as unencrypted potentially sensitive user text, state its default and override locations, explain retention and next-start opt-out, and describe removal only after all instances using that profile have stopped.
 
-Disabling persistence SHALL leave existing records intact. Upgrades, ordinary npm uninstall/reinstall, release rollback, cache cleanup, and conversation deletion SHALL NOT implicitly clear history. A1 SHALL NOT add automatic old-location deletion as part of the default-location change. No legacy import SHALL occur without a separately declared explicit operation.
+Disabling persistence SHALL leave existing records intact. Upgrades, ordinary npm uninstall/reinstall, release rollback, cache cleanup, and conversation deletion SHALL NOT implicitly clear history. A1 SHALL NOT import history from another location or another product.
 
 #### Scenario: Clean caches or upgrade A1
 - **WHEN** cache/dependency/release cleanup, an upgrade, or release rollback runs
@@ -243,7 +155,7 @@ Disabling persistence SHALL leave existing records intact. Upgrades, ordinary np
 - **THEN** bounded developer-only diagnostics SHALL contain only bounded classified failure information, not prompt text, SQL values, arbitrary exception payloads, or private provenance; background-history failures SHALL NOT appear in normal UI or terminal output
 
 #### Scenario: Existing prototype history is present
-- **WHEN** A1 starts on a machine containing v2, Pi, or Claude history
+- **WHEN** A1 starts on a machine containing prompt history written by another product, such as Pi or Claude
 - **THEN** it SHALL neither read nor import nor modify those histories automatically
 
 #### Scenario: Uninstall and reinstall the package
@@ -279,15 +191,6 @@ A1 SHALL distinguish transient database contention and recoverable worker failur
 - **WHEN** shutdown, profile replacement, or service disposal begins with a recovery timer or worker transition pending
 - **THEN** obsolete work SHALL NOT spawn another worker, attach another polling loop, modify the new profile, or overwrite its editor state
 - **AND** all admitted persistence promises SHALL settle within the applicable operation or shutdown bound
-
-### Requirement: History resilience is verified independently of diagnostic visibility
-Acceptance SHALL demonstrate actual same-instance recovery, safe commit accounting, and bounded resource use as well as absence of background-history messages. Removing or renaming the warning alone SHALL NOT satisfy the change.
-
-#### Scenario: Exercise contention while using the editor
-- **WHEN** isolated concurrent-process validation holds and releases a database lock while the user types, browses, and submits
-- **THEN** eligible confirmed-uncommitted prompts SHALL become recallable after recovery and a subsequent launch
-- **AND** draft, browse ordering, cursor behavior, input responsiveness, and configured retention SHALL remain intact
-- **AND** captured notifications, status, transcript, stdout, stderr, and exit output SHALL contain no prompt-history failure or recovery notices
 
 ### Requirement: Durable history can be isolated per agent session
 Unique mode SHALL keep separate durable prompt history and image sidecars for each stable agent session within a profile, including agents running concurrently in distinct `a1` processes. Shared mode SHALL continue to use the existing profile-wide database and sidecars for all agent sessions in that profile. Switching scope SHALL NOT transfer, import, merge, delete, or silently read records from the other scope. Both modes SHALL preserve the existing per-store limits, failure behavior, and transcript-based/session-local recall.
@@ -326,3 +229,89 @@ Unique mode SHALL keep separate durable prompt history and image sidecars for ea
 - **THEN** new and running agents SHALL use only the newly selected store after observing the change
 - **AND** the other scope's data SHALL remain intact without appearing in the newly selected store
 - **AND** unsent drafts SHALL remain intact while each agent's visible recall switches to the selected store
+
+### Requirement: Prompt history is stored per profile under one history root
+Bare A1 SHALL keep durable prompt history at `<history-root>/history/<profile-id>.sqlite3` in Shared mode and at a distinct, session-specific database in the same history directory in Unique mode, separately from control metadata and agent resources. Without an explicit `A1_DATA_DIR`, the history root SHALL be `<effective-home>/.a1/data` on Windows, Linux, and macOS. The effective home SHALL follow the existing A1 launch-profile home policy, including `A1_PROFILE_HOME`. An explicit `A1_DATA_DIR` SHALL select the history root instead, retaining its existing path-resolution behavior. The history root SHALL NOT determine the location of settings, agent resources, or releases.
+
+Profile identity SHALL be stable for the same normalized effective A1 profile root across launches and releases, independent of cwd, session identity, and the history storage root. Different effective profile roots SHALL have different history identities. In Unique mode, a separate, stable, filesystem-safe identity SHALL be derived from that profile and the agent's durable session ID, with separate image sidecars. Different session IDs SHALL NOT share durable entries, while a resumed session SHALL reuse its own database and sidecars. An unavailable or invalid session ID SHALL NOT fall back to Shared storage.
+
+History access SHALL NOT probe, read, migrate, copy, merge, modify, delete, or fall back to any other location, including the platform application-data directories. If the selected location has no database, A1 SHALL initialize an empty durable store through its ordinary enabled-history startup. Local recall and loaded-conversation fallback SHALL NOT import durable history from elsewhere. Disabled persistence and the Pi comparison SHALL NOT initialize A1 history storage.
+
+#### Scenario: Use the default Windows location
+- **WHEN** an enabled bare-A1 instance first needs history with effective home `C:/Users/Example` and no data-directory override
+- **THEN** its selected database and any journal sidecars SHALL live under `C:/Users/Example/.a1/data/history`
+- **AND** no history database SHALL be created under `%LOCALAPPDATA%/a1/history`, `~/.a1/agent`, `~/.a1/cache`, the repository, or the release payload
+- **AND** prompt content SHALL NOT be written into `control.sqlite3`
+
+#### Scenario: Override the application-data root
+- **WHEN** A1 starts with `A1_DATA_DIR` set to an isolated directory
+- **THEN** all selected history database and sidecar access SHALL use that directory's `history` child
+- **AND** it SHALL NOT read, copy, or mutate history at the default root
+- **AND** the override SHALL take precedence over `A1_PROFILE_HOME` for history storage without changing profile identity
+
+#### Scenario: Reuse a profile across projects and launches
+- **WHEN** two bare-A1 processes use Shared mode with the same effective profile and history root from different projects or release checkouts
+- **THEN** they SHALL address the same durable history without grouping recall by project or prioritizing the current session over committed recency
+
+#### Scenario: Keep overridden profiles separate
+- **WHEN** two different effective A1 profile roots share one history root
+- **THEN** each SHALL read and modify only its own history in either mode
+- **AND** matching prompt text or session labels SHALL NOT merge the profiles
+
+#### Scenario: Use the default Linux or macOS location
+- **WHEN** an enabled bare-A1 instance starts on Linux or macOS with effective home `H` and no data-directory override
+- **THEN** its selected database and sidecars SHALL live under `H/.a1/data/history`
+- **AND** setting `XDG_DATA_HOME` SHALL NOT relocate default prompt history
+
+#### Scenario: Respect the effective profile home
+- **WHEN** A1 uses `A1_PROFILE_HOME=H` without an explicit data-directory override
+- **THEN** its default history root SHALL be `H/.a1/data`
+- **AND** it SHALL NOT use the operating-system home or the parent of a separately overridden agent-profile directory as an alternative default history root
+
+#### Scenario: A history database exists in a platform application-data directory
+- **WHEN** no data-directory override is set, the selected profile database is absent, and a history database exists under a platform application-data directory such as `%LOCALAPPDATA%/a1/history`
+- **THEN** A1 SHALL begin with an empty durable history at the selected location
+- **AND** it SHALL NOT access, import, clean up, or alter that other database or its sidecars
+
+#### Scenario: The selected history root is unavailable
+- **WHEN** the selected root cannot be opened or written
+- **THEN** A1 SHALL record a bounded, sanitized developer-only persistence failure without normal UI or terminal output and retain current-session functionality
+- **AND** it SHALL NOT fall back to another directory
+
+#### Scenario: Persistence is disabled or the comparison is launched
+- **WHEN** bare A1 starts with persistence disabled or the user launches the Pi comparison
+- **THEN** it SHALL NOT initialize, probe, or clean up A1 history stores
+- **AND** recall SHALL be limited to current-session history
+
+### Requirement: History navigation places the caret by direction and restores the draft
+With persistent history enabled, bare A1's default editor SHALL offer a bounded, deduplicated recall list incorporating current-process input, saved history, and existing loaded-conversation fallback without persisting fallback reads. At history-navigation boundaries, Up toward older entries SHALL place the caret at the end of the recalled prompt; Down toward newer entries SHALL place it at the beginning. Leaving browsing SHALL restore the pre-navigation draft. Pinned multiline movement outside those boundaries, autocomplete priority, keybindings, selection, undo, and unrelated editor behavior SHALL remain intact.
+
+#### Scenario: Recall older multiline text
+- **WHEN** Up crosses the history boundary into an older multiline prompt
+- **THEN** that prompt SHALL replace the editor value and the caret SHALL land after the last character on its last line
+
+#### Scenario: Recall newer text or leave history
+- **WHEN** Down crosses the history boundary into a newer prompt
+- **THEN** the caret SHALL land at the beginning of its first line
+- **WHEN** Down leaves history past the newest entry
+- **THEN** normal draft restoration SHALL recover the pre-navigation draft rather than losing it to a refresh
+
+#### Scenario: Reach the end of history
+- **WHEN** navigation cannot move beyond the oldest entry
+- **THEN** neither selection nor caret position SHALL change and no unavailable-action message SHALL appear
+
+#### Scenario: Browse without adding an undo step for every recalled entry
+- **WHEN** the user enters history and steps through several prompts
+- **THEN** entering history SHALL record a single draft undo boundary
+- **AND** intermediate navigation SHALL NOT create the additional undo snapshots of ordinary programmatic text replacement
+- **AND** subsequent editing and undo SHALL retain the pinned editor's grouping behavior
+
+#### Scenario: Restore a draft with live pasted content
+- **WHEN** the pre-navigation draft contains live paste markers and a nonterminal cursor position, and the user browses away and returns
+- **THEN** its text, cursor, and live paste backing SHALL be restored intact
+- **AND** history navigation SHALL NOT clear its paste store or re-normalize its contents as an ordinary set-text operation would
+
+#### Scenario: Type or submit recalled input
+- **WHEN** a prompt is recalled
+- **THEN** it SHALL become editable real input, not a ghost suggestion
+- **AND** it SHALL NOT execute until the user explicitly submits it

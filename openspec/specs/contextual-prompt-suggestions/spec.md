@@ -76,13 +76,13 @@ A valid suggestion SHALL appear in the ordinary bare-A1 editor only after its ru
 
 If presentation is temporarily blocked only because the ordinary editor is not ready, not focused, showing autocomplete, or in a temporary prompt mode, A1 SHALL retain the current candidate and reevaluate it when that same editor becomes eligible. Deferred presentation SHALL NOT start another provider request, duplicate a terminal request outcome, or insert text into the editor. A user-authored draft SHALL hide but not discard an already prepared or shown candidate under the existing lifecycle. A1 SHALL retire the candidate when replacement input takes ownership, a new run starts, the model/session changes, the user accepts or submits, the feature is disabled, or the shell is disposed.
 
-The ordinary bare-A1 prompt row SHALL use the same `❯` glyph and glyph foreground style as the shared settings search input whether it is empty, showing a suggestion, or containing typed text; the glyph SHALL remain presentation-only and shall not consume a semantic editor-text offset. The suggestion SHALL use that input's quiet placeholder styling. It SHALL preserve the ordinary caret and editor geometry, wrap by terminal display width after reserving the glyph width, and remain absent from semantic editor text, selection, clipboard, history, queued input, and submitted prompts until accepted.
+The ordinary bare-A1 prompt row SHALL be marker-free: every editable row, including continuation rows, SHALL keep a blank gutter of at least one cell on each side (the configured editor padding when that is larger) whether the prompt is empty, showing a suggestion, or containing typed text. The gutter SHALL remain presentation-only and SHALL NOT consume a semantic editor-text offset. The suggestion SHALL use faint ghost styling. It SHALL preserve the ordinary caret and editor geometry, wrap by terminal display width within the content width between the gutters, and remain absent from semantic editor text, selection, clipboard, history, queued input, and submitted prompts until accepted.
 
 A1 SHALL preserve autocomplete priority: an active slash-command, path, resource, or extension autocomplete result SHALL own Tab and its presentation instead of a contextual suggestion.
 
 #### Scenario: Suggestion is ready before settlement
 - **WHEN** an eligible suggestion finishes while its originating run is still settling and the ordinary prompt editor becomes eligible at settlement
-- **THEN** the complete suggestion SHALL appear in that settlement presentation after the shared grey `❯` prompt glyph using the same quiet style as the `search settings` placeholder
+- **THEN** the complete suggestion SHALL appear in that settlement presentation after the leading gutter in faint ghost styling, with no prompt marker
 - **AND** no typing animation, retained `Working...` state, or suggestion-generation status SHALL delay it
 - **AND** reading or copying the editor value SHALL still observe an empty value
 
@@ -93,12 +93,12 @@ A1 SHALL preserve autocomplete priority: an active slash-command, path, resource
 
 #### Scenario: Render ordinary prompt text
 - **WHEN** the ordinary bare-A1 editor is empty or contains user-entered text without a contextual suggestion
-- **THEN** its prompt row SHALL retain the shared settings-search `❯` glyph and glyph color
+- **THEN** its prompt row SHALL show the leading gutter and no prompt marker
 - **AND** typed text SHALL retain the ordinary prompt text color
 
 #### Scenario: Wrap a long visible suggestion
 - **WHEN** a valid suggestion is wider than the available editor row
-- **THEN** its ghost presentation SHALL wrap within the width remaining after the prompt glyph without exceeding terminal width or changing the underlying editor value
+- **THEN** its ghost presentation SHALL wrap within the content width between the gutters without exceeding terminal width or changing the underlying editor value
 
 #### Scenario: Editor already contains a draft
 - **WHEN** a valid suggestion arrives while the editor contains user text
@@ -131,7 +131,7 @@ When a contextual suggestion is visible, the configured `tui.input.tab` action S
 #### Scenario: Accept with Tab
 - **WHEN** a contextual suggestion is visible and the user invokes `tui.input.tab`
 - **THEN** the complete suggestion SHALL become ordinary editable editor text in the same text color as current typed prompts
-- **AND** the `❯` glyph SHALL retain the shared settings-search prompt color and the caret SHALL move immediately after the accepted text
+- **AND** the caret SHALL move immediately after the accepted text
 - **AND** no prompt SHALL have been submitted
 
 #### Scenario: Submit after acceptance
@@ -201,105 +201,6 @@ A newly generated current suggestion SHALL replace an older unaccepted suggestio
 #### Scenario: Suggestion is not persisted
 - **WHEN** a session containing a visible but unaccepted suggestion is closed and resumed
 - **THEN** the resumed editor SHALL not restore that suggestion from session history
-
-### Requirement: Users control background suggestion requests
-Bare A1 SHALL expose the persisted A1 setting `promptSuggestions`, labeled `Prompt suggestions`, exactly once in the owned settings screen's existing `Agent` section rather than `A1`. This named presentation-grouping exception SHALL NOT transfer the setting to the engine: its persistence key, A1-owned backend, profile-local storage, default-enabled value, and live application boundary SHALL remain unchanged. The setting SHALL disclose that enabled suggestions make an additional background request using the selected model. Disabling it SHALL abort pending generation and clear any visible suggestion.
-
-The screen SHALL contain only one Agent section, preserving the relative order and capability filtering of engine-provided settings and placing this owned control after them. No duplicate suggestion control or empty A1 section SHALL remain because of the move. The owned control SHALL remain visible and editable even when engine settings are absent, unreadable, or not writable; engine-level availability SHALL NOT be misapplied to it. Other A1 controls and the `a1 pi` comparison SHALL retain their existing grouping and behavior.
-
-#### Scenario: Disable suggestions
-- **WHEN** the user disables contextual prompt suggestions
-- **THEN** A1 SHALL immediately clear visible suggestion state, abort pending generation, and make no later suggestion requests until re-enabled
-
-#### Scenario: Re-enable suggestions
-- **WHEN** the user re-enables contextual prompt suggestions
-- **THEN** A1 SHALL consider subsequent eligible completed runs without retroactively generating for an earlier run
-
-#### Scenario: Review the setting
-- **WHEN** the user views the contextual prompt suggestion setting
-- **THEN** its description SHALL state that each eligible suggestion uses an additional background request with the selected model
-- **AND** the `Prompt suggestions` row SHALL appear in Agent, not A1
-
-#### Scenario: Present the existing Agent section
-- **WHEN** bare A1 opens settings with presentable engine settings
-- **THEN** one Agent section SHALL contain those engine settings in their existing relative order followed by the single Prompt suggestions control
-- **AND** no second Agent section, duplicate control, or now-empty A1 section SHALL be rendered
-- **AND** Scroll, History, and other controls SHALL retain their existing placement
-
-#### Scenario: Change the control from Agent
-- **WHEN** the user toggles Prompt suggestions in Agent
-- **THEN** the existing A1 profile-local setting SHALL be updated and the live suggestion behavior SHALL follow that value
-- **AND** no engine-setting write, Pi settings-file mutation, or setting-value migration SHALL occur
-
-#### Scenario: Preserve a saved opt-out
-- **WHEN** a profile already stores `promptSuggestions` as false before the control is relocated and A1 restarts
-- **THEN** the Agent control SHALL still show false and suggestion requests SHALL remain disabled
-- **AND** the move SHALL NOT reset the value to its default or copy it into engine settings
-
-#### Scenario: Engine settings cannot be presented
-- **WHEN** the engine is absent, reading its settings fails, it advertises no setting-write capability, or it supplies no presentable settings
-- **THEN** Prompt suggestions SHALL remain visible and editable in the single Agent section through its A1 backend
-- **AND** unavailable engine settings SHALL remain filtered according to their existing rules
-- **AND** section-wide unavailable or read-only presentation SHALL NOT falsely disable the owned control
-
-#### Scenario: Find and operate the moved control
-- **WHEN** the user searches for Agent or Prompt suggestions, jumps between sections, or changes the control using keyboard or pointer input
-- **THEN** the settings surface SHALL address the same single entry with its existing backend, value, shared controls, and live behavior
-- **AND** refreshing settings SHALL NOT recreate a duplicate or change the control's identity
-
-### Requirement: Suggestion behavior is independently observable and bounded
-A1 SHALL provide deterministic test seams for suggestion generation, cancellation, request identity, attempt trigger, and time, and SHALL verify the feature with a fake model boundary before using real provider credentials. Acceptance evidence SHALL distinguish the primary agent request from up to two sequential suggestion requests and SHALL confirm that suggestion work never invokes tools or changes persisted conversation content.
-
-A1 SHALL provide a documented, opt-in local diagnostic capture and inspection path for suggestion decisions. Diagnostics SHALL distinguish ineligible/disabled decisions, prefetch or settlement request start, empty model output, candidate rejection, provider failure, timeout, cancellation, stale-result rejection, deferred or blocked presentation, successful display, retry start, and retry exhaustion. Eligibility and presentation records SHALL include a bounded reason code rather than only a boolean. Request records SHALL include a process-local correlation identity, attempt number and trigger, selected provider/model identifiers, applied reasoning policy, elapsed time, and the terminal outcome when known. One request SHALL have at most one terminal outcome; late results SHALL NOT overwrite it or count as another request.
-
-Capture SHALL be disabled by default, retain at most 128 bounded metadata records, and perform no remote upload. Records SHALL NOT contain prompts, assistant or candidate text, tool arguments/results, credentials, raw provider errors, or session-file/worktree paths. Diagnostic capture or export failure SHALL NOT alter suggestion generation, block input, or appear in the editor, transcript, or normal status rows. Disposal SHALL clear in-memory records; file export SHALL occur only through explicit local opt-in and remain bounded.
-
-#### Scenario: Count model requests
-- **WHEN** one eligible run settles and its first generation succeeds without cancellation
-- **THEN** evidence SHALL record one primary agent request and exactly one suggestion request
-- **AND** no settlement fallback or retry SHALL start
-
-#### Scenario: Exercise a deterministic race
-- **WHEN** a stale suggestion request resolves after a newer run, model, or session generation becomes current
-- **THEN** deterministic evidence SHALL show that the stale text was discarded
-
-#### Scenario: Verify session isolation
-- **WHEN** suggestion generation completes or fails
-- **THEN** the persisted session path and user-visible transcript SHALL contain no suggestion-generation instruction, response, or synthetic tool activity
-
-#### Scenario: Inspect a missing suggestion
-- **WHEN** local capture is enabled and an eligible response ends without a visible suggestion
-- **THEN** inspection SHALL distinguish missing prefetch, empty output, invalid candidate, provider failure, timeout, cancellation, stale result, deferred/blocked presentation, and exhausted retry according to the actual observed outcome
-- **AND** absence of a suggestion SHALL NOT alone be labeled a timeout or model abstention
-
-#### Scenario: No request was started
-- **WHEN** capture is enabled and a response is permanently ineligible because suggestions are disabled, the conversation is too early, no model is active, or the response failed or continues with tools
-- **THEN** inspection SHALL show the applicable eligibility reason and SHALL NOT claim a provider request occurred
-
-#### Scenario: Cancellation wins a late-result race
-- **WHEN** cancellation retires a request and the provider subsequently resolves it
-- **THEN** inspection SHALL preserve its cancellation outcome and identify the late result as discarded without another terminal outcome or retry
-
-#### Scenario: Diagnostics are private and bounded
-- **WHEN** more than 128 diagnostic records are produced, including failures containing sensitive raw error text
-- **THEN** retained/exported records SHALL remain bounded, evict older records as needed, and contain only the permitted metadata
-- **AND** disabled capture SHALL retain and export no suggestion diagnostic records
-
-#### Scenario: Diagnostic sink fails
-- **WHEN** enabled diagnostic capture or local export fails
-- **THEN** the primary session and suggestion lifecycle SHALL continue normally without transcript, editor, or status-row diagnostic output
-
-#### Scenario: Inspect a recovered missing activation
-- **WHEN** settlement starts the first request because prefetch did not start
-- **THEN** diagnostics SHALL identify settlement as the attempt trigger without recording conversation or candidate text
-
-#### Scenario: Inspect bounded retry
-- **WHEN** the first request fails and the retry succeeds or exhausts recovery
-- **THEN** diagnostics SHALL identify both ordered attempts, their terminal outcomes, and the final display or exhaustion
-
-#### Scenario: Inspect deferred presentation
-- **WHEN** a valid candidate waits for a temporary presentation blocker to clear
-- **THEN** diagnostics SHALL distinguish deferred presentation from empty generation or provider failure
 
 ### Requirement: Prediction prioritizes a clear offered next action
 For an otherwise eligible run, A1 SHALL instruct the suggestion model to prefer a clearly offered next action that agrees with the user's recent intent. An optional alternative SHALL NOT by itself be treated as evidence that no natural continuation exists. The instruction SHALL distinguish an optional alternative from genuinely unresolved choices, contradictory user intent, and outstanding required assessment; those conditions SHALL retain the ability to produce no suggestion.
@@ -382,20 +283,74 @@ A1 SHALL NOT overlap attempts, make more than two requests for one response, ret
 - **WHEN** the user types, submits, interrupts, or starts another run before a scheduled or active retry completes
 - **THEN** A1 SHALL retire that recovery and SHALL NOT publish its eventual result
 
-### Requirement: Contextual suggestions preserve the inset main-prompt prefix
-The ordinary bare-A1 prompt SHALL reserve exactly one leading blank cell before its `❯` marker whether it is empty, contains typed text, or presents contextual suggestion ghost text. The marker and inset SHALL remain presentation-only and SHALL NOT enter semantic editor text, selection, clipboard, history, queued input, or submitted prompts. Suggestion wrapping SHALL use the width remaining after the complete leading inset and prompt marker. This requirement replaces the earlier dependency on the Settings-search marker, because Settings search is marker-free.
+### Requirement: Prompt suggestions are an owned Agent-section setting
+Bare A1 SHALL expose the persisted A1 setting `promptSuggestions`, labeled `Prompt suggestions`, exactly once in the owned settings screen's `Agent` section. The setting SHALL remain A1-owned: its persistence key, A1 backend, profile-local storage, default-enabled value, and live application boundary SHALL NOT belong to the engine. Its description SHALL disclose that suggestions use a background request, plus one bounded recovery request when needed, with the selected model. Disabling it SHALL abort pending generation and clear any visible suggestion.
 
-#### Scenario: Show a contextual suggestion
-- **WHEN** an eligible contextual suggestion appears in an empty ordinary prompt
-- **THEN** the complete suggestion SHALL appear after one leading blank cell, the grey `❯` marker, and the established marker-to-content spacing
-- **AND** reading or copying the editor value SHALL still observe an empty value until the suggestion is accepted
+The screen SHALL contain only one Agent section, preserving the relative order and capability filtering of engine-provided settings and placing owned Agent controls after them. The owned control SHALL remain visible and editable even when engine settings are absent, unreadable, or not writable; engine-level availability SHALL NOT be applied to it. The `a1 pi` comparison SHALL NOT install the feature.
 
-#### Scenario: Render typed prompt text
-- **WHEN** the ordinary prompt contains user-entered text
-- **THEN** the same one-cell leading inset and `❯` marker SHALL precede the text
-- **AND** the semantic prompt value SHALL contain neither the inset nor the marker
+#### Scenario: Disable suggestions
+- **WHEN** the user disables contextual prompt suggestions
+- **THEN** A1 SHALL immediately clear visible suggestion state, abort pending generation, and make no later suggestion requests until re-enabled
 
-#### Scenario: Wrap a long suggestion
-- **WHEN** a contextual suggestion exceeds the first visible prompt row
-- **THEN** it SHALL wrap within the content width remaining after the complete inset and prompt prefix
-- **AND** no rendered row SHALL exceed the terminal width
+#### Scenario: Re-enable suggestions
+- **WHEN** the user re-enables contextual prompt suggestions
+- **THEN** A1 SHALL consider subsequent eligible completed runs without retroactively generating for an earlier run
+
+#### Scenario: Review the setting
+- **WHEN** the user views the contextual prompt suggestion setting
+- **THEN** its description SHALL state that suggestions use an additional background request with the selected model
+- **AND** the `Prompt suggestions` row SHALL appear in the Agent section
+
+#### Scenario: Present the Agent section
+- **WHEN** bare A1 opens settings with presentable engine settings
+- **THEN** one Agent section SHALL contain those engine settings in their relative order followed by the owned Agent controls, including the single Prompt suggestions control
+- **AND** no second Agent section or duplicate control SHALL be rendered
+
+#### Scenario: Change the control from Agent
+- **WHEN** the user toggles Prompt suggestions in Agent
+- **THEN** the A1 profile-local setting SHALL be updated and the live suggestion behavior SHALL follow that value
+- **AND** no engine-setting write SHALL occur
+
+#### Scenario: Engine settings cannot be presented
+- **WHEN** the engine is absent, reading its settings fails, it advertises no setting-write capability, or it supplies no presentable settings
+- **THEN** Prompt suggestions SHALL remain visible and editable in the single Agent section through its A1 backend
+- **AND** section-wide unavailable or read-only presentation SHALL NOT disable the owned control
+
+### Requirement: Suggestion decisions have opt-in bounded local diagnostics
+A1 SHALL provide a documented, opt-in local diagnostic capture and inspection path for suggestion decisions. Diagnostics SHALL distinguish ineligible/disabled decisions, prefetch or settlement request start, empty model output, candidate rejection, provider failure, timeout, cancellation, stale-result rejection, deferred or blocked presentation, successful display, retry start, and retry exhaustion. Eligibility and presentation records SHALL include a bounded reason code rather than only a boolean. Request records SHALL include a process-local correlation identity, attempt number and trigger, selected provider/model identifiers, applied reasoning policy, elapsed time, and the terminal outcome when known. One request SHALL have at most one terminal outcome; late results SHALL NOT overwrite it or count as another request.
+
+Capture SHALL be disabled by default, retain at most 128 bounded metadata records, and perform no remote upload. Records SHALL NOT contain prompts, assistant or candidate text, tool arguments/results, credentials, raw provider errors, or session-file/worktree paths. Diagnostic capture or export failure SHALL NOT alter suggestion generation, block input, or appear in the editor, transcript, or normal status rows. Disposal SHALL clear in-memory records; file export SHALL occur only through explicit local opt-in and remain bounded. Suggestion work SHALL NOT add a suggestion-generation instruction, response, or synthetic tool activity to the persisted session or the visible transcript.
+
+#### Scenario: Inspect a missing suggestion
+- **WHEN** local capture is enabled and an eligible response ends without a visible suggestion
+- **THEN** inspection SHALL distinguish missing prefetch, empty output, invalid candidate, provider failure, timeout, cancellation, stale result, deferred/blocked presentation, and exhausted retry according to the actual observed outcome
+- **AND** absence of a suggestion SHALL NOT alone be labeled a timeout or model abstention
+
+#### Scenario: No request was started
+- **WHEN** capture is enabled and a response is permanently ineligible because suggestions are disabled, the conversation is too early, no model is active, or the response failed or continues with tools
+- **THEN** inspection SHALL show the applicable eligibility reason and SHALL NOT claim a provider request occurred
+
+#### Scenario: Cancellation wins a late-result race
+- **WHEN** cancellation retires a request and the provider subsequently resolves it
+- **THEN** inspection SHALL preserve its cancellation outcome and identify the late result as discarded without another terminal outcome or retry
+
+#### Scenario: Diagnostics are private and bounded
+- **WHEN** more than 128 diagnostic records are produced, including failures containing sensitive raw error text
+- **THEN** retained/exported records SHALL remain bounded, evict older records as needed, and contain only the permitted metadata
+- **AND** disabled capture SHALL retain and export no suggestion diagnostic records
+
+#### Scenario: Diagnostic sink fails
+- **WHEN** enabled diagnostic capture or local export fails
+- **THEN** the primary session and suggestion lifecycle SHALL continue normally without transcript, editor, or status-row diagnostic output
+
+#### Scenario: Inspect a recovered missing activation
+- **WHEN** settlement starts the first request because prefetch did not start
+- **THEN** diagnostics SHALL identify settlement as the attempt trigger without recording conversation or candidate text
+
+#### Scenario: Inspect bounded retry
+- **WHEN** the first request fails and the retry succeeds or exhausts recovery
+- **THEN** diagnostics SHALL identify both ordered attempts, their terminal outcomes, and the final display or exhaustion
+
+#### Scenario: Inspect deferred presentation
+- **WHEN** a valid candidate waits for a temporary presentation blocker to clear
+- **THEN** diagnostics SHALL distinguish deferred presentation from empty generation or provider failure

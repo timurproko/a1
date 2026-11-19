@@ -6,251 +6,9 @@ Defines A1's independently owned Pi shell with vanilla-default regular main-scre
 
 ## Requirements
 
-### Requirement: The owned shell presents the complete pinned Pi interactive UI
-The A1-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `1.5.2` at commit `b4afdddf44e059c67ccf5097e5317d913521b470`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior. After parity acceptance a route MAY be superseded by a declared A1-owned replacement; the pinned behavior of a superseded route SHALL remain provable through `a1 pi`, and every capability the pinned route exposed SHALL remain reachable from its replacement.
-
-#### Scenario: Recover a session whose working directory is gone
-- **WHEN** startup selection, resume, import, or an extension-triggered switch encounters a session whose original working directory no longer exists
-- **THEN** the owned UI SHALL expose pinned Continue, Fork, and Cancel choices with equivalent presentation and restoration behavior
-- **AND** Continue SHALL use the current directory without persisting that choice, Fork SHALL create a new session identity in the current directory, and Cancel SHALL leave the active session unchanged
-- **AND** cancelled or failed import recovery SHALL NOT leave duplicate imported files with the same session identity
-- **AND** recovery SHALL preserve A1's session-writer exclusion and existing cross-project selection policy
-
-#### Scenario: Start an owned Pi session
-- **WHEN** the user starts the owned UI in an equivalent terminal and session state
-- **THEN** the visible component tree, content, theme, spacing, focus, and available interactions SHALL match pinned Pi for that state
-
-#### Scenario: Submit an ordinary prompt
-- **WHEN** the user submits a non-command prompt against a configured model
-- **THEN** the prompt SHALL become visible, the agent SHALL execute, assistant and tool activity SHALL stream in order, failures SHALL be visible, and the turn SHALL settle exactly as in pinned Pi
-
-#### Scenario: Encounter an unmapped pinned behavior
-- **WHEN** a visible pinned interactive behavior has no A1 implementation or an A1 approximation behaves differently
-- **THEN** the 1:1 baseline gate SHALL fail and the owned UI SHALL remain unaccepted
-
-#### Scenario: Change editor input mode
-- **WHEN** the active thinking level changes or editor input enters or leaves pinned bash mode
-- **THEN** the editor border color SHALL update through the pinned thinking-level or bash-mode color mapping with the same invalidation timing as pinned Pi
-
-#### Scenario: Settle a completed agent turn
-- **WHEN** an agent turn finishes and its settlement event omits, replaces, or supplies the authoritative message collection
-- **THEN** every finalized visible user, assistant, thinking, and tool surface SHALL remain present and SHALL reconcile from pinned session-authoritative state rather than disappearing
-
-#### Scenario: Render footer usage
-- **WHEN** the session has model usage, cache activity, cost, context usage, compaction state, provider state, branch, session name, or extension statuses
-- **THEN** the footer SHALL compute, format, color, truncate, and align those values exactly as pinned `FooterComponent` rather than showing placeholder statistics
-
-#### Scenario: Open settings
-- **WHEN** the user invokes `/settings` in bare A1
-- **THEN** the declared A1-owned settings app SHALL open as the replacement for the pinned settings route, and every agent setting the pinned selector exposed SHALL remain reachable there and editable wherever the engine advertises settings write capability
-- **AND** the pinned specialized settings selector with its current values, descriptions, search, instructions, nested flows, navigation, cancellation, change callbacks, focus restoration, and resize behavior SHALL remain the behavior proven through `a1 pi`
-- **AND** neither surface SHALL expose internal callback names as settings values
-
-#### Scenario: Show keyboard shortcuts
-- **WHEN** the user invokes `/hotkeys`
-- **THEN** the owned UI SHALL append the complete pinned keybinding-derived heading and styled Markdown tables with equivalent categories, keys, descriptions, spacing, wrapping, scrolling, colors, and transcript behavior rather than an abbreviated text summary
-
-#### Scenario: Render consecutive Markdown content
-- **WHEN** an assistant message contains consecutive list rows, paragraphs, links, code, or other Markdown with a fixed source payload
-- **THEN** the owned UI SHALL preserve the pinned ordered content array, Markdown transform, theme, padding, and vertical-spacing rules and SHALL NOT introduce blank rows that untouched pinned Pi does not render
-
-#### Scenario: Render mixed assistant content
-- **WHEN** one assistant message interleaves thinking, text, and tool calls or settles with a stop, error, or abort state
-- **THEN** the owned UI SHALL preserve source order, streaming state, component identity, adjacent-content spacing, tool boundaries, and terminal status content exactly as pinned `AssistantMessageComponent`
-
-#### Scenario: Use vanilla regular-mode terminal ownership
-- **WHEN** the user starts A1 without explicitly selecting fullscreen mode and no A1-owned application is presented
-- **THEN** the runtime SHALL use public `TuiMainScreen` in `regular` mode exactly as default vanilla Pi does
-- **AND** it SHALL NOT enter the alternate screen, enable mouse tracking, intercept drag/release events, rewrite selected ANSI cells, synthesize clipboard output, or maintain screen-coordinate selection state
-
-#### Scenario: Present an A1-owned application over regular mode
-- **WHEN** a declared A1-owned application is presented in regular mode
-- **THEN** A1 MAY enable mouse reporting for the lifetime of that application, because pointer hover, click, and drag are how such a screen is operated
-- **AND** it SHALL disable reporting and restore the terminal exactly as it was found when the application closes, including when it closes through a failure
-- **AND** it SHALL still not enter the alternate screen, rewrite selected ANSI cells, synthesize clipboard output, or maintain screen-coordinate selection state
-- **AND** reporting SHALL never be enabled while no A1-owned application is presented, so `a1 pi` and every pinned surface are unaffected
-
-#### Scenario: Select, copy, and scroll in regular mode
-- **WHEN** the user selects character, word, line, or multi-row content, presses `Ctrl+C` with or without a terminal selection, scrolls the wheel, or types `/` after selecting text
-- **THEN** the physical terminal SHALL own selection appearance, selection clearing, selected-copy consumption, wheel movement, and scrollback exactly as it does for untouched default vanilla Pi
-- **AND** A1-rendered source colors or newly opened command/modal content SHALL NOT inherit an application-owned selection because no such selection layer exists
-
-#### Scenario: Explicitly use fullscreen mode
-- **WHEN** the user explicitly configures `tuiMode` as `fullscreen`
-- **THEN** A1 SHALL use public `TuiAltScreen` and its pinned application-owned viewport, selection, copy, wheel, nested-scroll, and restoration behavior without A1 ANSI rewriting or input interception
-
-#### Scenario: Render the changelog command
-- **WHEN** the user invokes `/changelog`
-- **THEN** the owned UI SHALL insert the pinned spacer, dynamic borders, bold accent `What's New` heading, spacing, settings-aware Markdown component, padding, wrapping, scrolling, and chronological transcript placement
-- **AND** raw Markdown markers or a generic `✓ What's New` workflow row SHALL NOT be displayed as the command presentation
-
-#### Scenario: Render a built-in command failure
-- **WHEN** a built-in route fails, including `/export` before a conversation exists
-- **THEN** the owned UI SHALL use pinned `showError()` spacing, output padding, error color, and `Error:` prefix at the pinned transcript position
-- **AND** the route SHALL preserve its pinned contextual message, including `Failed to export session: Nothing to export yet - start a conversation first`
-
-#### Scenario: Render a built-in informational status
-- **WHEN** a built-in route reports status, including successful `/reload`
-- **THEN** the owned UI SHALL use pinned `showStatus()` spacer, dim styling, chronological placement, and consecutive-status coalescing
-- **AND** `/reload` SHALL NOT gain an A1-only checkmark or generic success prefix
-
-#### Scenario: Show loaded startup resources
-- **WHEN** pinned Pi discovers context files, skills, prompt templates, extensions, custom themes, or resource diagnostics during startup
-- **THEN** the owned UI SHALL render the equivalent Context, Skills, Prompts, Extensions, Themes, and conflict sections with pinned grouping, sorting, labels, colors, spacing, compact/expanded state, and source formatting before initial session messages
-
-#### Scenario: Preserve loaded resources across a chat clear
-- **WHEN** the transcript is cleared or a fresh chat state is rendered without rebinding resources
-- **THEN** the loaded-resource sections SHALL remain in their separate pinned root container and SHALL NOT disappear with chat transcript rows
-
-#### Scenario: Compose a specialized selector
-- **WHEN** settings or another pinned specialized selector is active over a populated transcript
-- **THEN** its root-container placement, editor replacement, focus, viewport allocation, scrolling, instruction rows, footer relationship, cancellation, and restoration SHALL match pinned Pi rather than generic overlay composition
-
-#### Scenario: Cancel a selector silently
-- **WHEN** the user presses Escape or invokes cancel while a built-in selector or modal is active
-- **THEN** the surface SHALL be disposed and the editor and focus SHALL be restored without appending a generic `{surface} cancelled` transcript, workflow, notification, or status row
-- **AND** operation-specific cancellation output SHALL appear only where the pinned controller explicitly emits it
-
-#### Scenario: Exercise any vanilla modal surface
-- **WHEN** any modal, selector, dialog, nested flow, custom input/editor, confirmation, authentication surface, or extension-hosted modal reachable in pinned Pi is opened
-- **THEN** A1 SHALL use the equivalent stateful component and controller lifecycle rather than a generic one-shot workflow substitution
-- **AND** active interaction, navigation, search, editing, save/confirm behavior, cancellation, nesting/replacement, status and transcript effects, scrolling, resize, focus restoration, failure handling, session switching, and disposal SHALL match the pinned route
-
-#### Scenario: Configure scoped models
-- **WHEN** the user invokes `/scoped-models` and toggles, filters, bulk-enables, clears, changes a provider, or reorders models
-- **THEN** the stateful scoped-model selector SHALL remain open, update session-only scope and dirty/unsaved state, and preserve pinned model ordering and refresh behavior
-- **AND WHEN** the user presses `Ctrl+S`
-- **THEN** the current patterns SHALL persist to settings, the saved status SHALL appear as in pinned Pi, and the selector SHALL remain active
-- **AND WHEN** the user presses Escape
-- **THEN** the selector SHALL close silently while retaining the already-applied session-only scope and without implicitly persisting unsaved settings
-
-#### Scenario: Prove complete modal inventory coverage
-- **WHEN** source coverage or acceptance runs
-- **THEN** every modal-like branch discovered from pinned `InteractiveMode`, nested settings components, and public extension UI SHALL have a mapped A1 controller and independent open/active/complete-or-save/cancel/failure/restoration acceptance cases
-- **AND** an omitted branch or a route covered only by a shared generic-selector fixture SHALL fail the gate
-
-#### Scenario: Browse current-session prompt history
-- **WHEN** the current session contains previously entered user messages and the editor receives Up or Down at a pinned history-navigation boundary
-- **THEN** the editor SHALL browse those messages in pinned newest/oldest order, suppress adjacent duplicates, preserve multiline cursor movement outside those boundaries, and restore the pre-navigation draft when leaving history browsing
-- **AND** newly accepted ordinary, streaming, extension, bash, steering, and follow-up inputs SHALL enter history at the same source-traced controller points as pinned Pi
-
-#### Scenario: Render structured built-in command content
-- **WHEN** a built-in command presents structured information, including `/session`
-- **THEN** the owned UI SHALL reproduce vanilla Pi's complete headings, groups, labels, values, colors, emphasis, indentation, wrapping, spacing, and scrolling for that route
-- **AND** it SHALL NOT replace the route-specific presenter with raw JSON, a plain object dump, a generic success heading, an A1-only checkmark, or flattened plain text
-
-#### Scenario: Preserve visible-content ownership planes
-- **WHEN** pinned Pi presents persistent document content, prompt-adjacent transient content, or active replacement content
-- **THEN** A1 SHALL place the content in the equivalent root region with the same sibling order, vertical spacing, style, width, scroll/follow effect, replacement behavior, and lifetime
-- **AND** correct text rendered in a different transcript, workflow, status, editor, footer, or modal region SHALL fail parity
-
-#### Scenario: Position the working indicator
-- **WHEN** the agent or an extension enters, updates, or leaves a working state
-- **THEN** the working indicator SHALL appear at the same prompt-relative location with equivalent icon, text, color, blank rows, replacement behavior, and editor/footer relationship as vanilla Pi
-
-#### Scenario: Report program status to a supporting terminal
-- **WHEN** the session starts or settles work, opens or closes a dialog or authentication flow, fails, is aborted, switches session, or stops
-- **THEN** A1 SHALL report the equivalent pinned idle, working, blocked, done, error, or clear state through Pi TUI's OSC 7501 terminal contract
-- **AND** status messages SHALL be limited to the session name, dialog title, or first error line and SHALL NOT expose prompt or assistant content
-
-#### Scenario: Render a multiline prompt-adjacent status before a modal
-- **WHEN** a status contains multiple visual lines, including the `Share URL` and `Gist` result, and an editor-replacement modal is subsequently opened or closed in regular mode
-- **THEN** every visual line SHALL be a separate tracked component row with pinned one-cell output padding, wrapping, styling, and order
-- **AND** the physical terminal row count SHALL remain synchronized with `TuiMainScreen` so the modal and footer occupy the same source-derived rows as untouched Pi
-- **AND** no component render-array entry SHALL contain an embedded newline that bypasses TUI row accounting
-
-#### Scenario: Order prompt-adjacent messages
-- **WHEN** informational, status, warning, error, notification, queue, retry, compaction, or extension messages are produced consecutively or interleaved with persistent content
-- **THEN** each message SHALL use its pinned style and spacing, and the newest active message SHALL occupy the pinned position closest to the editor
-- **AND** coalescing, replacement, removal, scrolling, and transition back to the ordinary editor SHALL preserve the pinned chronological order
-
-#### Scenario: Place command information and errors near the prompt
-- **WHEN** a command emits a current informational result or failure
-- **THEN** A1 SHALL render it in the same prompt-adjacent or persistent region selected by vanilla Pi for that exact route, with the same prefix, context, style, spacing, and bottom relationship
-- **AND** A1 SHALL NOT place a prompt-adjacent error in an earlier content bucket or leave a large unpinned gap below it
-
-#### Scenario: Traverse a nested dialog path
-- **WHEN** a user moves from any top-level selector or dialog into a deeper selector, input, confirmation, authentication method, API-key, browser/device/OAuth, error, or completion state
-- **THEN** every depth SHALL reproduce vanilla Pi's heading, body, options, descriptions, borders, colors, instruction hints, focus, selection, scrolling, viewport, and input behavior
-- **AND** each completion, cancellation, back, failure, session-switch, and disposal transition SHALL restore the exact pinned parent surface or ordinary editor state
-- **AND** a generic text input or selector that merely returns an equivalent value SHALL NOT satisfy the nested route
-
-#### Scenario: Prove the complete modal transition graph
-- **WHEN** source coverage or parity acceptance runs
-- **THEN** every source-reachable built-in and extension modal node and every transition edge SHALL have a mapped specialized controller and independent pinned-versus-A1 evidence
-- **AND** removing a nested node, transition, style, instruction, ownership region, or restoration edge SHALL make the gate fail
-- **AND** top-level open/cancel snapshots alone SHALL NOT establish modal completeness
-
-### Requirement: Visible Pi extension UI is part of the 1:1 baseline
-The owned UI SHALL support the visible behavior exposed by pinned Pi extensions, including widgets, custom editors and inputs, selectors, dialogs, notifications, status and footer contributions, custom message and tool renderers, terminal input hooks, working indicators, and lifecycle cleanup. Extension UI behavior SHALL cross A1-owned versioned boundaries and SHALL NOT require mutation of installed Pi code or private interactive state.
-
-#### Scenario: Extension contributes a visible surface
-- **WHEN** a compatible pinned Pi extension registers a supported visible contribution
-- **THEN** the owned UI SHALL present and update that contribution with equivalent focus, input, rendering, cancellation, and cleanup behavior
-
-#### Scenario: Extension dialogs overlap
-- **WHEN** an extension opens a select, confirm, input, editor, or inline custom dialog while another extension dialog is visible
-- **THEN** the new dialog SHALL cover the visible one, and every covered dialog SHALL remain answerable
-- **AND** closing the visible dialog SHALL show and focus the previous dialog with its program status, or the editor when none remains
-- **AND** a session reset SHALL settle every stacked dialog as cancelled rather than leaving its promise pending
-
-#### Scenario: Extension surface fails
-- **WHEN** one extension renderer, input handler, or lifecycle callback throws or returns malformed data
-- **THEN** A1 SHALL isolate the failure, restore the baseline editor and focus, report the error, and preserve the rest of the session
-
-#### Scenario: Extension requests an unmapped visual capability
-- **WHEN** a pinned visible extension capability is not yet bridged through an A1-owned boundary
-- **THEN** the parity gate SHALL fail rather than silently omitting the surface or reporting complete extension support
-
-### Requirement: The pinned Pi version has exact observable parity before product work
-The first accepted presentation SHALL match pinned Pi for visible rows, ANSI styling, colors, spacing, wrapping, component order, focus, editor state, selectors, dialogs, status/footer state, command availability and outcomes, prompt effects, event transitions, terminal progress, resize, errors, extension surfaces, and lifecycle behavior. Evidence SHALL use independent pinned-Pi and A1 producers. A1-only snapshots and synthetic-only sessions MAY serve as regression fixtures but SHALL NOT establish parity.
-
-#### Scenario: Rendering differs
-- **WHEN** equivalent pinned-Pi and A1 states produce a different visible row, style, color, spacing, wrapping, selector, dialog, status, footer, or extension surface outside an approved terminal-only tolerance
-- **THEN** the parity gate SHALL fail
-
-#### Scenario: Workflow differs
-- **WHEN** a command, keybinding, prompt, queue action, clipboard action, model/session/settings flow, extension interaction, or shutdown path has a different observable outcome
-- **THEN** the parity gate SHALL fail
-
-#### Scenario: Evidence has only one producer
-- **WHEN** expected and actual results are both derived from A1 implementation code or A1-authored synthetic state
-- **THEN** the result SHALL be classified as regression evidence and SHALL NOT satisfy parity
-
-#### Scenario: Run the automated terminal parity gate
-- **WHEN** a completed pinned-UI change is integrated into develop or its parity-affecting behavior is released
-- **THEN** `npm run test:pi-terminal-parity` SHALL independently launch untouched pinned Pi and the A1-owned UI, apply equivalent deterministic terminal state and actions, compare all declared checkpoints, and pass once for that change
-- **AND** individual tasks within the change SHALL require only focused tests for the touched behavior, not the parity gate
-
-#### Scenario: Compare deterministic terminal sessions
-- **WHEN** a terminal parity scenario depends on resources, prior messages, model output, streaming, tools, or settlement
-- **THEN** both producers SHALL receive the same isolated configuration, cwd, geometry, capabilities, prepared session replay or deterministic scripted model stream, resource set, and input sequence without deriving the untouched expected output from A1 code
-
-#### Scenario: Detect a terminal divergence
-- **WHEN** equivalent checkpoints differ in visible rows, ANSI colors or styles, spacing, wrapping, focus, cursor, scroll destination, scrollbar, component geometry, startup resources, editor, transcript, footer/status, selector/dialog, error, resize, or lifecycle state outside a named terminal-only tolerance
-- **THEN** the automated terminal parity command SHALL fail and produce bounded machine-readable and human-readable difference artifacts
-
-#### Scenario: Terminal parity producer fails or times out
-- **WHEN** either independent process exits unexpectedly, hangs, fails a checkpoint, or exceeds its bounded deadline
-- **THEN** the gate SHALL fail, preserve diagnostics, restore terminal state, and terminate both isolated process trees without affecting production terminal ownership
-
-### Requirement: Every pinned interactive behavior has traceable port coverage
-The change SHALL maintain an exhaustive, machine-verifiable mapping from the pinned interactive source baseline to A1 behavior, tests, provenance, local modifications, and approved deviations. Every copied or adapted MIT-licensed source unit SHALL retain required attribution. Deviations SHALL be limited to public engine/runtime boundaries, A1 ownership contracts, platform terminal integration, and removal of private mutation or inspection.
-
-#### Scenario: Source behavior is unmapped
-- **WHEN** a pinned interactive module, controller path, component state, extension surface, or lifecycle branch lacks a recorded destination and acceptance case
-- **THEN** source-port coverage SHALL fail
-
-#### Scenario: Deviation is undocumented
-- **WHEN** A1 changes covered behavior without an approved reason, affected acceptance case, and upstream source reference
-- **THEN** source-port coverage SHALL fail
-
-#### Scenario: Upgrade the pinned Pi version
-- **WHEN** A1 evaluates a newer Pi package
-- **THEN** the source mapping, public adapter conformance, independent parity evidence, and approved-deviation ledger SHALL be regenerated and reviewed before release
-
 ### Requirement: Public engine and terminal authority remain behind A1 boundaries
-The owned UI SHALL use documented public Pi engine and terminal contracts through A1-owned adapters. It SHALL NOT instantiate the stock interactive root, mutate prototypes, inspect private fields, use deep package imports, depend on distribution hashes, or expose Pi-specific types throughout A1 workspace state. The 1:1 requirement SHALL NOT weaken these architecture boundaries. The engine adapter SHALL be a facade over adapter-owned components, each reachable through explicit ports and testable without an engine: the runtime and session lifecycle (creation, generations, subscription, disposal order), transcript projection, event delivery, session event translation, command dispatch, workflows and their selector contexts, provider authentication, settings, resource discovery, prompt suggestions, and the extension UI binding. The adapter alone SHALL own the view model, editor and status state, and the wiring between those components. The owned session shell SHALL take its composition as options grouped by the collaborator that provides them (engine, presentation, history, suggestions, diagnostics) so that each composition profile states what it supplies and a fixture can supply one group without the others.
+
+The owned UI SHALL use documented public Pi engine and terminal contracts through A1-owned adapters. It SHALL NOT instantiate the stock interactive root, mutate prototypes, inspect private fields, use deep package imports, depend on distribution hashes, or expose Pi-specific types throughout A1 workspace state. The 1:1 requirement SHALL NOT weaken these architecture boundaries. The engine adapter SHALL be a facade over adapter-owned components, each reachable through explicit ports and testable without an engine: the runtime and session lifecycle (creation, generations, subscription, disposal order), transcript projection, event delivery, session event translation, command dispatch, workflows and their selector contexts, provider authentication, settings, resource discovery, prompt suggestions, and the extension UI binding. The adapter alone SHALL own the view model, editor and status state, and the wiring between those components. The owned session shell SHALL take its composition as options grouped by the collaborator that provides them (engine, presentation, history, suggestions, prompt images, skills, diagnostics, shared services) so that each composition profile states what it supplies and a fixture can supply one group without the others.
 
 #### Scenario: Pinned private interactive code is installed
 - **WHEN** the Pi package contains stock interactive classes or private renderer state
@@ -263,117 +21,11 @@ The owned UI SHALL use documented public Pi engine and terminal contracts throug
 #### Scenario: Drive an engine component without the adapter
 - **WHEN** the runtime lifecycle, command dispatch, session event translation, settings port, resource catalog, prompt suggestions, extension UI binding, or provider authentication is driven directly with fake sessions, runtimes, and ports
 - **THEN** it SHALL produce the same generations, outcomes, work-state transitions, snapshots, resource summaries, suggestions, bindings, and wording the shell observes through the adapter
-- **AND** the adapter SHALL stay under 800 lines with no engine module over 600
 
 #### Scenario: Compose a shell from grouped options
 - **WHEN** the bare-A1 composition, a comparison profile, or a test fixture constructs the owned session shell
-- **THEN** it SHALL pass the engine group and only the presentation, history, suggestions, and diagnostics groups it provides
-- **AND** the shell SHALL behave exactly as it did with the same seams supplied flat
-
-### Requirement: Customization remains disabled above the 1:1 baseline until acceptance
-A1-specific themes, components, commands, and layouts SHALL remain disabled until the complete pinned built-in and extension UI baseline passes source coverage, independent parity, real-prompt integration, and fresh manual acceptance. After acceptance, customization SHALL resolve through versioned A1-owned slots without mutating the baseline implementation or installed Pi code.
-
-#### Scenario: Request customization before parity
-- **WHEN** an A1-specific visual or layout customization is requested before 1:1 acceptance
-- **THEN** the capability SHALL remain unavailable
-
-#### Scenario: Apply customization after parity
-- **WHEN** the accepted baseline receives a supported A1 customization
-- **THEN** the customization SHALL resolve through an owned slot and preserve ordinary built-in and extension session behavior
-
-#### Scenario: Reject customization while architecture debt remains
-- **WHEN** any source-ledger record names an absent planned destination or stale review status, any visible route can fall back to a generic workflow presenter, any prompt-adjacent row is changed by rendered-string substitution, or production Pi adapters rely on reflection or unchecked type escapes
-- **THEN** the customization prerequisite SHALL fail even when visible vanilla parity has been manually accepted
-
-#### Scenario: Validate the customization-ready vanilla baseline
-- **WHEN** architecture-debt closure runs
-- **THEN** every pinned source unit SHALL identify a real public reuse, host adapter, or present owned port; every approved deviation SHALL remain explicit; engine and component boundaries SHALL use validated typed façades; and shell composition SHALL be split into bounded responsibility modules
-- **AND** the untouched-Pi terminal producer, full tests, real integration, packaging, and the accepted manual-baseline invariants SHALL remain unchanged
-
-### Requirement: Contradictory manual findings invalidate completion claims
-A user-controlled finding that a covered prompt, command, visual state, extension surface, or lifecycle path is missing or divergent SHALL invalidate any task completion or evidence claim contradicted by that finding. The affected task SHALL be reopened, corrected, and revalidated before later acceptance or publication tasks proceed.
-
-#### Scenario: Prompt submission produces no working turn
-- **WHEN** manual testing shows that an ordinary prompt does not visibly execute and complete despite automated tests passing
-- **THEN** prompt and event orchestration tasks SHALL be treated as incomplete and downstream parity evidence SHALL be rejected
-
-#### Scenario: Layout or color differs
-- **WHEN** manual comparison against `a1 pi` shows undocumented differences in layout, spacing, colors, or component composition
-- **THEN** composition and visual parity tasks SHALL be reopened until independent captures prove equivalence
-
-### Requirement: Provider authentication and model availability remain consistent
-The owned Pi UI SHALL derive visible provider configuration, available models, active model selection, footer state, login/logout choices, and restart recovery from the same authoritative provider-auth state used by pinned Pi for the selected profile. Models SHALL be selectable only when their provider is currently configured according to that authority. Persisted credentials SHALL remain profile-local and SHALL count as an authenticated state across launches until logout or invalidation; an empty profile SHALL NOT inherit models or credentials from another profile, settings history, a prior process, or a cached catalog.
-
-#### Scenario: Start with an empty A1 profile
-- **WHEN** bare A1 starts with no stored, environment, runtime, or provider-config authentication and no equivalent configured provider
-- **THEN** it SHALL report that no models are available, `/models` SHALL contain no selectable provider models, `/login` SHALL show providers as unconfigured, and the footer SHALL NOT present a stale active model
-
-#### Scenario: Start with stored credentials
-- **WHEN** bare A1 starts with valid credentials stored in its own profile for one or more providers
-- **THEN** `/login` SHALL identify those providers with the same configured type and source status as pinned Pi, `/models` SHALL expose only models from currently configured providers, and selected-model and footer state SHALL agree with that catalog
-
-#### Scenario: Keep A1 and vanilla profiles isolated
-- **WHEN** `~/.a1/agent` and `~/.pi/agent` contain different authentication records
-- **THEN** bare `a1` and `a1 pi` SHALL each use only its selected profile, and parity comparison SHALL use equivalent prepared state rather than copying or silently sharing credentials between profiles
-
-#### Scenario: Complete provider login
-- **WHEN** login succeeds for a provider
-- **THEN** provider status, logout availability, model availability, active selection, and footer state SHALL update to the same observable state and ordering as pinned Pi without requiring a process restart
-
-#### Scenario: Remove stored credentials
-- **WHEN** logout removes a stored OAuth or API-key credential
-- **THEN** the provider and its models SHALL cease to appear configured unless another declared authentication source remains, stale settings SHALL NOT preserve an unusable active model, and environment or provider-config authentication SHALL remain untouched as pinned Pi specifies
-
-#### Scenario: Resolve non-stored provider configuration
-- **WHEN** a provider is configured through a supported environment, runtime, or provider-config source rather than stored credentials
-- **THEN** login status and model availability SHALL reflect the source-equivalent pinned-Pi state, while logout SHALL NOT claim to remove authentication it does not own
-
-#### Scenario: Refresh or credential validation fails
-- **WHEN** credential refresh, provider discovery, or model-catalog refresh fails or times out
-- **THEN** A1 SHALL preserve only the last still-authoritative provider state, report the bounded failure as pinned Pi does, and SHALL NOT broaden model availability from all-model catalogs or stale settings
-
-#### Scenario: Restart after authentication changes
-- **WHEN** A1 restarts after login, logout, expiry, refresh, or selected-model changes
-- **THEN** provider labels, model choices, selected model, warnings, and footer state SHALL reconstruct one mutually consistent state without reviving unauthenticated models
-
-#### Scenario: Prove authentication and model parity independently
-- **WHEN** this requirement is accepted
-- **THEN** untouched pinned Pi and A1 SHALL be run with equivalent isolated profile fixtures for empty, stored OAuth, stored API-key, non-stored configuration, logout, stale setting, refresh failure, and restart cases, and credential values SHALL NOT be copied into evidence
-
-### Requirement: Declared A1-owned additions and replacements extend the accepted baseline
-After parity acceptance, A1 MAY present surfaces, commands, and content that pinned Pi does not have, and MAY supersede a specific pinned route with an A1-owned replacement. Every such surface SHALL be declared, as an addition or as a replacement naming the route it supersedes. A declared addition SHALL NOT replace, reorder, restyle, intercept, or change the reachability of any pinned surface. A declared replacement SHALL keep every capability of the route it supersedes reachable, and SHALL leave every other pinned surface untouched. Parity comparison SHALL evaluate every pinned surface that is neither declared as replaced nor part of a declaration against pinned Pi, SHALL treat a declared addition or replacement as expected rather than as divergence, and SHALL fail on an undeclared one. The classification SHALL be derived from the declaration rather than from a separately maintained exclusion list.
-
-#### Scenario: Declare and present an A1-owned addition
-- **WHEN** an accepted A1-owned surface is declared as an addition and the user reaches it through its A1-owned route
-- **THEN** it SHALL open, and every pinned surface SHALL remain reachable and unchanged
-
-#### Scenario: Declare and present an A1-owned replacement
-- **WHEN** an accepted A1-owned surface is declared as the replacement for a named pinned route and the user invokes that route
-- **THEN** the replacement SHALL open, every capability the pinned route exposed SHALL remain reachable from it, and no other pinned surface SHALL change
-
-#### Scenario: Compare parity with a declared surface present
-- **WHEN** parity comparison runs against pinned Pi while a declared addition or replacement exists
-- **THEN** every pinned surface outside the declarations SHALL still be required to match pinned Pi, and the declared surface SHALL NOT be reported as a divergence
-
-#### Scenario: Classification follows the declaration
-- **WHEN** a declared replacement is added or removed
-- **THEN** the parity classification SHALL follow from the declaration without editing a separate exclusion list
-
-#### Scenario: Encounter an undeclared surface
-- **WHEN** a surface, command, or content region diverges from pinned Pi without being declared
-- **THEN** parity SHALL fail
-
-#### Scenario: Addition displaces pinned behavior
-- **WHEN** a surface declared as an addition replaces, reorders, restyles, or intercepts a pinned surface, or inserts itself into a pinned surface content, options, or command list
-- **THEN** parity SHALL fail even though the surface itself is declared
-
-#### Scenario: Replacement drops a superseded capability
-- **WHEN** a declared replacement omits a capability that the route it supersedes exposed
-- **THEN** parity SHALL fail and the replacement SHALL remain unaccepted
-
-#### Scenario: Declared surface requested before acceptance
-- **WHEN** an A1-owned addition or replacement is requested while the customization prerequisite is unmet
-- **THEN** it SHALL remain unavailable, as the customization requirement already provides
+- **THEN** it SHALL pass the engine group and only the other groups it provides
+- **AND** a group that is not supplied SHALL leave the shell on that group's default behavior without affecting the other groups
 
 ### Requirement: Startup consumes the pinned model scope and update-probe configuration
 
@@ -415,52 +67,6 @@ acts on at startup SHALL NOT be silently ignored by the owned surface.
   command, and the package list — after the banner and loaded resources
 - **AND** with `PI_OFFLINE` set, or when the probe fails, no notice SHALL
   appear
-
-### Requirement: Session viewport interaction has a focused owner
-The Pi-backed owned shell SHALL keep custom-viewport interaction state and input policy in a focused viewport controller separate from the shell root that composes transcript document and dock rows. The extraction SHALL preserve the accepted bare-A1 frame, follow/detach behavior, prompt navigation, scrollbar, pointer selection, copy, editor pointer handling, modal bypass, resize, and terminal-restoration behavior. The pinned comparison path SHALL remain unchanged.
-
-#### Scenario: Render bare A1 after extraction
-- **WHEN** bare A1 renders the custom session viewport for the same session, terminal, theme, and settings state
-- **THEN** the complete frame and hit regions SHALL remain the accepted custom-viewport result
-- **AND** the viewport controller SHALL own the interaction state used to produce it
-
-#### Scenario: Route input after extraction
-- **WHEN** the viewport receives wheel, pointer, transcript-copy, prompt-navigation, editor, or unrelated keyboard input
-- **THEN** its consume/transform result and resulting state SHALL remain unchanged
-- **AND** unrelated input SHALL still reach the focused Pi surface
-
-#### Scenario: Use the pinned comparison profile
-- **WHEN** the same shell runs without the custom viewport
-- **THEN** the pinned root/layout and input behavior SHALL remain unchanged
-- **AND** the extracted viewport controller SHALL not claim pinned-profile interaction
-
-### Requirement: The declared bare-A1 viewport customizes layout without replacing shell behavior
-After the pinned shell baseline and customization prerequisite are accepted, bare A1 SHALL apply the custom session viewport as a declared layout customization over the owned shell's existing engine, transcript components, input surfaces, status/footer components, extension bridge, commands, selectors, dialogs, and lifecycle. The customization SHALL own viewport composition and navigation but SHALL NOT patch installed Pi code, inspect private Pi renderer state, infer transcript semantics from rendered terminal text, or introduce a second agent or terminal authority.
-
-The viewport's intentional differences SHALL be limited to its declared capability: a bounded transcript above a pinned dock, A1 scrollbar presentation, detached/follow navigation, the scroll-to-bottom control, and sticky submitted prompts. Correct text or behavior from an existing shell surface SHALL NOT be reimplemented as viewport-specific status, editor, workflow, or extension behavior.
-
-#### Scenario: Compose the custom viewport
-- **WHEN** bare A1 starts after the customization prerequisite is satisfied
-- **THEN** the viewport SHALL compose the accepted owned-shell surfaces through their existing public A1 boundaries
-- **AND** the docked status, input, footer, commands, modal surfaces, and extension contributions SHALL keep their existing behavior
-
-#### Scenario: Open a pinned workflow from the custom viewport
-- **WHEN** the reader invokes a command, selector, dialog, authentication flow, session flow, or extension interaction not declared as replaced
-- **THEN** its controller, result, cancellation, focus restoration, and lifecycle SHALL remain the accepted pinned-shell behavior
-
-#### Scenario: Compare an explicit profile
-- **WHEN** `a1 pi` is started
-- **THEN** the declared viewport layout customization SHALL be absent
-- **AND** those profiles SHALL remain suitable for observing the pinned presentation without A1 viewport rows, controls, pinned prompts, or scrollbar settings
-
-#### Scenario: Upgrade the pinned integration
-- **WHEN** the pinned Pi or Pi TUI version changes
-- **THEN** the viewport SHALL continue to depend only on documented public runtime/component contracts and A1-owned ports
-- **AND** an unabsorbed input, layout, or component-boundary change SHALL fail conformance rather than being handled through a private-field or prototype workaround
-
-#### Scenario: Viewport customization is not yet accepted
-- **WHEN** its implementation, focused regression evidence, or user-controlled manual acceptance is incomplete or contradicted
-- **THEN** the custom viewport milestone SHALL remain unaccepted
 
 ### Requirement: Compact extension labels preserve source identity
 
@@ -681,191 +287,6 @@ The shell SHALL keep at most one keyboard-driven presentation pending, SHALL NOT
 - **THEN** the shell SHALL flush preceding accepted input and deliver that sequence conservatively in order
 - **AND** it SHALL NOT guess, split, combine, discard, or postpone the sequence behind a cadence timer
 
-### Requirement: Comparative input responsiveness has independent evidence
-Keyboard responsiveness acceptance SHALL use isolated bare-`a1`, `a1 pi`, and untouched pinned-Pi producers with equivalent terminal geometry, prepared state, input sequence, scheduler controls, and warmed execution. Evidence SHALL identify input receipt, semantic application, presentation request, composition, terminal write, highest presented input revision, pending-frame depth, and accepted-but-unpresented backlog for ordinary typing, rapid editing, submit, menu navigation, replacement surfaces, long transcripts, and concurrent streaming.
-
-Deterministic ordering, scheduling, backlog, frame-count, stable-work, and terminal-paint budgets SHALL be automated gates. Same-run monotonic first-state and final-state input-to-paint distributions SHALL be recorded for diagnosis and comparison but SHALL NOT be the sole automated verdict. Exact-artifact comparison in Windows Terminal against `a1 pi` SHALL remain authoritative for perceived responsiveness.
-
-Stable-work evidence SHALL associate each measured composition's transcript render delta and terminal paint with that composition's own cause and viewport regions. A checkpoint containing multiple frames SHALL NOT attribute all of its work to its final frame. Frames classified as geometry-stable dock input SHALL retain a budget of zero transcript block renders and zero transcript painted rows. Measured non-input work SHALL remain explicitly represented; no frame, counter increment, or write range SHALL be dropped, counted twice, or relabeled to satisfy a budget. Evidence collection SHALL be observational and SHALL NOT render, flush, repair, or reschedule the candidate to obtain a passing result.
-
-#### Scenario: Run the comparative input matrix
-- **WHEN** keyboard-responsiveness evidence is captured
-- **THEN** each producer SHALL run independently with the same declared workload inputs and environment
-- **AND** the result SHALL report bounded machine-readable phase, backlog, frame, paint, and monotonic timing evidence
-- **AND** a producer failure, timeout, malformed result, or missing checkpoint SHALL fail the evidence gate
-
-#### Scenario: Evaluate a rapid-input workload
-- **WHEN** the bare-A1 producer completes a declared typing, editing, or menu-navigation burst
-- **THEN** its semantic result SHALL match the comparison producers
-- **AND** its pending keyboard presentation depth, stale-input backlog, superseded frame count, and stable transcript work SHALL stay within the repository-owned deterministic budgets
-- **AND** diagnostic first-state and final-state timings SHALL be compared with the same-run `a1 pi` and pinned-Pi distributions
-
-#### Scenario: Evaluate a long transcript
-- **WHEN** equivalent input is applied with both an empty transcript and a prepared long transcript
-- **THEN** bare A1's keyboard routing, pending-frame depth, dock/input work, and input-to-paint presentation opportunities SHALL remain equivalent
-- **AND** settled transcript size SHALL NOT add per-key transcript rendering work
-
-#### Scenario: Accept physical responsiveness
-- **WHEN** an exact candidate artifact is tested in Windows Terminal beside `a1 pi`
-- **THEN** typing SHALL visibly start immediately, rapid bursts SHALL visibly finish without catching up after input stops, and held or repeated menu navigation SHALL track the current selection
-- **AND** any user-observed delayed start, delayed finish, stale selection, or material responsiveness gap SHALL invalidate acceptance despite passing diagnostics
-
-#### Scenario: A stream frame precedes stable input in one checkpoint
-- **WHEN** a legitimate stream-content frame renders or paints transcript content and a later stable dock-input frame in the same checkpoint performs no transcript work
-- **THEN** the stream work SHALL remain attributed to the stream frame
-- **AND** the dock-input frame SHALL contribute zero stable transcript work regardless of its position in the checkpoint
-
-#### Scenario: A stable-input violation precedes another frame
-- **WHEN** a dock-input frame performs a transcript block render or paints a transcript row before a stream or geometry frame in the same checkpoint
-- **THEN** the stable-work gate SHALL fail for the violating dock-input frame
-- **AND** the later frame's cause SHALL NOT hide the earlier violation
-
-#### Scenario: Frame evidence is incomplete or inconsistent
-- **WHEN** measured render deltas or terminal-write ranges cannot be accounted for exactly once, frame ordering or cause is ambiguous, or required evidence is missing
-- **THEN** the gate SHALL reject the evidence rather than assume zero work or fall back to the final checkpoint cause
-- **AND** legitimate no-write compositions and separately identified non-frame terminal controls SHALL remain representable without fabricating a frame
-
-#### Scenario: Diagnose the first stable-work failure
-- **WHEN** a frame violates a stable-render or stable-paint budget
-- **THEN** the failure SHALL identify the workload, producer, checkpoint, frame identity and cause, expected and actual counters, viewport region, and relevant terminal-write range from the original capture
-- **AND** the diagnostic SHALL be bounded, SHALL NOT require a second producer run, and SHALL NOT dump arbitrary transcript or credential content
-
-### Requirement: The owned shell preserves setting-controlled Pi behavior
-Every Pi setting the A1-owned settings replacement presents SHALL control the same active-session, presentation, terminal, startup, or shutdown behavior that the pinned Pi setting controls. The replacement SHALL not count persistence, callback reachability, or selector rendering as preservation of a pinned capability. An inventory entry with no effect in the active product mode or environment SHALL be omitted from the settings UI rather than rendered as an unavailable option. A supported setting that provides a defined terminal fallback remains present and SHALL render that fallback truthfully. Bare A1's declared transcript-specific omission for enabled images in terminals without an inline-image protocol SHALL not mutate the setting value or the underlying attachment.
-
-#### Scenario: Change a pinned live setting through bare A1
-- **WHEN** the user changes a setting that pinned Pi applies live
-- **THEN** bare A1 SHALL update the equivalent active agent, component, or terminal behavior in the same session
-
-#### Scenario: Re-render existing transcript content
-- **WHEN** an image, thinking-visibility, Mermaid, width, or output-padding setting changes
-- **THEN** existing affected transcript blocks SHALL be reconstructed or invalidated with stable semantic identity and SHALL show the new presentation
-
-#### Scenario: Use a terminal without inline-image support
-- **WHEN** the transcript contains an image, image display is enabled, and the terminal advertises no protocol supported by the pinned renderer
-- **THEN** the owned transcript content area SHALL omit the automatic textual attachment fallback and SHALL NOT claim inline-image availability
-- **AND** surrounding transcript content, submitted screenshot chips, attachment retention, and model-facing delivery SHALL remain unchanged
-
-#### Scenario: Exit the owned fullscreen surface
-- **WHEN** the shell disposes after `fullscreenExitOutput` has selected transcript or resume-hint output
-- **THEN** the output SHALL appear only after alternate-screen restoration and SHALL match the selected mode
-
-#### Scenario: Start before project trust is known
-- **WHEN** no effective project-trust decision has been resolved
-- **THEN** the owned runtime SHALL not construct a project-trusted resource pipeline or load project-scoped resources
-
-#### Scenario: An inventory setting has no behavioral consumer
-- **WHEN** conformance finds a setting that cannot change its declared observable behavior in the active product mode or environment
-- **THEN** the owned settings UI SHALL omit the option
-- **AND** the owned-shell acceptance gate SHALL fail if the option is rendered even when disabled or accompanied by explanatory text
-
-### Requirement: Setting-controlled owned surfaces preserve pinned Pi visual semantics
-For the same terminal dimensions, theme, capabilities, semantic content, setting values, and lifecycle state, every visible surface controlled by a Pi setting SHALL match pinned Pi's terminal-cell presentation. Parity SHALL include visible text and punctuation, semantic foreground and background styling, bold/dim/italic/underline roles, borders, padding, blank rows, row order, wrapping, truncation, alignment, editor and footer geometry, cursor placement, and terminal-control ordering. Declared product identity, A1-only setting content, hidden bare-A1 entries, the owned settings interaction contract including its distinct floating scalar menus, profile/session values, dynamic usage data, absolute link targets, and nondeterministic render timing MAY differ; no other visual difference is implicit.
-
-#### Scenario: Render a setting-controlled frame
-- **WHEN** bare A1 and pinned Pi receive equivalent content and lifecycle events with the same visible setting value and terminal dimensions
-- **THEN** their normalized terminal cells, semantic ANSI roles, geometry, and control ordering SHALL match except for declared substitutions
-
-#### Scenario: Render the owned settings surface
-- **WHEN** A1 presents its A1 and Agent settings sections
-- **THEN** rows, values, selected state, numeric controls, menus, dialogs, notices, padding, wrapping, clipping, and narrow-terminal behavior SHALL retain the reviewed shared-component semantics
-- **AND** selected settings SHALL use an accent arrow, normal-`text` label, semantic value foreground, and item-bounded blue `selectedBg` surface
-- **AND** selected-entry descriptions SHALL remain model metadata without rendering description rows
-- **AND** search SHALL remain closed until `/` is invoked, then render through the shared ruled line-input composition with its search placeholder
-- **AND** ordinary printable input outside an open search SHALL not become a query
-- **AND** the standing status bar SHALL derive its visible guidance from the active settings shortcut declarations
-- **AND** settings-list wheel movement SHALL use the current effective `scrollbarSpeed` through the shared scrollbar distance policy, including a pending live selection, without an independent row-count literal
-- **AND** a scalar menu SHALL retain shared `ValueMenu` geometry and input behavior while rendering unselected choices on A1's dark floating-panel background, the active choice on blue `selectedBg` with normal text, and `✓` beside the effective value independently of the active choice
-- **AND** A1-specific grouping, hidden entries, and this owned settings interaction SHALL remain declared product differences
-
-#### Scenario: Present project trust before loading project resources
-- **WHEN** an undecided interactive launch requires a trust decision
-- **THEN** the bounded preflight SHALL present a pinned-style startup selector with equivalent focus, accept, reject, cancel, clear, and terminal-restoration behavior
-- **AND** no project-derived presentation or executable resource SHALL load before the decision
-
-#### Scenario: Compare automated visual evidence
-- **WHEN** automated parity evidence is evaluated
-- **THEN** it SHALL compare independent pinned and A1 producers without stripping semantic SGR styling or replacing geometry with text-only snapshots
-
-#### Scenario: Claim final visual acceptance
-- **WHEN** deterministic parity checks pass
-- **THEN** user-controlled physical-terminal comparison SHALL still verify the claimed terminal's rasterized result, selection, resize, cursor, restoration, and supported image behavior
-
-### Requirement: Bare A1 progress indicators use the shared component presentation
-Bare A1 SHALL present every built-in working, retrying, and compacting state and every extension-provided working state through the shared spinner-backed progress-text rule. The visible labels SHALL therefore use exactly three ASCII periods (`...`) while preserving each state's semantic wording, spinner frames and cadence, color, placement, replacement behavior, and lifecycle. This SHALL be a declared bare-A1 presentation difference and SHALL NOT alter the regular `a1 pi` route, vanilla Pi, installed Pi packages, or source-synchronized Pi components.
-
-#### Scenario: Move between built-in progress states
-- **WHEN** a run moves among working, retrying, and compacting states
-- **THEN** bare A1 SHALL show `Working...`, `Retrying...`, or `Compacting...` beside the active spinner
-- **AND** no state transition SHALL display a Unicode ellipsis or require state-specific punctuation logic
-
-#### Scenario: Present an extension working message
-- **WHEN** an extension supplies `Indexing sources` as the active working message
-- **THEN** the shared spinner-backed status surface SHALL display `Indexing sources...`
-- **AND** clearing or replacing the extension message SHALL retain the existing lifecycle and restoration behavior
-
-#### Scenario: Preserve status presentation other than punctuation
-- **WHEN** the component canonicalizes a built-in or extension progress message
-- **THEN** the spinner animation, theme roles, row geometry, prompt-relative position, replacement timing, and terminal cleanup SHALL remain unchanged
-
-#### Scenario: Use a comparison or upstream route
-- **WHEN** the same session is run through `a1 pi` or vanilla Pi
-- **THEN** that route's status text and component implementation SHALL remain untouched
-
-### Requirement: Persistent prompt history is a declared bare-A1 editor replacement
-Bare A1 SHALL declare enabled persistent prompt history as a replacement for the default editor's current-session history source, duplicate policy, recalled-entry caret placement, and browsing border presentation, implemented through an explicitly owned, source-traced editor adaptation. That replacement SHALL follow the `persistent-prompt-history` capability and SHALL NOT change other editor, submission, transcript, viewport, public extension, or session behavior. The `a1 pi` comparison SHALL keep its existing pinned-based editor path and current-session history semantics and SHALL NOT initialize A1's durable-history storage or adapted editor. When persistence is disabled, bare A1 SHALL retain its existing editor path and current-session recall without the persistent-history replacement.
-
-#### Scenario: Browse saved history in bare A1
-- **WHEN** the user starts bare A1 with persistence enabled and recalls a prior-session prompt
-- **THEN** the declared replacement SHALL provide v2-style global unique recall, directional caret placement, and the history border indicator
-- **AND** it SHALL keep draft restoration and existing local input recovery reachable
-
-#### Scenario: Compare against pinned Pi
-- **WHEN** `a1 pi` is launched with A1 history files present
-- **THEN** its history ordering, adjacent-duplicate handling, navigation placement, and ordinary border SHALL match pinned Pi
-- **AND** A1 history files, workers, polling, settings effects, and cross-session recall SHALL remain unused
-
-#### Scenario: Evaluate the replacement boundary
-- **WHEN** independent parity and v2 behavior evidence are evaluated
-- **THEN** only the history differences named by this declaration SHALL be classified as expected bare-A1 customization
-- **AND** multiline cursor movement, autocomplete, selection, undo, prompt execution, suggestions, viewport behavior, and unrelated surfaces SHALL retain their existing contracts
-
-#### Scenario: Disable persistence
-- **WHEN** bare A1 starts with history persistence disabled
-- **THEN** current-session prompt recall and recovery SHALL remain available without loading prior-session durable entries
-- **AND** no persistent-history indicator or directional-caret replacement SHALL be applied
-
-### Requirement: The owned history editor has a bounded typed and source-traced boundary
-The history-enabled default editor adaptation SHALL be traceable to the selected pinned editor source and only the necessary editor-local helper closure, with license attribution and reviewed modifications. Its history synchronization and navigation SHALL use owned typed operations that preserve draft, cursor, paste backing, and undo semantics, rather than access Pi's private state, patch installed dependencies or prototypes, extract dependency source at runtime, or emulate navigation through ordinary text replacement and synthetic keys. The adaptation SHALL remain within the Pi component boundary and SHALL NOT introduce a second terminal runtime or replace the terminal package's shared exports.
-
-#### Scenario: Establish the adapted editor baseline
-- **WHEN** the source-derived core is evaluated before history customization is enabled
-- **THEN** independent equivalent inputs SHALL produce the same baseline text, cursor, draft restoration, undo grouping, paste expansion, autocomplete, rendering, and submit behavior as the untouched pinned editor
-- **AND** history customization SHALL NOT be enabled until that baseline and the typed integration boundary are verified
-
-#### Scenario: Upstream editor provenance changes
-- **WHEN** the selected dependency or source authority no longer matches the recorded editor/helper provenance
-- **THEN** compatibility validation SHALL name the unreviewed change and block acceptance until it is explicitly reconciled
-- **AND** an engine upgrade SHALL NOT silently regenerate or overwrite the owned editor's runtime behavior
-
-#### Scenario: Keep terminal module resolution unchanged
-- **WHEN** the enabled bare-A1 default editor uses the owned adaptation
-- **THEN** A1 and Pi extensions SHALL still resolve one shared pinned terminal package through the existing alias
-- **AND** the package's exported editor constructors and the comparison editor SHALL NOT be replaced or mutated
-- **AND** A1-owned consumers SHALL use the adaptation's declared typed interface rather than pretend it is an instance of a private Pi implementation
-
-#### Scenario: An extension supplies a custom editor
-- **WHEN** the existing public custom-editor factory mounts an extension-owned editor
-- **THEN** its construction, focus, input, and public extension behavior SHALL remain unchanged
-- **AND** default-editor history synchronization SHALL be suspended rather than patching or replacing that custom editor
-- **WHEN** the factory lifecycle restores the default editor
-- **THEN** the latest completed recall snapshot SHALL be reattached without losing the restored draft
-- **AND** only actual classified user submissions SHALL enter durable history throughout these transitions
-
-#### Scenario: Use public editor extension interactions
-- **WHEN** an extension uses supported editor text access, shortcuts, autocomplete, or submission interactions with the active default editor
-- **THEN** those public interactions SHALL retain their existing outcomes without reliance on the adaptation having Pi's concrete constructor identity
-
 ### Requirement: Contextual prompt suggestions are a declared bare-A1 addition
 Contextual prompt suggestions SHALL be classified as an A1-owned addition to the ordinary editor in bare A1, with their A1-backed control presented in the existing Agent section of the owned settings replacement. The addition SHALL preserve the existing transcript, dock, editor, autocomplete, extension, input-responsiveness, lifecycle, and terminal-restoration contracts except for the explicitly declared empty-editor ghost text, its acceptance behavior, and this named settings-placement exception. The control's section SHALL NOT determine its storage backend or grant it engine-setting authority. The explicit `a1 pi` comparison route and untouched pinned Pi SHALL remain unchanged and SHALL not perform suggestion requests on A1's behalf.
 
@@ -1014,9 +435,10 @@ Presentation invalidation SHALL preserve semantic identity and SHALL NOT manufac
 - **AND** the invalidation SHALL NOT force every historical block to render immediately
 
 ### Requirement: Agent content presentation follows pinned Pi outside declared product differences
+
 For equivalent supported inputs and visibility settings, the owned shell SHALL preserve pinned Pi's displayable content boundaries, tool-result presentation, text styling and spacing, and execution/renderer lifecycle behavior outside existing documented A1 product differences. It SHALL NOT replace supported structured tool presentation with a text approximation or introduce avoidable content disappearance or flashing through its adaptations.
 
-This requirement SHALL preserve existing bounded delivery, payload validation, asset ownership, error isolation, and viewport/editor/modal/selection behavior. It SHALL NOT require removing documented A1 features, showing superseded partial snapshots, or modifying the pinned comparison route. Existing link-specific defects tracked separately in issue #353 SHALL NOT be represented as intentional content differences or as repaired by this parity claim.
+This requirement SHALL preserve existing bounded delivery, payload validation, asset ownership, error isolation, and viewport/editor/modal/selection behavior. It SHALL NOT require removing documented A1 features, showing superseded partial snapshots, or modifying the pinned comparison route.
 
 #### Scenario: Present ordinary text and tool output
 - **WHEN** equivalent assistant text, thinking, fenced code, and text-only tool output are presented in A1 and the independent pinned reference
@@ -1024,43 +446,15 @@ This requirement SHALL preserve existing bounded delivery, payload validation, a
 - **AND** A1 SHALL NOT omit a required surface or add artificial blank or argument-only replacement states
 
 #### Scenario: Present structured tool results through a simplified adapter
-- **WHEN** a content-rendering adaptation is simplified and equivalent supported edit or extension results are compared with pinned Pi
+- **WHEN** equivalent supported edit or extension results pass through A1's content-rendering adaptation
 - **THEN** the actual result presentation and lifecycle behavior SHALL remain faithful to pinned Pi
 - **AND** payload limits, attachment ownership, visible fallbacks, and unrelated transcript content SHALL remain protected
 
-### Requirement: Content-retention evidence uses production lifecycle and presentation boundaries
-Rendering acceptance SHALL exercise the pinned production event ordering, including assistant argument completion before tool execution, multiple messages and invocations, run-local completion collections, delayed settlement, and asynchronous renderer callbacks. It SHALL verify complete semantic state, component output, cached document output, and emitted terminal results at intermediate as well as final checkpoints.
-
-Evidence SHALL include ordinary scheduled presentation and coalesced bursts rather than force a render after every event in every workload. Tool-rendering parity SHALL use independent pinned renderers or the untouched pinned process with equivalent input, not an A1-authored text approximation, and SHALL identify existing documented A1 differences. Assertions SHALL detect omitted content, stale presentation, loss of structured results, resurrection of completed output, and artificial blank or stale intermediate frames separately from terminal damage and native hover behavior. Matching final text or reducing paint counts alone SHALL NOT establish content stability.
-
-#### Scenario: Exercise the argument-to-execution boundary
-- **WHEN** a production-ordered tool workload completes arguments, emits accumulated output, and settles with an older conversation present
-- **THEN** evidence SHALL fail if any required live result is rejected, a completed result is downgraded, or prior transcript content disappears at any checked presentation boundary
-
-#### Scenario: Exercise actual scheduling
-- **WHEN** a burst combines content updates, completion, asynchronous invalidation, and keyboard or pointer input without per-event forced painting
-- **THEN** the next eligible presentations SHALL contain all required current content and retain responsive input
-- **AND** no superseded frame SHALL restore stale rows after those presentations
-
-#### Scenario: Compare real tool rendering
-- **WHEN** structured edit or extension results are compared with pinned Pi
-- **THEN** equivalent complete payloads SHALL drive the independent actual tool renderers
-- **AND** text-only substitute renderers or expectations derived solely from A1 SHALL NOT establish parity
-
-#### Scenario: Detect transient presentation faults
-- **WHEN** a test-only negative control drops a required surface, exposes an artificial blank frame, or restores stale rows before later recovering the correct final text
-- **THEN** the corresponding intermediate or scheduled-presentation gate SHALL fail
-- **AND** the eventual correct final snapshot SHALL NOT hide the fault
-
-#### Scenario: Physical content instability contradicts automated evidence
-- **WHEN** the exact candidate still loses a displayable block, requires resize/reopen to reveal current output, or exhibits unexplained A1-induced block flashing during user-controlled review
-- **THEN** content-rendering acceptance SHALL remain incomplete
-- **AND** evidence SHALL identify the earliest boundary where required content, presentation, or stability diverged from the pinned reference outside documented A1 differences
-
 ### Requirement: Command outcome messages retain pinned wording and severity
+
 Except for the named missing-GitHub-CLI diagnostic and bare-A1 share presentation below, every existing supported Pi-backed command SHALL reproduce pinned Pi's user-visible messages for equivalent success, failure, warning, empty, progress, and cancellation states. Parity SHALL include whether a message is emitted at all, its literal wording and punctuation, contextual prefixes, links, severity, and order. Existing declared A1 route replacements, the bare-A1 share presentation, and layout/progress customizations SHALL remain explicit exceptions only within their declared scope; they SHALL NOT justify changing unrelated command-result messages. Actual selected-profile paths and truthful runtime values SHALL remain contextual data, not copied values from another profile.
 
-For fatal `/new`, `/resume`, and `/import` outcomes, A1 SHALL preserve Pi-compatible visible error semantics but SHALL retain its recoverable workflow/session contract: the route returns a failed result and the owning A1 session remains active rather than stopping the terminal or propagating Pi's process exit. This lifecycle difference SHALL be recorded as an explicit contextual exception and SHALL NOT be presented as process-behavior parity.
+For fatal `/new`, `/resume`, and `/import` outcomes, A1 SHALL preserve Pi-compatible visible error semantics but SHALL retain its recoverable workflow/session contract: the route returns a failed result and the owning A1 session remains active rather than stopping the terminal or propagating Pi's process exit. This lifecycle difference SHALL be the only exception to these outcomes' pinned behavior.
 
 The slash-command workflows that produce these messages, their admission and cancellation, provider authentication, and the selector contexts the owned dialogs read SHALL be adapter-owned workflow components testable without the engine: a runner and a contexts reader that reach the current session, runtime, model state, view publication, and the interaction host only through explicit ports, while the adapter alone decides which session is current and when work is refused.
 
@@ -1100,7 +494,6 @@ The slash-command workflows that produce these messages, their admission and can
 - **WHEN** `/new`, `/resume`, or `/import` reaches an outcome for which pinned Pi stops its terminal and exits one
 - **THEN** A1 SHALL emit the equivalent contextual error with the pinned wording, severity, and order and SHALL NOT emit a false success
 - **AND** A1 SHALL return its recoverable failed workflow result and keep the owning session active
-- **AND** acceptance evidence SHALL label shutdown and process-exit behavior as an explicit contextual exception rather than claim lifecycle parity
 
 #### Scenario: Share destination selects the upload route
 - **WHEN** the user invokes `/share`
@@ -1121,7 +514,7 @@ The slash-command workflows that produce these messages, their admission and can
 - **THEN** A1 SHALL close the share dialog and emit `Share URL: <viewer URL>` followed by `Gist: <gist URL>` with Pi's line break and ordering
 - **AND** each URL value SHALL use the theme's blue web-link role and a bounded native hyperlink target while the surrounding labels retain their status presentation
 - **AND** each URL SHALL have terminal-native dashed idle decoration, normal solid underline on hover, and SHALL open its exact target through the supported terminal's Ctrl+click interaction
-- **AND** for the current pinned version the default viewer URL SHALL be `https://pi.dev/session/#<gist ID>` and a configured `PI_SHARE_VIEWER_URL` SHALL determine the base using pinned semantics
+- **AND** the default viewer URL SHALL be `https://pi.dev/session/#<gist ID>` and a configured `PI_SHARE_VIEWER_URL` SHALL determine the base using pinned semantics
 
 #### Scenario: Share uploads to Radius
 - **WHEN** `/share` uploads to Radius
@@ -1136,7 +529,7 @@ The slash-command workflows that produce these messages, their admission and can
 - **WHEN** the user invokes `/share` and the `gh` executable is missing or cannot be found on PATH
 - **THEN** A1 SHALL display error-colored `Error: GitHub CLI (gh) is not installed. Install it from https://cli.github.com/`
 - **AND** sharing SHALL stop before session export or gist creation, without a success link, while the current session remains usable
-- **AND** this SHALL be a named wording exception to Pi 0.84.2's misleading `Error: GitHub CLI is not logged in. Run 'gh auth login' first.` for a missing executable, not a claim of identical output
+- **AND** this SHALL be the one wording difference from pinned Pi, which reports `Error: GitHub CLI is not logged in. Run 'gh auth login' first.` for a missing executable
 - **AND** the exception SHALL NOT change error styling, padding, wrapping rules, or any other command outcome, and SHALL NOT apply to permission or other non-missing-executable failures
 
 #### Scenario: Share finds an unauthenticated GitHub CLI
@@ -1151,8 +544,8 @@ The slash-command workflows that produce these messages, their admission and can
 - **AND** no success link SHALL be emitted on failure or cancellation
 
 #### Scenario: Existing matching commands complete
-- **WHEN** `/copy`, `/export`, `/name`, `/session`, `/hotkeys`, `/changelog`, `/model`, `/scoped-models`, `/tree`, `/trust`, `/resume`, `/reload`, `/new`, `/compact`, or `/quit` reaches an already-matching state
-- **THEN** A1 SHALL preserve the pinned message or structured presentation rather than replace it with a generic success/failure sentence
+- **WHEN** `/copy`, `/export`, `/name`, `/session`, `/tree`, `/trust`, `/resume`, `/reload`, `/new`, `/compact`, or `/quit`, or in the `a1 pi` comparison profile `/hotkeys`, `/changelog`, `/model`, or `/scoped-models`, completes
+- **THEN** A1 SHALL preserve the pinned message or structured presentation, outside a declared bare-A1 replacement of that route, rather than replace it with a generic success/failure sentence
 - **AND** operation-specific silent completion or cancellation SHALL remain silent where pinned Pi is silent
 
 #### Scenario: Run a workflow without an engine
@@ -1182,35 +575,6 @@ Command-result status, warning, error, named-session text, structured informatio
 #### Scenario: A terminal is resized after a command result
 - **WHEN** the terminal narrows or widens with command-result content present and a selector opens or closes
 - **THEN** all message rows, modal/editor relationships, focus restoration, and scroll accounting SHALL remain consistent with the pinned presentation outside declared A1 layout differences
-
-### Requirement: Command-message parity has outcome-complete independent evidence
-Command-message acceptance SHALL maintain a source-traced inventory of the currently supported Pi-compatible CLI operations and Pi-backed interactive command outcomes, recording each applicable message branch as matching, corrected, or an explicitly declared contextual exception. Independent pinned-Pi output SHALL establish expected transcripts and terminal cells; A1-authored expected strings alone SHALL NOT establish parity. Unsupported commands SHALL be recorded as outside the supported surface, not silently added to satisfy the inventory.
-
-#### Scenario: Enumerate supported command outcomes
-- **WHEN** coverage is prepared against the pinned source
-- **THEN** it SHALL cover CLI model aliases, install/remove/uninstall/list/package-update commands and their diagnostics/help, and all existing supported interactive command routes including hidden routes
-- **AND** each reachable message, no-message, empty, failure, progress, and cancellation branch SHALL identify its source and applicable acceptance case or declared exception
-
-#### Scenario: Compare CLI transcripts
-- **WHEN** equivalent isolated fixtures drive a covered CLI case
-- **THEN** evidence SHALL compare stdout, stderr, literal content, line breaks, and color-enabled and color-disabled transcripts, with exit-status differences restricted to declared A1 syntax behavior
-- **AND** operational data substitutions SHALL be named and narrow rather than globally stripping paths, whitespace, or styling
-
-#### Scenario: Compare interactive message cells
-- **WHEN** equivalent commands run through independent pinned and owned producers
-- **THEN** evidence SHALL compare wording, severity, semantic ANSI styling, wrapping, padding, blank rows, placement, and status transitions at narrow and ordinary widths and both supported output-padding settings
-- **AND** a plain-text match with different styling or geometry SHALL fail
-
-#### Scenario: Verify the missing-GitHub-CLI diagnostic exception
-- **WHEN** independent pinned and A1 producers exercise `/share` with the GitHub CLI executable absent
-- **THEN** evidence SHALL retain Pi 0.84.2's exact not-logged-in diagnostic and A1's exact installation diagnostic and identify this single intentional wording difference
-- **AND** each output SHALL still satisfy its error severity and presentation contract, without blanket removal of text, whitespace, or styling from comparison
-- **AND** a changed A1 installation message or application of the exception to an installed-but-unauthenticated executable or another outcome SHALL fail verification
-- **AND** all other `/share` outcomes SHALL retain their existing pinned-parity requirements
-
-#### Scenario: Missing or contradictory evidence
-- **WHEN** a producer fails, a covered outcome lacks evidence, physical review contradicts an automated parity claim, fatal-command evidence conflates matching output with process lifecycle parity, or the missing-GitHub-CLI exception is applied to another outcome
-- **THEN** the affected command outcome SHALL remain unaccepted rather than being marked complete based on a success-only fixture or an undisclosed lifecycle difference
 
 ### Requirement: Link inspection separates movement risk from hover cleanup
 Row inspection used by owned damage-aware presentation SHALL report explicitly declared terminal hyperlinks separately from text that only resembles a link. Explicit hyperlinks and content that cannot be replayed safely SHALL restrict movement, because the terminal holds per-cell link identity that bounded region movement can misattribute. Text that only resembles a link SHALL restrict nothing beyond the host-hover decoration repair it was introduced for.
@@ -1253,21 +617,6 @@ Painting more rows than that allowance SHALL continue to fail closed to the pinn
 - **WHEN** the semantic frame does not declare a live-tail extent
 - **THEN** the adapter SHALL apply the existing fixed allowance
 - **AND** it SHALL NOT widen its transformation on unknown metadata
-
-### Requirement: Rendering evidence covers code and link-bearing streaming
-Deterministic rendering evidence SHALL include streamed fenced code, streamed prose containing file paths and dotted identifiers, and a live tail taller than the stable-row slack, each driven through the existing independent producer and cell-replay support at a declared geometry.
-
-Their budgets SHALL fail on a full-screen clear between the first streamed chunk and the settled message, on rejection of a movement the semantic frame proved safe when the only disqualifying input was link-resembling text, on repaint of stable settled rows, and on a stale final frame. Evidence SHALL record the bounded decision cause for every checkpoint so a fallback is attributable.
-
-#### Scenario: Run the code-block workload
-- **WHEN** the rendering evidence runs the streamed fenced-code workload for bare A1
-- **THEN** it SHALL report the decision cause and painted-row count at every checkpoint
-- **AND** the budget SHALL fail if any mid-stream frame clears the complete screen
-
-#### Scenario: Run a comparison producer over the same workload
-- **WHEN** `a1 pi` or untouched pinned Pi renders the same workload
-- **THEN** the owned damage adapter SHALL not be active
-- **AND** the comparison producer's terminal writes SHALL remain unchanged
 
 ### Requirement: Large ordinary text pastes use Pi-style compact chips
 Bare A1's default prompt editor SHALL collapse an ordinary text paste into one compact chip when its normalized text contains more than 10 logical lines or more than 1,000 UTF-16 code units. Counts and retained text SHALL follow the pinned Pi paste normalization, including line-ending normalization, tab expansion, and control-character handling. More than 10 lines SHALL use `[paste #N +L lines]`; otherwise a qualifying paste SHALL use `[paste #N C chars]`. `L` SHALL count newline-separated logical lines, including a trailing empty line, and `C` SHALL count UTF-16 code units. Nonqualifying ordinary text SHALL remain inline. This behavior SHALL apply with persistent prompt history enabled or disabled, without changing `a1 pi`.
@@ -1565,18 +914,6 @@ The owned `/trust` surface SHALL derive project and parent trust-option labels, 
 - **THEN** option construction SHALL use the resolved project path and its lexical parent with the same root exclusion and option order as pinned Pi
 - **AND** fallback SHALL NOT itself grant trust, suppress a separate trust-store failure, or migrate persisted decisions
 
-### Requirement: Trust path parity retains independent styled-row evidence
-For equivalent cwd inputs, filesystem alias topology, saved trust data, and current-session trust, the owned trust selector SHALL match independently captured pinned-Pi rows and action effects at 80 and 28 columns, dark/light themes, both existing output-padding variants, and truecolor/256-color. Evidence SHALL retain path spelling, semantic ANSI, selected/checkmarked state, and wrapping; canonical path differences SHALL NOT be masked by a new normalization or exception.
-
-#### Scenario: Compare canonical and aliased trust paths
-- **WHEN** independent producers render trust with ordinary and aliased cwd inputs, including native macOS temporary-directory aliases
-- **THEN** complete styled rows SHALL match for open, saved/inherited, confirmed, and cancelled states
-- **AND** confirmed persistence targets and cancellation's absence of writes SHALL match the pinned behavior
-
-#### Scenario: Detect path or presentation regressions
-- **WHEN** the owned capture substitutes a lexical parent for a distinct canonical parent, changes semantic ANSI, or changes wrapping
-- **THEN** the parity gate SHALL fail rather than accepting the mutated result
-
 ### Requirement: Bounded engine delivery supersedes only equivalent replaceable state
 The owned UI SHALL bound pending event count and retained queue payload without evicting arbitrary older notifications. Intermediate complete state updates SHALL be superseded only by a newer equivalent update for the same entity, session generation, and semantic ordering segment. Updates for different transcript blocks SHALL NOT displace one another without an explicit authoritative reconciliation that preserves all final content. Coalescing SHALL NOT remove or reorder command outcomes, lifecycle/run transitions, assistant-message completion semantics, tool finalization, or other side-effect-bearing events. A newer generation SHALL NOT receive an obsolete generation's state. Sequence stamping, listener registration, the bounded queue, the per-turn drain, generation invalidation, and the overload transition SHALL be one delivery component owned by the engine adapter and testable without the adapter: it SHALL obtain the session id, generation, lazily materialized blocks, asset retention, pending-command membership, cancellation, reconciliation, and listener-failure reporting through explicit ports, while the adapter alone decides what each event means and how a saturated session is rebuilt.
 
@@ -1632,15 +969,6 @@ Engine-event pressure SHALL be handled without delaying keyboard, pointer, or ti
 - **WHEN** a developer explicitly inspects diagnostics after a burst
 - **THEN** bounded evidence SHALL distinguish safely superseded state, protected queue depth, and actual overload recovery
 - **AND** those counters SHALL NOT be mirrored to user-visible diagnostic lists or statuses
-
-### Requirement: Quiet pressure handling has combined correctness evidence
-Acceptance SHALL verify both absence of technical messages and successful history/event recovery under combined load. Warning-string removal, larger arbitrary queues, longer synchronous drains, or timeouts alone SHALL NOT satisfy the change.
-
-#### Scenario: History contention overlaps a streaming burst
-- **WHEN** isolated validation holds the history database beyond its former short timeout while producing high-rate assistant/tool updates and interactive input, then releases the lock
-- **THEN** eligible history writes and refresh SHALL recover, final transcript and control outcomes SHALL match authoritative state, and input SHALL remain responsive
-- **AND** queue/worker/timer budgets SHALL remain bounded
-- **AND** captured normal UI and terminal output SHALL contain no history, coalescing, backpressure, or recovery notices
 
 ### Requirement: Forward prompt navigation includes the transcript bottom
 
@@ -1727,43 +1055,6 @@ The `a1 pi` comparison route, untouched pinned Pi, and extension-owned replaceme
 - **THEN** their list placement, editor coordinates, candidates, interactions, and selected-row styling SHALL retain their pinned behavior
 - **AND** neither comparison producer SHALL gain the one-cell outer gutter, relocated border counter, or bare A1's split selected-description styling
 - **AND** only bare A1's explicitly declared placement, menu-gutter, counter-relocation, selected-description styling, and sole slash-command search clearing differences SHALL be treated as expected autocomplete deviations
-
-### Requirement: Rendering stability is proven from terminal paint evidence
-A rendering-affecting change to the owned shell SHALL be validated with bounded terminal-paint evidence in addition to semantic row snapshots. The evidence SHALL independently exercise bare A1, the pinned `a1 pi` comparison, and untouched pinned Pi under equivalent profile state, terminal geometry, theme, capabilities, transcript, deterministic stream updates, and input checkpoints. It SHALL distinguish the default regular-mode comparison from a mode-matched fullscreen comparison so differences caused by terminal ownership are not misattributed to transcript content.
-
-For each checkpoint the evidence SHALL record the resulting cell frame and classify terminal writes including presentation cadence, bytes, cleared and rewritten rows, full-screen clears, viewport shifts, stable-row rewrites, synchronized-update boundaries, and dock geometry. Producer failure, timeout, malformed output, unbounded evidence, or an unexplained difference SHALL fail the gate.
-
-#### Scenario: Compare default user-visible paths
-- **WHEN** the rendering analysis compares bare `a1`, default `a1 pi`, and default untouched Pi
-- **THEN** all producers SHALL receive equivalent deterministic state and actions
-- **AND** the result SHALL identify that bare A1 uses its declared fullscreen custom viewport while the default comparison paths use their configured Pi mode
-- **AND** visible instability SHALL not be dismissed merely because final semantic text matches
-
-#### Scenario: Isolate fullscreen viewport behavior
-- **WHEN** the analysis investigates a difference that may be caused by regular versus fullscreen terminal ownership
-- **THEN** it SHALL also compare bare A1 with `a1 pi` and untouched Pi configured to the same fullscreen mode and geometry
-- **AND** it SHALL attribute differences separately to the fullscreen renderer, custom viewport composition, and transcript component output
-
-#### Scenario: Capture a deterministic streaming workload
-- **WHEN** prose, incomplete Markdown, thinking, tool output, fit/overflow crossing, a long transcript, resize, or detached scrolling is replayed
-- **THEN** the evidence SHALL include complete cell frames and paint classifications at declared checkpoints
-- **AND** it SHALL detect a full-screen clear, stable-row rewrite, dock jump, blank intermediate state, missed final state, or excessive frame cadence outside the workload's declared allowance
-
-#### Scenario: Terminal lacks synchronized-update support
-- **WHEN** the same workload is evaluated without synchronized terminal updates
-- **THEN** rendering SHALL remain free of blank or partially cleared intermediate frames through bounded damage and write ordering
-- **AND** unsupported synchronization SHALL be recorded rather than treated as successful atomic presentation
-
-#### Scenario: Comparison producer fails
-- **WHEN** bare A1, `a1 pi`, or untouched Pi exits unexpectedly, times out, or cannot produce a declared checkpoint
-- **THEN** the rendering-stability gate SHALL fail
-- **AND** it SHALL retain bounded diagnostics and clean up every isolated process tree
-
-#### Scenario: Repeat the same evidence command
-- **WHEN** the rendering evidence is run repeatedly against the same artifact and workload
-- **THEN** producer startup and completion SHALL remain within declared per-workload bounds
-- **AND** semantic results and paint classifications SHALL be deterministic
-- **AND** every reported finding SHALL be derived from captured checkpoints rather than a hard-coded description of an earlier implementation state
 
 ### Requirement: Damage-aware painting uses an A1-owned public boundary
 Bare A1 SHALL implement damage-aware fullscreen presentation through an A1-owned adapter over documented public terminal/runtime ports. The adapter SHALL receive authoritative semantic frame metadata from the owned viewport, SHALL NOT infer transcript semantics from terminal bytes, and SHALL transform only the finite pinned fullscreen-write grammar covered by conformance fixtures. A grammar, capability, safety, or geometry mismatch SHALL fail closed by forwarding the original Pi write unchanged. The adapter SHALL NOT require an upstream Pi change, inspect private Pi state, patch prototypes, edit installed package files, or alter `a1 pi` and untouched Pi comparison paths.
@@ -1852,7 +1143,7 @@ Path-aware word boundaries SHALL affect only semantic word movement and word del
 - **THEN** word movement and deletion SHALL retain the pinned Pi boundary behavior rather than the bare-A1 path-aware override
 
 ### Requirement: Bare A1 declares shared input and status-level presentation
-Bare A1 SHALL use the shared input presentation and status-level color behavior as an explicit A1-owned customization over the pinned shell. The ordinary main user prompt SHALL render one blank cell before its `❯` marker, followed by the existing marker-to-content spacing. Bare-A1 standard dialog search inputs SHALL render exact ASCII `> ` before their caret or query, with the `>` resolved through the live semantic accent role. Marker-free full-screen application search and compact non-search text-entry inputs SHALL continue using the reusable rules, caret, placeholder, and content geometry without a dialog marker. This customization SHALL supersede pinned editor border coloring and thinking-label styling only in bare A1; it SHALL render shared input rules through the same active semantic `border` role as modal bars and SHALL NOT change pinned `a1 pi` presentation, extension-provided custom editors, engine semantics, or other footer values. Bare-A1 keyboard defaults SHALL follow the declared level-cycle and model-selector shortcut policy instead of pinned defaults.
+Bare A1 SHALL use the shared input presentation and status-level color behavior as an explicit A1-owned customization over the pinned shell. The ordinary main user prompt SHALL be marker-free and SHALL keep a blank gutter of at least one cell on each side of every editable row. Bare-A1 standard dialog search inputs SHALL render exact ASCII `> ` before their caret or query, with the `>` resolved through the live semantic accent role. Marker-free full-screen application search and compact non-search text-entry inputs SHALL continue using the reusable rules, caret, placeholder, and content geometry without a dialog marker. This customization SHALL replace pinned editor border coloring and thinking-label styling only in bare A1; it SHALL render shared input rules through the same active semantic `border` role as modal bars and SHALL NOT change pinned `a1 pi` presentation, extension-provided custom editors, engine semantics, or other footer values. Bare-A1 keyboard defaults SHALL follow the declared level-cycle and model-selector shortcut policy instead of pinned defaults.
 
 #### Scenario: Open the pinned comparison profile
 - **WHEN** the user starts `a1 pi`
@@ -1860,7 +1151,7 @@ Bare A1 SHALL use the shared input presentation and status-level color behavior 
 
 #### Scenario: Use the owned agent input
 - **WHEN** the user starts bare A1 with its default agent editor
-- **THEN** the input SHALL use the shared modal-border rules and render exactly one blank cell before the `❯` prompt marker
+- **THEN** the input SHALL use the shared modal-border rules and render no prompt marker, with a blank gutter of at least one cell before the text
 - **AND** prompt history, paste chips, selection and copy, suggestions, streaming, submission, and bash execution SHALL retain their existing semantics
 
 #### Scenario: Use a standard dialog search input
@@ -1882,11 +1173,12 @@ Bare A1 SHALL use the shared input presentation and status-level color behavior 
 - **AND** the input SHALL retain its text, cursor, selection, focus, prefix choice, and geometry
 
 ### Requirement: The status-bar level name carries the existing thinking color
-Bare A1 SHALL color the status-bar thinking-level name with the same active-theme mapping previously used for that level's editor bars. The level label SHALL update from authoritative session state after level cycling, setting changes, model changes, and session restoration. Only the level name SHALL receive that color; surrounding model, provider, usage, path, separators, and extension statuses SHALL retain their existing presentation. A selected model with level off SHALL show an off label using the existing off-level mapping; when no model is selected, the footer SHALL NOT invent an active level. Unsupported levels SHALL continue to use the engine's supported-level and clamping behavior rather than introducing a new cycle order.
+
+Bare A1 SHALL color the status-bar thinking-level name with the active theme's thinking-level border color mapping for that level. The level label SHALL update from authoritative session state after level cycling, setting changes, model changes, and session restoration. Only the level name SHALL receive that color; surrounding model, provider, usage, path, separators, and extension statuses SHALL retain their existing presentation. A selected model with level off SHALL show an off label using the existing off-level mapping; when no model is selected, the footer SHALL NOT invent an active level. Unsupported levels SHALL continue to use the engine's supported-level and clamping behavior rather than introducing a new cycle order.
 
 #### Scenario: Cycle supported levels
 - **WHEN** the user cycles through a model's supported levels
-- **THEN** the visible level name SHALL update to the authoritative level and use the corresponding previous bar color
+- **THEN** the visible level name SHALL update to the authoritative level and use that level's thinking-level border color
 - **AND** both input bars SHALL remain on the semantic modal-border role and the level color SHALL NOT be muted by surrounding footer styling
 
 #### Scenario: Disable thinking
@@ -1931,20 +1223,21 @@ Bare A1 SHALL declare Escape on a sole top-level slash-command search as an inpu
 - **THEN** the menu SHALL close and `/mod` SHALL remain in the editor exactly as in pinned Pi
 
 ### Requirement: Compaction progress is estimated in the working status
-While a compaction is shown, bare A1 SHALL estimate its progress from the summarization stream and present it in the working status as `Compacting(n%)` beside the spinner, where `n` is an integer percent. The engine adapter SHALL observe the stream through the session agent's public stream function only between the compaction's start and end, SHALL count streamed summary text against an expected summary size taken from the previous compaction summary on the current branch or a fixed default when there is none, and SHALL publish the percent as engine status data separate from the semantic `Compacting` word. When the bound session exposes a callable stream function, the percent SHALL start at 0 immediately when compaction starts, including while summary preparation and provider authentication are pending; it SHALL never decrease within one compaction; estimated text progress SHALL NOT exceed 99 while the summary stream is active; and the progress SHALL reach 100 when that stream's public final result resolves successfully. The terminal observer SHALL be registered before the stream is returned to Pi so `100%` is published even when Pi consumes the result and ends compaction before an independent async iterator can observe the terminal event. Stream completion SHALL NOT end, abort, delay, or otherwise control the compaction. The progress SHALL be removed together with the compacting state when the real compaction-end lifecycle event arrives. Temporarily suspending and resuming event delivery for the same bound session SHALL restore observation before resumed session events are accepted and SHALL NOT leave later observable compactions on the no-progress fallback. When the stream cannot be observed the status SHALL remain `Compacting`. A manual compaction that fails before summary streaming starts SHALL preserve pinned Pi's visible error rather than treating the failed command result as silent, while successful manual-compaction completion SHALL remain silent. Intermediate percentages SHALL remain estimates because the provider does not expose final summary length before completion. This SHALL be a declared bare-A1 progress presentation difference; the `a1 pi` comparison route SHALL keep its existing `Compacting` label.
+
+While a compaction is shown, bare A1 SHALL estimate its progress from the summarization stream and present it in the working status as `Compacting(n%)` beside the spinner, where `n` is an integer percent, followed by the shared progress marker `…`. The engine adapter SHALL observe the stream through the session agent's public stream function only between the compaction's start and end, SHALL count streamed summary text against an expected summary size taken from the previous compaction summary on the current branch or a fixed default when there is none, and SHALL publish the percent as engine status data separate from the semantic `Compacting` word. When the bound session exposes a callable stream function, the percent SHALL start at 0 immediately when compaction starts, including while summary preparation and provider authentication are pending; it SHALL never decrease within one compaction; estimated text progress SHALL NOT exceed 99 while the summary stream is active; and the progress SHALL reach 100 when that stream's public final result resolves successfully. The terminal observer SHALL be registered before the stream is returned to Pi so `100%` is published even when Pi consumes the result and ends compaction before an independent async iterator can observe the terminal event. Stream completion SHALL NOT end, abort, delay, or otherwise control the compaction. The progress SHALL be removed together with the compacting state when the real compaction-end lifecycle event arrives. Temporarily suspending and resuming event delivery for the same bound session SHALL restore observation before resumed session events are accepted and SHALL NOT leave later observable compactions on the no-progress fallback. When the stream cannot be observed the status SHALL remain `Compacting…`. A manual compaction that fails before summary streaming starts SHALL preserve pinned Pi's visible error rather than treating the failed command result as silent, while successful manual-compaction completion SHALL remain silent. Intermediate percentages SHALL remain estimates because the provider does not expose final summary length before completion. This SHALL be a declared bare-A1 progress presentation difference; the `a1 pi` comparison route SHALL keep its `Compacting...` label without a percent.
 
 #### Scenario: Enter observable compaction before streaming
 - **WHEN** bare A1 receives `compaction_start` from a bound session with a callable public stream function and summary preparation or provider authentication is still pending
-- **THEN** bare A1 SHALL immediately show `Compacting(0%)...`
+- **THEN** bare A1 SHALL immediately show `Compacting(0%)…`
 
 #### Scenario: Watch a compaction progress
 - **WHEN** a compaction streams its summary and the branch holds a previous summary of 4,000 characters
-- **THEN** bare A1 SHALL retain `Compacting(0%)...` until summary text streams and SHALL show `Compacting(50%)...` after 2,000 characters have streamed
-- **AND** the estimated label SHALL show at most `Compacting(99%)...` while successful completion is not yet known
+- **THEN** bare A1 SHALL retain `Compacting(0%)…` until summary text streams and SHALL show `Compacting(50%)…` after 2,000 characters have streamed
+- **AND** the estimated label SHALL show at most `Compacting(99%)…` while successful completion is not yet known
 
 #### Scenario: Finish an observable summary stream
 - **WHEN** a successful summary result resolves after its streamed character estimate reached only 40% to 50%
-- **THEN** bare A1 SHALL publish `Compacting(100%)...` before the real compaction-end event removes the compaction label and progress
+- **THEN** bare A1 SHALL publish `Compacting(100%)…` before the real compaction-end event removes the compaction label and progress
 - **AND** the terminal publication SHALL NOT depend on the independent stream iterator observing exhaustion first
 
 #### Scenario: Summary stream fails or becomes stale
@@ -1958,7 +1251,7 @@ While a compaction is shown, bare A1 SHALL estimate its progress from the summar
 
 #### Scenario: Resume an observable session
 - **WHEN** the engine suspends and then resumes delivery for the same bound session with a callable public stream function
-- **THEN** a later compaction SHALL immediately show `Compacting(0%)...` and advance from streamed summary text
+- **THEN** a later compaction SHALL immediately show `Compacting(0%)…` and advance from streamed summary text
 - **AND** repeated resume SHALL NOT install nested observers or report stale progress
 
 #### Scenario: Manual compaction has nothing to summarize
@@ -1968,7 +1261,7 @@ While a compaction is shown, bare A1 SHALL estimate its progress from the summar
 
 #### Scenario: Stream is not observable
 - **WHEN** the session agent exposes no callable stream function
-- **THEN** the status SHALL show `Compacting...` without a percent and compaction SHALL proceed unchanged
+- **THEN** the status SHALL show `Compacting…` without a percent and compaction SHALL proceed unchanged
 
 #### Scenario: Comparison route
 - **WHEN** the same compaction runs through `a1 pi`
@@ -2042,7 +1335,7 @@ Catalog refresh SHALL run in the background without adding `(refreshing)` to the
 - **WHEN** the user presses Enter on an available model
 - **THEN** the active session model SHALL change through the existing model-selection policy
 - **AND** the persisted default provider and model SHALL remain unchanged
-- **AND** the dialog SHALL close and a current-model confirmation SHALL be presented
+- **AND** the dialog SHALL close and the footer SHALL show the new model without an added success message, while warnings and errors SHALL remain visible
 - **AND** pending unsaved scope changes SHALL remain session-only rather than being saved as a side effect
 
 #### Scenario: Cancel with pending scope changes
@@ -2112,7 +1405,7 @@ While the value is `expand`, or the engine does not register skills as commands,
 - **AND** only bare A1's declared collapsed presentation SHALL be treated as an expected deviation
 
 ### Requirement: The Skills dialog browses, searches, and applies a skill
-The Skills dialog SHALL be an A1-owned modal built on public component boundaries and presented as a regular selector dialog like the model selector: the same overlay placement, owned input coordination, pinned border, spacer, search-input, list, and footer composition, and the same keybinding-hint footer wording the pinned selectors use (`↑↓ navigate`, confirm `select`, cancel `cancel`). It SHALL preserve the existing modal contract for exposed transcript content. Its content SHALL be the accent bold title `Skills` above the search input, the matching skills as rows labeled with the bare `<name>` in discovery-sorted name order with the selected row prefixed `→ ` in the accent role, the selected skill's one-line whitespace-collapsed description in the muted role below the rows, and the pinned `(selected/total)` scroll counter only when rows exceed the visible window. The dialog rows SHALL NOT display the engine-facing `skill:` prefix. An empty filtered result SHALL render `No matching skills`; a session with no skills SHALL render `No skills yet`.
+The Skills dialog SHALL be an A1-owned modal built on public component boundaries and presented as a regular selector dialog like the model selector: the same overlay placement, owned input coordination, pinned border, spacer, search-input, list, and footer composition, and a shared shortcut footer reading `Type search`, `↑↓ navigate`, the effective confirm key with `select`, and `Esc close`. It SHALL preserve the existing modal contract for exposed transcript content. Its content SHALL be the accent bold title `Skills` above the search input, the matching skills as rows labeled with the bare `<name>` in discovery-sorted name order with the selected row prefixed `→ ` in the accent role, the selected skill's one-line whitespace-collapsed description in the muted role below the rows, and the pinned `(selected/total)` scroll counter only when rows exceed the visible window. The dialog rows SHALL NOT display the engine-facing `skill:` prefix. An empty filtered result SHALL render `No matching skills`; a session with no skills SHALL render `No skills yet`.
 
 A row SHALL match a query when the query, ignoring case and an optional leading `skill:`, is a substring of the skill name or its description. Typing SHALL edit the query and reset the selection to the first row. Up and Down SHALL move the selection and wrap at either end. Enter SHALL apply the selected skill as the skills command defines, then close the dialog. Escape and the pinned cancel binding SHALL close the dialog and leave the editor text and history unchanged, exactly as cancelling the model selector does. The dialog SHALL open only from `/skills` with no arguments and SHALL never open with a seeded query. It SHALL NOT change the model, session, or settings. Expanded slash-command entries SHALL retain their `skill:<name>` labels, and the `/skills:` tunnel SHALL retain its `skills:<name>` labels.
 
@@ -2176,53 +1469,6 @@ When the command menu is open on a sole top-level slash search whose selected ro
 - **WHEN** `/skills:` is typed while `expand` is active or through the `a1 pi` comparison profile
 - **THEN** no tunnel rows SHALL appear and the text SHALL be treated as pinned Pi treats it
 
-### Requirement: The changelog and hotkeys commands open reference screens in bare A1
-Bare A1 SHALL declare `/changelog` and `/hotkeys` as A1-owned replacements for the
-pinned in-feed changelog and keyboard-shortcut documents. The owned route host SHALL
-claim both routes ahead of the pinned workflow table, so invoking either in bare A1
-opens the A1-owned reference screen full screen over the session and appends no
-document, status, checkmark, or error row to the feed.
-
-`/changelog` SHALL open the screen titled `Changelog` with the packaged, manually
-reviewed A1 release-note history newest first. It SHALL read only the deterministic
-local package resource and SHALL NOT query GitHub, npm, or another network service.
-`/hotkeys` SHALL open the screen titled `Keyboard Shortcuts` with the bare-A1
-keybinding-derived tables the in-feed presenter produced for the `a1` profile,
-including the current editor keybinding configuration and extension shortcut
-descriptions gathered when the screen opens. Bare A1 SHALL carry those tables as
-structured sections into the reference screen rather than recognizing labels from
-rendered text. Every section SHALL use the same shared header component, bold yellow
-Markdown-heading role, one-cell left inset, content adjacency, inter-section spacing,
-and active-section pinning as owned Settings. One blank row SHALL separate the main
-screen title from the first section. The changelog document SHALL retain its flat
-settings-aware Markdown presentation, and the hotkeys refinement SHALL NOT alter
-table content, wrapping, section order, or the pinned comparison presentation. Both
-screens SHALL omit the spacer, border, and heading rows that were feed chrome.
-
-The `a1 pi` comparison profile SHALL keep the pinned Pi `/changelog` workflow,
-complete pinned Pi changelog, and in-feed presentation. It SHALL NOT read A1's
-release-note acknowledgement or substitute A1 release notes for Pi's.
-
-#### Scenario: Invoke the changelog command in bare A1
-- **WHEN** the user submits `/changelog` in bare A1
-- **THEN** the `Changelog` reference screen SHALL open with the complete packaged A1 release-note history in newest-first order, the editor SHALL be cleared, and the feed SHALL gain no rows
-
-#### Scenario: Use changelog without network access
-- **WHEN** the user opens `/changelog` while GitHub and npm are unavailable
-- **THEN** the reviewed packaged notes SHALL remain available without a network request
-
-#### Scenario: Invoke the hotkeys command in bare A1
-- **WHEN** the user submits `/hotkeys` in bare A1
-- **THEN** the `Keyboard Shortcuts` reference screen SHALL open with structured keybinding-derived sections, the editor SHALL be cleared, and the feed SHALL gain no rows
-
-#### Scenario: Scroll and close a reference command screen
-- **WHEN** the changelog or hotkeys screen is open above an overflowing document
-- **THEN** keyboard, wheel, rail hover, thumb drag, and track paging SHALL scroll the document as the reference screen specifies, no transcript scroll, selection, or control SHALL activate through the screen, and closing SHALL restore pointer reporting and the viewport as after `/settings`
-
-#### Scenario: Invoke either command in the comparison profile
-- **WHEN** the user submits `/changelog` or `/hotkeys` in `a1 pi`
-- **THEN** the pinned workflow SHALL retain its pinned Pi content and in-feed presentation and SHALL open no A1-owned reference screen
-
 ### Requirement: Startup release notes open as a reference screen in bare A1
 A stable bare-A1 package SHALL carry one reviewed note whose exact stable semantic
 version matches the package version. On the first interactive bare-A1 launch for
@@ -2250,7 +1496,7 @@ or collapsed startup changelog behavior and acknowledgement unchanged.
 
 #### Scenario: Start bare A1 after an upgrade with the changelog expanded
 - **WHEN** bare A1 starts from stable `0.2.2`, the package carries reviewed note `0.2.2`, that version is not acknowledged, and Pi's `collapseChangelog` setting is off
-- **THEN** A1 SHALL paint an input-ready shell frame and then open the `0.2.2` note in the `What's New` screen without adding transcript content or showing the former transient notice
+- **THEN** A1 SHALL paint an input-ready shell frame and then open the `0.2.2` note in the `What's New` screen without adding transcript content or a transient notice
 
 #### Scenario: Start bare A1 with the changelog collapsed
 - **WHEN** the same stable note is pending and Pi's `collapseChangelog` setting is on
@@ -2285,7 +1531,7 @@ or collapsed startup changelog behavior and acknowledgement unchanged.
 - **THEN** A1 SHALL not move the acknowledgement backwards or repeatedly reopen the older note
 
 #### Scenario: Open release notes on request
-- **WHEN** the user invokes `/changelog` before or after the automatic note is acknowledged
+- **WHEN** the user opens Changelog from the Launcher before or after the automatic note is acknowledged
 - **THEN** the `Changelog` reference screen SHALL open with complete packaged A1 release-note history and the feed SHALL gain no rows
 
 #### Scenario: Start the comparison profile after an upgrade
@@ -2293,7 +1539,7 @@ or collapsed startup changelog behavior and acknowledgement unchanged.
 - **THEN** no A1 note or acknowledgement SHALL be used, and Pi's pinned expanded or collapsed startup changelog behavior SHALL remain unchanged
 
 ### Requirement: The bare-A1 thinking selector uses the established selector treatment
-The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic accent color, matching the heading treatment used by the Models configuration surface. Its resolved cycle hint SHALL render in semantic muted grey on the immediately following row. Repeated available-level values SHALL collapse to one row. Every level row SHALL begin with a fixed-width exclusive-radio marker that differs from the Models dialog's multi-select state: the configured default SHALL use exactly one semantic accent-colored `◉`, and every non-default level SHALL use a semantic dim `○`. One space after that marker, every row SHALL render its unpadded level name. The active session level SHALL have exactly one semantic success-green checkmark one space immediately after the final visible cell of its level name, matching the item-adjacent active treatment used by other dialogs; the checkmark SHALL NOT be delayed to a shared marker column. Width-balancing padding SHALL follow the optional active marker so every description renders inline in semantic muted grey and begins at the same column regardless of active/default placement. The selector SHALL NOT render the textual `[default]` marker. Space SHALL immediately persist the highlighted level as the configured global default, move the single selected radio to that row, and replace the previous row's marker with an unselected radio without closing the selector, changing the active session level, or creating an unsaved state. Enter SHALL continue selecting the highlighted session level, and only Escape SHALL close the selector. Ctrl+C SHALL NOT close the selector or invoke cancellation. The shortcut footer SHALL use semantic hint styling and read `Type search  Enter select  Space default  Esc close`. While the bare-A1 selector is open, the shell footer SHALL keep its current thinking-level suffix visible with its normal foreground. Default-only changes SHALL NOT change that displayed active level; selecting a new session level SHALL update it through the existing workflow. The interaction change SHALL preserve the selector's borders, search input, navigation, filtering, focus, restoration behavior, narrow-width bounds, and comparison-profile isolation.
+The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic accent color, matching the heading treatment used by the Models configuration surface. Its resolved cycle hint SHALL render in semantic muted grey on the immediately following row. Repeated available-level values SHALL collapse to one row. Every level row SHALL begin with a fixed-width exclusive-radio marker that differs from the Models dialog's multi-select state: the configured default SHALL use exactly one semantic accent-colored `◉`, and every non-default level SHALL use a semantic dim `○`. One space after that marker, every row SHALL render its unpadded level name. The active session level SHALL have exactly one semantic success-green checkmark one space immediately after the final visible cell of its level name, matching the item-adjacent active treatment used by other dialogs; the checkmark SHALL NOT be delayed to a shared marker column. Width-balancing padding SHALL follow the optional active marker so every description renders inline in semantic muted grey and begins at the same column regardless of active/default placement. The selector SHALL NOT render the textual `[default]` marker. Space SHALL immediately persist the highlighted level as the configured global default, move the single selected radio to that row, and replace the previous row's marker with an unselected radio without closing the selector, changing the active session level, or creating an unsaved state. Enter SHALL select the highlighted session level. Escape SHALL close the selector, and Ctrl+C SHALL close it through the same cancel path as the implicit close alias of every dismissible surface. The shortcut footer SHALL use semantic hint styling and read `Type search  Enter select  Space default  Esc close`. While the bare-A1 selector is open, the shell footer SHALL keep its current thinking-level suffix visible with its normal foreground. Default-only changes SHALL NOT change that displayed active level; selecting a new session level SHALL update it through the existing workflow. These interactions SHALL preserve the selector's borders, search input, navigation, filtering, focus, restoration behavior, narrow-width bounds, and comparison-profile isolation.
 
 #### Scenario: Render the thinking selector heading
 - **WHEN** the user opens the bare-A1 thinking selector
@@ -2334,7 +1580,7 @@ The bare-A1 thinking selector SHALL render `Thinking Level` in bold semantic acc
 - **WHEN** the user presses Escape
 - **THEN** the selector SHALL close and restore its parent surface
 - **WHEN** the user presses Ctrl+C
-- **THEN** the selector SHALL remain open and SHALL NOT invoke cancellation
+- **THEN** the selector SHALL close through the same cancel path as Escape
 
 #### Scenario: Render compact controls
 - **WHEN** the bare-A1 thinking selector is open
@@ -2351,8 +1597,8 @@ Bare A1 SHALL present `thinking` immediately after its unified `models` command 
 
 #### Scenario: Open bare A1 slash-command autocomplete
 - **WHEN** bare A1 presents its built-in slash-command catalog
-- **THEN** its first four commands SHALL be `settings`, `models`, `thinking`, and `tree` in that order
-- **AND** its advertised workflow catalog SHALL use the same order
+- **THEN** `models`, `thinking`, and `tree` SHALL be its first three built-in commands in that order, preceded only by the collapsed `skills` command when that command is present
+- **AND** its advertised workflow catalog SHALL begin `models`, `thinking`, `tree`
 
 #### Scenario: Open comparison slash-command autocomplete
 - **WHEN** the `a1 pi` comparison profile presents its built-in slash-command catalog
@@ -2574,98 +1820,24 @@ The badge, association, claim, and inventory are declared bare-A1 behavior. The 
 
 ### Requirement: The collapsed skills command keeps a primary built-in position
 
-While bare A1 presents skills in collapsed form, the synthetic `skills` command SHALL appear exactly once in the top-level slash-command catalog immediately after `settings`. All other built-in commands SHALL retain their declared relative order, including `quit` as the final built-in command, and all remaining prompt-template, extension, and other resource commands SHALL retain their existing relative order after the built-in catalog.
+While bare A1 presents skills in collapsed form, the synthetic `skills` command SHALL appear exactly once in the top-level slash-command catalog as its first command, immediately before `models`. All other built-in commands SHALL retain their declared relative order, including `quit` as the final built-in command, and all remaining prompt-template, extension, and other resource commands SHALL retain their existing relative order after the built-in catalog.
 
 This ordering SHALL apply only to the synthetic collapsed command. Expanded `skill:<name>` entries SHALL retain their engine-provided placement, a catalog with no synthetic collapsed command SHALL remain unchanged, and the `a1 pi` comparison profile SHALL retain the pinned catalog.
 
 #### Scenario: Open the collapsed command menu
 - **WHEN** bare A1 has discovered skills, skill commands are enabled, `skillsPresentation` is `collapse`, and the user opens the top-level slash-command menu
-- **THEN** `skills` SHALL appear exactly once immediately after `settings`
+- **THEN** `skills` SHALL appear exactly once as the first command, immediately before `models`
 - **AND** the remaining built-ins SHALL follow in their existing relative order through `quit`
 - **AND** ordinary resource commands SHALL retain their existing relative order after `quit`
 
 #### Scenario: Open the expanded command menu
 - **WHEN** bare A1 uses `skillsPresentation` value `expand`
-- **THEN** no synthetic `skills` command SHALL be inserted after `settings`
+- **THEN** no synthetic `skills` command SHALL be inserted
 - **AND** discovered `skill:<name>` entries SHALL retain their existing engine-provided placement
 
 #### Scenario: Compare the pinned profile
 - **WHEN** the command menu is opened through the `a1 pi` comparison profile
 - **THEN** the pinned command catalog SHALL remain unchanged and no synthetic `skills` command SHALL be inserted
-
-### Requirement: Bare-A1 dialogs share one shortcut-hint presentation
-
-Every shortcut-bearing modal, selector, dialog, nested flow, custom input/editor, confirmation, authentication surface, startup trust selector, extension-hosted modal, operation dialog, and owned full-screen dialog presented by bare A1 SHALL use the shared shortcut-row presentation. Full-screen dialogs include Settings and the shared Changelog/Hotkeys/Session Info reference screen. Effective shortcut labels SHALL continue to come from the bindings and platform rules used by the corresponding action, then use common display capitalization while action names remain lowercase, except that an A1-rendered entry which dismisses the active surface SHALL use the canonical display label and action `Esc close`. Applying the presentation SHALL NOT change focus, navigation, search, editing, save/confirm behavior, cancellation, operation abortion, viewport behavior, transitions, restoration, or disposal.
-
-Every A1-rendered dismissible surface SHALL include exactly one `Esc close` entry as the final entry in its active standing or state-specific shortcut guidance. This requirement applies when dismissal silently closes a top-level surface, aborts an operation while closing its progress dialog, exits startup, or closes a nested state and restores its parent; those different outcomes SHALL NOT change the visible close wording. A surface that previously omitted dismissal guidance SHALL add the entry. Additional effective or implicit aliases SHALL remain undisclosed by this canonical entry. When available width can contain the complete entry, wrapping, clipping, state replacement, or optional controls SHALL NOT omit or partially clip `Esc close`; narrower rendering SHALL remain ANSI-safe. Escape uses outside active-surface dismissal, including ordinary editor autocomplete clearing, shell interruption, and non-dialog help, SHALL remain outside this wording rule.
-
-Every such shortcut row SHALL begin at the same visible display column as its dialog's heading or title, retaining that surface's established heading inset rather than following its list-marker, form-field, editor, or content inset. A nested flow SHALL align to its own local heading. Wrapping or clipping SHALL preserve the surface's existing policy without introducing a second leading indent. The explicit `a1 pi` comparison profile SHALL retain its pinned dialog presentation. Ordinary shell help, status, transcript, and footer surfaces SHALL remain outside this dialog styling rule.
-
-#### Scenario: Open a bare-A1 modal
-- **WHEN** any shortcut-bearing bare-A1 modal node is presented
-- **THEN** its instruction row SHALL show display-capitalized shortcut labels and lowercase action names in distinct semantic colors
-- **AND** adjacent shortcut entries SHALL use whitespace without middle-dot or bullet separators
-- **AND** the instruction row SHALL start at the same display column as the modal heading rather than the content rows
-- **AND** its final dismissal entry SHALL read exactly `Esc close`
-
-#### Scenario: Open a full-screen owned dialog
-- **WHEN** Settings, Changelog, Hotkeys, or Session Info is presented as a full-screen owned route
-- **THEN** its standing shortcut row SHALL use distinct key/action colors and whitespace-only entry gaps
-- **AND** its first visible cell SHALL align with the full-screen title's established inset
-- **AND** its final dismissal entry SHALL read exactly `Esc close`
-- **AND** its frame, content, scrolling, search, and close behavior SHALL remain unchanged
-
-#### Scenario: Open a nested or extension-hosted modal
-- **WHEN** a modal flow replaces its parent with a nested confirmation, input, editor, authentication, or extension-hosted surface
-- **THEN** every A1-rendered shortcut-bearing depth SHALL retain the same shared hint presentation
-- **AND** each hint SHALL align with its local heading even when its input or editor uses a different content inset
-- **AND** the active depth's final dismissal entry SHALL read exactly `Esc close`
-- **AND** completing, cancelling, or returning SHALL preserve the existing transition and focus-restoration behavior
-
-#### Scenario: Show a cancellable operation dialog
-- **WHEN** bare A1 presents an operation progress dialog whose Escape path aborts the operation and closes the dialog
-- **THEN** its dismissal guidance SHALL read exactly `Esc close`
-- **AND** pressing Escape SHALL retain the operation's existing abort, result, teardown, and parent-restoration behavior
-
-#### Scenario: Add omitted close guidance
-- **WHEN** Session Tree, Resume Session, or another dismissible dialog previously rendered action guidance without its available close action
-- **THEN** the guidance SHALL include exactly one final `Esc close` entry
-- **AND** all existing action entries and their order before the close entry SHALL remain unchanged
-
-#### Scenario: Keep close guidance visible
-- **WHEN** a dismissible dialog has enough width to render the complete `Esc close` entry but its other shortcut guidance overflows
-- **THEN** `Esc close` SHALL remain complete and visible
-- **AND** the remaining entries SHALL follow that surface's established wrapping or clipping policy
-
-#### Scenario: Keep content indentation independent
-- **WHEN** a selector uses leading cells for an arrow, marker, field label, tree depth, or editor body
-- **THEN** those content cells SHALL remain in their established columns
-- **AND** the shortcut row SHALL align with the heading instead of inheriting the content indentation
-
-#### Scenario: Resolve customized or platform-specific bindings
-- **WHEN** a non-dismissal modal action has a customized binding, no effective binding, or a platform-specific display label
-- **THEN** its hint SHALL use the same effective label and omission behavior as dispatch
-- **AND** styling and alignment SHALL NOT manufacture a default key or change the invoked action
-- **AND** the canonical `Esc close` entry SHALL NOT advertise additional effective or implicit close aliases
-
-#### Scenario: Ask for project trust before resources load
-- **WHEN** the pre-resource trust selector is presented
-- **THEN** its fixed-color shortcut row SHALL provide the same distinct key/action roles, separator-free spacing, heading alignment, and final `Esc close` entry
-- **AND** rendering it SHALL NOT load project settings, themes, extensions, packages, skills, or post-trust Pi components
-
-#### Scenario: Preserve dismissal outcomes
-- **WHEN** `Esc close` is shown for a top-level close, operation abort, startup exit, or nested return
-- **THEN** pressing Escape SHALL retain that surface's existing cancellation, abortion, restoration, focus, and disposal outcome
-- **AND** no selection, submission, save, or new generic cancellation message SHALL be introduced
-
-#### Scenario: Use the comparison profile
-- **WHEN** the same modal route is presented through `a1 pi`
-- **THEN** its pinned shortcut presentation and geometry SHALL remain unchanged by the bare-A1 customization
-
-#### Scenario: Audit dialog completeness
-- **WHEN** modal inventory and owned full-screen route coverage run
-- **THEN** every A1-rendered dismissible bare-A1 dialog node or route SHALL be mapped to the shared presentation or the isolated pre-resource equivalent
-- **AND** a missing or non-final close entry, dismissal wording other than exact `Esc close`, duplicate close entry, heading/hint start-column mismatch, inconsistent key/action casing, whole-line single-color hint, or middle-dot/bullet entry separator SHALL fail coverage
 
 ### Requirement: Bare-A1 thinking and provider-login command rows use concise descriptions
 Bare A1 SHALL present the built-in `thinking` command with the description `Set thinking level` and the built-in `login` command with the description `Configure provider authentication` in top-level slash-command autocomplete. Neither row SHALL prepend an angle-bracket argument hint or the argument-hint separator to that description. This presentation change SHALL NOT remove direct thinking-level arguments or provider argument completion, change either command's execution, alter command ordering or selected-row styling, or remove argument hints from unrelated commands and resources. The `a1 pi` comparison profile SHALL retain its pinned argument-hint presentation.
@@ -2733,59 +1905,15 @@ Bare A1 SHALL verify that the selected repository directory exists before launch
 - **THEN** A1 SHALL retain its bounded asynchronous branch and pull-request probes
 - **AND** cancellation, timeout, command failure, or invalid output SHALL return no repository metadata
 
-### Requirement: Bare-A1 titled modals use compact shared top chrome
-
-Every A1-authored framed modal reachable in the bare-A1 modal transition graph SHALL use the shared modal-frame boundary, SHALL render its title directly beneath its top rule when titled, and SHALL place all semantic content within the frame's one-cell global left inset. This SHALL cover top-level, nested, startup, authentication, and extension-hosted modal families rather than only the dialog that exposed the inconsistency. New applicable bare-A1 modal producers SHALL adopt the same component boundary instead of independently composing a top spacer or outer content indent.
-
-Top, bottom, and declared separator rules SHALL remain full width. The change SHALL preserve modal wording and controller behavior, relative list/form/description indentation, spacing below the title, focus, navigation, editing, completion, cancellation, nesting, resize, pointer ownership, restoration, and disposal. The explicit `a1 pi` comparison profile SHALL continue to construct and render the pinned modal presentation unchanged.
-
-#### Scenario: Open any titled bare-A1 modal
-
-- **WHEN** a user opens an A1-authored titled modal in bare A1
-- **THEN** its top rule SHALL be followed immediately by its title
-- **AND** its title and remaining semantic content SHALL use the shared one-cell global left inset
-- **AND** the modal SHALL receive both dimensions from the shared modal-frame boundary
-
-#### Scenario: Traverse a nested modal flow
-
-- **WHEN** a user moves between parent, confirmation, input, editor, or authentication modal states
-- **THEN** every titled A1-authored state SHALL omit the empty row above its title
-- **AND** every A1-authored framed state SHALL apply the same global content inset while retaining full-width rules
-- **AND** completion, back, cancellation, focus restoration, and disposal SHALL remain unchanged
-
-#### Scenario: Present an untitled framed modal
-
-- **WHEN** an A1-authored framed modal has no title
-- **THEN** its body content SHALL still use the shared one-cell global left inset
-- **AND** its rules and vertical spacing SHALL remain intact
-
-#### Scenario: Present an extension-owned custom surface
-
-- **WHEN** an inventoried modal node supplies extension-owned custom geometry rather than A1-authored frame slots
-- **THEN** it SHALL retain that geometry
-- **AND** inventory coverage SHALL record why the shared frame rule does not apply
-
-#### Scenario: Use the pinned comparison profile
-
-- **WHEN** the equivalent modal is opened through `a1 pi`
-- **THEN** the pinned component and its spacing SHALL remain unchanged
-- **AND** no bare-A1 compact-frame adapter SHALL alter its output
-
-#### Scenario: Add a titled bare-A1 modal
-
-- **WHEN** source or inventory coverage discovers a new A1-authored titled modal producer
-- **THEN** validation SHALL require it to use the shared compact padded frame
-- **AND** a producer that independently restores a top-title spacer or outer content inset SHALL fail the coverage gate
-
 ### Requirement: Pre-resource project trust uses a compact bottom dialog
-Bare A1 SHALL present an interactive pre-resource trust decision as a vertically compact, ruled dialog anchored to the bottom of the bounded startup surface. Its top and bottom rules SHALL use the fixed dark-theme border blue and span the full available terminal width. The explanation SHALL read exactly `This allows to load project settings and resources, install missing project packages, and execute project extensions.` and SHALL NOT insert the product name. The dialog SHALL use the established bare-A1 modal hierarchy for its title, working-directory context, explanation, selected and unselected option rows, and semantic shortcut hints while remaining implemented only from fixed startup-safe wording, ANSI roles, terminal dimensions, and bounded rendering helpers. It SHALL NOT load or consult project settings, themes, extensions, prompts, packages, skills, or post-trust components.
+Bare A1 SHALL present an interactive pre-resource trust decision as a vertically compact, ruled dialog anchored to the bottom of the bounded startup surface. Its top and bottom rules SHALL use the derived border tone of the pre-resource color family and span the full available terminal width. The explanation SHALL read exactly `This allows to load project settings and resources, install missing project packages, and execute project extensions.` and SHALL NOT insert the product name. The dialog SHALL use the established bare-A1 modal hierarchy for its title, working-directory context, explanation, selected and unselected option rows, and semantic shortcut hints while remaining implemented only from fixed startup-safe wording, ANSI roles, terminal dimensions, and bounded rendering helpers. It SHALL NOT load or consult project settings, themes, extensions, prompts, packages, skills, or post-trust components.
 
 The dialog SHALL remain readable at supported terminal sizes, SHALL prioritize the title, path, choices, and actionable controls when height is constrained, and SHALL clip or wrap without replaying untrusted terminal control content. Completion, interruption, input end, and errors SHALL clear the owned startup frame and restore raw mode, cursor state, and the parent terminal exactly once.
 
 #### Scenario: Present trust at the bottom
 - **WHEN** an interactive launch needs a project-trust decision in a terminal with sufficient rows
 - **THEN** A1 SHALL render one vertically compact ruled trust dialog against the bottom of the startup surface
-- **AND** its blue top and bottom rules SHALL span the full available terminal width
+- **AND** its top and bottom rules SHALL span the full available terminal width
 - **AND** it SHALL not render the trust content as a loose page at the top-left
 
 #### Scenario: Match ordinary selector hierarchy
@@ -2874,7 +2002,7 @@ When bare A1 presents an attachment-count warning for the current prompt, it SHA
 
 ### Requirement: Bare-A1 changelog reference links use terminal-native decoration
 
-Bare A1 SHALL present hyperlinks in both the complete `/changelog` history and startup release-note reference documents with the same terminal-native decoration policy as agent-content links. Changelog links SHALL preserve their visible labels, foregrounds, exact OSC 8 targets, wrapping, scrolling, and activation behavior while omitting renderer-owned solid underline controls, allowing the terminal to provide its native idle decoration and solid hover decoration. This policy SHALL NOT alter hotkeys or other reference documents, the `a1 pi` comparison profile, untouched Pi, or installed Pi packages.
+Bare A1 SHALL present hyperlinks in both the complete Changelog application history and startup release-note reference documents with the same terminal-native decoration policy as agent-content links. Changelog links SHALL preserve their visible labels, foregrounds, exact OSC 8 targets, wrapping, scrolling, and activation behavior while omitting renderer-owned solid underline controls, allowing the terminal to provide its native idle decoration and solid hover decoration. This policy SHALL NOT alter hotkeys or other reference documents, the `a1 pi` comparison profile, untouched Pi, or installed Pi packages.
 
 #### Scenario: Present a changelog link at rest and on hover
 - **WHEN** a bare-A1 changelog or startup release-note reference screen contains a hyperlink
@@ -2949,11 +2077,11 @@ The session screen SHALL retain the shared reference screen's keyboard, wheel, s
 
 The bare-A1 Session Tree SHALL use the same compact framed hierarchy as the Models dialog. Exactly one empty visual row SHALL separate preceding transcript or status content from the tree's top rule. The top rule SHALL be followed immediately by an accent-bold `Session Tree` title, and the frame SHALL contain no separator rule between search and results.
 
-The title SHALL be followed immediately by a Models-style `Filter: all | no tools | user | labeled` row using accent for the active mode and muted styling for inactive modes. The product `all` mode SHALL use the concise former-standard view: it SHALL show resolved entry labels while hiding raw label-change, context-edit, custom bookkeeping, session-info, usage, model-change, and thinking-level-change entries. An unset, upstream `default`, or upstream `all` initial setting SHALL open with product `all` active, while an explicitly configured `no tools`, `user`, or `labeled` mode SHALL remain active. `Tab` SHALL cycle the four product filters forward and replace `Ctrl+O` as the displayed/default cycle shortcut; the footer SHALL show `Tab filter` instead of the individual filter bindings. Hidden bookkeeping entries SHALL NOT contribute to the visible result counter.
+The title SHALL be followed immediately by a Models-style `Filter: all | no tools | user | labeled` row using accent for the active mode and muted styling for inactive modes. The product `all` mode SHALL use a concise view: it SHALL show resolved entry labels while hiding raw label-change, context-edit, custom bookkeeping, session-info, usage, model-change, and thinking-level-change entries. An unset, upstream `default`, or upstream `all` initial setting SHALL open with product `all` active, while an explicitly configured `no tools`, `user`, or `labeled` mode SHALL remain active. `Tab` SHALL be the default and displayed shortcut that cycles the four product filters forward; the footer SHALL show `Tab filter` instead of the individual filter bindings. Hidden bookkeeping entries SHALL NOT contribute to the visible result counter.
 
 The search control SHALL use the ordinary dialog input presentation, including its prompt icon and text-colored query, and SHALL NOT render a `Type to search:` label. Its cursor SHALL remain after the final typed character unless the user explicitly moves it. Existing tree search matching, the semantics of each filter mode, folding, navigation, copy, label, label-time, and horizontal clipping SHALL remain available. A row clipped at either horizontal edge SHALL show the single-character ellipsis `…` at that edge. On a selected row, every visible clipped fragment and ellipsis SHALL remain inside the selection highlight. A right-clipped bracketed tool row SHALL end with `…]` so its closing delimiter remains visible. `PageUp` and `PageDown` SHALL move by one visible page, and `Home` and `End` SHALL select the first and last visible entries. The system message rendered as the top-level `session` row SHALL remain permanently expanded and SHALL NOT be a Left/Right fold target, including when hidden model-change, thinking-level-change, or other bookkeeping entries precede it in the persisted tree and give it a non-null parent. Unmodified `Left` SHALL collapse the nearest expanded eligible non-system branch containing the cursor, even when a descendant is selected; if no such branch exists before the system session entry, it SHALL leave the tree and selection unchanged. `Right` SHALL expand an eligible branch after the collapsed view selects its branch root and SHALL leave the system session entry unchanged. Session-root eligibility SHALL follow semantic system-message identity rather than input-root position, persisted `parentId`, or visible ancestry, so filtering out the system row SHALL NOT by itself disable folding for an otherwise eligible non-system branch.
 
-The selected tree entry SHALL use the ordinary menu arrow `→` with the subtle purple accent-tinted selection background. Its primary entry label SHALL be highlighted while message content serving as its description SHALL remain muted, without whole-row bold treatment. Tree entries SHALL NOT render active-path bullets. Entry labels SHALL use the theme accent color. When label-time display is enabled, its timestamp SHALL be enclosed in square brackets and use the same accent color as the label. The result counter SHALL remain numeric and SHALL NOT append `label time` or other timestamp-state text. Unselected `user:` labels SHALL be green, unselected `assistant:` labels SHALL be yellow, and system entries SHALL render as muted `session`. An empty search result SHALL show only `No entries found` without a `(0/0)` counter or standalone `label time` status.
+The selected tree entry SHALL use the ordinary menu arrow `→` with the accent-derived `selectedBg` selection background. Its primary entry label SHALL be highlighted while message content serving as its description SHALL remain muted, without whole-row bold treatment. Tree entries SHALL NOT render active-path bullets. Entry labels SHALL use the theme accent color. When label-time display is enabled, its timestamp SHALL be enclosed in square brackets and use the same accent color as the label. The result counter SHALL remain numeric and SHALL NOT append `label time` or other timestamp-state text. Unselected `user:` labels SHALL be green, unselected `assistant:` labels SHALL be yellow, and system entries SHALL render as muted `session`. An empty search result SHALL show only `No entries found` without a `(0/0)` counter or standalone `label time` status.
 
 The tree's semantic shortcut hints SHALL appear after the result area at the bottom of the frame, use the shared key/action styling, and have no trailing blank row before the bottom rule. Their order SHALL follow the Models dialog: `Type search`, vertical navigation, `Tab filter`, extended page/first-last/branch navigation, then copy and label actions. The label-timestamp shortcut action SHALL read `time (off)` while label timestamps are hidden and `time (on)` while they are visible, updating with the current state after each toggle. The footer SHALL omit an `Enter select` hint.
 
@@ -3020,7 +2148,7 @@ While editing an entry label, the frame title SHALL become accent-bold `Label`, 
 - **WHEN** a tree entry is selected
 - **THEN** the row SHALL begin with the ordinary menu arrow `→`
 - **AND** only its primary label SHALL receive selected emphasis while descriptive message text remains muted
-- **AND** the selected span SHALL use the subtle purple accent-tinted background
+- **AND** the selected span SHALL use the accent-derived `selectedBg` background
 - **AND** no active-path bullet or whole-row bold treatment SHALL be applied
 
 #### Scenario: Distinguish message roles and entry labels
@@ -3101,7 +2229,7 @@ After successful tree navigation, bare A1 SHALL rebuild the visible transcript f
 
 ### Requirement: Bare-A1 project-trust dialogs use the standard dialog hierarchy
 
-Both the pre-resource startup trust selector and the in-session project-trust selector SHALL use the established bare-A1 dialog hierarchy. Titles SHALL use bold accent styling and Title Case without a trailing colon: `Trust Project Folder?` at startup and `Project Trust` in-session. Selected choices SHALL use the shared selected-background role, an accent arrow, normal-text labels, and no selection-induced bold, matching the item-bounded highlight used by Skills rather than accent-colored labels alone. Top and bottom rules SHALL use the standard border role; ordinary path and label context SHALL remain muted; and shortcut rows SHALL use distinct dim key and muted action roles with whitespace-only entry gaps. The startup selector SHALL reproduce those fixed dark-dialog roles without consulting project settings, project themes, extensions, prompts, packages, skills, or post-trust components.
+Both the pre-resource startup trust selector and the in-session project-trust selector SHALL use the established bare-A1 dialog hierarchy. Titles SHALL use bold accent styling and Title Case without a trailing colon: `Trust Project Folder?` at startup and `Project Trust` in-session. Selected choices SHALL use the shared selected-background role, an accent arrow, normal-text labels, and no selection-induced bold, matching the item-bounded highlight used by Skills rather than accent-colored labels alone. Top and bottom rules SHALL use the standard border role; ordinary path and label context SHALL remain muted; and shortcut rows SHALL use distinct dim key and muted action roles with whitespace-only entry gaps. The startup selector SHALL reproduce those roles from the startup-safe pre-resource color family without consulting project settings, project themes, extensions, prompts, packages, skills, or post-trust components.
 
 In the in-session selector, `Saved decision:` and `Current session:` SHALL remain muted labels while their decision values use the normal text role. Both values SHALL start in the same left-aligned column, padding after the shorter label. The saved-decision value SHALL omit any parenthesized folder-path suffix while retaining its actual resolved decision. Every selected trust option SHALL contain exactly one visible space between its arrow and label. The choice list SHALL NOT display a saved-decision checkmark; an exact saved choice SHALL instead be represented by the status line and initial active selection. The shortcut row SHALL be followed immediately by the bottom rule without an intervening blank row.
 
@@ -3112,7 +2240,7 @@ These presentation requirements SHALL NOT change trust outcomes, persistence, po
 - **WHEN** bare A1 presents the pre-resource startup trust selector
 - **THEN** its title SHALL be the accent-bold text `Trust Project Folder?` and its selected option SHALL use the standard selected background, accent arrow, and normal-text label
 - **AND** its full-width rules SHALL use the standard border role
-- **AND** its shortcut row SHALL present `↑↓ navigate`, `Enter select`, and `Esc exit` with the standard key/action roles and two-space entry gaps
+- **AND** its shortcut row SHALL present `↑↓ navigate`, `Enter select`, and `Esc close` with the standard key/action roles and two-space entry gaps
 - **AND** producing that frame SHALL not consult project-derived presentation or resources
 
 #### Scenario: Show current project trust in-session
@@ -3254,7 +2382,7 @@ The row immediately below the title SHALL begin with `Filter: current | all`, fo
 
 When all-session discovery supplies partial results, the result list SHALL update incrementally. Whenever the existing paging indicator is applicable, its `(selection/total)` total SHALL count the currently discovered sessions that match the active query and name filter, and SHALL grow as further matching sessions arrive. It SHALL NOT label that count as loading or substitute loader work-unit progress for the visible matching-result total.
 
-Every selected ordinary session result SHALL use the Session Tree's accent `→` arrow and blue `selectedBg` selection background while retaining the same title and path/count/age foreground roles it has when unselected, without selected-title bolding. The currently active session title SHALL use the success-green role associated with an active checkmark independently of keyboard selection. A selected delete-confirmation result SHALL retain its error-colored primary title and metadata. The background SHALL form one continuous full-width selection, regardless of the title or path length. When cwd or explicit path metadata is visible, every rendered row SHALL reserve a shared path column followed by separately aligned message-count and age columns. Session titles SHALL truncate before the path column with visible separation, and paths that exceed their bounded column SHALL truncate within that column rather than displacing the title, count, or age columns.
+Every selected ordinary session result SHALL use the Session Tree's accent `→` arrow and `selectedBg` selection background while retaining the same title and path/count/age foreground roles it has when unselected, without selected-title bolding. The currently active session title SHALL use the success-green role associated with an active checkmark independently of keyboard selection. A selected delete-confirmation result SHALL retain its error-colored primary title and metadata. The background SHALL form one continuous full-width selection, regardless of the title or path length. When cwd or explicit path metadata is visible, every rendered row SHALL reserve a shared path column followed by separately aligned message-count and age columns. Session titles SHALL truncate before the path column with visible separation, and paths that exceed their bounded column SHALL truncate within that column rather than displacing the title, count, or age columns.
 
 While the ordinary search query is empty, its input SHALL show the exact presentation-only placeholder `re:<pattern> regex, "phrase" exact`. The comma after `regex` SHALL visibly separate the regular-expression form from the quoted exact-phrase form. Placeholder text after the caret SHALL use the established quiet search-suggestion treatment, while the active reversed caret cell SHALL retain the ordinary neutral-white input weight used by Settings search rather than inheriting the grey suggestion weight. The caret SHALL occupy the placeholder's first cell, and the placeholder SHALL NOT become part of the query. Entering a real query SHALL replace the placeholder while preserving existing fuzzy, regex, and exact-phrase matching behavior.
 
@@ -3300,7 +2428,7 @@ The ordinary shortcut footer SHALL appear below the session results as one seman
 - **THEN** it SHALL begin with the accent `→` arrow used by Session Tree
 - **AND** its primary title, path, count, and age SHALL retain the same semantic foreground roles they have while unselected without selected-title bolding
 - **AND** the currently active session title SHALL remain success green whether or not that row is selected
-- **AND** the blue `selectedBg` selection background SHALL cover the complete available row width
+- **AND** the `selectedBg` selection background SHALL cover the complete available row width
 - **AND** moving selection between rows with different title or path lengths SHALL NOT change the highlight width
 
 #### Scenario: Change session name and sort filters
@@ -3333,7 +2461,7 @@ The ordinary shortcut footer SHALL appear below the session results as one seman
 
 #### Scenario: Confirm session deletion
 - **WHEN** the user starts deletion of a selected session
-- **THEN** the selected title and metadata SHALL use the error role on the blue full-width selection surface
+- **THEN** the selected title and metadata SHALL use the error role on the full-width selection surface
 - **AND** the bottom feedback area SHALL replace ordinary shortcut hints with delete-confirm guidance followed by `Esc close`
 - **AND** it SHALL NOT expose a cancel action or implicit Ctrl+C alias
 - **AND** the title and filter/status rows SHALL remain in their standard positions
@@ -3389,9 +2517,9 @@ Close shortcut guidance SHALL keep Ctrl+C implicit. A close or cancel hint SHALL
 
 ### Requirement: Standard bare-A1 lists share one selection palette
 
-The bare-A1 Models, Skills, Thinking Level, Resume Session, Session Tree, Settings, and editor autocomplete menus SHALL preserve their existing cursor and meaningful semantic foreground roles when selected. Every covered surface SHALL use the blue `selectedBg` selection background. Models, Skills, Thinking Level, Settings, and autocomplete SHALL retain their ordinary menu arrow `→` in accent foreground, a primary label in normal `text`, and muted descriptive text. Resume Session SHALL use an accent arrow, preserve each title and metadata foreground role under keyboard selection, and render only its currently active session title in success green, while Session Tree SHALL retain each entry's item-specific foreground and text-style roles. Selection SHALL NOT introduce bold styling. On item-bounded surfaces, the selected background SHALL cover only the rendered item span from its arrow through its final visible content cell, SHALL NOT fill otherwise unused cells after the item, and SHALL remain clipped within the available width without causing wrapping. Resume Session and Session Tree SHALL use full-row selection geometry whose background fills every available row cell regardless of rendered content length.
+The bare-A1 Models, Skills, Thinking Level, Resume Session, Session Tree, Settings, and editor autocomplete menus SHALL preserve their existing cursor and meaningful semantic foreground roles when selected. Every covered surface SHALL use the `selectedBg` selection background. Models, Skills, Thinking Level, Settings, and autocomplete SHALL retain their ordinary menu arrow `→` in accent foreground, a primary label in normal `text`, and muted descriptive text. Resume Session SHALL use an accent arrow, preserve each title and metadata foreground role under keyboard selection, and render only its currently active session title in success green, while Session Tree SHALL retain each entry's item-specific foreground and text-style roles. Selection SHALL NOT introduce bold styling. On item-bounded surfaces, the selected background SHALL cover only the rendered item span from its arrow through its final visible content cell, SHALL NOT fill otherwise unused cells after the item, and SHALL remain clipped within the available width without causing wrapping. Resume Session and Session Tree SHALL use full-row selection geometry whose background fills every available row cell regardless of rendered content length.
 
-The selected-item treatment SHALL preserve domain-specific semantic markers and content. Models SHALL retain its scoped/unscoped marker, provider badge, and active-model checkmark. Skills SHALL retain its `skill:<name>` label and separately presented selected description. Thinking Level SHALL retain aligned level, current, default, and reasoning-description columns. Settings SHALL retain aligned labels and values, steppers, structured-value rows, floating choices, scrolling, search, and pointer affordances. Autocomplete SHALL retain aligned command descriptions and completion behavior. Session Tree SHALL retain its hierarchy, semantic entry roles, horizontal viewport, clipped-edge markers, and full-row geometry. Resume Session SHALL retain its specialized arrow, metadata, active-session identity, and full-row geometry.
+The selected-item treatment SHALL preserve domain-specific semantic markers and content. Models SHALL retain its scoped/unscoped marker, provider badge, and active-model checkmark. Skills SHALL retain its bare `<name>` label and separately presented selected description. Thinking Level SHALL retain aligned level, current, default, and reasoning-description columns. Settings SHALL retain aligned labels and values, steppers, structured-value rows, floating choices, scrolling, search, and pointer affordances. Autocomplete SHALL retain aligned command descriptions and completion behavior. Session Tree SHALL retain its hierarchy, semantic entry roles, horizontal viewport, clipped-edge markers, and full-row geometry. Resume Session SHALL retain its specialized arrow, metadata, active-session identity, and full-row geometry.
 
 Unselected rows, search and filter behavior, list ordering, counters, descriptions, navigation, selection actions, default and scope persistence, cancellation, and dialog lifecycle SHALL remain unchanged. The explicit `a1 pi` comparison profile SHALL retain pinned Pi presentation.
 
@@ -3405,8 +2533,8 @@ Unselected rows, search and filter behavior, list ordering, counters, descriptio
 #### Scenario: Highlight a skill
 
 - **WHEN** a skill row is selected in the Skills dialog
-- **THEN** its arrow SHALL use accent foreground and its `skill:<name>` label SHALL use normal `text` on `selectedBg`
-- **AND** the background SHALL end with the final character of the `skill:<name>` label
+- **THEN** its arrow SHALL use accent foreground and its bare `<name>` label SHALL use normal `text` on `selectedBg`
+- **AND** the background SHALL end with the final character of the skill name
 - **AND** the selected skill description SHALL remain separately muted below the list
 
 #### Scenario: Highlight a thinking level
@@ -3419,7 +2547,7 @@ Unselected rows, search and filter behavior, list ordering, counters, descriptio
 #### Scenario: Highlight a Resume Session entry
 
 - **WHEN** a Resume Session entry is selected
-- **THEN** its accent cursor SHALL appear while its title and metadata retain the same semantic foreground roles they have while unselected on the full-row blue `selectedBg`
+- **THEN** its accent cursor SHALL appear while its title and metadata retain the same semantic foreground roles they have while unselected on the full-row `selectedBg`
 - **AND** the currently active session title SHALL use the same success-green role as a checkmark independently of keyboard selection and without becoming bold
 - **AND** search, scope, sort, rename, delete, navigation, and selection behavior SHALL remain unchanged
 
@@ -3475,9 +2603,9 @@ When the bare-A1 default editor applies a selected top-level slash-command row, 
 
 #### Scenario: Complete a command with Tab
 
-- **WHEN** the user selects the `settings` row from bare-A1 top-level slash-command autocomplete and presses Tab
-- **THEN** the editor SHALL contain exactly `/settings` with the cursor immediately after `settings`
-- **AND** autocomplete SHALL keep the current rows visible during the refresh and then show only the selected `settings` row and its description without submitting the command
+- **WHEN** the user selects the `resume` row from bare-A1 top-level slash-command autocomplete and presses Tab
+- **THEN** the editor SHALL contain exactly `/resume` with the cursor immediately after `resume`
+- **AND** autocomplete SHALL keep the current rows visible during the refresh and then show only the selected `resume` row and its description without submitting the command
 
 #### Scenario: Continue into a command tunnel
 
@@ -3567,7 +2695,7 @@ Bare A1 SHALL derive its active presentation from the complete unmodified base P
 
 Every derived family role SHALL be computed from the selected primary accent by one appearance-aware color transform rather than stored as a per-choice role color, and that transform SHALL accept an arbitrary concrete color so future custom accents inherit the same hierarchy. The active projection SHALL be reconstructed from the stored base theme after named-theme load, watched-file reload, terminal-appearance selection, or in-memory theme replacement. Reapplying a previously active projected in-memory theme SHALL unwrap to its original base and restore the same projected object identity for that base/accent pair. It SHALL NOT modify built-in or custom theme resources, write generated theme files, inspect the name `violet`, compare current purple/RGB values, infer related roles from equal colors, or derive repeatedly from an earlier projection. Roles such as general Markdown code outside the hotkeys document, syntax types, custom-message labels, muted borders, custom/tool backgrounds, and thinking-level colors SHALL remain independent unless they explicitly request semantic `accent`, the derived `mdHeading`, `mdListBullet`, dialog `border`, or the subtle derived `selectedBg` and `userMessageBg` surfaces.
 
-A live accent change SHALL invalidate theme-sensitive content and repaint the active frame in the same session, including an accent-derived fullscreen canvas when selected. Purple SHALL be the initial explicit A1 palette choice and SHALL receive the same complete family projection as every other choice. `a1 pi` SHALL retain exact Pi theme behavior. If a future Pi release changes the semantic theme-token contract incompatibly, controlled upgrade validation SHALL fail by naming the drift rather than silently retaining a stale accent implementation.
+A live accent change SHALL invalidate theme-sensitive content and repaint the active frame in the same session, including an accent-derived fullscreen canvas when selected. Every named palette choice SHALL receive the same complete family projection, and a session with no resolved Current color SHALL use blue. `a1 pi` SHALL retain exact Pi theme behavior.
 
 #### Scenario: Apply a selected accent
 - **WHEN** bare A1 has an `accentColor` preference
@@ -3690,7 +2818,7 @@ One terminal host per process SHALL own the terminal runtime, damage-aware prese
 
 #### Scenario: The single-session product starts
 - **WHEN** bare `a1` or `a1 pi` starts
-- **THEN** composition SHALL create one host and one presenter and the rendered frames SHALL be identical to the frames before the split
+- **THEN** composition SHALL create one host and attach one presenter to it
 
 #### Scenario: A second presenter is attached
 - **WHEN** the host attaches a different presenter
@@ -3881,7 +3009,7 @@ Bare A1 SHALL reserve exactly one terminal cell between visible session footer/s
 - **THEN** it SHALL retain the pinned full-width footer bytes without the bare-A1 gutter customization
 
 ### Requirement: The owned shell shows only the restart-ready update status
-With `Update: No` the shell SHALL show no release-update UI. In `Auto` it SHALL show no availability popup, notice, changelog link, command, or installation progress; once a newer approved same-channel release is active, it SHALL show `Update installed, restart to update` right-aligned in success green on the existing paint-only acknowledgement line above the editor, allocating no row, changing no geometry or transcript, taking no focus, and not dismissible while true.
+With `Update` set to `Manual` the shell SHALL show no release-update UI. In `Auto` it SHALL show no availability popup, notice, changelog link, command, or installation progress; once a newer approved same-channel release is active, it SHALL show `Update installed, restart to update` right-aligned in success green on the existing paint-only acknowledgement line above the editor, allocating no row, changing no geometry or transcript, taking no focus, and not dismissible while true.
 
 #### Scenario: Auto installation completes
 - **WHEN** a newer approved same-channel release becomes active while the older process is running
@@ -4127,7 +3255,7 @@ The owned UI SHALL deliver authoritative session views whose accumulated transcr
 ### Requirement: Owned indeterminate progress uses the selected stable spinner style
 Bare A1 SHALL apply its resolved Spinner style to shared built-in working, retry, compaction, measured-compaction status, extension-provided working text, and A1-owned indeterminate operation loaders. One owned presentation policy SHALL define the available frames and their display geometry. `current` SHALL preserve the existing dot frames and cadence. `circle` SHALL cycle `◐`, `◓`, `◑`, `◒`; `diamond` SHALL cycle `◇`, `◈`, `◆`, `◈`; `square` SHALL cycle `◧`, `◩`, `◨`, `◪`.
 
-Every animated frame SHALL occupy one fixed terminal-cell slot with a consistent adjacent separator so a running animation does not move its label horizontally or change row geometry. `none` SHALL omit the spinner glyph and its separator while retaining the complete status label and existing text treatment. This setting is a declared bare-A1 glyph-selection exception to earlier spinner-preservation requirements; it SHALL NOT otherwise alter status wording, semantic colors, text highlighting, measured percentages, work-state transitions, cancellation, extension lifecycle, placement, timer cleanup, or disposal.
+Every animated frame SHALL occupy one fixed terminal-cell slot with a consistent adjacent separator so a running animation does not move its label horizontally or change row geometry. `none` SHALL omit the spinner glyph and its separator while retaining the complete status label and existing text treatment. The setting selects glyphs only; it SHALL NOT alter status wording, semantic colors, text highlighting, measured percentages, work-state transitions, cancellation, extension lifecycle, placement, timer cleanup, or disposal.
 
 Measured install/update bars, custom extension-authored renderers, vanilla Pi, installed Pi packages, and the explicit comparison profile SHALL remain unchanged.
 
@@ -4279,7 +3407,7 @@ Generated prompt-chip icons SHALL use the shared emoji-presentation policy where
 - **THEN** its original path SHALL remain unchanged by the icon presentation
 
 ### Requirement: Over-width component rows are contained at the terminal boundary
-The Pi TUI runtime boundary SHALL NOT end a session because a component returned a row wider than the available width. It SHALL clip such a row to the available width using the pinned renderer's own measurement and continue rendering. Rows that fit SHALL be returned unchanged, and the number of rows per component SHALL NOT change. A clipped row SHALL contain only complete graphemes and SHALL NOT leave an unterminated style or hyperlink. A Kitty image payload on the row SHALL be preserved while the ordinary cells around it are bounded. The runtime boundary SHALL expose how many rows it has contained so that layout tests and evidence can detect overflow without a fatal exit.
+The Pi TUI runtime boundary SHALL NOT end a session because a component returned a row wider than the available width. It SHALL clip such a row to the available width using the pinned renderer's own measurement and continue rendering. Rows that fit SHALL be returned unchanged, and the number of rows per component SHALL NOT change. A clipped row SHALL contain only complete graphemes and SHALL NOT leave an unterminated style or hyperlink. A Kitty image payload on the row SHALL be preserved while the ordinary cells around it are bounded. The runtime boundary SHALL expose how many rows it has contained so that overflow is detectable without a fatal exit.
 
 #### Scenario: Render content the shared geometry under-measures
 - **WHEN** a transcript row contains a character that A1's shared width helper measures narrower than the pinned renderer, such as a lone regional indicator, and the row consequently exceeds the terminal width
@@ -4366,3 +3494,308 @@ Opening, submitting, or cancelling these dialogs SHALL retain the ordinary promp
 - **WHEN** footer controls are clipped, suppressed, absent, or resized
 - **THEN** only their currently visible text spans SHALL be interactive
 - **AND** neighboring metadata and comparison or extension-replaced footers SHALL NOT acquire those targets
+
+### Requirement: The owned shell reproduces pinned Pi interactive behavior outside declared A1 replacements
+The A1-owned UI SHALL reproduce the visible and interactive behavior of the pinned Pi version. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. The `a1 pi` comparison profile SHALL present that behavior without A1-owned surfaces. Bare A1 SHALL present the same behavior except where a requirement of this capability or of a more specific capability specifies an A1-owned addition or replacement; every capability a replaced pinned route exposed SHALL remain reachable from its replacement. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for pinned behavior that no such requirement replaces.
+
+#### Scenario: Recover a session whose working directory is gone
+- **WHEN** startup selection, resume, import, or an extension-triggered switch encounters a session whose original working directory no longer exists
+- **THEN** the owned UI SHALL expose pinned Continue, Fork, and Cancel choices with equivalent presentation and restoration behavior
+- **AND** Continue SHALL use the current directory without persisting that choice, Fork SHALL create a new session identity in the current directory, and Cancel SHALL leave the active session unchanged
+- **AND** cancelled or failed import recovery SHALL NOT leave duplicate imported files with the same session identity
+- **AND** recovery SHALL preserve A1's session-writer exclusion and existing cross-project selection policy
+
+#### Scenario: Start an owned Pi session
+- **WHEN** the user starts the `a1 pi` comparison profile in an equivalent terminal and session state
+- **THEN** the visible component tree, content, theme, spacing, focus, and available interactions SHALL match pinned Pi for that state
+
+#### Scenario: Submit an ordinary prompt
+- **WHEN** the user submits a non-command prompt against a configured model
+- **THEN** the prompt SHALL become visible, the agent SHALL execute, assistant and tool activity SHALL stream in order, failures SHALL be visible, and the turn SHALL settle exactly as in pinned Pi
+
+#### Scenario: Change editor input mode in the comparison profile
+- **WHEN** the `a1 pi` comparison profile is running and the active thinking level changes or editor input enters or leaves pinned bash mode
+- **THEN** the editor border color SHALL update through the pinned thinking-level or bash-mode color mapping with the same invalidation timing as pinned Pi
+
+#### Scenario: Settle a completed agent turn
+- **WHEN** an agent turn finishes and its settlement event omits, replaces, or supplies the authoritative message collection
+- **THEN** every finalized visible user, assistant, thinking, and tool surface SHALL remain present and SHALL reconcile from pinned session-authoritative state rather than disappearing
+
+#### Scenario: Render footer usage
+- **WHEN** the session has model usage, cache activity, cost, context usage, compaction state, provider state, branch, session name, or extension statuses
+- **THEN** the footer SHALL compute, format, color, truncate, and align those values exactly as pinned `FooterComponent` rather than showing placeholder statistics
+
+#### Scenario: Open settings
+- **WHEN** the user opens Settings from the Launcher in bare A1
+- **THEN** the A1-owned settings app SHALL open as the replacement for the pinned settings route, and every agent setting the pinned selector exposed SHALL remain reachable there and editable wherever the engine advertises settings write capability
+- **AND** bare A1 SHALL NOT offer `/settings` as a built-in Agent command
+- **AND** `/settings` in the `a1 pi` comparison profile SHALL open the pinned specialized settings selector with its current values, descriptions, search, instructions, nested flows, navigation, cancellation, change callbacks, focus restoration, and resize behavior
+- **AND** neither surface SHALL expose internal callback names as settings values
+
+#### Scenario: Show keyboard shortcuts in the comparison profile
+- **WHEN** the user invokes `/hotkeys` in the `a1 pi` comparison profile
+- **THEN** the owned UI SHALL append the complete pinned keybinding-derived heading and styled Markdown tables with equivalent categories, keys, descriptions, spacing, wrapping, scrolling, colors, and transcript behavior rather than an abbreviated text summary
+
+#### Scenario: Render consecutive Markdown content
+- **WHEN** an assistant message contains consecutive list rows, paragraphs, links, code, or other Markdown with a fixed source payload
+- **THEN** the owned UI SHALL preserve the pinned ordered content array, Markdown transform, theme, padding, and vertical-spacing rules and SHALL NOT introduce blank rows that untouched pinned Pi does not render
+
+#### Scenario: Render mixed assistant content
+- **WHEN** one assistant message interleaves thinking, text, and tool calls or settles with a stop, error, or abort state
+- **THEN** the owned UI SHALL preserve source order, streaming state, component identity, adjacent-content spacing, tool boundaries, and terminal status content exactly as pinned `AssistantMessageComponent`
+
+#### Scenario: Use regular-mode terminal ownership in the comparison profile
+- **WHEN** the user starts `a1 pi` and the profile's `tuiMode` setting is not `fullscreen`
+- **THEN** the runtime SHALL use public `TuiMainScreen` in `regular` mode exactly as default vanilla Pi does
+- **AND** it SHALL NOT enter the alternate screen, enable mouse tracking, intercept drag/release events, rewrite selected ANSI cells, synthesize clipboard output, or maintain screen-coordinate selection state
+
+#### Scenario: Select, copy, and scroll in comparison regular mode
+- **WHEN** `a1 pi` runs in regular mode and the user selects character, word, line, or multi-row content, presses `Ctrl+C` with or without a terminal selection, scrolls the wheel, or types `/` after selecting text
+- **THEN** the physical terminal SHALL own selection appearance, selection clearing, selected-copy consumption, wheel movement, and scrollback exactly as it does for untouched default vanilla Pi
+- **AND** A1-rendered source colors or newly opened command/modal content SHALL NOT inherit an application-owned selection because no such selection layer exists
+
+#### Scenario: Use fullscreen mode in the comparison profile
+- **WHEN** the user starts `a1 pi` and the profile's `tuiMode` setting is `fullscreen`
+- **THEN** A1 SHALL use public `TuiAltScreen` and its pinned application-owned viewport, selection, copy, wheel, nested-scroll, and restoration behavior without A1 ANSI rewriting or input interception
+
+#### Scenario: Render the changelog command in the comparison profile
+- **WHEN** the user invokes `/changelog` in the `a1 pi` comparison profile
+- **THEN** the owned UI SHALL insert the pinned spacer, dynamic borders, bold accent `What's New` heading, spacing, settings-aware Markdown component, padding, wrapping, scrolling, and chronological transcript placement
+- **AND** raw Markdown markers or a generic `✓ What's New` workflow row SHALL NOT be displayed as the command presentation
+
+#### Scenario: Render a built-in command failure
+- **WHEN** a built-in route fails, including `/export` before a conversation exists
+- **THEN** the owned UI SHALL use pinned `showError()` spacing, output padding, error color, and `Error:` prefix at the pinned transcript position
+- **AND** the route SHALL preserve its pinned contextual message, including `Failed to export session: Nothing to export yet - start a conversation first`
+
+#### Scenario: Render a built-in informational status
+- **WHEN** a built-in route reports status, including successful `/reload`
+- **THEN** the owned UI SHALL use pinned `showStatus()` spacer, dim styling, chronological placement, and consecutive-status coalescing
+- **AND** `/reload` SHALL NOT gain an A1-only checkmark or generic success prefix
+
+#### Scenario: Show loaded startup resources
+- **WHEN** pinned Pi discovers context files, skills, prompt templates, extensions, custom themes, or resource diagnostics during startup
+- **THEN** the owned UI SHALL render the equivalent Context, Skills, Prompts, Extensions, Themes, and conflict sections with pinned grouping, sorting, labels, colors, spacing, compact/expanded state, and source formatting before initial session messages
+
+#### Scenario: Preserve loaded resources across a chat clear
+- **WHEN** the transcript is cleared or a fresh chat state is rendered without rebinding resources
+- **THEN** the loaded-resource sections SHALL remain in their separate pinned root container and SHALL NOT disappear with chat transcript rows
+
+#### Scenario: Compose a specialized selector
+- **WHEN** settings or another pinned specialized selector is active over a populated transcript
+- **THEN** its root-container placement, editor replacement, focus, viewport allocation, scrolling, instruction rows, footer relationship, cancellation, and restoration SHALL match pinned Pi rather than generic overlay composition
+
+#### Scenario: Cancel a selector silently
+- **WHEN** the user presses Escape or invokes cancel while a built-in selector or modal is active
+- **THEN** the surface SHALL be disposed and the editor and focus SHALL be restored without appending a generic `{surface} cancelled` transcript, workflow, notification, or status row
+- **AND** operation-specific cancellation output SHALL appear only where the pinned controller explicitly emits it
+
+#### Scenario: Exercise any vanilla modal surface
+- **WHEN** any modal, selector, dialog, nested flow, custom input/editor, confirmation, authentication surface, or extension-hosted modal reachable in pinned Pi is opened
+- **THEN** A1 SHALL use the equivalent stateful component and controller lifecycle rather than a generic one-shot workflow substitution
+- **AND** active interaction, navigation, search, editing, save/confirm behavior, cancellation, nesting/replacement, status and transcript effects, scrolling, resize, focus restoration, failure handling, session switching, and disposal SHALL match the pinned route
+
+#### Scenario: Configure scoped models in the comparison profile
+- **WHEN** the user invokes `/scoped-models` in the `a1 pi` comparison profile and toggles, filters, bulk-enables, clears, changes a provider, or reorders models
+- **THEN** the stateful scoped-model selector SHALL remain open, update session-only scope and dirty/unsaved state, and preserve pinned model ordering and refresh behavior
+- **AND WHEN** the user presses `Ctrl+S`
+- **THEN** the current patterns SHALL persist to settings, the saved status SHALL appear as in pinned Pi, and the selector SHALL remain active
+- **AND WHEN** the user presses Escape
+- **THEN** the selector SHALL close silently while retaining the already-applied session-only scope and without implicitly persisting unsaved settings
+
+#### Scenario: Browse current-session prompt history
+- **WHEN** persistent prompt history is not active (the `a1 pi` comparison profile, or bare A1 with history persistence disabled), the current session contains previously entered user messages and the editor receives Up or Down at a pinned history-navigation boundary
+- **THEN** the editor SHALL browse those messages in pinned newest/oldest order, suppress adjacent duplicates, preserve multiline cursor movement outside those boundaries, and restore the pre-navigation draft when leaving history browsing
+- **AND** newly accepted ordinary, streaming, extension, bash, steering, and follow-up inputs SHALL enter history at the same source-traced controller points as pinned Pi
+
+#### Scenario: Render structured built-in command content
+- **WHEN** a built-in command presents structured information, including `/session` in the `a1 pi` comparison profile
+- **THEN** the owned UI SHALL reproduce vanilla Pi's complete headings, groups, labels, values, colors, emphasis, indentation, wrapping, spacing, and scrolling for that route
+- **AND** it SHALL NOT replace the route-specific presenter with raw JSON, a plain object dump, a generic success heading, an A1-only checkmark, or flattened plain text
+
+#### Scenario: Preserve visible-content ownership planes
+- **WHEN** pinned Pi presents persistent document content, prompt-adjacent transient content, or active replacement content
+- **THEN** A1 SHALL place the content in the equivalent root region with the same sibling order, vertical spacing, style, width, scroll/follow effect, replacement behavior, and lifetime
+- **AND** correct text SHALL NOT be rendered in a different transcript, workflow, status, editor, footer, or modal region
+
+#### Scenario: Position the working indicator
+- **WHEN** the agent or an extension enters, updates, or leaves a working state
+- **THEN** the working indicator SHALL appear at the same prompt-relative location with equivalent icon, text, color, blank rows, replacement behavior, and editor/footer relationship as vanilla Pi
+
+#### Scenario: Report program status to a supporting terminal
+- **WHEN** the session starts or settles work, opens or closes a dialog or authentication flow, fails, is aborted, switches session, or stops
+- **THEN** A1 SHALL report the equivalent pinned idle, working, blocked, done, error, or clear state through Pi TUI's OSC 7501 terminal contract
+- **AND** status messages SHALL be limited to the session name, dialog title, or first error line and SHALL NOT expose prompt or assistant content
+
+#### Scenario: Render a multiline prompt-adjacent status before a modal
+- **WHEN** a status contains multiple visual lines, including the `Share URL` and `Gist` result, and an editor-replacement modal is subsequently opened or closed in regular mode
+- **THEN** every visual line SHALL be a separate tracked component row with pinned one-cell output padding, wrapping, styling, and order
+- **AND** the physical terminal row count SHALL remain synchronized with `TuiMainScreen` so the modal and footer occupy the same source-derived rows as untouched Pi
+- **AND** no component render-array entry SHALL contain an embedded newline that bypasses TUI row accounting
+
+#### Scenario: Order prompt-adjacent messages
+- **WHEN** informational, status, warning, error, notification, queue, retry, compaction, or extension messages are produced consecutively or interleaved with persistent content
+- **THEN** each message SHALL use its pinned style and spacing, and the newest active message SHALL occupy the pinned position closest to the editor
+- **AND** coalescing, replacement, removal, scrolling, and transition back to the ordinary editor SHALL preserve the pinned chronological order
+
+#### Scenario: Place command information and errors near the prompt
+- **WHEN** a command emits a current informational result or failure
+- **THEN** A1 SHALL render it in the same prompt-adjacent or persistent region selected by vanilla Pi for that exact route, with the same prefix, context, style, spacing, and bottom relationship
+- **AND** A1 SHALL NOT place a prompt-adjacent error in an earlier content bucket or leave a large unpinned gap below it
+
+#### Scenario: Traverse a nested dialog path
+- **WHEN** a user moves from any top-level selector or dialog into a deeper selector, input, confirmation, authentication method, API-key, browser/device/OAuth, error, or completion state
+- **THEN** every depth SHALL reproduce vanilla Pi's heading, body, options, descriptions, borders, colors, instruction hints, focus, selection, scrolling, viewport, and input behavior
+- **AND** each completion, cancellation, back, failure, session-switch, and disposal transition SHALL restore the exact pinned parent surface or ordinary editor state
+- **AND** a generic text input or selector that merely returns an equivalent value SHALL NOT satisfy the nested route
+
+### Requirement: Visible Pi extension UI crosses A1-owned boundaries
+The owned UI SHALL support the visible behavior exposed by pinned Pi extensions, including widgets, custom editors and inputs, selectors, dialogs, notifications, status and footer contributions, custom message and tool renderers, terminal input hooks, working indicators, and lifecycle cleanup. Extension UI behavior SHALL cross A1-owned versioned boundaries and SHALL NOT require mutation of installed Pi code or private interactive state.
+
+#### Scenario: Extension contributes a visible surface
+- **WHEN** a compatible pinned Pi extension registers a supported visible contribution
+- **THEN** the owned UI SHALL present and update that contribution with equivalent focus, input, rendering, cancellation, and cleanup behavior
+
+#### Scenario: Extension dialogs overlap
+- **WHEN** an extension opens a select, confirm, input, editor, or inline custom dialog while another extension dialog is visible
+- **THEN** the new dialog SHALL cover the visible one, and every covered dialog SHALL remain answerable
+- **AND** closing the visible dialog SHALL show and focus the previous dialog with its program status, or the editor when none remains
+- **AND** a session reset SHALL settle every stacked dialog as cancelled rather than leaving its promise pending
+
+#### Scenario: Extension surface fails
+- **WHEN** one extension renderer, input handler, or lifecycle callback throws or returns malformed data
+- **THEN** A1 SHALL isolate the failure, restore the baseline editor and focus, report the error, and preserve the rest of the session
+
+### Requirement: Provider authentication state determines model availability
+The owned Pi UI SHALL derive visible provider configuration, available models, active model selection, footer state, login/logout choices, and restart recovery from the same authoritative provider-auth state pinned Pi uses for the selected profile. Models SHALL be selectable only when their provider is currently configured according to that authority. Persisted credentials SHALL remain profile-local and SHALL count as an authenticated state across launches until logout or invalidation; an empty profile SHALL NOT inherit models or credentials from another profile, settings history, a prior process, or a cached catalog.
+
+#### Scenario: Start with an empty A1 profile
+- **WHEN** bare A1 starts with no stored, environment, runtime, or provider-config authentication and no equivalent configured provider
+- **THEN** it SHALL report that no models are available, `/models` SHALL contain no selectable provider models, `/login` SHALL show providers as unconfigured, and the footer SHALL NOT present a stale active model
+
+#### Scenario: Start with stored credentials
+- **WHEN** bare A1 starts with valid credentials stored in its own profile for one or more providers
+- **THEN** `/login` SHALL identify those providers with the same configured type and source status as pinned Pi, `/models` SHALL expose only models from currently configured providers, and selected-model and footer state SHALL agree with that catalog
+
+#### Scenario: Keep A1 and vanilla profiles isolated
+- **WHEN** `~/.a1/agent` and `~/.pi/agent` contain different authentication records
+- **THEN** bare `a1` and `a1 pi` SHALL each use only its selected profile and SHALL NOT copy or silently share credentials between profiles
+
+#### Scenario: Complete provider login
+- **WHEN** login succeeds for a provider
+- **THEN** provider status, logout availability, model availability, active selection, and footer state SHALL update to the same observable state and ordering as pinned Pi without requiring a process restart
+
+#### Scenario: Remove stored credentials
+- **WHEN** logout removes a stored OAuth or API-key credential
+- **THEN** the provider and its models SHALL cease to appear configured unless another declared authentication source remains, stale settings SHALL NOT preserve an unusable active model, and environment or provider-config authentication SHALL remain untouched as pinned Pi specifies
+
+#### Scenario: Resolve non-stored provider configuration
+- **WHEN** a provider is configured through a supported environment, runtime, or provider-config source rather than stored credentials
+- **THEN** login status and model availability SHALL reflect the source-equivalent pinned-Pi state, while logout SHALL NOT claim to remove authentication it does not own
+
+#### Scenario: Refresh or credential validation fails
+- **WHEN** credential refresh, provider discovery, or model-catalog refresh fails or times out
+- **THEN** A1 SHALL preserve only the last still-authoritative provider state, report the bounded failure as pinned Pi does, and SHALL NOT broaden model availability from all-model catalogs or stale settings
+
+#### Scenario: Restart after authentication changes
+- **WHEN** A1 restarts after login, logout, expiry, refresh, or selected-model changes
+- **THEN** provider labels, model choices, selected model, warnings, and footer state SHALL reconstruct one mutually consistent state without reviving unauthenticated models
+
+### Requirement: The history-enabled default editor is an owned typed adaptation
+The history-enabled default editor adaptation SHALL be traceable to the selected pinned editor source and only the necessary editor-local helper closure, with license attribution and reviewed modifications. Its history synchronization and navigation SHALL use owned typed operations that preserve draft, cursor, paste backing, and undo semantics, rather than access Pi's private state, patch installed dependencies or prototypes, extract dependency source at runtime, or emulate navigation through ordinary text replacement and synthetic keys. The adaptation SHALL remain within the Pi component boundary and SHALL NOT introduce a second terminal runtime or replace the terminal package's shared exports.
+
+#### Scenario: Keep terminal module resolution unchanged
+- **WHEN** the enabled bare-A1 default editor uses the owned adaptation
+- **THEN** A1 and Pi extensions SHALL still resolve one shared pinned terminal package through the existing alias
+- **AND** the package's exported editor constructors and the comparison editor SHALL NOT be replaced or mutated
+- **AND** A1-owned consumers SHALL use the adaptation's declared typed interface rather than pretend it is an instance of a private Pi implementation
+
+#### Scenario: An extension supplies a custom editor
+- **WHEN** the existing public custom-editor factory mounts an extension-owned editor
+- **THEN** its construction, focus, input, and public extension behavior SHALL remain unchanged
+- **AND** default-editor history synchronization SHALL be suspended rather than patching or replacing that custom editor
+- **WHEN** the factory lifecycle restores the default editor
+- **THEN** the latest completed recall snapshot SHALL be reattached without losing the restored draft
+- **AND** only actual classified user submissions SHALL enter durable history throughout these transitions
+
+#### Scenario: Use public editor extension interactions
+- **WHEN** an extension uses supported editor text access, shortcuts, autocomplete, or submission interactions with the active default editor
+- **THEN** those public interactions SHALL retain their existing outcomes without reliance on the adaptation having Pi's concrete constructor identity
+
+### Requirement: Changelog and Hotkeys applications present packaged release notes and live keybinding sections
+Bare A1 SHALL present Changelog and Hotkeys as A1-owned reference-screen applications opened from the Launcher,
+not as Agent slash commands: the owned route host SHALL NOT claim a typed `/settings`, `/changelog`, or
+`/hotkeys` in bare A1. The Changelog application SHALL be titled `Changelog` and SHALL show the complete
+packaged A1 release-note history read only from the local package resource, without querying GitHub, npm, or
+another network service; when the package carries no notes it SHALL show `No A1 release notes found.`. The same
+route opened with a supplied document SHALL be titled `What's New`. The Hotkeys application SHALL be titled
+`Keyboard Shortcuts` and SHALL show the bare-A1 keybinding-derived tables, including the current editor
+keybinding configuration and extension shortcut descriptions gathered when the screen opens, carried as
+structured sections rather than recognized from rendered text. Opening either application SHALL append no
+document, status, checkmark, or error row to the feed.
+
+The `a1 pi` comparison profile SHALL keep the pinned Pi `/changelog` and `/hotkeys` workflows, their pinned
+content, and their in-feed presentation. It SHALL NOT read A1's release-note acknowledgement or substitute A1
+release notes for Pi's.
+
+#### Scenario: Open Changelog in bare A1
+- **WHEN** the user opens Changelog from the Launcher in bare A1
+- **THEN** the `Changelog` reference screen SHALL open with the complete packaged A1 release-note history and the
+  feed SHALL gain no rows
+
+#### Scenario: Use Changelog without network access
+- **WHEN** the user opens Changelog while GitHub and npm are unavailable
+- **THEN** the packaged notes SHALL remain available without a network request
+
+#### Scenario: Open Hotkeys in bare A1
+- **WHEN** the user opens Hotkeys from the Launcher in bare A1
+- **THEN** the `Keyboard Shortcuts` reference screen SHALL open with structured keybinding-derived sections and
+  the feed SHALL gain no rows
+
+#### Scenario: Type an application name as a command in bare A1
+- **WHEN** the user submits `/changelog`, `/hotkeys`, or `/settings` in bare A1
+- **THEN** the owned route host SHALL NOT open the corresponding application for that input
+
+#### Scenario: Invoke either command in the comparison profile
+- **WHEN** the user submits `/changelog` or `/hotkeys` in `a1 pi`
+- **THEN** the pinned workflow SHALL retain its pinned Pi content and in-feed presentation and SHALL open no
+  A1-owned reference screen
+
+### Requirement: Dismissible bare-A1 surfaces end their shortcut guidance with Esc close
+Every A1-rendered dismissible modal, selector, dialog, nested flow, authentication surface, startup trust
+selector, operation dialog, and owned reference or Settings screen in bare A1 SHALL end its active shortcut
+guidance with exactly one canonical dismissal entry `Esc close`, whether dismissal silently closes a top-level
+surface, aborts an operation while closing its progress dialog, or exits startup. A nested step that returns to
+its parent step inside the same dialog, such as the thinking-level step of the Settings Default Model dialog,
+SHALL show `Esc back` instead. Other shortcut labels SHALL come from the bindings and platform rules used by
+the corresponding action and SHALL use display capitalization with lowercase action names. Additional effective
+or implicit close aliases, including Ctrl+C, SHALL NOT appear in the entry. When the available width can contain
+the complete `Esc close` entry, clipping of other guidance SHALL NOT omit or partially clip it; narrower
+rendering SHALL remain ANSI-safe. The pre-resource trust selector SHALL render the same entry from fixed
+startup-safe roles without loading project settings, themes, extensions, packages, skills, or post-trust
+components. Escape uses outside active-surface dismissal, including editor autocomplete clearing and shell
+interruption, and the `a1 pi` comparison profile SHALL remain outside this rule.
+
+#### Scenario: Open a bare-A1 dialog
+- **WHEN** a dismissible bare-A1 dialog such as Skills, Thinking Level, Models, or Session Tree is presented
+- **THEN** its shortcut row SHALL end with exactly one `Esc close` entry
+- **AND** no Ctrl+C alias SHALL appear in that entry
+
+#### Scenario: Keep close guidance visible
+- **WHEN** a dismissible surface has enough width for the complete `Esc close` entry but its other shortcut
+  guidance overflows
+- **THEN** `Esc close` SHALL remain complete and visible while preceding entries are clipped
+
+#### Scenario: Return from a nested step
+- **WHEN** the Settings Default Model dialog shows its thinking-level step
+- **THEN** its Escape entry SHALL read `Esc back` and Escape SHALL return to the model list
+
+#### Scenario: Ask for project trust before resources load
+- **WHEN** the pre-resource trust selector is presented
+- **THEN** its shortcut row SHALL read `↑↓ navigate`, `Enter select`, and `Esc close`
+- **AND** rendering it SHALL NOT load project settings, themes, extensions, packages, skills, or post-trust
+  components
+
+#### Scenario: Use the comparison profile
+- **WHEN** the same modal route is presented through `a1 pi`
+- **THEN** its pinned shortcut presentation SHALL remain unchanged
