@@ -24,7 +24,7 @@ describe("local preflight", () => {
 
   it("first builds and records the receipt as the core job's install step does", () => {
     const [build, receipt] = preflightSteps(selection());
-    expect(packageJson.scripts.prepare.split(" && ")).toContain(`${build!.executable} ${build!.arguments.join(" ")}`);
+    expect((packageJson.scripts.prepare ?? "").split(" && ")).toContain(`${build!.executable} ${build!.arguments.join(" ")}`);
     expect(workflow).toContain(`run: ${receipt!.executable} ${receipt!.arguments.join(" ")}`);
     const tests = preflightSteps(selection()).find(entry => entry.id === "changed-tests")!;
     expect(tests.environment).toMatchObject({ VALIDATION_BUILD_READY: "1", VALIDATION_BUILD_RECEIPT: PREFLIGHT_BUILD_RECEIPT });
