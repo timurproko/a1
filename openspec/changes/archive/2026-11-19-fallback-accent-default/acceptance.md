@@ -15,7 +15,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-19-fallback-accent-default/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-19-fallback-accent-default/acceptance.md",
   "finalizedDate": "2026-11-19",
-  "specBaseSha": "f6f04f45d0f409115d3ba12817e6883596becae5",
+  "specBaseSha": "25d2964c846951c1b10453877c9177c680859df2",
   "acceptanceScenarios": [
     "A session started without settings uses the blue accent declared as the default.",
     "Changing the declared accent default also changes the settings-less accent, with no second value to update."
