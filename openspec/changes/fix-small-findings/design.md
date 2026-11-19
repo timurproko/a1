@@ -63,3 +63,15 @@ Bookkeeping that follows the source edit:
 - `docs/features/prompt-history.md` already matches the new behaviour and is not edited.
 - `ci.yml` comment: becomes a `Rationale:` comment saying this owner records an overrun, Full regression also
   records it for the nightly regression triage, and only stable (`latest`) publication fails on it.
+
+## Uninstall keeps user data unless purged
+
+`runUninstall` in `src/cli/uninstall.ts` asks "Remove a1 from this machine? [y/N]" and then, when not purging,
+`purge ||= await dependencies.confirm("Also delete your sessions, settings, and sign-ins in <profileHome>? [y/N]")`.
+
+Decision: the second question is removed. Interactive `a1 uninstall` asks only the removal question and keeps the
+profile home (sessions, settings, sign-ins) unless `--purge` was given, like vanilla Pi, whose npm program removal
+never touches user data. `--yes` and `--purge` behave as today, and the closing line still names the kept profile
+home. The `runUninstall` doc comment says user data leaves only with `--purge`; the README Uninstall section says
+the same instead of "It asks before deleting your sessions and settings". The help text in
+`src/cli/package-messages.ts` already says "sessions and settings stay unless --purge" and is unchanged.

@@ -21,3 +21,9 @@
 - [ ] 4.1 README navigator lists Session colors and Uninstall in section order
 - [ ] 4.2 README names the Update setting value Manual instead of No
 - [ ] 4.3 The `ci.yml` startup-budget comment says nightly and Full regression only record an overrun
+
+## 5. Interactive uninstall keeps user data unless purged
+
+- [ ] 5.1 `runUninstall` no longer asks the data question; the profile home is removed only with `--purge`
+- [ ] 5.2 Uninstall tests expect one question and a kept profile home, and `--purge` still removes it
+- [ ] 5.3 The `runUninstall` doc comment and README Uninstall section say user data leaves only with `--purge`

@@ -13,6 +13,8 @@ Several user-facing texts are wrong:
   `History 100/100`, and the maintainer has chosen that labelled form, so the code changes and the docs stay.
 - A `ci.yml` comment says nightly publication and Full regression fail on a startup-budget overrun; both only
   record it, and only stable (`latest`) publication fails.
+- Interactive `a1 uninstall` asks a second question, whether to delete sessions, settings and sign-ins. Vanilla
+  Pi's program removal through npm never touches user data; the maintainer wants A1 to match.
 
 ## What Changes
 
@@ -20,6 +22,7 @@ Several user-facing texts are wrong:
 - The fork prompt for a session that is open elsewhere says so instead of claiming a different project.
 - The prompt-history border counter reads `History N/M`, as the prompt-history docs already say.
 - The README and the `ci.yml` comment are corrected.
+- Interactive `a1 uninstall` asks only whether to remove A1 and keeps user data unless `--purge` is given.
 
 ## Impact
 
@@ -29,5 +32,6 @@ Several user-facing texts are wrong:
   `editor-core.ts` entry of `config/baselines/pinned-pi-source-port-ledger.json` and
   `docs/architecture/history-editor-provenance.md`.
 - `README.md`, `.github/workflows/ci.yml` (comment only). `docs/features/prompt-history.md` is unchanged.
-- New capability specs `prompt-image-limit`, `session-resume-prompts` and `prompt-history-counter`.
-- Out of scope: the behaviour of `a1 uninstall --yes`, which awaits a maintainer decision.
+- `src/cli/uninstall.ts`, `test/cli/uninstall.test.ts` and the README Uninstall section.
+- New capability specs `prompt-image-limit`, `session-resume-prompts`, `prompt-history-counter` and
+  `uninstall-user-data`.
