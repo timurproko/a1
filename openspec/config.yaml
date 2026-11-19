@@ -1,11 +1,1 @@
 schema: spec-driven
-
-context: |
-  Change delivery is owned by the shared `change-delivery` skill of `timurproko/MyWorkflows`: load it for planning, authorization, same-PR implementation, finalization, handoff, integration, and cleanup.
-  Follow the [worktree protocol](../docs/architecture/project-structure.md#development-worktrees) before creating, resuming, or switching a task checkout.
-  Write `tasks.md` as one task group per PR `## Implementation` outcome, in the same order.
-
-operations:
-  archive:
-    guidance:
-      - The shared delivery workflow archives a change inside its own pull request. Never archive by hand, publish an archive-only follow-up, or mutate develop directly.
