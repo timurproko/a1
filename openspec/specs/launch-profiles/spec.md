@@ -51,23 +51,23 @@ Normal A1 and the Pi comparison SHALL use the A1-owned rendering and input pipel
 
 ### Requirement: Maintenance commands remain unambiguous
 
-Ordinary A1 SHALL retain existing control namespaces and their handlers, including update, packages, uninstall, worktree, session, help/version and comparison routing. A leading recognized control word SHALL remain a command; malformed recognized controls SHALL never become prompts. Both normal-product names SHALL accept Pi-style positional prompts and `--` to end option parsing. After execution-option parsing begins, control routing SHALL not resume; after the boundary all words are input rather than maintenance. Reserved removed launch/control forms SHALL fail explicitly instead of guessing work.
+Ordinary A1 SHALL retain its control namespaces and their handlers: `update`, `install`, `remove`, `uninstall`, `list`, `worktree`, `session`, `api`, `help`, `version`, and the `pi` comparison routing. A leading recognized control word SHALL remain a command; a malformed recognized control SHALL fail with status 2 and SHALL never become a prompt. Both normal-product names SHALL accept Pi-style positional prompts and `--` to end option parsing. After the boundary all words are input rather than maintenance. The reserved words `agent`, `solo`, `ui`, `tabs`, and any `update:<selector>` SHALL fail with status 2 instead of guessing work, and `config`, `auth`, and `mcp` SHALL fail with status 2 and a diagnostic saying the command is not available.
 
-Public normal-product launch options SHALL use one authoritative implementation for model/provider/thinking, repeatable extensions, exclusions, guarded session selection/storage and invocation color, plus delivered session/model/trust additions. Unknown long flags SHALL require loaded extension registrations; unknown short flags, missing/duplicate/invalid options and internal `--runtime-options` SHALL fail clearly and nonzero. Documented contracts assigned to later approved deliveries SHALL fail explicitly rather than be accepted and ignored or silently treated as prompt text.
+Public normal-product launch options SHALL use one parser for `--model`, `--provider`, `--thinking`, repeatable `-e`/`--extension`, `-xt`/`--exclude-tools`, the session selectors, `--session-dir`, `--session-color`, `--models`, `--api-key`, `-a`/`--approve`, `-na`/`--no-approve`, and `--list-models`. An unknown long flag SHALL be passed as an extension flag value that requires a loaded extension registration. An unknown short flag, a missing, repeated, or `=`-joined value for a value option, and the internal `--runtime-options` SHALL fail with status 2. The Pi options A1 does not implement (`--mode`, `--print`, `--export`, `--tools`, `--no-tools`, `--no-builtin-tools`, `--no-extensions`, `--no-mcp`, `--skill`, `--no-skills`, `--prompt-template`, `--no-prompt-templates`, `--theme`, `--use-theme`, `--no-themes`, `--no-context-files`, `--system-prompt`, `--append-system-prompt`, `--tui-mode`, `--verbose`, `--offline`, their short forms, and `@file` inputs) SHALL fail with status 2 and a diagnostic saying the option is not available, and SHALL NOT be accepted and ignored or treated as prompt text.
 
-Invocation color SHALL remain exactly blue, green, orange, pink, purple, cyan or grey, singleton and nonpersistent. Instructions SHALL preserve the declared ordered-message semantics without shell evaluation and reach the existing normal owned prompt path once after successful startup. Interactive initial submission SHALL wait for extension startup and first presentation. P1 SHALL preserve bounded transport and report input limits explicitly pending the later input/large-payload transport, never truncate or claim full compatibility.
+Invocation color SHALL be exactly blue, green, orange, pink, purple, cyan or grey, singleton and nonpersistent. Instructions SHALL keep their order, SHALL NOT be shell-evaluated, and SHALL reach the normal owned prompt path once after successful startup. Interactive initial submission SHALL wait for extension startup and first presentation. Literal instructions SHALL be NUL-free and at most 32768 UTF-8 bytes; larger input SHALL fail explicitly and SHALL never be truncated.
 
 #### Scenario: Query help
 - **WHEN** standalone help is requested
-- **THEN** truthful delivered options, prompt boundaries and pending-delivery limits SHALL be printed without session/factory/model startup
+- **THEN** the implemented options, the `--` prompt boundary, and the instruction size limit SHALL be printed without session, factory, or model startup
 
 #### Scenario: Query version
 - **WHEN** standalone version is requested
-- **THEN** truthful product/version information SHALL be returned without interactive startup
+- **THEN** product version information SHALL be returned without interactive startup
 
 #### Scenario: Manage packages
-- **WHEN** a currently supported package spelling is supplied
-- **THEN** its existing handler SHALL run instead of prompting
+- **WHEN** a supported package spelling is supplied
+- **THEN** its handler SHALL run instead of prompting
 
 #### Scenario: Launch form is given an argument
 - **WHEN** a supported execution invocation carries positional instructions
@@ -75,22 +75,22 @@ Invocation color SHALL remain exactly blue, green, orange, pink, purple, cyan or
 
 #### Scenario: Unknown subcommand
 - **WHEN** an unrecognized operation follows a recognized control namespace
-- **THEN** it SHALL not become a model prompt; outside command namespaces, bare words SHALL have the approved Pi prompt semantics
+- **THEN** it SHALL not become a model prompt; outside command namespaces, an unreserved bare word SHALL be a positional prompt
 
 #### Scenario: Comparison launch is absent from a release
-- **WHEN** a stable build receives the unsupported bare comparison form
-- **THEN** its existing comparison exclusion SHALL remain, never selecting normal-product execution
+- **WHEN** a stable build receives bare `a1 pi`
+- **THEN** A1 SHALL exit 0 silently and SHALL NOT select normal-product execution
 
 #### Scenario: Removed update command is provided
-- **WHEN** a reserved removed update-colon form is supplied
-- **THEN** no update or model work SHALL execute
+- **WHEN** an `update:<selector>` form is supplied
+- **THEN** A1 SHALL exit with status 2 and no update or model work SHALL execute
 
 #### Scenario: Resume from either release channel
 - **WHEN** either channel receives a supported normal session selection
 - **THEN** it SHALL use the shared normal profile and writer guard
 
 #### Scenario: Session arguments are supplied to the comparison
-- **WHEN** session arguments are unsupported by the comparison namespace
+- **WHEN** session arguments follow `a1 pi`
 - **THEN** they SHALL not fall through to a normal launch
 
 #### Scenario: Launch with an invocation color
@@ -113,6 +113,10 @@ Invocation color SHALL remain exactly blue, green, orange, pink, purple, cyan or
 - **WHEN** an invalid launch option is supplied to a control/comparison operation
 - **THEN** it SHALL not activate normal interactive behavior or alter maintenance presentation
 
+#### Scenario: An unimplemented Pi option is supplied
+- **WHEN** the user runs `a1 --print hello` or `a1 @notes.md`
+- **THEN** A1 SHALL exit with status 2 after a diagnostic naming the unavailable option or input and SHALL launch nothing
+
 ### Requirement: Interactive launch forms are concurrently independent
 A1 SHALL permit multiple simultaneous instances of bare `a1`, prerelease `a1 pi`, or both. Profile selection, profile data, and process lifetime SHALL remain scoped to the originating invocation rather than a product-wide foreground slot. A1-owned runtimes in either profile SHALL share the session-writer admission guard only when selecting the same canonical session file. The guard SHALL be implemented in Node without native code and SHALL start no host, holder, strip, or bridge. Different session files SHALL remain independently writable, and unmodified external Pi or older nonparticipating builds SHALL NOT be claimed as covered.
 
@@ -133,7 +137,7 @@ A1 SHALL permit multiple simultaneous instances of bare `a1`, prerelease `a1 pi`
 - **THEN** both SHALL proceed concurrently without a product-wide foreground lock
 
 ### Requirement: A1 exposes one single-agent launch and one prerelease comparison launch
-The `a1` binary SHALL remain the ordinary installed public command. Bare invocation SHALL launch the A1 single-agent product surface directly. A prerelease build SHALL additionally expose `a1 pi` as a development comparison against the pinned Pi interface. A release build SHALL not expose the comparison launch. A1 MAY additionally ship a separately named Pi-compatible normal-product entry and an opt-in pi shim directory, but SHALL NOT globally register pi or expose `agent`, `solo`, `ui`, or `tabs` subcommands.
+The `a1` binary SHALL remain the ordinary installed public command. Bare invocation SHALL launch the A1 single-agent product surface directly. A prerelease build SHALL additionally expose `a1 pi` as a development comparison against the pinned Pi interface. A release build SHALL not expose the comparison launch. A1 SHALL additionally ship a separately named Pi-compatible normal-product entry and an opt-in pi shim directory, but SHALL NOT globally register pi and SHALL reject the `agent`, `solo`, `ui`, and `tabs` words with status 2.
 
 #### Scenario: Launch normal A1
 - **WHEN** the user runs `a1` without a subcommand
@@ -145,7 +149,7 @@ The `a1` binary SHALL remain the ordinary installed public command. Bare invocat
 
 #### Scenario: A removed launch word is given
 - **WHEN** the user runs `a1 solo` or `a1 tabs`
-- **THEN** A1 SHALL return quietly without launching a profile
+- **THEN** A1 SHALL exit with status 2 after one stderr diagnostic without launching a profile
 
 #### Scenario: Compatibility launch preserves the product
 - **WHEN** Firstmate resolves the opt-in A1-compatible pi executable
