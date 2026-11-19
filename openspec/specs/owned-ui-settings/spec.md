@@ -119,123 +119,6 @@ A1 SHALL apply a changed setting at the application boundary declared by its res
 - **WHEN** the user cancels out of editing a setting before accepting it
 - **THEN** no value SHALL be stored and the running session SHALL be unaffected
 
-### Requirement: Resolved settings are offered to a surface as grouped sections
-
-A1 SHALL expose the resolved settings as sections a consuming surface can present without knowing where a value is stored: the declared available A1 settings in their own section, and the available settings reported by the engine settings port under a distinct Agent section. Each presented entry SHALL carry its current stored value, current effective value when different, whether it can be changed from A1, its application boundary, its available choices where its source declares them, and its description where its source provides one. Agent settings SHALL be read, written, and applied only through the engine settings port; A1 SHALL NOT write Pi settings storage directly. Where the engine does not advertise the write or effect capability required by an entry, that entry SHALL be filtered from the presented section. A descriptor without an application contract SHALL not be promoted to a UI entry. The consuming surface SHALL retain the shared input, list, menu, dialog, shortcut, and scrollbar components and the reviewed semantic styles and geometry for setting rows, labels, values, selected state, controls, menus, structured dialogs, deferred and failure notices, wrapping, and narrow-terminal clipping. The owned settings interaction SHALL remain a declared product difference: descriptions stay in entry metadata but do not render as selected-row details; ordinary printable input opens search and becomes the query; search uses the same configurable interactive input component as the bare-A1 agent prompt, configured as single-line and paste-disabled; the standing status bar derives from active shortcut declarations; wheel distance resolves the effective live `scrollbarSpeed` through the shared scrollbar policy rather than a settings-screen literal; scalar choices retain the shared `ValueMenu` while rendering as a visually distinct A1 floating panel; and the selected row retains its accent cursor, normal primary label, and existing background while values retain the muted presentation shared by selected and unselected rows. Only ordinary Settings values and enabled numeric controls SHALL use the owned-dialog foreground blend for mouse hover: 60% of their ordinary foreground and 40% of the current accent, without adding a background or moving keyboard selection. Setting labels and section titles SHALL remain visually unchanged on hover. A muted hovered value SHALL NOT become pure terminal white.
-
-#### Scenario: Build sections with an attached engine
-
-- **WHEN** sections are built while the engine reports its settings
-- **THEN** the A1 section SHALL list every declared setting with its resolved value, choices, description, source, and application boundary
-- **AND** the Agent section SHALL list every available setting the engine reports with its stored and effective state, writability, and application boundary
-
-#### Scenario: Select a row
-
-- **WHEN** a row is the keyboard selection
-- **THEN** its cursor SHALL retain the accent role and its label SHALL retain the normal primary foreground and existing selection background
-- **AND** its value SHALL render in the muted role, exactly as an unselected value does
-- **AND** pointing at that value SHALL blend its muted foreground toward the current accent by 40%, exactly as pointing at an unselected value does, without moving keyboard selection or adding a hover background
-
-#### Scenario: Present settings through the reviewed shared components
-
-- **WHEN** the settings surface renders scalar, numeric, structured, selected, searched, deferred, failed, and narrow-width states
-- **THEN** its rows, values, controls, menus, dialogs, notices, wrapping, and clipping SHALL preserve the reviewed shared-component terminal cells and semantic ANSI roles
-- **AND** unavailable entries and their option-specific explanation SHALL remain absent
-- **AND** no selected-entry description rows SHALL be rendered
-
-#### Scenario: Invoke settings search explicitly
-
-- **WHEN** search is closed and the user enters ordinary printable text
-- **THEN** the settings surface SHALL open the shared input and preserve that exact text as the beginning of the query
-- **AND** the first printable input SHALL NOT be lost or require a preceding activation key
-- **AND** `/` SHALL have no dedicated search-activation behavior and SHALL be ordinary query text when typed
-
-#### Scenario: Preserve Settings actions before type activation
-
-- **WHEN** search is closed and the user enters a declared Settings navigation, section-jump, value-change, adjustment, undo, or close key
-- **THEN** the declared Settings action SHALL retain precedence
-- **AND** the search input SHALL NOT open from that non-text key
-
-#### Scenario: Edit and select a settings query
-
-- **WHEN** search is active and the user moves by character or word, deletes text, extends or selects all text, replaces a selection by typing, drags a pointer selection, double-clicks a word, or triple-clicks the query
-- **THEN** the shared input SHALL apply the same applicable editing and selection behavior as the bare-A1 agent prompt
-- **AND** triple-click SHALL select the complete single-line query
-- **AND** Settings-owned result navigation keys SHALL continue moving through results without becoming query text
-
-#### Scenario: Copy or cut a settings query selection
-
-- **WHEN** search has a selected range and the user presses `Ctrl+C`
-- **THEN** A1 SHALL submit the exact selected query text through the owned bounded clipboard path without changing the query
-- **WHEN** the user presses `Ctrl+X`
-- **THEN** A1 SHALL submit the exact selected query text and then remove that range from the query
-
-#### Scenario: Reject paste in settings search
-
-- **WHEN** Settings search receives a configured paste shortcut, a complete or fragmented bracketed paste frame, or another shared-input paste request
-- **THEN** the shared component SHALL consume it without changing the query or filter results
-- **AND** subsequent ordinary typing SHALL continue editing normally
-
-#### Scenario: Render settings status guidance
-
-- **WHEN** no transient save result or interrupt warning replaces the standing settings status
-- **THEN** the status bar SHALL render `Type search` followed by the applicable navigation, section-jump, change, adjustment, and cancel hints assembled from active shortcut declarations
-- **AND** `Type` SHALL use the shared key role while `search` uses the shared action role
-- **AND** the status SHALL NOT advertise `/ search`
-
-#### Scenario: Render the empty settings query
-
-- **WHEN** Settings search is active with an empty query
-- **THEN** the shared input placeholder SHALL read exactly `Search settings`
-- **AND** it SHALL use the same caret, selection, and input rules as the shared input component
-
-#### Scenario: Scroll the settings list
-
-- **WHEN** the user sends a wheel event over the settings list or search footer
-- **THEN** movement SHALL resolve the currently effective `scrollbarSpeed`, including an accepted live value pending source reflection
-- **AND** distance SHALL be obtained from the shared scrollbar policy with no independent settings-screen row-count literal
-- **AND** wheel ownership SHALL remain with search results rather than text selection
-
-#### Scenario: Open a scalar setting menu
-
-- **WHEN** the user opens the choices for a scalar setting
-- **THEN** the menu SHALL retain shared `ValueMenu` placement, clipping, keyboard, and pointer behavior
-- **AND** every choice SHALL render on A1's dark floating-panel background rather than blending into the settings rows
-- **AND** the active choice SHALL render on A1's lighter panel background with white text
-- **AND** the effective value SHALL carry a `✓` independently of the active choice
-
-#### Scenario: Change a setting in the A1 section
-
-- **WHEN** a change is accepted for an entry in the A1 section
-- **THEN** the value SHALL be written to the A1 settings document, applied at its declared boundary, and SHALL NOT be sent to the engine settings port
-
-#### Scenario: Change a setting in the Agent section
-
-- **WHEN** a change is accepted for an entry in the Agent section and the engine advertises the required write and effect capability
-- **THEN** the value SHALL be written and applied through the engine settings port, flushed where the engine advertises flush capability, and SHALL NOT be written into the A1 settings document
-
-#### Scenario: Engine advertises no settings write capability
-
-- **WHEN** the engine settings port reports no write capability for its settings
-- **THEN** those Agent entries SHALL be omitted from the settings UI
-- **AND** an attempted change through any stale or hidden route SHALL be refused rather than silently dropped
-
-#### Scenario: Engine advertises storage without an effect
-
-- **WHEN** an engine descriptor can be persisted but has no application contract for the active mode
-- **THEN** the Agent entry and its missing-effect explanation SHALL be omitted from the settings UI
-
-#### Scenario: Agent settings cannot be read
-
-- **WHEN** the engine settings port fails, reports no settings, or is absent
-- **THEN** the A1 section SHALL still be complete and usable
-- **AND** no stale, invented, or unavailable-placeholder Agent entry SHALL appear
-
-#### Scenario: Report a failed change
-
-- **WHEN** a change cannot be stored or cannot be applied through the engine
-- **THEN** the failure SHALL be reported to the caller and the change SHALL NOT be reported as effective
-
 ### Requirement: A setting whose value is an object is edited through its own dialog
 A setting whose value is an object SHALL be presented as one entry that opens a dialog rather than as
 a value to be cycled. The dialog SHALL offer every part the engine declares for that setting, not only
@@ -663,7 +546,7 @@ The owned Settings screen SHALL keep its standing shortcut guidance visible afte
 
 Bare A1 SHALL expose one persisted A1 setting `backgroundStyle`, labeled `Background`, in the existing `Appearance` section immediately after `Current color` and before `Quit animation`, with `Default color` preceding Current color. It SHALL offer exactly `transparent`, `accent`, and `dark` in that order, SHALL default to `transparent`, and SHALL declare live application. The setting SHALL use profile-local A1 settings persistence and SHALL NOT be written to Pi settings storage or presented as an engine descriptor.
 
-`transparent` SHALL leave unpainted fullscreen cells on the terminal's own background as before. `accent` SHALL use a dark, low-saturation, greyish background derived from Current color. `dark` SHALL use a fixed neutral dark background independent of the accent. Introducing the setting SHALL advance the owned settings version with a forward migration that preserves existing and unknown values. A missing, malformed, or unsupported stored value SHALL resolve to `transparent` without blocking startup. `a1 pi` SHALL neither expose nor apply the setting. Changing Default color alone SHALL NOT repaint the active canvas.
+`transparent` SHALL leave unpainted fullscreen cells on the terminal's own background. `accent` SHALL use a dark, low-saturation, greyish background derived from Current color. `dark` SHALL use a fixed neutral dark background independent of the accent. A missing, malformed, or unsupported stored value SHALL resolve to `transparent` without blocking startup. `a1 pi` SHALL neither expose nor apply the setting. Changing Default color alone SHALL NOT repaint the active canvas.
 
 #### Scenario: Present the background choices
 - **WHEN** bare A1 opens the Background value menu
@@ -671,9 +554,9 @@ Bare A1 SHALL expose one persisted A1 setting `backgroundStyle`, labeled `Backgr
 - **AND** the Appearance section SHALL contain only one Background entry between Current color and Quit animation
 
 #### Scenario: Preserve the current default
-- **WHEN** a profile predates `backgroundStyle` or omits it
+- **WHEN** a profile omits `backgroundStyle`
 - **THEN** `backgroundStyle` SHALL resolve to `transparent`
-- **AND** bare A1 SHALL continue to use the terminal's configured background for unpainted cells
+- **AND** bare A1 SHALL use the terminal's configured background for unpainted cells
 
 #### Scenario: Reject an invalid stored background
 - **WHEN** a stored `backgroundStyle` value is not one of the declared choices
@@ -892,11 +775,11 @@ The pinned `a1 pi` comparison profile SHALL retain its existing model selector a
 - **AND** the owned `Default model` Settings configurator SHALL NOT replace or modify that selector
 
 ### Requirement: The in-shell settings screen renders the section model
-A1 SHALL present its settings as an A1-owned application rendering the grouped section model rather than deriving its own view of where a value lives. In bare `a1` it SHALL be reachable through `/settings`. The screen SHALL show every section with its entries, keep the current section's header visible while its entries are on screen, and let the user move between entries, jump between sections, filter, change a value, and close using its declared keyboard interactions. Pointer input SHALL follow the existing screen contracts. The screen SHALL be built from the shared component layer rather than drawing a list, menu, dialog, control, input row, or status line of its own. A change SHALL be routed by the entry's backend, and a change that could not be stored or written SHALL be reported rather than displayed as saved. An entry the model reports as not editable SHALL state why rather than accepting input. While the settings module is still loading, the screen SHALL render blank rows rather than a loading placeholder; only a failed module load SHALL print its failure message. Closing Settings SHALL restore the previous surface.
+A1 SHALL present its settings as an A1-owned application rendering the grouped section model rather than deriving its own view of where a value lives. In bare `a1` it SHALL be reachable through the Launcher and SHALL NOT be an Agent slash command. The screen SHALL show every section with its entries, keep the current section's header visible while its entries are on screen, and let the user move between entries, jump between sections, filter, change a value, and close using its declared keyboard interactions. Pointer input SHALL follow the existing screen contracts. The screen SHALL be built from the shared component layer rather than drawing a list, menu, dialog, control, input row, or status line of its own. A change SHALL be routed by the entry's backend, and a change that could not be stored or written SHALL be reported rather than displayed as saved. An entry the model reports as not editable SHALL state why rather than accepting input. While the settings module is still loading, the screen SHALL render blank rows rather than a loading placeholder; only a failed module load SHALL print its failure message. Closing Settings SHALL restore the previous surface.
 
 #### Scenario: Open the settings screen
-- **WHEN** the user invokes `/settings` in bare `a1`
-- **THEN** the screen SHALL open showing the A1 and Agent sections with current values
+- **WHEN** the user opens Settings from the Launcher in bare `a1`
+- **THEN** the screen SHALL open showing the declared A1 sections and the Agent section with current values
 - **AND** the pinned settings selector SHALL NOT open
 
 #### Scenario: Navigate and edit settings
@@ -942,7 +825,7 @@ A1 SHALL present its settings as an A1-owned application rendering the grouped s
 - **THEN** the screen SHALL print the load failure on its first row
 
 ### Requirement: Prompt history settings declare persistence, retention, and live-scope boundaries
-A1 SHALL declare `promptHistoryEnabled` as a boolean defaulting to true, `promptHistoryMaxItems` as an integer allowing 10 through 100 in steps of 10 and defaulting to 100, and `promptHistoryScope` as `unique` (default) or `shared`. They SHALL appear in bare A1's History settings section as `Persistent history`, `History limit`, and `History scope`, using existing shared settings controls, profile-local A1 settings persistence, validation, and stored/effective-state presentation. `promptHistoryEnabled` and `promptHistoryMaxItems` SHALL declare a `next-start` application boundary; `promptHistoryScope` SHALL be live and apply to running bare-A1 agents sharing that profile. Unique SHALL select a durable history per agent session, while Shared SHALL retain the former profile-wide history. Saving a scope SHALL switch each running agent's selected durable history and image sidecars without migrating, merging, deleting, or rerouting already-submitted prompts; unsent drafts SHALL remain intact. No Pi settings document or separate history settings file SHALL be used, and `a1 pi` SHALL neither expose nor apply these A1 settings.
+A1 SHALL declare `promptHistoryEnabled` as a boolean defaulting to true, `promptHistoryMaxItems` as an integer allowing 10 through 100 in steps of 10 and defaulting to 100, and `promptHistoryScope` as `unique` (default) or `shared`. They SHALL appear in bare A1's History settings section as `Persistent history`, `History limit`, and `History scope`, using existing shared settings controls, profile-local A1 settings persistence, validation, and stored/effective-state presentation. `promptHistoryEnabled` and `promptHistoryMaxItems` SHALL declare a `next-start` application boundary; `promptHistoryScope` SHALL be live and apply to running bare-A1 agents sharing that profile. Unique SHALL select a durable history per agent session, while Shared SHALL select the profile-wide history. Saving a scope SHALL switch each running agent's selected durable history and image sidecars without migrating, merging, deleting, or rerouting already-submitted prompts; unsent drafts SHALL remain intact. No Pi settings document or separate history settings file SHALL be used, and `a1 pi` SHALL neither expose nor apply these A1 settings.
 
 #### Scenario: Start without stored history settings
 - **WHEN** a bare-A1 profile has no stored history settings, including an existing profile created before History scope was introduced
@@ -1054,7 +937,7 @@ A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` a
 - **THEN** A1's stored scrollbar appearance, style, and speed SHALL NOT modify that interface's scrollbar or wheel behavior
 
 ### Requirement: Appearance settings own the quit-animation toggle
-A1 SHALL declare `quitAnimation` as a boolean defaulting to `true`, labeled `Quit animation`, in the `Appearance` section immediately after `Background`; `Generic` SHALL remain the first section and contain `Update check`. `quitAnimation` SHALL be the only owned setting governing the quit outro: no `Quit` section, `quitEffect`, or `quitEffectDurationMs` SHALL be declared, and the outro SHALL always play the `fall` effect for 800 ms when the switch is `true`. It SHALL use existing shared settings controls, profile-local A1 settings persistence, and validation, and SHALL declare a live application boundary: the value stored when the session quits SHALL govern that quit. No Pi settings document SHALL be used, and `a1 pi` SHALL neither expose nor apply this setting.
+A1 SHALL declare `quitAnimation` as a boolean defaulting to `true`, labeled `Quit animation`, in the `Appearance` section immediately after `Background`; `Generic` SHALL be the first section and contain `Update`. `quitAnimation` SHALL be the only owned setting governing the quit outro: no `Quit` section, `quitEffect`, or `quitEffectDurationMs` SHALL be declared, and the outro SHALL always play the `fall` effect for 800 ms when the switch is `true`. It SHALL use existing shared settings controls, profile-local A1 settings persistence, and validation, and SHALL declare a live application boundary: the value stored when the session quits SHALL govern that quit. No Pi settings document SHALL be used, and `a1 pi` SHALL neither expose nor apply this setting.
 
 #### Scenario: Resolve the default
 - **WHEN** the active A1 profile has no stored `quitAnimation` value
@@ -1063,7 +946,7 @@ A1 SHALL declare `quitAnimation` as a boolean defaulting to `true`, labeled `Qui
 #### Scenario: Inspect the Generic settings section
 - **WHEN** the owned settings screen is presented
 - **THEN** its first section SHALL be `Generic`
-- **AND** `Appearance` SHALL offer `Accent color`, `Background`, and then `quitAnimation` as an on/off choice labeled `Quit animation`
+- **AND** `Appearance` SHALL offer `Default color`, `Current color`, `Background`, and then `quitAnimation` as an on/off choice labeled `Quit animation`
 - **AND** no `Quit` section, `Effect` row, or `Duration` row SHALL be presented
 
 #### Scenario: Reject an invalid value
@@ -1105,102 +988,13 @@ The setting SHALL remain visible and editable when engine settings are absent, u
 - **THEN** its pinned settings presentation SHALL contain no A1 `Prompt image limit` entry
 - **AND** its prompt image count policy SHALL remain eight
 
-### Requirement: The accent color is a live Appearance setting
-
-Bare A1 SHALL expose two A1 settings in an `Appearance` section after `Generic`: persisted `defaultAccentColor`, labeled `Default color`, followed by session-local `accentColor`, labeled `Current color`, then `Background` and `Quit animation`. Both color settings SHALL offer exactly `blue`, `green`, `orange`, `pink`, `purple`, `cyan`, and `grey` in that order. Default color SHALL initially resolve to blue and apply on next session start when no invocation color overrides initialization; Current color SHALL apply live. Every displayed value SHALL name an explicit A1 palette color and receive the same semantic-family projection behavior, with grey retaining an achromatic semantic family. Neither setting SHALL be written to Pi settings storage or presented as an engine descriptor. Current color SHALL NOT be persisted to the profile settings document.
-
-Every interactive launch, including a resumed transcript, and every successful active-session replacement SHALL initialize Current color from the validated invocation-only startup color when supplied, otherwise from the latest valid Default color with blue fallback for a missing, malformed, or unsupported default. The invocation value SHALL be established before settings/session/theme initialization or visible rendering and SHALL remain the initial-color policy for successful new/resume/fork/import replacements in that runtime. Changing Current color through Settings or the live API SHALL NOT change that policy. Changing Default color SHALL persist the future startup preference without recoloring the current session, changing an invocation override policy, or recoloring any other running session. The settings presentation SHALL distinguish the saved startup preference from the current live color and SHALL NOT imply that saving a new default applied it to the active interface. Peer refresh MAY update the displayed default preference but SHALL NOT overwrite any Current color. Without an invocation override, in-process replacements SHALL use the latest saved default, not a stale process-start snapshot.
-
-An accepted Current color change SHALL last only for that active session lifetime and SHALL NOT propagate to other sessions, even when they share a profile or project. Shared profile reloads and unrelated settings writes SHALL neither overwrite the session color nor persist it. Legacy profile `accentColor` values SHALL be ignored for interactive resolution and preserved as user data without initializing Default color from them. Unknown and unrelated settings SHALL retain their existing resolution and persistence behavior. A failed or cancelled session replacement SHALL preserve the old session and Current color. Pre-trust bare-A1 presentation SHALL use the invocation color when supplied, otherwise the configured Default with blue fallback, rather than the legacy saved accent. Invocation color SHALL never write profile/project settings or leak through an inheritable color environment variable.
-
-Settings Current color and external color control SHALL share one authoritative live value and change path. A successful Current color change SHALL repaint the active semantic family and accent-derived canvas before reporting application. Settings cancel and undo SHALL respect each setting's scope: Current color undo restores the prior live color without changing invocation policy; Default color undo restores the saved startup preference without recoloring any running session or changing that policy. Both settings SHALL remain visible and editable when engine settings are absent or unavailable. `a1 pi` SHALL neither expose nor apply them.
-
-#### Scenario: Present the Appearance section
-- **WHEN** bare A1 opens the owned settings screen
-- **THEN** one `Appearance` section after `Generic` SHALL contain `Default color`, `Current color`, `Background`, and `Quit animation` in that order
-- **AND** both color menus SHALL offer exactly `blue`, `green`, `orange`, `pink`, `purple`, `cyan`, and `grey` in order without an automatic or dashed choice
-- **AND** each color choice SHALL show a square preview of its effective accent while the selected-value check remains in the standard text color
-
-#### Scenario: Resolve a missing or invalid value
-- **WHEN** bare A1 launches without an invocation override with a fresh or resumed transcript and a profile omitting Default color or storing an unsupported default
-- **THEN** the startup default and initial Current color SHALL resolve to blue without blocking startup
-- **AND** any legacy accent key and every unrelated or unknown profile value SHALL remain intact
-
-#### Scenario: Keep an explicit earlier choice
-- **WHEN** the reader has explicitly selected a valid Current color, including `purple`, in the current active session
-- **THEN** that choice SHALL remain effective for that session lifetime despite shared profile refresh or Default color changes
-- **AND** a later launch or successful replacement SHALL initialize from its invocation policy, or the latest Default when absent, rather than restore the earlier ephemeral Current value
-
-#### Scenario: Change the accent live
-- **WHEN** one of two running bare-A1 sessions sharing a profile selects another Current color
-- **THEN** only that active session SHALL adopt the new value and repaint before the change reports success
-- **AND** its accent-derived canvas and keyboard-shortcut secondary tones SHALL update from the same selected accent
-- **AND** neither the peer's current color nor any settings document SHALL change because of the Current color write
-
-#### Scenario: Save a new default without recoloring running sessions
-- **WHEN** two running sessions use different Current colors and the reader saves green as Default color
-- **THEN** the profile SHALL persist green as the startup preference and both running sessions SHALL retain their existing Current colors
-- **AND** Default color SHALL reflect the saved preference without presenting it as a live recolor
-- **AND** the next interactive launch or successful replacement without an invocation override SHALL initialize Current color to green
-- **AND** an invocation override SHALL retain precedence for its runtime's successful replacements
-
-#### Scenario: Refresh and save unrelated shared settings
-- **WHEN** a session with a nondefault Current color refreshes shared settings or changes another persisted setting
-- **THEN** its Current color SHALL retain its current session-local value
-- **AND** the shared write SHALL neither serialize that session color nor remove the legacy saved accent
-- **AND** Default color and unrelated settings SHALL retain their declared shared persistence behavior
-
-#### Scenario: Reset after successful session replacement
-- **WHEN** new, resume, fork, or import successfully replaces the active session after Default color has changed
-- **THEN** the replacement SHALL initialize from the invocation override when present, otherwise from the latest saved Default color rather than inherit the previous Current color or process-start default
-- **AND** a failed or cancelled replacement SHALL leave the previous session and Current color unchanged
-
-#### Scenario: Cancel or undo a Settings edit
-- **WHEN** the reader cancels an unaccepted Current color selection or undoes an accepted Current color change in Settings
-- **THEN** cancel SHALL retain the previous live color and undo SHALL restore the prior session-local color
-- **AND** neither action SHALL import or write a profile accent or change the invocation replacement policy
-
-#### Scenario: Cancel or undo a default preference edit
-- **WHEN** the reader cancels an unaccepted Default color selection or undoes an accepted Default color change
-- **THEN** cancel SHALL retain the previous saved default and undo SHALL restore the prior saved startup preference
-- **AND** neither action SHALL change any running session's Current color or invocation replacement policy
-
-#### Scenario: Select the initial purple palette
-- **WHEN** the reader explicitly selects `purple` as Current color
-- **THEN** the active interface SHALL project A1's purple palette across the same semantic family as every other choice
-- **AND** every family tone SHALL be derived from the selected primary purple by the same transform used for every named or future custom accent
-- **AND** dialog bars SHALL use its darker neighboring-hue border tone rather than the base Pi border
-- **AND** secondary headings and active dialog-filter values SHALL use its brighter complementary palette variation, with blue and purple using stronger sector-derived hue separation
-- **AND** filled scope/default state markers SHALL match the neutral item text color
-- **AND** selected rows SHALL use a half-strength, low-chroma background tint closer to the terminal background
-
-#### Scenario: Select grey
-- **WHEN** the reader selects `grey` as Current color in either supported appearance or terminal color mode
-- **THEN** the primary accent, derived border, secondary tone, selection surface, and accent-derived canvas SHALL remain neutral with appropriate appearance contrast
-- **AND** unrelated semantic success, warning, and error roles SHALL retain their normal colors
-
-#### Scenario: Use the comparison profile
-- **WHEN** the reader starts or configures `a1 pi`
-- **THEN** no A1 `Default color`, `Current color`, or `Background` entry SHALL be presented
-- **AND** Pi's configured theme, accent, and background behavior SHALL remain unchanged
-
-#### Scenario: Initialize an invocation before the first editor frame
-- **WHEN** bare A1 launches or initially resumes with green as invocation color and pink as saved Default
-- **THEN** its initial Current color and first editor frame SHALL use green without painting pink first
-- **AND** Settings SHALL still show pink as Default without any durable startup-color write
-
-#### Scenario: Preserve policy after a live API change
-- **WHEN** a runtime launched green accepts a live Current color change to orange and later successfully replaces the session
-- **THEN** the prior session SHALL immediately use orange and the successful replacement SHALL initialize green
-- **AND** the saved Default, invocation policy, and all peer runtimes SHALL remain unchanged by that live write
-
 ### Requirement: The update mode is a two-choice Generic setting
-Bare A1 SHALL keep the persisted key `updateCheck`, present it as `Update` first in `Generic`, and offer exactly `Auto` (default) and `Manual`. `Auto` SHALL check the executing release's channel after first paint and on a bounded cadence, install verified updates silently, and surface only the `Update installed, restart to update` status; `Manual` SHALL skip the check and leave updating to `a1 update`. The value SHALL stay in the profile-local A1 settings document, take effect at the next launch, and be absent from `a1 pi`.
+Bare A1 SHALL persist the update mode under the key `updateCheck`, present it as `Update` first in `Generic`, and offer exactly `Auto` (default) and `Manual`. `Auto` SHALL check the executing release's channel after first paint and on a bounded cadence, install verified updates silently, and surface only the `Update installed, restart to update` status; `Manual` SHALL skip the check and leave updating to `a1 update`. The value SHALL stay in the profile-local A1 settings document, take effect at the next launch, and be absent from `a1 pi`.
 
 #### Scenario: Present the Generic section
 - **WHEN** bare A1 opens the owned settings screen
 - **THEN** the `Generic` section SHALL offer `Update` first with choices `Auto` and `Manual`
-- **AND** its description SHALL say that Auto installs silently and asks for a restart, and that No leaves updates manual
+- **AND** its description SHALL say that Auto installs silently and asks for a restart, and that Manual leaves updating to the user through `a1 update`
 
 #### Scenario: Disable the check
 - **WHEN** the user selects `Manual` and restarts bare A1
@@ -1224,7 +1018,7 @@ Bare A1 SHALL keep the persisted key `updateCheck`, present it as `Update` first
 
 ### Requirement: Automatic session-name format is an owned live choice
 
-Bare A1 SHALL expose the live **Session name format** Agent setting beside **Automatic session name**, with exactly Sentence case, Kebab case, and Title Case choices in that order. Its owned `sessionNameFormat` value SHALL be `sentence` (default), `kebab`, or `title`, persisted through the existing profile settings manager. Valid explicit saved choices SHALL remain effective when the default changes.
+Bare A1 SHALL expose the live **Session name format** Agent setting beside **Automatic session name**, with exactly Sentence case, Kebab case, and Title Case choices in that order. Its owned `sessionNameFormat` value SHALL be `sentence` (default), `kebab`, or `title`, persisted through the existing profile settings manager. A valid explicit saved choice SHALL take precedence over the default.
 
 #### Scenario: Choose a readable format
 - **WHEN** a user selects Sentence case or Title Case and restarts with the same profile
@@ -1236,7 +1030,7 @@ Bare A1 SHALL expose the live **Session name format** Agent setting beside **Aut
 
 #### Scenario: Preserve a saved alternative
 - **WHEN** the profile contains a valid explicit Kebab case or Title Case preference
-- **THEN** that preference SHALL remain effective without being replaced by the new default
+- **THEN** that preference SHALL remain effective without being replaced by the default
 
 #### Scenario: Change the format of future names
 - **WHEN** a user changes the format while a session already has a name
@@ -1244,9 +1038,9 @@ Bare A1 SHALL expose the live **Session name format** Agent setting beside **Aut
 - **AND** the next eligible generation or regeneration SHALL use the chosen format
 
 ### Requirement: Spinner style is a live Appearance setting with native previews
-Bare A1 SHALL expose a persisted A1 setting `spinnerStyle`, labeled `Spinner style`, in Appearance. Its ordered display choices SHALL be lowercase `dots`, `circle`, `diamond`, `square`, and `none` in both the settings row and dropdown, stored respectively as `current`, `circle`, `diamond`, `square`, and `none`. The `dots` choice, stored as `current`, SHALL remain the default and individual fallback for omitted or invalid values. Existing saved `current` values SHALL display as `dots` without migration; other explicitly saved valid selections SHALL remain unchanged. The choice SHALL use the existing profile-local A1 settings manager and live application boundary, without modifying Pi root settings or engine descriptors. Ordinary acceptance, persistence, cancellation, failed-write rollback, reload, and profile isolation SHALL apply.
+Bare A1 SHALL expose a persisted A1 setting `spinnerStyle`, labeled `Spinner style`, in Appearance. Its ordered display choices SHALL be lowercase `dots`, `circle`, `diamond`, `square`, and `none` in both the settings row and dropdown, stored respectively as `current`, `circle`, `diamond`, `square`, and `none`. The `dots` choice, stored as `current`, SHALL remain the default and individual fallback for omitted or invalid values. A saved `current` value SHALL display as `dots`. The choice SHALL use the existing profile-local A1 settings manager and live application boundary, without modifying Pi root settings or engine descriptors. Ordinary acceptance, persistence, cancellation, failed-write rollback, reload, and profile isolation SHALL apply.
 
-The setting's dropdown SHALL use the shared value-menu preview column, like Accent color, to show each animated style's native glyph in the active semantic accent. The focused animated choice SHALL animate in place using the same frame set as the actual status indicator; the other choices SHALL retain representative glyphs. `none` SHALL have an empty preview slot. All labels SHALL remain aligned and menu geometry SHALL remain stable across animation frames. Merely focusing an option SHALL NOT persist a value or change the actual running status. Closing, replacing, canceling, or disposing the menu SHALL stop its preview animation.
+The setting's dropdown SHALL use the shared value-menu preview column, as the color settings do, to show each animated style's native glyph in the active semantic accent. The focused animated choice SHALL animate in place using the same frame set as the actual status indicator; the other choices SHALL retain representative glyphs. `none` SHALL have an empty preview slot. All labels SHALL remain aligned and menu geometry SHALL remain stable across animation frames. Merely focusing an option SHALL NOT persist a value or change the actual running status. Closing, replacing, canceling, or disposing the menu SHALL stop its preview animation.
 
 #### Scenario: Open the spinner choice menu
 - **WHEN** the reader opens Spinner style in bare-A1 Settings
@@ -1293,3 +1087,209 @@ Bare A1 Settings SHALL bind previous-section navigation to Ctrl+Shift+Up and nex
 #### Scenario: Preserve modal ownership
 - **WHEN** a Settings modal or value editor owns an arrow event
 - **THEN** section navigation SHALL NOT steal that event
+
+### Requirement: Resolved settings are presented as declared sections with one Agent section
+
+A1 SHALL expose the resolved settings as sections a consuming surface can present without knowing where a value is stored: the declared A1 settings grouped under the sections their declarations name (`Generic`, `Appearance`, `Scroll`, and `History`), followed by one `Agent` section that lists the available settings reported by the engine settings port and then the A1 settings declared for `Agent`. Each presented entry SHALL carry its current stored value, current effective value when different, whether it can be changed from A1, its application boundary, its available choices where its source declares them, and its description where its source provides one. Agent settings SHALL be read, written, and applied only through the engine settings port; A1 SHALL NOT write Pi settings storage directly. Where the engine does not advertise the write or effect capability required by an entry, that entry SHALL be filtered from the presented section. A descriptor without an application contract SHALL not be promoted to a UI entry. The consuming surface SHALL retain the shared input, list, menu, dialog, shortcut, and scrollbar components and the reviewed semantic styles and geometry for setting rows, labels, values, selected state, controls, menus, structured dialogs, deferred and failure notices, wrapping, and narrow-terminal clipping. The owned settings interaction SHALL remain a declared product difference: descriptions stay in entry metadata but do not render as selected-row details; ordinary printable input opens search and becomes the query; search uses the same configurable interactive input component as the bare-A1 agent prompt, configured as single-line and paste-disabled; the standing status bar derives from active shortcut declarations; wheel distance resolves the effective live `scrollbarSpeed` through the shared scrollbar policy rather than a settings-screen literal; scalar choices retain the shared `ValueMenu` while rendering as a visually distinct A1 floating panel; and the selected row retains its accent cursor, normal primary label, and existing background while values retain the muted presentation shared by selected and unselected rows. Only ordinary Settings values and enabled numeric controls SHALL use the owned-dialog foreground blend for mouse hover: 60% of their ordinary foreground and 40% of the current accent, without adding a background or moving keyboard selection. Setting labels and section titles SHALL remain visually unchanged on hover. A muted hovered value SHALL NOT become pure terminal white.
+
+#### Scenario: Build sections with an attached engine
+
+- **WHEN** sections are built while the engine reports its settings
+- **THEN** each declared A1 section SHALL list its declared settings with their resolved value, choices, description, source, and application boundary
+- **AND** the Agent section SHALL list every available setting the engine reports with its stored and effective state, writability, and application boundary, followed by the A1 settings declared for Agent
+
+#### Scenario: Select a row
+
+- **WHEN** a row is the keyboard selection
+- **THEN** its cursor SHALL retain the accent role and its label SHALL retain the normal primary foreground and existing selection background
+- **AND** its value SHALL render in the muted role, exactly as an unselected value does
+- **AND** pointing at that value SHALL blend its muted foreground toward the current accent by 40%, exactly as pointing at an unselected value does, without moving keyboard selection or adding a hover background
+
+#### Scenario: Present settings through the reviewed shared components
+
+- **WHEN** the settings surface renders scalar, numeric, structured, selected, searched, deferred, failed, and narrow-width states
+- **THEN** its rows, values, controls, menus, dialogs, notices, wrapping, and clipping SHALL preserve the reviewed shared-component terminal cells and semantic ANSI roles
+- **AND** unavailable entries and their option-specific explanation SHALL remain absent
+- **AND** no selected-entry description rows SHALL be rendered
+
+#### Scenario: Invoke settings search explicitly
+
+- **WHEN** search is closed and the user enters ordinary printable text
+- **THEN** the settings surface SHALL open the shared input and preserve that exact text as the beginning of the query
+- **AND** the first printable input SHALL NOT be lost or require a preceding activation key
+- **AND** `/` SHALL have no dedicated search-activation behavior and SHALL be ordinary query text when typed
+
+#### Scenario: Preserve Settings actions before type activation
+
+- **WHEN** search is closed and the user enters a declared Settings navigation, section-jump, value-change, adjustment, undo, or close key
+- **THEN** the declared Settings action SHALL retain precedence
+- **AND** the search input SHALL NOT open from that non-text key
+
+#### Scenario: Edit and select a settings query
+
+- **WHEN** search is active and the user moves by character or word, deletes text, extends or selects all text, replaces a selection by typing, drags a pointer selection, double-clicks a word, or triple-clicks the query
+- **THEN** the shared input SHALL apply the same applicable editing and selection behavior as the bare-A1 agent prompt
+- **AND** triple-click SHALL select the complete single-line query
+- **AND** Settings-owned result navigation keys SHALL continue moving through results without becoming query text
+
+#### Scenario: Copy or cut a settings query selection
+
+- **WHEN** search has a selected range and the user presses `Ctrl+C`
+- **THEN** A1 SHALL submit the exact selected query text through the owned bounded clipboard path without changing the query
+- **WHEN** the user presses `Ctrl+X`
+- **THEN** A1 SHALL submit the exact selected query text and then remove that range from the query
+
+#### Scenario: Reject paste in settings search
+
+- **WHEN** Settings search receives a configured paste shortcut, a complete or fragmented bracketed paste frame, or another shared-input paste request
+- **THEN** the shared component SHALL consume it without changing the query or filter results
+- **AND** subsequent ordinary typing SHALL continue editing normally
+
+#### Scenario: Render settings status guidance
+
+- **WHEN** no transient save result or interrupt warning replaces the standing settings status
+- **THEN** the status bar SHALL render `Type search` followed by the applicable navigation, section-jump, change, adjustment, and cancel hints assembled from active shortcut declarations
+- **AND** `Type` SHALL use the shared key role while `search` uses the shared action role
+- **AND** the status SHALL NOT advertise `/ search`
+
+#### Scenario: Render the empty settings query
+
+- **WHEN** Settings search is active with an empty query
+- **THEN** the shared input placeholder SHALL read exactly `Search settings`
+- **AND** it SHALL use the same caret, selection, and input rules as the shared input component
+
+#### Scenario: Scroll the settings list
+
+- **WHEN** the user sends a wheel event over the settings list or search footer
+- **THEN** movement SHALL resolve the currently effective `scrollbarSpeed`, including an accepted live value pending source reflection
+- **AND** distance SHALL be obtained from the shared scrollbar policy with no independent settings-screen row-count literal
+- **AND** wheel ownership SHALL remain with search results rather than text selection
+
+#### Scenario: Open a scalar setting menu
+
+- **WHEN** the user opens the choices for a scalar setting
+- **THEN** the menu SHALL retain shared `ValueMenu` placement, clipping, keyboard, and pointer behavior
+- **AND** every choice SHALL render on A1's dark floating-panel background rather than blending into the settings rows
+- **AND** the active choice SHALL render on A1's lighter panel background with white text
+- **AND** the effective value SHALL carry a `✓` independently of the active choice
+
+#### Scenario: Change an A1-owned setting
+
+- **WHEN** a change is accepted for an entry whose backend is A1, in any section
+- **THEN** the value SHALL be written to the A1 settings document, applied at its declared boundary, and SHALL NOT be sent to the engine settings port
+
+#### Scenario: Change an engine setting
+
+- **WHEN** a change is accepted for an engine-backed entry in the Agent section and the engine advertises the required write and effect capability
+- **THEN** the value SHALL be written and applied through the engine settings port, flushed where the engine advertises flush capability, and SHALL NOT be written into the A1 settings document
+
+#### Scenario: Engine advertises no settings write capability
+
+- **WHEN** the engine settings port reports no write capability for its settings
+- **THEN** those Agent entries SHALL be omitted from the settings UI
+- **AND** an attempted change through any stale or hidden route SHALL be refused rather than silently dropped
+
+#### Scenario: Engine advertises storage without an effect
+
+- **WHEN** an engine descriptor can be persisted but has no application contract for the active mode
+- **THEN** the Agent entry and its missing-effect explanation SHALL be omitted from the settings UI
+
+#### Scenario: Agent settings cannot be read
+
+- **WHEN** the engine settings port fails, reports no settings, or is absent
+- **THEN** the declared A1 sections SHALL still be complete and usable
+- **AND** no stale, invented, or unavailable-placeholder Agent entry SHALL appear
+
+#### Scenario: Report a failed change
+
+- **WHEN** a change cannot be stored or cannot be applied through the engine
+- **THEN** the failure SHALL be reported to the caller and the change SHALL NOT be reported as effective
+
+### Requirement: Default color and Current color are separate Appearance settings
+
+Bare A1 SHALL expose two A1 settings in an `Appearance` section after `Generic`: persisted `defaultAccentColor`, labeled `Default color`, followed by session-local `accentColor`, labeled `Current color`, then `Background` and `Quit animation`. Both color settings SHALL offer exactly `blue`, `green`, `orange`, `pink`, `purple`, `cyan`, and `grey` in that order. Default color SHALL initially resolve to blue and apply on next session start when no invocation color overrides initialization; Current color SHALL apply live. Every displayed value SHALL name an explicit A1 palette color and receive the same semantic-family projection behavior, with grey retaining an achromatic semantic family. Neither setting SHALL be written to Pi settings storage or presented as an engine descriptor. Current color SHALL NOT be persisted to the profile settings document.
+
+Every interactive launch, including a resumed transcript, and every successful active-session replacement SHALL initialize Current color from the validated invocation-only startup color when supplied, otherwise from the latest valid Default color with blue fallback for a missing, malformed, or unsupported default. The invocation value SHALL be established before settings/session/theme initialization or visible rendering and SHALL remain the initial-color policy for successful new/resume/fork/import replacements in that runtime. Changing Current color through Settings or the live API SHALL NOT change that policy. Changing Default color SHALL persist the future startup preference without recoloring the current session, changing an invocation override policy, or recoloring any other running session. The settings presentation SHALL distinguish the saved startup preference from the current live color and SHALL NOT imply that saving a new default applied it to the active interface. Peer refresh MAY update the displayed default preference but SHALL NOT overwrite any Current color. Without an invocation override, in-process replacements SHALL use the latest saved default, not a stale process-start snapshot.
+
+An accepted Current color change SHALL last only for that active session lifetime and SHALL NOT propagate to other sessions, even when they share a profile or project. Shared profile reloads and unrelated settings writes SHALL neither overwrite the session color nor persist it. An `accentColor` value stored in the profile settings document SHALL be ignored for interactive resolution and preserved as user data without initializing Default color from it. Unknown and unrelated settings SHALL retain their existing resolution and persistence behavior. A failed or cancelled session replacement SHALL preserve the old session and Current color. Pre-trust bare-A1 presentation SHALL use the invocation color when supplied, otherwise the configured Default with blue fallback, never a profile-stored `accentColor`. Invocation color SHALL never write profile/project settings or leak through an inheritable color environment variable.
+
+Settings Current color and external color control SHALL share one authoritative live value and change path. A successful Current color change SHALL repaint the active semantic family and accent-derived canvas before reporting application. Settings cancel and undo SHALL respect each setting's scope: Current color undo restores the prior live color without changing invocation policy; Default color undo restores the saved startup preference without recoloring any running session or changing that policy. Both settings SHALL remain visible and editable when engine settings are absent or unavailable. `a1 pi` SHALL neither expose nor apply them.
+
+#### Scenario: Present the Appearance section
+- **WHEN** bare A1 opens the owned settings screen
+- **THEN** one `Appearance` section after `Generic` SHALL contain `Default color`, `Current color`, `Background`, and `Quit animation` in that order
+- **AND** both color menus SHALL offer exactly `blue`, `green`, `orange`, `pink`, `purple`, `cyan`, and `grey` in order without an automatic or dashed choice
+- **AND** each color choice SHALL show a square preview of its effective accent while the selected-value check remains in the standard text color
+
+#### Scenario: Resolve a missing or invalid value
+- **WHEN** bare A1 launches without an invocation override with a fresh or resumed transcript and a profile omitting Default color or storing an unsupported default
+- **THEN** the startup default and initial Current color SHALL resolve to blue without blocking startup
+- **AND** any profile-stored `accentColor` key and every unrelated or unknown profile value SHALL remain intact
+
+#### Scenario: Keep an explicit Current color for the session
+- **WHEN** the reader has explicitly selected a valid Current color, including `purple`, in the current active session
+- **THEN** that choice SHALL remain effective for that session lifetime despite shared profile refresh or Default color changes
+- **AND** a later launch or successful replacement SHALL initialize from its invocation policy, or the latest Default when absent, rather than restore that session-local Current value
+
+#### Scenario: Change the accent live
+- **WHEN** one of two running bare-A1 sessions sharing a profile selects another Current color
+- **THEN** only that active session SHALL adopt the new value and repaint before the change reports success
+- **AND** its accent-derived canvas and keyboard-shortcut secondary tones SHALL update from the same selected accent
+- **AND** neither the peer's current color nor any settings document SHALL change because of the Current color write
+
+#### Scenario: Save a new default without recoloring running sessions
+- **WHEN** two running sessions use different Current colors and the reader saves green as Default color
+- **THEN** the profile SHALL persist green as the startup preference and both running sessions SHALL retain their existing Current colors
+- **AND** Default color SHALL reflect the saved preference without presenting it as a live recolor
+- **AND** the next interactive launch or successful replacement without an invocation override SHALL initialize Current color to green
+- **AND** an invocation override SHALL retain precedence for its runtime's successful replacements
+
+#### Scenario: Refresh and save unrelated shared settings
+- **WHEN** a session with a nondefault Current color refreshes shared settings or changes another persisted setting
+- **THEN** its Current color SHALL retain its current session-local value
+- **AND** the shared write SHALL neither serialize that session color nor remove a profile-stored `accentColor` key
+- **AND** Default color and unrelated settings SHALL retain their declared shared persistence behavior
+
+#### Scenario: Reset after successful session replacement
+- **WHEN** new, resume, fork, or import successfully replaces the active session after Default color has changed
+- **THEN** the replacement SHALL initialize from the invocation override when present, otherwise from the latest saved Default color rather than inherit the previous Current color or process-start default
+- **AND** a failed or cancelled replacement SHALL leave the previous session and Current color unchanged
+
+#### Scenario: Cancel or undo a Settings edit
+- **WHEN** the reader cancels an unaccepted Current color selection or undoes an accepted Current color change in Settings
+- **THEN** cancel SHALL retain the previous live color and undo SHALL restore the prior session-local color
+- **AND** neither action SHALL import or write a profile accent or change the invocation replacement policy
+
+#### Scenario: Cancel or undo a default preference edit
+- **WHEN** the reader cancels an unaccepted Default color selection or undoes an accepted Default color change
+- **THEN** cancel SHALL retain the previous saved default and undo SHALL restore the prior saved startup preference
+- **AND** neither action SHALL change any running session's Current color or invocation replacement policy
+
+#### Scenario: Select purple
+- **WHEN** the reader explicitly selects `purple` as Current color
+- **THEN** the active interface SHALL project A1's purple palette across the same semantic family as every other choice
+- **AND** every family tone SHALL be derived from the selected primary purple by the same transform used for every named or future custom accent
+- **AND** dialog bars SHALL use its darker neighboring-hue border tone rather than the base Pi border
+- **AND** secondary headings and active dialog-filter values SHALL use its brighter complementary palette variation, with blue and purple using stronger sector-derived hue separation
+- **AND** filled scope/default state markers SHALL match the neutral item text color
+- **AND** selected rows SHALL use a half-strength, low-chroma background tint closer to the terminal background
+
+#### Scenario: Select grey
+- **WHEN** the reader selects `grey` as Current color in either supported appearance or terminal color mode
+- **THEN** the primary accent, derived border, secondary tone, selection surface, and accent-derived canvas SHALL remain neutral with appropriate appearance contrast
+- **AND** unrelated semantic success, warning, and error roles SHALL retain their normal colors
+
+#### Scenario: Use the comparison profile
+- **WHEN** the reader starts or configures `a1 pi`
+- **THEN** no A1 `Default color`, `Current color`, or `Background` entry SHALL be presented
+- **AND** Pi's configured theme, accent, and background behavior SHALL remain unchanged
+
+#### Scenario: Initialize an invocation before the first editor frame
+- **WHEN** bare A1 launches or initially resumes with green as invocation color and pink as saved Default
+- **THEN** its initial Current color and first editor frame SHALL use green without painting pink first
+- **AND** Settings SHALL still show pink as Default without any durable startup-color write
+
+#### Scenario: Preserve policy after a live API change
+- **WHEN** a runtime launched green accepts a live Current color change to orange and later successfully replaces the session
+- **THEN** the prior session SHALL immediately use orange and the successful replacement SHALL initialize green
+- **AND** the saved Default, invocation policy, and all peer runtimes SHALL remain unchanged by that live write

@@ -14,7 +14,7 @@ Bare A1 SHALL run the custom session viewport in fullscreen mode regardless of P
 - **AND** the settings screen SHALL not offer a TUI mode row
 
 ### Requirement: The transcript occupies a bounded viewport above a pinned dock
-Bare A1 SHALL render the session transcript, pending steering presentation, and live working-status surface inside the terminal rows above a bottom dock. The dock SHALL contain non-working status messages, above-editor widgets, the active input surface, below-editor widgets, and the footer in their existing relative order. Pending `Steering:` rows and their edit hint SHALL belong to non-persistent, non-selectable scrollable viewport content rather than the dock. The live working-status surface SHALL belong to that viewport content rather than the dock and SHALL be bottom-aligned immediately above the dock while all content fits. This declared bare-A1 layout difference SHALL change placement only, preserving the content, style, lifecycle, and extension contribution rules of these surfaces.
+Bare A1 SHALL render the session transcript, pending steering presentation, and live working-status surface inside the terminal rows above a bottom dock. The dock SHALL contain non-working status messages, above-editor widgets, the active input surface, below-editor widgets, and the footer in their existing relative order. Pending `Steering:` rows and their edit hint SHALL belong to non-persistent scrollable viewport content rather than the dock. The live working-status surface SHALL belong to that viewport content rather than the dock and SHALL be bottom-aligned immediately above the dock while all content fits. This declared bare-A1 layout difference SHALL change placement only, preserving the content, style, lifecycle, and extension contribution rules of these surfaces.
 
 The complete frame SHALL remain within the current terminal width and height. A changing editor, dock widget, footer, or terminal size SHALL cause the transcript viewport to be reallocated rather than allowing the dock to scroll away. A pending-steering or working-status height change SHALL change transient viewport extent, not dock allocation. While content fits, the working status SHALL consume otherwise unused viewport space rather than displacing visible transcript or moving the editor/footer group.
 
@@ -37,13 +37,13 @@ The complete frame SHALL remain within the current terminal width and height. A 
 - **WHEN** the reader submits steering messages during an active run
 - **THEN** Pi's accepted current steering message SHALL appear through its normal user-message event
 - **AND** later pending messages SHALL render as `Steering:` rows followed by `↳ Alt+Up to edit all queued messages`
-- **AND** those pending rows SHALL appear after semantic transcript content as non-persistent, non-selectable viewport rows while the queue is nonempty
+- **AND** those pending rows SHALL appear after semantic transcript content as non-persistent viewport rows while the queue is nonempty
 - **AND** scrolling toward older content SHALL be able to move both pending steering and working-status rows out of view
 - **AND** the editor, widgets, and footer SHALL remain pinned
 
 #### Scenario: Status rendering is unchanged
 - **WHEN** the working status is rendered in the viewport or the footer is rendered inside the dock
-- **THEN** its text, color, spacing, animation, extension statuses, and lifecycle SHALL be the same as before this customization
+- **THEN** its text, color, spacing, animation, extension statuses, and lifecycle SHALL NOT depend on that placement
 
 #### Scenario: Resize the terminal
 - **WHEN** the terminal width or height changes
@@ -389,26 +389,8 @@ For unchanged viewport geometry and document content, selection composition SHAL
 - **THEN** the endpoint SHALL continue to follow the declared auto-scroll cadence and distance
 - **AND** repaint MAY include rows damaged by the viewport movement but SHALL still present the newest endpoint without a stale intermediate frame
 
-### Requirement: Selection precision and latency use exact-artifact acceptance
-Selection acceptance SHALL include deterministic component, shell, and terminal-paint evidence plus a user-controlled physical-terminal comparison of the exact built candidate. Automated evidence SHALL cover one-grapheme forward and reverse drags, multiline growth, copy output, stale-frame suppression, long transcripts, streaming overlap, resize, styling, links, scrollbar modes, auto-scroll, and terminal restoration. It SHALL distinguish bare A1's owned fullscreen selection from terminal-owned regular-mode selection and SHALL prove that `a1 pi`, untouched Pi, and installed Pi packages remain unchanged.
-
-#### Scenario: Exercise representative fullscreen geometry
-- **WHEN** deterministic selection evidence runs at a declared large geometry including 192 columns by 54 rows
-- **THEN** it SHALL record selection-state transitions, recomputed visible rows, render requests, terminal writes, final cells, and copy output
-- **AND** a regression that recomputes every already-selected visible row per one-row motion, presents stale endpoints, or scans the complete transcript SHALL fail
-
-#### Scenario: Compare the exact candidate physically
-- **WHEN** the exact built candidate is tested in Windows Terminal beside vanilla Pi
-- **THEN** the reader SHALL be able to select and copy one grapheme and drag multiline selections with the highlight tracking the pointer at the available input-frame cadence
-- **AND** terminal/version, geometry, relevant viewport settings, and the acceptance result SHALL be recorded before merge
-
-#### Scenario: Physical testing contradicts automation
-- **WHEN** the exact candidate still visibly trails the pointer or cannot select one grapheme despite automated checks passing
-- **THEN** selection acceptance SHALL fail
-- **AND** the code change SHALL remain unmerged until corrected and revalidated
-
 ### Requirement: Working status is a transient scrollable tail
-Bare A1 SHALL place its live working-status surface, including status-owned blank spacing and retry, compaction, or extension working replacements, in a non-persistent, non-selectable transient viewport tail after semantic transcript and pending steering rows. While all semantic and transient content fits above the dock, otherwise unused viewport rows SHALL precede the pending-steering and working-status group so that pending steering appears immediately above the status and the status remains immediately above the dock without moving already visible semantic transcript rows. When content overflows, that flexible alignment space SHALL be zero and the same steering and working surfaces SHALL participate in normal viewport scrolling. The surfaces SHALL NOT be duplicated in the dock, converted into persisted conversation content, counted as completed assistant messages, or treated as submitted prompts.
+Bare A1 SHALL place its live working-status surface, including status-owned blank spacing and retry, compaction, or extension working replacements, in a non-persistent transient viewport tail after semantic transcript and pending steering rows. While all semantic and transient content fits above the dock, otherwise unused viewport rows SHALL precede the pending-steering and working-status group so that pending steering appears immediately above the status and the status remains immediately above the dock without moving already visible semantic transcript rows. When content overflows, that flexible alignment space SHALL be zero and the same steering and working surfaces SHALL participate in normal viewport scrolling. The surfaces SHALL NOT be duplicated in the dock, converted into persisted conversation content, counted as completed assistant messages, or treated as submitted prompts.
 
 Pending steering and working rows SHALL contribute to overflow, scrollbar geometry, and end-following navigation while present. While detached, new transcript output, queue updates, and status animation, replacement, or removal SHALL preserve the current transcript position unless the new extent requires clamping to a valid scroll position. Removing transient rows SHALL remove their owned spacing and leave no stale copy. Failure messages SHALL retain their existing placement; idle informational messages are governed by the transient dock notice requirement. The pinned `a1 pi` route SHALL retain its existing presentation and behavior.
 
@@ -548,38 +530,6 @@ Content repairs SHALL retain bounded work and paint, stable unaffected-row reuse
 - **THEN** the checked cells, styles, cursor, and current composed content SHALL remain correct in both modes
 - **AND** content remediation SHALL NOT rely on a separately exposed blank or stale frame being hidden by synchronization
 
-### Requirement: Content acceptance is independent of deferred native-link repairs
-Content-rendering acceptance SHALL include production-ordered semantic and presentation evidence, independent pinned-renderer parity, bounded-work and terminal-protocol validation, and user-controlled review of the exact built candidate in Windows Terminal. The evidence SHALL identify candidate and baseline builds, terminal version, geometry, relevant capabilities/settings, workload and content categories, visibility settings, and documented A1 differences. It SHALL distinguish content omission, stale rendering, terminal cell errors, and unnecessary A1-induced flashing from host-only hover decoration using bounded, appropriately sanitized observations.
-
-Disappearing content, resize/reopen-dependent refresh, or unexplained A1-induced block flashing SHALL prevent content acceptance even if final snapshots and CI pass. A lower frame or clear count SHALL NOT substitute for stable content. The explicit `a1 pi` oracle and installed Pi packages SHALL remain untouched.
-
-The user-approved scope split tracks pre-existing native-link ghosts and wrapped-target defects in [issue #353](https://github.com/timurproko/a1/issues/353). Those known defects SHALL remain explicitly unresolved until their separate acceptance passes; they SHALL NOT block this content change's acceptance solely because they remain open. This separation SHALL NOT waive other changes' link contracts, permit a newly introduced link regression or altered link semantics, or claim that passing content evidence repairs native host decoration.
-
-#### Scenario: Review content across a complete run
-- **WHEN** the exact candidate generates commentary, thinking, fenced code, multiple tools, structured edit output, attachments, and asynchronous renderer updates in a conversation with prior history
-- **THEN** displayable content SHALL remain available and stably presented under existing visibility and expansion settings during execution and after settlement
-- **AND** no block SHALL require resize or reopen to recover a missed presentation
-
-#### Scenario: Compare the independent pinned reference
-- **WHEN** equivalent supported workloads are exercised through A1 and the independent actual pinned renderers or explicit pinned comparison route
-- **THEN** shared content and tool-rendering behavior SHALL match outside documented A1 differences
-- **AND** the comparison route SHALL not acquire A1-specific viewport composition, link decoration, or damage optimization
-
-#### Scenario: Physical block flashing persists despite correct final cells
-- **WHEN** the candidate still unnecessarily flashes or drops content during ordinary scheduled streaming but later produces the correct final cells
-- **THEN** content acceptance SHALL remain incomplete
-- **AND** the discrepancy SHALL be investigated against intermediate states and the pinned reference rather than hidden by full-screen clears or forced per-event painting
-
-#### Scenario: Known native ghosts remain after content acceptance passes
-- **WHEN** content correctness, stability, required CI, and exact-candidate user review pass but a pre-existing native-link defect remains reproducible
-- **THEN** the content change SHALL be eligible for user-authorized acceptance independently of that defect
-- **AND** the handoff SHALL identify issue #353 as unresolved without claiming a native-link fix or closing its separate acceptance gate
-
-#### Scenario: A content repair introduces a new link regression
-- **WHEN** the candidate changes previously working link colors, labels, activation, semantic copy, or movement safety
-- **THEN** this change's acceptance SHALL remain incomplete
-- **AND** the new regression SHALL NOT be excused by the existence of the separately tracked link issue
-
 ### Requirement: Streamed code and link-bearing content keeps bounded viewport painting
 While bare A1 follows the transcript end, content that merely looks like a link SHALL NOT change how the viewport is painted. Text a terminal host might underline on hover, including dotted identifiers, file names, and relative or drive-qualified paths, SHALL NOT by itself disqualify a transcript transition that the owned semantic frame has already proved safe, and SHALL NOT cause the complete screen to be cleared.
 
@@ -660,30 +610,6 @@ Terminal output for a hyperlink-cleanup transition SHALL preserve the clearing a
 - **WHEN** pointer motion stays inside an unchanged link or ordinary dock input leaves transcript geometry and links unchanged
 - **THEN** hyperlink handling SHALL NOT cause unconditional full-screen clearing or repaint of the stable transcript
 - **AND** hyperlink tracking work SHALL remain bounded by visible changed content rather than total transcript length
-
-### Requirement: Hyperlink cleanup preserves interaction and has physical-terminal acceptance
-The fix SHALL preserve the existing file and URL link targets, activation policy, idle colors, semantic transcript text, selection and copy results, and non-link source styling. It SHALL NOT require disabling hyperlinks or changing user terminal settings. Its behavior changes SHALL remain scoped to bare A1's owned fullscreen viewport, leaving `a1 pi`, untouched Pi, and installed Pi packages unchanged.
-
-Acceptance SHALL include deterministic link-region and terminal-output evidence plus user-controlled review of the exact built candidate in Windows Terminal. Physical evidence SHALL distinguish explicit OSC 8 links from terminal auto-detected URL and file-like text and record terminal version, geometry, relevant settings, candidate identity, and results.
-
-#### Scenario: Select and release linked content
-- **WHEN** the reader selects linked transcript content, scrolls during selection, releases the pointer, and copies
-- **THEN** the accepted selection and copy semantics SHALL remain unchanged
-- **AND** restoring ordinary link presentation SHALL NOT leave stale solid underlines outside current link regions
-
-#### Scenario: Review the original symptom physically
-- **WHEN** the exact candidate is exercised with long file and URL links, tool-output paths, stationary-pointer scrolling, and blank rows replacing linked content
-- **THEN** unrelated text and empty rows SHALL remain free of ghost link-hover underlines
-- **AND** real links SHALL retain their accepted appearance and activation behavior
-
-#### Scenario: Physical results contradict automated checks
-- **WHEN** deterministic tests pass but Windows Terminal still shows stale link-hover underlines on the candidate
-- **THEN** acceptance SHALL remain incomplete
-- **AND** the evidence SHALL identify whether the remaining case involves explicit hyperlinks or terminal auto-detection rather than claiming the visual bug is fixed
-
-#### Scenario: Use a pinned comparison profile
-- **WHEN** the user launches `a1 pi` or untouched Pi
-- **THEN** this change SHALL NOT alter its rendering, hyperlink handling, or selection behavior
 
 ### Requirement: Prompt line navigation and content-boundary navigation use distinct shortcuts
 In bare A1's ordinary prompt context, unmodified `Home` and `End` SHALL move the cursor to the start and end of the current logical prompt line respectively, without navigating the transcript or changing its follow state. A soft-wrapped line SHALL retain the editor's logical-line boundary behavior. `Ctrl+Home` SHALL navigate the content area to its beginning, and `Ctrl+End` SHALL navigate to the complete current tail and restore end following. Content navigation SHALL preserve the prompt text and cursor and SHALL NOT insert terminal key sequences into the prompt, even when the content fits or the requested boundary is already visible.
@@ -774,39 +700,6 @@ On the default bare-A1 screen, a pointer sequence that cannot begin an A1 transc
 #### Scenario: Use the comparison profile
 - **WHEN** the user launches `a1 pi` and uses fullscreen selection
 - **THEN** the comparison profile SHALL retain its pinned selection and copy behavior without the bare-A1 suppression policy
-
-### Requirement: Bottom-control hover is validated through terminal paint
-Bottom-control hover acceptance SHALL include deterministic current-state composition and terminal-cell evidence from the owned input-to-paint path. It SHALL verify the first eligible presentation and subsequent presentations, retaining background styling rather than checking only text presence, click success, or a manually requested corrective render. The evidence SHALL separately exercise editor-then-pointer interleaving and streaming wheel-and-hover input with no editing.
-
-Diagnostic capture SHALL be bounded and test-only or explicitly opt-in. It SHALL correlate delivered pointer coordinates, event ordering, viewport state used by the frame, reuse or recomposition, and emitted control-cell styling without recording ordinary editor text, credentials, or unrelated conversation content. An absent input report, a stale composed frame, and correct composed rows with incorrect terminal paint SHALL be distinguishable findings; missing diagnostic coverage SHALL NOT be reported as a successful hover verdict.
-
-Physical acceptance SHALL record the exact candidate, terminal/version, geometry, theme and color mode, relevant viewport settings, reproduction sequence, and separate outcomes for the confirmed race and reported scroll-only symptom. Passing the cache-race regression SHALL NOT by itself establish that the scroll-only report is resolved. Continued user-observed failure SHALL block complete acceptance even if automated checks pass.
-
-#### Scenario: Verify the first painted hover transition
-- **WHEN** a deterministic workload delivers a pointer transition after editor input and before the scheduled frame runs
-- **THEN** terminal-cell evidence SHALL show the correct normal or pointed-at background in that first presentation and the newest editor state
-- **AND** a stale first frame followed by a corrected frame SHALL fail the check
-
-#### Scenario: Verify a scroll-only streaming workload
-- **WHEN** deterministic assistant or tool updates interleave with wheel and hover reports without editor input
-- **THEN** the evidence SHALL verify hover entry, exit, and stationary hide-and-reveal at input-presentation checkpoints while streaming continues
-- **AND** a later stream or completion presentation that restores obsolete control styling or geometry SHALL fail the check
-
-#### Scenario: Keep interpretation of evidence bounded
-- **WHEN** a physical symptom is investigated and no corresponding pointer report is present in a complete diagnostic capture
-- **THEN** the result SHALL identify an input-reporting observation rather than infer a stale-frame cause or invent an operating-system pointer location
-- **AND** when the capture is incomplete or no failure was reproduced, the result SHALL remain inconclusive rather than claim resolution
-
-#### Scenario: Preserve unrelated behavior and paint cost
-- **WHEN** hover regression evidence exercises settled typing, control clicks, outside presses, selection, modal ownership, resize, reset, and teardown
-- **THEN** existing interaction and terminal-restoration behavior SHALL remain intact
-- **AND** unchanged settled typing SHALL retain dock-only reuse while isolated hover changes SHALL not introduce full-screen paint damage
-- **AND** the pinned comparison path and installed Pi packages SHALL remain unchanged
-
-#### Scenario: Physical testing still fails
-- **WHEN** the exact candidate still fails to highlight the control during the user's streaming scroll-and-hover sequence
-- **THEN** the scroll-only symptom SHALL remain unresolved and complete acceptance SHALL be withheld
-- **AND** the confirmed cache-race result SHALL be reported separately rather than used to dismiss or close the remaining symptom
 
 ### Requirement: Every modal preserves interaction with exposed transcript content
 In bare A1, all built-in and extension-provided modal surfaces SHALL leave exposed transcript content under A1 viewport ownership. This SHALL apply uniformly to selectors, dialogs, confirmations, permission and authentication flows, nested surfaces, floating overlays, and replacement inputs or editors without a per-command opt-in. The existing scrollbar appearance, style, speed, follow/detach behavior, and exposed navigation controls SHALL remain functional. A modal SHALL NOT suppress an otherwise-visible scrollbar; `auto`, `always`, and `hidden` SHALL retain their existing meanings.
@@ -1058,7 +951,7 @@ Updates arriving within one presentation interval SHALL be coalesced into the ne
 - **AND** a later streaming frame SHALL be recomputed from current state rather than overwrite that feedback with an obsolete frame
 
 ### Requirement: Transient surface ownership is stable across overflow
-Pending steering rows and their edit hint, live working rows, and extension-working rows SHALL retain one non-persistent, non-selectable viewport ownership after semantic transcript content while a run crosses from fitting content to overflowing content or back. Non-working status, widgets, active input, and footer SHALL retain one dock ownership and relative order. While all viewport content fits, unused viewport rows SHALL precede a present live status so it remains immediately above the dock without moving earlier transcript or steering rows. At overflow that alignment gap SHALL be zero. The fit/overflow boundary SHALL NOT move a transient row between viewport and dock, duplicate or omit it for an intermediate frame, or move the stable editor/footer group.
+Pending steering rows and their edit hint, live working rows, and extension-working rows SHALL retain one non-persistent viewport ownership after semantic transcript content while a run crosses from fitting content to overflowing content or back. Non-working status, widgets, active input, and footer SHALL retain one dock ownership and relative order. While all viewport content fits, unused viewport rows SHALL precede a present live status so it remains immediately above the dock without moving earlier transcript or steering rows. At overflow that alignment gap SHALL be zero. The fit/overflow boundary SHALL NOT move a transient row between viewport and dock, duplicate or omit it for an intermediate frame, or move the stable editor/footer group.
 
 #### Scenario: Cross from fitting to overflowing while working
 - **WHEN** streamed rows consume the unused alignment space and then cause semantic transcript, pending steering, and live working rows to exceed the rows above the dock
@@ -1163,57 +1056,6 @@ When an interactive bare-A1 session quits through `/quit`, the second `Ctrl+C` o
 - **AND** every sparkle and clear cell SHALL lie inside the captured frame's row and column bounds
 - **AND** every visible cell of the captured frame SHALL be cleared by the end of the plan
 
-### Requirement: Informational messages are a transient dock notice
-Bare A1 SHALL present informational workflow status messages, including model and thinking-level confirmations, reload and compaction confirmations, generic completed command results, `status`-kind workflow messages, and extension `info` notifications, as one transient notice at the top of the dock rather than as transcript content. The notice SHALL consist of one blank row followed by the message in the existing dim status style with Pi's one-cell status padding regardless of the output pad setting, SHALL be placed after any non-live dock status rows and before above-editor widgets and the editor, and SHALL therefore sit directly below the live working status when that status is visible and directly above the editor group otherwise. The notice SHALL wrap at the dock width and SHALL NOT scroll with transcript content.
-
-A successful `/new` result in bare A1 SHALL use the same transient prompt-adjacent ownership instead of transcript ownership, but SHALL preserve the existing accent `✓ New session started` wording, command-message wrapping, one-cell horizontal padding, and leading separation. While the replacement session is idle, its confirmation SHALL appear directly above the editor group at the bottom of the frame with exactly one blank row between the confirmation and input. When the first accepted prompt transitions the session from non-busy to busy, the confirmation SHALL be removed in the same presentation update that introduces the live working status, so `Working…` replaces it and the two SHALL NOT be visible together. A submission that fails before the busy transition MAY replace the confirmation with the existing truthful failure notice but SHALL NOT fabricate live working status.
-
-A newer simple workflow notice of any informational, warning, or error severity SHALL replace the current notice in place. The notice SHALL be removed when a submitted prompt or shell command block is mounted, when a structured workflow presentation or celebratory component is appended to the transcript, and when workflow presentation is reset for a new, resumed, forked, or replaced session. Assistant, thinking, tool, custom, and compaction blocks that start or update while the agent works SHALL NOT remove an ordinary informational, warning, or error notice, the agent finishing SHALL NOT remove it, and no timer SHALL remove it. The notice SHALL NOT enter transcript order, the selectable document, copied text, prompt navigation, persisted session content, or the pinned `a1 pi` route, whose transcript placement of status text and new-session confirmation SHALL remain unchanged.
-
-#### Scenario: Confirm a model switch in a fresh session
-- **WHEN** model selection from `/models` completes in a bare-A1 session with no transcript content
-- **THEN** the confirmation SHALL appear directly above the editor group with one blank row on each side
-- **AND** no transcript row SHALL be added for it
-- **AND** the top of the viewport SHALL remain empty
-
-#### Scenario: Confirm a new session beside the prompt
-- **WHEN** `/new` successfully creates an idle bare-A1 session
-- **THEN** the accent `✓ New session started` confirmation SHALL appear directly above the input prompt at the bottom of the frame
-- **AND** it SHALL preserve its existing accent, wrapping, one-cell horizontal padding, and leading separation
-- **AND** exactly one blank row SHALL appear between the confirmation and input
-- **AND** the selectable transcript document and the top of the viewport SHALL remain empty
-
-#### Scenario: Replace the new-session confirmation with working status
-- **WHEN** the reader submits the first prompt and the replacement session accepts it by transitioning to busy
-- **THEN** the first busy frame SHALL show the live `Working…` status directly above the dock
-- **AND** `✓ New session started` SHALL no longer be visible
-- **AND** no frame composed from that accepted transition SHALL show both messages
-
-#### Scenario: Report a prompt failure before work begins
-- **WHEN** a prompt submission fails before the replacement session transitions to busy
-- **THEN** the existing prompt failure notice MAY replace the idle new-session confirmation
-- **AND** no live working status SHALL be fabricated
-
-#### Scenario: Switch models while the agent is working
-- **WHEN** an ordinary informational message arrives while the live working status is visible
-- **THEN** the working status SHALL remain immediately above the dock and the notice SHALL render directly below it
-- **AND** streamed updates, further assistant blocks, and tool blocks in that run SHALL NOT remove the notice
-- **AND** the notice SHALL remain after the run finishes until the next submitted prompt
-
-#### Scenario: Replace and dismiss
-- **WHEN** another simple informational, warning, or error message arrives before any new reader submission
-- **THEN** it SHALL replace the first notice without adding a row
-- **AND** a subsequently submitted prompt, appended structured presentation, or session reset SHALL remove the notice and its blank row
-
-#### Scenario: Keep the notice out of content semantics
-- **WHEN** a selection is dragged toward the dock, the transcript is copied, prompt navigation is used, or the session is persisted and resumed
-- **THEN** the notice text, including a new-session confirmation, SHALL be excluded from selection, copy, navigation targets, and persisted content
-- **AND** returning to the session SHALL NOT resurrect a dismissed notice
-
-#### Scenario: Keep the pinned route unchanged
-- **WHEN** the same informational message or successful `/new` result is produced in the `a1 pi` route
-- **THEN** it SHALL be appended to the transcript exactly as before, including back-to-back replacement of the previous status row and the existing accent new-session shape
-
 ### Requirement: The reload box stays visible for a minimum window
 When `/reload` runs in bare A1, the shell SHALL show the reload box in place of the editor and SHALL keep it visible for at least 400 ms measured from the moment it was first shown, regardless of how quickly the reload workflow completes. A reload that takes longer than the window SHALL remove the box as soon as the workflow finishes. A reload that finishes sooner SHALL wait only for the remainder of the window before restoring the editor and presenting the completion notice; the reload workflow itself SHALL NOT be delayed by the hold. The window, the clock, and the wait SHALL be injectable through the session shell options so tests are deterministic, and production SHALL use the defaults. Disposing the shell during the hold SHALL release the hold without restoring the editor. The share surface and the `a1 pi` route SHALL be unchanged.
 
@@ -1274,7 +1116,7 @@ The latest simple workflow notice SHALL replace any earlier informational, warni
 #### Scenario: Show a warning near the prompt
 - **WHEN** a workflow emits a simple warning in bare A1
 - **THEN** the warning SHALL appear in the same dock region with its `Warning:` prefix, warning color, existing padding, and wrapping
-- **AND** it SHALL NOT become transcript, selection, copy, prompt-navigation, or persisted-session content
+- **AND** it SHALL NOT become transcript, semantic response-copy, prompt-navigation, or persisted-session content
 
 #### Scenario: Replace notices across severity
 - **WHEN** an error or warning follows an informational or new-session notice, or an informational notice follows an error or warning
@@ -1541,105 +1383,6 @@ Modal and replacement surfaces SHALL retain ownership of their paste input rathe
 - **WHEN** a session is replaced or disposed during clipboard reading or preparation
 - **THEN** A1 SHALL invalidate pending insertions and bound resource cleanup while restoring terminal state
 - **AND** late callbacks SHALL NOT write to the terminal, insert text/images into the new session, or keep shutdown waiting indefinitely
-
-### Requirement: Clipboard freeze acceptance includes stalled delivery and physical evidence
-Copy and paste acceptance SHALL combine deterministic fault-injection evidence with user-controlled physical-terminal testing of the exact candidate. Automated evidence SHALL distinguish input receipt/framing, selected-text preparation, selection-clearing presentation, clipboard write/read submission and completion, prerequisite waits, paste classification/conversion, editor insertion/presentation, timer progress, and terminal output; it SHALL NOT treat an unresolved asynchronous clipboard promise alone as proof of a whole-UI freeze. Diagnostic records SHALL be bounded and omit selected/pasted text, clipboard contents, paths, images, and encoded payloads. Copy-only, paste-only, and combined flows SHALL receive separate evidence; passing one SHALL NOT establish that the others are fixed.
-
-#### Scenario: Exercise the deterministic freeze matrix
-- **WHEN** clipboard regression evidence runs
-- **THEN** it SHALL cover cold/warm copy-only, standalone paste-only, and combined operations; repeated distinct requests; long text/selections/sessions; URL/path and existing image cases; native and terminal-provided paste; streaming overlap; write/read/preparation contention, failure and non-settlement; delayed terminal submission; subsequent input; and disposal
-- **AND** assertions SHALL fail event-loop monopolization, blocked subsequent input, unbounded pending work, stale deliveries, incorrect text, and incomplete terminal restoration
-- **AND** deadline/ordering gates SHALL use controlled scheduling rather than shared-CI wall-clock latency alone
-
-#### Scenario: Accept the exact candidate physically
-- **WHEN** the candidate is tested in the user's terminal with repeated selected-response Ctrl+C, independent Ctrl+V using content copied outside A1, and combined copy/paste while idle and while the agent works
-- **THEN** copied text SHALL be checked in a separate application, pasted content SHALL be checked in the A1 prompt, and the UI SHALL remain immediately usable throughout both shortcuts without Esc or another recovery action
-- **AND** the exact build, terminal/version, local or remote topology, geometry, transport route, workload, and acceptance result SHALL be recorded
-
-#### Scenario: Physical copying or pasting still freezes
-- **WHEN** the user observes another copy- or paste-triggered freeze despite passing automated checks
-- **THEN** acceptance SHALL fail and the implementation SHALL remain unaccepted
-- **AND** suggesting a recovery shortcut SHALL NOT count as fixing or accepting the behavior
-
-### Requirement: Visual selection is independent from transcript ownership
-
-Bare A1 SHALL distinguish a surface's semantic ownership from whether its currently visible text participates in frame selection. Terms in this capability that classify pending steering, working status, alignment rows, dock notices, widgets, input rows, autocomplete chrome, or footer rows as non-persistent, non-transcript, outside the selectable document, or excluded from transcript copy SHALL continue to govern transcript history, scrolling, prompt navigation, persistence, model context, and semantic response-copy operations.
-
-A selection whose fixed gesture anchor begins on transcript content SHALL remain visually and textually clipped to the current transcript viewport rectangle for the complete gesture. Edge-held scrolling, another viewport-position change, or pointer motion into pinned rows SHALL NOT expand that content-originated selection into the editor, widgets, notices, footer, or their padding. The corresponding transcript edge SHALL represent continuation beyond the rectangle until the moving endpoint returns to transcript content or the gesture ends.
-
-A sticky prompt that replaces the first visible source row SHALL be treated as non-selectable pinned chrome: its complete screen row SHALL be excluded from transcript selection paint, pointer anchoring, and visible-frame copy. The same prompt SHALL remain normally selectable when it appears at its ordinary scrolling document position. Retained selection endpoints SHALL continue to project from their document rows so the visible selection shrinks and disappears as those rows scroll outside the content frame rather than transferring to sticky prompt, status, or dock rows.
-
-A selection that originates in the dock SHALL retain its existing dock/editor interaction. Explicit controls, modals, overlays, and replacement surfaces SHALL retain their declared gesture ownership, and `a1 pi` SHALL remain unchanged.
-
-#### Scenario: Keep upward scrolling selection in content
-- **WHEN** a selection with both endpoints in transcript content is expanded upward by edge-held auto-scroll until its lower source endpoint is below the visible transcript rectangle
-- **THEN** selection paint and visible-frame copy SHALL remain bounded to transcript rows
-- **AND** the editor, widgets, notices, footer, and their padding SHALL retain their ordinary presentation
-- **AND** the off-screen document endpoint SHALL NOT be reclassified as a dock endpoint
-
-#### Scenario: Keep downward scrolling selection in content
-- **WHEN** a selection with both endpoints in transcript content is expanded downward by edge-held auto-scroll until its upper source endpoint is above the visible transcript rectangle
-- **THEN** selection paint and visible-frame copy SHALL remain bounded to transcript rows
-- **AND** pinned rows above or below the transcript SHALL NOT gain selection solely from the viewport-position change
-- **AND** equivalent forward and reverse drags SHALL retain the same region boundary
-
-#### Scenario: Keep a direct downward drag inside content
-- **WHEN** a frame-selection gesture starts on transcript content and its pointer moves into a visible editor, widget, notice, or footer row
-- **THEN** selection paint and visible-frame copy SHALL stop at the transcript rectangle's bottom edge
-- **AND** pinned rows and their full-width padding SHALL retain their ordinary presentation
-- **AND** reaching the document scroll limit SHALL NOT relax the boundary
-
-#### Scenario: Select non-transcript text without persisting it
-- **WHEN** a selection gesture begins on a visible dock or editor row
-- **THEN** those visible glyphs SHALL remain eligible for frame-selection painting and visual copy
-- **AND** they SHALL remain excluded from transcript history, prompt navigation, persisted conversation content, and model context according to their existing ownership
-
-#### Scenario: Cross the viewport and dock boundary
-- **WHEN** a dock-originated frame-selection drag crosses into semantic transcript rows
-- **THEN** selection SHALL retain its existing continuous complete-frame behavior
-- **AND** transcript-origin clipping SHALL NOT reclassify the gesture as content-originated
-- **AND** transcript scrolling and dock pinning SHALL retain their existing allocation and order
-
-#### Scenario: Exclude a pinned prompt alias
-- **WHEN** a submitted prompt is rendered as the sticky first row because its ordinary document row has scrolled away
-- **THEN** the complete pinned row SHALL retain its ordinary presentation when a transcript selection crosses it
-- **AND** the pinned row SHALL contribute no text to visible-frame copy
-- **AND** a pointer press on the pinned alias SHALL NOT create a transcript selection anchor
-
-#### Scenario: Select the prompt at its document position
-- **WHEN** scrolling places that submitted prompt at its ordinary document row without sticky replacement
-- **THEN** the prompt row SHALL participate in transcript selection and visible-frame copy normally
-
-#### Scenario: Scroll selected source rows out of the frame
-- **WHEN** viewport scrolling moves every retained source row of a transcript selection above or below the visible content rectangle
-- **THEN** the selection paint and visible-frame copy SHALL disappear
-- **AND** no endpoint SHALL transfer to a sticky prompt, jump/status control, editor, or footer row
-
-#### Scenario: Float the scroll-to-bottom control above selection
-- **WHEN** a transcript selection covers the row on which the scroll-to-bottom control is drawn
-- **THEN** the control SHALL be painted above the selection with its ordinary presentation
-- **AND** its cells SHALL contribute no text to visible-frame copy
-- **AND** transcript cells on either side of the control SHALL remain selected
-
-#### Scenario: Select the final content row without auto-scroll
-- **WHEN** an active transcript selection's pointer rests on the final visible transcript row while dock rows exist below it
-- **THEN** the transcript SHALL NOT auto-scroll
-- **AND** auto-scroll SHALL begin only when the pointer moves below that row, or onto the first row, and SHALL use the declared per-speed distance of one, two, or three rows per 30-millisecond tick
-
-#### Scenario: Keep the transcript still during dock selection
-- **WHEN** a selection gesture begins on the editor, footer, or another dock row and its pointer moves within the dock or onto the final transcript row
-- **THEN** the transcript SHALL NOT auto-scroll
-- **AND** a click on a dock row SHALL leave the transcript position unchanged
-
-#### Scenario: Preserve semantic response copying
-- **WHEN** a response-only or command-driven copy route requests semantic agent content rather than a visible frame range
-- **THEN** the existing transcript chrome exclusions SHALL remain in force
-- **AND** complete-frame selectability SHALL NOT add transient or dock text to that semantic payload
-
-#### Scenario: Recompose after dock geometry changes
-- **WHEN** dock rows are added, removed, or reflowed while a transcript-originated selection is active
-- **THEN** the selection SHALL remain clipped to the recomputed transcript rectangle in the same frame
-- **AND** no stale selection background SHALL remain on a former or current dock cell
 
 ### Requirement: Submitted prompt chips wrap as atomic units
 
@@ -1987,3 +1730,123 @@ Bare A1 SHALL present current exposed scrollbar track and thumb cells at the fra
 - **THEN** the gutter SHALL retain its resolved background while the rail uses its own decoration
 - **AND** rail cells SHALL remain excluded from semantic selection and copied source text
 - **AND** cursor restoration, hyperlink boundaries, and one-shot image transport SHALL remain intact
+
+### Requirement: Hyperlink cleanup preserves link targets and interaction
+Hyperlink cleanup SHALL preserve file and URL link targets, activation policy, idle colors, semantic transcript text, selection and copy results, and non-link source styling. It SHALL NOT require disabling hyperlinks or changing user terminal settings. It SHALL be scoped to bare A1's owned fullscreen viewport, leaving `a1 pi` and installed Pi packages unchanged.
+
+#### Scenario: Select and release linked content
+- **WHEN** the reader selects linked transcript content, scrolls during selection, releases the pointer, and copies
+- **THEN** selection and copy semantics SHALL be the same as for unlinked content
+- **AND** restoring ordinary link presentation SHALL NOT leave stale solid underlines outside current link regions
+
+#### Scenario: Use a pinned comparison profile
+- **WHEN** the user launches `a1 pi`
+- **THEN** its rendering, hyperlink handling, and selection behavior SHALL be the pinned ones
+
+### Requirement: Informational command results are a transient dock notice
+Bare A1 SHALL present informational workflow status messages, including thinking-level confirmations, reload and compaction confirmations, generic completed command results, `status`-kind workflow messages, and extension `info` notifications, as one transient notice at the top of the dock rather than as transcript content. A successful model change and a `/name` result SHALL produce no notice, because the footer already shows the new model or name. The notice SHALL consist of one blank row followed by the message in the existing dim status style with Pi's one-cell status padding regardless of the output pad setting, SHALL be placed after any non-live dock status rows and before above-editor widgets and the editor, and SHALL therefore sit directly below the live working status when that status is visible and directly above the editor group otherwise. The notice SHALL wrap at the dock width and SHALL NOT scroll with transcript content.
+
+A successful `/new` result in bare A1 SHALL use the same transient prompt-adjacent ownership instead of transcript ownership, but SHALL preserve the existing accent `✓ New session started` wording, command-message wrapping, one-cell horizontal padding, and leading separation. While the replacement session is idle, its confirmation SHALL appear directly above the editor group at the bottom of the frame with exactly one blank row between the confirmation and input. When the first accepted prompt transitions the session from non-busy to busy, the confirmation SHALL be removed in the same presentation update that introduces the live working status, so `Working…` replaces it and the two SHALL NOT be visible together. A submission that fails before the busy transition MAY replace the confirmation with the existing truthful failure notice but SHALL NOT fabricate live working status.
+
+A newer simple workflow notice of any informational, warning, or error severity SHALL replace the current notice in place. The notice SHALL be removed when a submitted prompt or shell command block is mounted, when a structured workflow presentation or celebratory component is appended to the transcript, and when workflow presentation is reset for a new, resumed, forked, or replaced session. Assistant, thinking, tool, custom, and compaction blocks that start or update while the agent works SHALL NOT remove an ordinary informational, warning, or error notice, the agent finishing SHALL NOT remove it, and no timer SHALL remove it. The notice SHALL NOT enter transcript order, the transcript document, semantic response copy, prompt navigation, persisted session content, or the pinned `a1 pi` route, whose transcript placement of status text and new-session confirmation SHALL remain unchanged.
+
+#### Scenario: Show an informational notice in a fresh session
+- **WHEN** an informational command result, such as a thinking-level confirmation, arrives in a bare-A1 session with no transcript content
+- **THEN** the confirmation SHALL appear directly above the editor group with one blank row on each side
+- **AND** no transcript row SHALL be added for it
+- **AND** the top of the viewport SHALL remain empty
+
+#### Scenario: Confirm a new session beside the prompt
+- **WHEN** `/new` successfully creates an idle bare-A1 session
+- **THEN** the accent `✓ New session started` confirmation SHALL appear directly above the input prompt at the bottom of the frame
+- **AND** it SHALL preserve its existing accent, wrapping, one-cell horizontal padding, and leading separation
+- **AND** exactly one blank row SHALL appear between the confirmation and input
+- **AND** the selectable transcript document and the top of the viewport SHALL remain empty
+
+#### Scenario: Replace the new-session confirmation with working status
+- **WHEN** the reader submits the first prompt and the replacement session accepts it by transitioning to busy
+- **THEN** the first busy frame SHALL show the live `Working…` status directly above the dock
+- **AND** `✓ New session started` SHALL no longer be visible
+- **AND** no frame composed from that accepted transition SHALL show both messages
+
+#### Scenario: Report a prompt failure before work begins
+- **WHEN** a prompt submission fails before the replacement session transitions to busy
+- **THEN** the existing prompt failure notice MAY replace the idle new-session confirmation
+- **AND** no live working status SHALL be fabricated
+
+#### Scenario: Show a notice while the agent is working
+- **WHEN** an ordinary informational message arrives while the live working status is visible
+- **THEN** the working status SHALL remain immediately above the dock and the notice SHALL render directly below it
+- **AND** streamed updates, further assistant blocks, and tool blocks in that run SHALL NOT remove the notice
+- **AND** the notice SHALL remain after the run finishes until the next submitted prompt
+
+#### Scenario: Replace and dismiss
+- **WHEN** another simple informational, warning, or error message arrives before any new reader submission
+- **THEN** it SHALL replace the first notice without adding a row
+- **AND** a subsequently submitted prompt, appended structured presentation, or session reset SHALL remove the notice and its blank row
+
+#### Scenario: Keep the notice out of content semantics
+- **WHEN** a selection is dragged toward the dock, the transcript is copied, prompt navigation is used, or the session is persisted and resumed
+- **THEN** the notice text, including a new-session confirmation, SHALL be excluded from the transcript document, semantic response copy, navigation targets, and persisted content
+- **AND** its visible text SHALL remain selectable and copyable as an application message under `session-frame-selection`
+- **AND** returning to the session SHALL NOT resurrect a dismissed notice
+
+#### Scenario: Keep the pinned route unchanged
+- **WHEN** the same informational message or successful `/new` result is produced in the `a1 pi` route
+- **THEN** it SHALL be appended to the transcript, including back-to-back replacement of the previous status row and the existing accent new-session shape
+
+### Requirement: Frame selectability is independent from transcript ownership
+
+Bare A1 SHALL distinguish a surface's semantic ownership from whether its currently visible text participates in frame selection. Terms in this capability that classify pending steering, working status, alignment rows, dock notices, widgets, input rows, autocomplete chrome, or footer rows as non-persistent, non-transcript, outside the selectable document, or excluded from transcript copy SHALL continue to govern transcript history, scrolling, prompt navigation, persistence, model context, and semantic response-copy operations.
+
+A selection MAY cross the viewport and dock boundary in either direction as one continuous range; its extent, clipping, and copy output are governed by `session-frame-selection`. Held-edge auto-scroll SHALL apply only to a gesture that began on transcript content.
+
+A sticky prompt that replaces the first visible source row SHALL be treated as non-selectable pinned chrome: its complete screen row SHALL be excluded from transcript selection paint, pointer anchoring, and visible-frame copy. The same prompt SHALL remain normally selectable when it appears at its ordinary scrolling document position. Retained selection endpoints SHALL project from their document rows so selection paint shrinks and disappears as those rows scroll outside the content frame rather than transferring to sticky prompt, status, or dock rows.
+
+Explicit controls, modals, overlays, and replacement surfaces SHALL retain their declared gesture ownership, and `a1 pi` SHALL remain unchanged.
+
+#### Scenario: Select non-transcript text without persisting it
+- **WHEN** a selection gesture begins on a visible dock or editor row
+- **THEN** those visible glyphs SHALL remain eligible for frame-selection painting and visual copy
+- **AND** they SHALL remain excluded from transcript history, prompt navigation, persisted conversation content, and model context according to their existing ownership
+
+#### Scenario: Cross the viewport and dock boundary
+- **WHEN** a dock-originated frame-selection drag crosses into semantic transcript rows
+- **THEN** selection SHALL remain one continuous complete-frame range
+- **AND** transcript scrolling and dock pinning SHALL retain their allocation and order
+
+#### Scenario: Exclude a pinned prompt alias
+- **WHEN** a submitted prompt is rendered as the sticky first row because its ordinary document row has scrolled away
+- **THEN** the complete pinned row SHALL retain its ordinary presentation when a transcript selection crosses it
+- **AND** the pinned row SHALL contribute no text to visible-frame copy
+- **AND** a pointer press on the pinned alias SHALL NOT create a transcript selection anchor
+
+#### Scenario: Select the prompt at its document position
+- **WHEN** scrolling places that submitted prompt at its ordinary document row without sticky replacement
+- **THEN** the prompt row SHALL participate in transcript selection and visible-frame copy normally
+
+#### Scenario: Scroll selected source rows out of the frame
+- **WHEN** viewport scrolling moves every retained source row of a transcript selection above or below the visible content rectangle
+- **THEN** the selection paint SHALL disappear
+- **AND** no endpoint SHALL transfer to a sticky prompt, jump/status control, editor, or footer row
+
+#### Scenario: Float the scroll-to-bottom control above selection
+- **WHEN** a transcript selection covers the row on which the scroll-to-bottom control is drawn
+- **THEN** the control SHALL be painted above the selection with its ordinary presentation
+- **AND** its cells SHALL contribute no text to visible-frame copy
+- **AND** transcript cells on either side of the control SHALL remain selected
+
+#### Scenario: Select the final content row without auto-scroll
+- **WHEN** an active transcript selection's pointer rests on the final visible transcript row while dock rows exist below it
+- **THEN** the transcript SHALL NOT auto-scroll
+- **AND** auto-scroll SHALL begin only when the pointer moves below that row, or onto the first row, and SHALL use the declared per-speed distance of one, two, or three rows per 30-millisecond tick
+
+#### Scenario: Keep the transcript still during dock selection
+- **WHEN** a selection gesture begins on the editor, footer, or another dock row and its pointer moves within the dock or onto the final transcript row
+- **THEN** the transcript SHALL NOT auto-scroll
+- **AND** a click on a dock row SHALL leave the transcript position unchanged
+
+#### Scenario: Preserve semantic response copying
+- **WHEN** a response-only or command-driven copy route requests semantic agent content rather than a visible frame range
+- **THEN** the transcript chrome exclusions SHALL remain in force
+- **AND** complete-frame selectability SHALL NOT add transient or dock text to that semantic payload
