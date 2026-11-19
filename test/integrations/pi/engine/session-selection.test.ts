@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { SessionManager, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { openSelectedPiSession } from "../../../../src/integrations/pi/engine/session-selection.js";
+import { acquireSessionWriter } from "../../../../src/foundation/session-writer-lock/index.js";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -67,6 +68,21 @@ describe("public CLI session selection", () => {
     const forkPrompt = vi.fn(async () => false);
     await expect(openSelectedPiSession({ cwd, selection: { target: "foreign" }, forkPrompt })).rejects.toMatchObject({ exitCode: 0 });
     expect(forkPrompt).toHaveBeenCalledExactlyOnceWith({ sourceCwd: other });
+  });
+
+  it("asks about a session open in another A1 process as such, not as a different project", async () => {
+    const { cwd } = await fixture();
+    const path = join(cwd, "held.jsonl");
+    await save(path, cwd, "held-id");
+    const held = acquireSessionWriter(path);
+    try {
+      const forkPrompt = vi.fn(async () => false);
+      await expect(openSelectedPiSession({ cwd, selection: { target: path }, forkPrompt, guardWriter: true }))
+        .rejects.toThrow("session is open in another A1 process");
+      expect(forkPrompt).toHaveBeenCalledExactlyOnceWith({ sourceCwd: cwd, reason: "open-elsewhere" });
+    } finally {
+      held.release();
+    }
   });
 
   it("treats canonical filesystem aliases as the same project", async () => {

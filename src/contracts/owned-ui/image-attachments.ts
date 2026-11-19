@@ -34,10 +34,10 @@ const MESSAGES = {
 export class ImageAttachmentError extends TypeError {
   readonly code: keyof typeof MESSAGES;
   readonly imageLimit: number | null;
-  constructor(code: keyof typeof MESSAGES, imageLimit: number = DEFAULT_PROMPT_IMAGE_LIMIT) {
+  constructor(code: keyof typeof MESSAGES, imageLimit: number = DEFAULT_PROMPT_IMAGE_LIMIT, hint = false) {
     assertPromptImageLimit(imageLimit);
     super(code === "image-count"
-      ? `A prompt is limited to ${imageLimit} ${imageLimit === 1 ? "image" : "images"}. To change the limit /settings.`
+      ? `A prompt is limited to ${imageLimit} ${imageLimit === 1 ? "image" : "images"}.${hint ? " To change it: Ctrl+P → Settings → Agent → Prompt image limit." : ""}`
       : MESSAGES[code]);
     this.code = code;
     this.imageLimit = code === "image-count" ? imageLimit : null;
@@ -58,9 +58,10 @@ const BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012
 export function assertPromptImages(
   images: readonly OwnedUiImageAttachment[],
   imageLimit: number = MAX_PROMPT_IMAGES,
+  hint = false,
 ): void {
   assertPromptImageLimit(imageLimit);
-  if (!Array.isArray(images) || images.length > imageLimit) throw new ImageAttachmentError("image-count", imageLimit);
+  if (!Array.isArray(images) || images.length > imageLimit) throw new ImageAttachmentError("image-count", imageLimit, hint);
   for (const image of images) {
     if (!image || image.type !== "image") throw new ImageAttachmentError("image-data");
     if (VALIDATED_IMAGES.has(image)) continue;

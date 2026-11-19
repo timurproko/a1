@@ -508,8 +508,8 @@ jobs:
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-runtime
-          # Shared runners measure startup reliably but time it unreliably; this owner records
-          # an overrun, and nightly publication and Full regression still fail on it.
+          # Rationale: shared runners measure startup reliably but time it unreliably. This owner,
+          # Full regression and nightly publication only record an overrun; stable publication fails.
           STARTUP_BUDGET_ENFORCEMENT: record
           STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-node${{ matrix.node }}-performance.json
         run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}-attempt-${{ github.run_attempt }}.json

@@ -56,19 +56,28 @@ describe("a1 uninstall", () => {
     expect(setup.stdout.join("")).toBe("a1 uninstalled\n");
   });
 
-  it("asks before removing anything and asks separately about user data", async () => {
+  it("asks only before removing A1 and keeps user data without --purge", async () => {
     const setup = await machine();
     const questions: string[] = [];
-    const answers = [true, false];
     await expect(runUninstall({ yes: false, purge: false }, {
       ...setup.dependencies,
-      confirm: async question => { questions.push(question); return answers.shift() ?? false; },
+      confirm: async question => { questions.push(question); return true; },
     })).resolves.toBe(0);
-    expect(questions).toEqual([
-      "Remove a1 from this machine? [y/N] ",
-      `Also delete your sessions, settings, and sign-ins in ${setup.profileHome}? [y/N] `,
-    ]);
-    expect(await exists(setup.profileHome)).toBe(true);
+    expect(questions).toEqual(["Remove a1 from this machine? [y/N] "]);
+    expect(await exists(resolve(setup.profileHome, "agent", "settings.json"))).toBe(true);
+    expect(setup.stdout.join("")).toBe(`a1 uninstalled; your sessions and settings remain in ${setup.profileHome}
+`);
+  });
+
+  it("purges user data after the one question when --purge is given", async () => {
+    const setup = await machine();
+    const questions: string[] = [];
+    await expect(runUninstall({ yes: false, purge: true }, {
+      ...setup.dependencies,
+      confirm: async question => { questions.push(question); return true; },
+    })).resolves.toBe(0);
+    expect(questions).toEqual(["Remove a1 from this machine? [y/N] "]);
+    expect(await exists(setup.profileHome)).toBe(false);
   });
 
   it("removes nothing when the user declines", async () => {

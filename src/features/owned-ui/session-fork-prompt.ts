@@ -5,14 +5,14 @@ import type { Readable, Writable } from "node:stream";
 export function createConsoleSessionForkPrompt(options: {
   readonly input?: Readable;
   readonly output?: Writable;
-} = {}): (request: { readonly sourceCwd: string; readonly fallbackCwd?: string }) => Promise<boolean | "continue" | "fork" | "cancel"> {
+} = {}): (request: { readonly sourceCwd: string; readonly fallbackCwd?: string; readonly reason?: "open-elsewhere" }) => Promise<boolean | "continue" | "fork" | "cancel"> {
   const input = options.input ?? process.stdin;
   const output = options.output ?? process.stdout;
-  return async ({ sourceCwd, fallbackCwd }) => {
+  return async ({ sourceCwd, fallbackCwd, reason }) => {
     const recovering = fallbackCwd !== undefined;
     output.write(recovering
       ? `Session cwd does not exist: ${sourceCwd}\n1. Continue in ${fallbackCwd} (asks again next time)\n2. Fork into ${fallbackCwd} (new session ID, original kept)\n3. Cancel\n`
-      : `Session found in different project: ${sourceCwd}\n`);
+      : reason ? "Session is open in another A1 process.\n" : `Session found in different project: ${sourceCwd}\n`);
     const wasFlowing = input.readableFlowing;
     const readline = createInterface({ input, output });
     try {

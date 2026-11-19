@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-18T16:11:56.988Z",
+  "recordedAt": "2026-11-19T14:51:41.552Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "b4afdddf44e059c67ccf5097e5317d913521b470",
@@ -4060,14 +4060,14 @@
       "localDestination": "src/integrations/pi/components/upstream/history/editor-core.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, semantic border state with the user-approved numeric-only history label with a three-cell inset and separate centered history-overflow cue, and history-count retention during cursor placement within recalled multiline text. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
+      "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, semantic border state with the user-approved History N/M counter label with a three-cell inset and separate centered history-overflow cue, and history-count retention during cursor placement within recalled multiline text. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "993c1cea02e3de8d12083aca5c55e197ce03f225fbf0989049fd32fcc1d35afd",
+      "localSha256": "cda54fc2a3436911079789fef43614000e623763d8e3a9e145ab69bc4ed8ac15",
       "approvedDeviations": [
         {
-          "id": "compact-history-counter-label",
-          "reason": "The approved show-autocomplete-above-prompt and align-input-menu-and-counters changes remove the History title and use the shared three-cell counter inset in bare A1.",
-          "upstreamBehavior": "Preserve numeric value, dim color, clipping, overflow separation, and recall behavior while moving the label one cell left; pinned comparison rendering remains unchanged.",
+          "id": "history-counter-label",
+          "reason": "Persistent recall shows the documented History N/M counter at the shared three-cell inset in bare A1; the maintainer restored the History title that show-autocomplete-above-prompt had removed.",
+          "upstreamBehavior": "Upstream shows no history counter; the History title, numeric value, dim color, clipping, overflow separation and recall behavior are A1-owned, and pinned comparison rendering remains unchanged.",
           "acceptanceTest": "test/integrations/pi/components/history-editor-core.test.ts"
         },
         {

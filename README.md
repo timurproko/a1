@@ -15,7 +15,9 @@
 <p align="center">
   <a href="#install">Install</a> ·
   <a href="#launch">Launch</a> ·
+  <a href="#session-colors">Session colors</a> ·
   <a href="#update">Update</a> ·
+  <a href="#uninstall">Uninstall</a> ·
   <a href="#extensions">Extensions</a> ·
   <a href="#develop">Develop</a> ·
   <a href="#publish">Publish</a>
@@ -156,7 +158,7 @@ On Windows, older builds can lose their recovery worker on a heartbeat-file shar
 The **Update** setting controls release discovery:
 
 - **Auto** (default) checks the running release's stable or development channel at startup and every 15 minutes while open. It silently installs a verified update, then shows `Update installed, restart to update` above the editor; existing sessions keep running on their release, and the next `a1` starts the new one.
-- **No** performs no update check; updates remain available through the commands above.
+- **Manual** performs no update check; updates remain available through the commands above.
 
 `A1_SKIP_VERSION_CHECK=1` disables Auto discovery. Manual stable, development, and exact-version update commands remain available in every mode.
 
@@ -164,7 +166,7 @@ The **Update** setting controls release discovery:
 
 ## Uninstall
 
-Remove A1 from this machine. It asks before deleting your sessions and settings in `~/.a1`:
+Remove A1 from this machine. Your sessions, settings, and sign-ins in `~/.a1` stay unless you add `--purge`:
 
 ```text
 a1 uninstall

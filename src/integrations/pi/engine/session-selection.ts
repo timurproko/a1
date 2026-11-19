@@ -17,7 +17,7 @@ export interface PiSessionSelection {
   readonly sessionDir?: string;
 }
 
-export type PiSessionForkPrompt = (request: { readonly sourceCwd: string; readonly fallbackCwd?: string }) => Promise<boolean | "continue" | "fork" | "cancel">;
+export type PiSessionForkPrompt = (request: { readonly sourceCwd: string; readonly fallbackCwd?: string; readonly reason?: "open-elsewhere" }) => Promise<boolean | "continue" | "fork" | "cancel">;
 
 /** Expected resume outcomes are concise CLI diagnostics, not engine crashes. */
 export class PiSessionSelectionError extends Error {
@@ -93,7 +93,7 @@ export async function openSelectedPiSession(options: SessionSelectionOptions): P
   } catch (error) {
     if (error instanceof PiSessionSelectionError) throw error;
     if (error instanceof SessionWriterConflict) {
-      const choice = await options.forkPrompt?.({ sourceCwd: cwd });
+      const choice = await options.forkPrompt?.({ sourceCwd: cwd, reason: "open-elsewhere" });
       if (choice === true || choice === "fork") {
         const manager = sessions.forkFrom(error.path, cwd, sessionDir);
         if (!options.guardWriter) return manager;

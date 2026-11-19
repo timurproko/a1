@@ -224,9 +224,8 @@ describe.each([false, true])("above-prompt autocomplete (history=%s)", history =
       if (history) {
         editor.recall!.replace(["saved"]); editor.handleInput?.("\u001b[A");
         const recalled = editor.render(80)[0]!;
-        expect(stripTerminalSequences(recalled).indexOf("1/1")).toBe(3);
-        expect(recalled).not.toContain("History");
-        expect(recalled).toContain(piTheme().fg("dim", "1/1 "));
+        expect(stripTerminalSequences(recalled).indexOf("History 1/1")).toBe(3);
+        expect(recalled).toContain(piTheme().fg("dim", "History 1/1 "));
       }
       editor.setText(""); editor.addAutocompleteProvider(() => provider); editor.handleInput?.("@");
       await expect.poll(() => parts(editor, 80).menu.length).toBe(5);
