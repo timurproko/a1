@@ -1,3 +1,7 @@
+## Purpose
+
+Decides which accent colour a session uses for highlighted interface controls.
+
 ## ADDED Requirements
 
 ### Requirement: Settings-less accent uses the declared default
