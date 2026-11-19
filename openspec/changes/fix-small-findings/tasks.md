@@ -18,9 +18,9 @@
 
 ## 4. README and CI comment match the code
 
-- [ ] 4.1 README navigator lists Session colors and Uninstall in section order
-- [ ] 4.2 README names the Update setting value Manual instead of No
-- [ ] 4.3 The `ci.yml` startup-budget comment says nightly and Full regression only record an overrun
+- [x] 4.1 README navigator lists Session colors and Uninstall in section order
+- [x] 4.2 README names the Update setting value Manual instead of No
+- [x] 4.3 The `ci.yml` startup-budget comment says nightly and Full regression only record an overrun
 
 ## 5. Interactive uninstall keeps user data unless purged
 
