@@ -2,7 +2,7 @@ import { sliceByColumn, stripTerminalSequences, visibleWidth } from "@earendil-w
 import { describe, expect, it } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../../src/contracts/owned-ui/index.js";
 import { applyPiTheme, applyPiThemeInstance, createPiShellFooter, currentPiAccentColor, piTheme, setPiAccentColor } from "../../../../src/integrations/pi/components/index.js";
-import { paintPiStatusHover } from "../../../../src/integrations/pi/components/theme.js";
+import { paintPiStatusHover } from "../../../support/status-hover-paint.js";
 import { cellBackgroundAt, cellInverseAt, cellStyle } from "../../../support/ansi-cell-style.js";
 import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
 

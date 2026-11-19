@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiSessionViewModel, OwnedUiThinkingLevel } from "../../../../src/contracts/owned-ui/index.js";
 import { hyperlinkTargetAtColumn, LineInput, PromptInput, renderInputRow } from "../../../../src/ui/components/index.js";
 import { applyPiTheme, createPiKeybindingsHost, createPiShellEditor, createPiShellFooter, createPiShellHeader, createPiShellHotkeys, loadHistoryEditor, piTheme, PINNED_PI_BUILTIN_SLASH_COMMANDS, setPiAccentColor } from "../../../../src/integrations/pi/components/index.js";
-import { paintPiStatusHover } from "../../../../src/integrations/pi/components/theme.js";
+import { paintPiStatusHover } from "../../../support/status-hover-paint.js";
 import { createPiShellThinkingSelector } from "../../../../src/integrations/pi/components/thinking-selector-dialog.js";
 import { KeybindingsManager, useWindowsKeybindings } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { cellBackgroundAt, cellInverseAt, cellStyle } from "../../../support/ansi-cell-style.js";

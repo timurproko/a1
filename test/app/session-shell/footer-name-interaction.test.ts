@@ -1,7 +1,7 @@
 import { sliceByColumn, stripTerminalSequences } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import { cellBackgroundAt, cellInverseAt, cellStyle } from "../../support/ansi-cell-style.js";
-import { paintPiStatusHover } from "../../../src/integrations/pi/components/theme.js";
+import { paintPiStatusHover } from "../../support/status-hover-paint.js";
 import { screenshotPng } from "../../fixtures/image-sources.js";
 import { fixture, nextImmediate } from "./session-shell-fixture.js";
 

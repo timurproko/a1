@@ -1907,7 +1907,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "A1 PR links, name/model fitting, level colors, name reveals, dim clipping, and shared foreground-only accent-blended name/model-plus-provider/level hover with direct dialog targets; Pi intact.",
       "upgradeStrategy": "three-way",
-      "localSha256": "6d5077717c7602d398dc2f8646f5af50afcd2be970cf922ed469bf22be66175a",
+      "localSha256": "a8957a51ae28b982ed4dbac56de807a96baea22137d4c972c8350e944a8116c2",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
