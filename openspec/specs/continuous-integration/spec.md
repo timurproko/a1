@@ -7,7 +7,7 @@ Defines proportionate automated validation: fast checks during development, pack
 ## Requirements
 
 ### Requirement: Validation effort matches the change and the channel
-Automated validation SHALL scale with what is being shipped. Documentation and specification changes SHALL require no product build or product test execution, but SHALL run every lightweight governance consistency check whose scanned inputs they change; OpenSpec changes SHALL also pass strict OpenSpec validation. Pull requests into `develop` SHALL require a bounded PR core consisting of typechecking, architecture and applicable governance checks, directly changed tests, reviewed path-owned test scopes, and a small current-product smoke set. They SHALL select additional rendering, startup, package, compatibility, and platform evidence only when coarse reviewed ownership marks it affected. Unknown operational inputs and changes to validation authority SHALL select complete development validation. Preview publication SHALL additionally require the complete fast tier and exact-package gates on every supported platform. A numbered development preview SHALL validate the exact package on the Windows, Linux, and macOS Node 24 lanes; Windows Node 22 coverage of every development head SHALL be provided by nightly publication and complete regression rather than by each preview. The lane set SHALL be derived from the publication mode by one reviewed repository script rather than a literal workflow matrix. Stable publication SHALL require the complete automated suite on every supported platform. The scheduled nightly workflow SHALL run one full tracked-repository documentation review and complete retained automated coverage against its authoritative `origin/develop` source before publication can succeed.
+Automated validation SHALL scale with what is being shipped. Documentation and specification changes SHALL require no product build or product test execution, but SHALL run every lightweight governance consistency check whose scanned inputs they change; OpenSpec changes SHALL also pass strict OpenSpec validation. Pull requests into `develop` SHALL require a bounded PR core consisting of typechecking, architecture and applicable governance checks, directly changed tests, reviewed path-owned test scopes, and a small current-product smoke set. They SHALL select additional rendering, startup, package, compatibility, and platform evidence only when coarse reviewed ownership marks it affected. Unknown operational inputs and changes to validation authority SHALL select conservative development validation: every coarse owner's critical test floor and every integration owner with `pull-request` cadence. Preview publication SHALL additionally require the complete fast tier and exact-package gates on every supported platform. A numbered development preview SHALL validate the exact package on the Windows, Linux, and macOS Node 24 lanes; Windows Node 22 coverage of every development head SHALL be provided by nightly publication and complete regression rather than by each preview. The lane set SHALL be derived from the publication mode by one reviewed repository script rather than a literal workflow matrix. Stable publication SHALL require the complete automated suite on every supported platform. The scheduled nightly workflow SHALL run one full tracked-repository documentation review and complete retained automated coverage against its authoritative `origin/develop` source before publication can succeed.
 
 An exact post-publication release reopening MAY use a dedicated lightweight route only when policy from the pull request's exact base re-verifies the current pull-request number, base and head identities, trusted App author, branch, complete four-file diff, version-only manifest changes, patch succession, published stable Release, and release-note equivalence. That route SHALL avoid dependency installation, head-controlled impact selection, product builds, product tests, rendering, and unrelated naming or documentation scans. It SHALL still produce the protected current-head aggregate and retain independent PR Full regression selection. Missing, stale, malformed, unavailable, or negative evidence SHALL grant no reopening exemption and SHALL fall back to ordinary validation or block.
 
@@ -23,7 +23,7 @@ An exact post-publication release reopening MAY use a dedicated lightweight rout
 
 #### Scenario: Validation authority or unknown input changes
 - **WHEN** a pull request changes workflow selection, ownership, suite composition, aggregation authority, common build policy, or an operational path with no trustworthy owner
-- **THEN** validation SHALL run complete applicable development coverage or block
+- **THEN** validation SHALL run conservative development coverage or block
 - **AND** no selective result SHALL be inferred from the untrusted policy
 
 #### Scenario: Preview candidate is built
@@ -58,7 +58,7 @@ An exact post-publication release reopening MAY use a dedicated lightweight rout
 ### Requirement: Development validation impact is classified deterministically
 The development workflow SHALL derive one machine-readable validation selection from the complete merge-base-to-head change, including additions, modifications, copies, deletions, rename sources, and rename destinations. Selection SHALL use a bounded, reviewed ownership registry that maps stable path groups, changed tests, shared support, explicit invalidators, and integration execution cadence to logical scopes and platform/runtime targets. The ownership result SHALL be understandable from path and policy records without requiring successful whole-repository source parsing. Dependency reachability MAY add scope reasons but SHALL NOT be the sole authority for a known coarse owner.
 
-Every changed pull-request-eligible retained test SHALL select its owning scope, including tests outside the PR core. A changed exhaustive-only test SHALL be recorded as deferred from ordinary PR execution and SHALL select its focused deterministic contract coverage rather than its exhaustive owner. Changes to shared test support SHALL select the pull-request owners of every retained test that reaches the changed path through the test tree's static import graph, and SHALL record affected exhaustive owners for Full/nightly execution; when no retained test reaches the path (including support consumed only from outside the test tree) or the graph cannot be built, the change SHALL select every owner the shared rule declares and SHALL record that fallback. Reachability SHALL only narrow a shared rule's declared owner set and SHALL never remove an owner selected by its own path or changed-test rules. Unknown ownership, unavailable history, malformed policy, or classifier failure SHALL select complete applicable pull-request coverage or block rather than produce an empty selection. Typechecking, architecture, applicable naming/documentation governance, validation-policy integrity, directly changed pull-request tests, and the declared smoke contracts SHALL remain mandatory in the PR core. Manual Development validation without a complete trusted change comparison SHALL run all retained pull-request scopes; Full regression and nightly/release coverage SHALL remain complete and SHALL not be reduced by PR impact selection. An implementation-bound lifecycle association SHALL disable the documentation-only and version-only exemptions so the PR core always runs, and SHALL NOT by itself select conservative ownership; the associated pull request's unit and integration owners SHALL still be chosen by impact from its complete change.
+Every changed pull-request-eligible retained test SHALL select its owning scope, including tests outside the PR core. A changed exhaustive-only test SHALL be recorded as deferred from ordinary PR execution and SHALL select its focused deterministic contract coverage rather than its exhaustive owner. Changes to shared test support SHALL select the pull-request owners of every retained test that reaches the changed path through the test tree's static import graph, and SHALL record affected exhaustive owners for Full/nightly execution; when no retained test reaches the path (including support consumed only from outside the test tree) or the graph cannot be built, the change SHALL select every owner the shared rule declares and SHALL record that fallback. Reachability SHALL only narrow a shared rule's declared owner set and SHALL never remove an owner selected by its own path or changed-test rules. Unknown ownership, unavailable history, malformed policy, or classifier failure SHALL select conservative coverage, which is every coarse owner's critical test floor and every integration owner with `pull-request` cadence, or block rather than produce an empty selection. Typechecking, architecture, applicable naming/documentation governance, validation-policy integrity, directly changed pull-request tests, and the declared smoke contracts SHALL remain mandatory in the PR core. Manual Development validation without a complete trusted change comparison SHALL use the same conservative coverage; Full regression and nightly/release coverage SHALL remain complete and SHALL not be reduced by PR impact selection. A link to an OpenSpec change in the pull-request body SHALL NOT change selection: a linked pull request SHALL be classified from its complete change exactly as an unlinked one.
 
 #### Scenario: Changed source is transitively rendered
 - **WHEN** a changed operational path belongs to the reviewed UI/rendering owner or a declared shared input affects rendering
@@ -88,7 +88,7 @@ Every changed pull-request-eligible retained test SHALL select its owning scope,
 - **WHEN** a retained pull-request integration test or its declared shared support changes without production changes
 - **THEN** the pull-request owners of that test, and of every retained test that imports the changed support directly or through other support files, SHALL execute in current-head PR validation with the reaching tests recorded as the reason
 - **AND** affected exhaustive-only owners SHALL be recorded as deferred rather than silently omitted
-- **AND** unknown test ownership SHALL select complete applicable pull-request coverage or block
+- **AND** unknown test ownership SHALL select conservative coverage or block
 
 #### Scenario: Shared support has no known importer
 - **WHEN** a changed path under a shared-support rule is reached by no retained test, including one consumed only from outside the test tree, or the import graph cannot be built
@@ -102,18 +102,18 @@ Every changed pull-request-eligible retained test SHALL select its owning scope,
 
 #### Scenario: Validation selection infrastructure changes
 - **WHEN** workflow selection, ownership, suite composition, aggregation, package dependencies, or common build configuration changes
-- **THEN** classification SHALL select every retained pull-request scope whose execution or interpretation may be affected
-- **AND** a selector or ownership-policy change SHALL require complete retained pull-request coverage
+- **THEN** classification SHALL select conservative coverage: every coarse owner's critical test floor and every integration owner with `pull-request` cadence
+- **AND** the conservative fallback alone SHALL NOT select a direct-impact owner
 - **AND** exhaustive-only owners SHALL remain required by their Full/nightly cadence rather than becoming ordinary PR work
 
 #### Scenario: Classification cannot prove safety
 - **WHEN** the authoritative head, complete diff, registry, or required changed path cannot be established or interpreted
-- **THEN** development validation SHALL run complete applicable pull-request coverage or block
+- **THEN** development validation SHALL run conservative coverage or block
 - **AND** the reason and every cadence-deferred owner SHALL be visible in machine-readable and human-readable evidence
 
 #### Scenario: Manual development validation has no trusted comparison
 - **WHEN** Development validation is manually dispatched without a complete authoritative change comparison
-- **THEN** every retained pull-request scope SHALL run rather than treating an empty diff as proof of no impact
+- **THEN** conservative coverage SHALL run rather than treating an empty diff as proof of no impact
 - **AND** the maintainer SHALL use Full regression when exhaustive validation is required
 
 #### Scenario: Implementation-bound diff is documentation-shaped
@@ -168,33 +168,6 @@ Every modular development gate and complete-regression shard SHALL emit its sele
 - **THEN** the workflow and merged evidence SHALL report each shard's assigned owners, elapsed time, result, and overlap context
 - **AND** a failed owner SHALL remain attributable to its canonical Windows runtime and shard job
 
-### Requirement: Development merges are gated by one required check
-GitHub SHALL require the development validation check, and the `delivery / Delivery check`
-of the shared delivery workflow, for pull requests into `develop`, which SHALL be
-the only branch a change can be written to directly. The development validation check
-SHALL remain the single check the workflows of this repository publish for that gate.
-
-`master` SHALL record the commit the npm `latest` tag serves. Only a completed
-stable publication SHALL write it, by fast-forward, and it SHALL carry no check or
-pull-request requirement of its own — requiring one would prevent the release from
-recording itself. Release tags SHALL be protected from deletion and movement and
-SHALL likewise carry no check, because a tag is cut from a commit that has already
-been validated. Publication SHALL NOT serve as the first automated validation of a
-change.
-
-#### Scenario: Required check has not passed
-- **WHEN** a pull request targets `develop` and either required check is absent or unsuccessful
-- **THEN** GitHub SHALL prevent the merge
-
-#### Scenario: A stable version is published
-- **WHEN** publication to npm `latest` completes
-- **THEN** `master` SHALL be fast-forwarded to the published commit
-- **AND** a preview publication SHALL leave `master` unchanged
-
-#### Scenario: A release tag is targeted
-- **WHEN** a deletion or force update of a `v*` tag is attempted
-- **THEN** GitHub SHALL refuse it
-
 ### Requirement: Preview and stable artifacts are published from verified bytes
 Every npm artifact required by a release, including `@timurproko/a1` and `@timurproko/a1-install`, SHALL be packed once for its final version, validated in that exact form, and uploaded without rebuilding. The publisher SHALL independently verify each package digest before upload and SHALL verify that registry bytes are the bytes validated for that package identity. Post-upload verification SHALL read each package's exact-version registry resource and the package's dedicated dist-tag resource, SHALL validate the returned package name and version in addition to integrity and shasum, and SHALL NOT require an independently cached package-wide metadata document to enumerate the newly published version.
 
@@ -230,9 +203,9 @@ The installer artifact SHALL be built from the same authoritative source and sel
 
 ### Requirement: The complete suite remains available on demand
 
-The complete non-physical automated suite SHALL remain runnable locally (`npm run test:full`) and through manual workflow dispatch, so a maintainer can widen validation when a change feels risky, and SHALL run on a nightly schedule against the current `develop` tip so exhaustive owners and enforced budgets are exercised every day independent of publication. Routine development SHALL NOT require it.
+The complete non-physical automated suite SHALL remain runnable locally (`npm run test:full`) and through manual workflow dispatch, so a maintainer can widen validation when a change feels risky, and SHALL run on a nightly schedule against the current `develop` tip so exhaustive owners run and startup budgets are measured every day independent of publication. Routine development SHALL NOT require it.
 
-Standalone and selected PR-attached Full regression SHALL execute the complete Windows Node 22 and Node 24 coverage through reviewed parallel hosted-runner shards. Each Windows runtime SHALL have `core`, `resource`, `rendering`, and `package` shard evidence derived from one canonical complete plan. Every canonical command and test invocation SHALL belong to exactly one shard, and one successful Windows lane result SHALL be reconstructed only from all four exact-source, exact-run, exact-attempt, exact-runtime shard results. Missing, duplicate, stale, malformed, failed, cancelled, or unexpected shard evidence SHALL fail the applicable lane and required aggregate. Linux, macOS, local full validation, and publication validation MAY retain one sequential complete plan.
+Standalone and selected PR-attached Full regression SHALL execute the complete Windows Node 22 and Node 24 coverage through reviewed parallel hosted-runner shards. Each Windows runtime SHALL have `core`, `resource`, `rendering`, `package`, and `predecessor` shard evidence derived from one canonical complete plan. Every canonical command and test invocation SHALL belong to exactly one shard, and one successful Windows lane result SHALL be reconstructed only from all five exact-source, exact-run, exact-attempt, exact-runtime shard results. Missing, duplicate, stale, malformed, failed, cancelled, or unexpected shard evidence SHALL fail the applicable lane and required aggregate. Linux, macOS, local full validation, and publication validation MAY retain one sequential complete plan.
 
 A scope that the complete-regression lanes cannot run MAY be excluded from the `full-release` plan only through an explicit `fullReleaseExclusion` reason on its definition in `config/validation-suites.json`. No scope is currently permitted such an exclusion; adding one SHALL require a reviewed change to this requirement that names the scope and its reason.
 
@@ -240,17 +213,17 @@ A scope that the complete-regression lanes cannot run MAY be excluded from the `
 
 - **WHEN** the maintainer dispatches the full-regression workflow or runs the full tier locally
 - **THEN** every non-physical scope without a declared `fullReleaseExclusion` SHALL execute and report per-scope timing and outcomes
-- **AND** workflow-dispatched Windows coverage SHALL reconstruct each runtime lane from all four required shards while local validation MAY remain sequential
+- **AND** workflow-dispatched Windows coverage SHALL reconstruct each runtime lane from all five required shards while local validation MAY remain sequential
 
 #### Scenario: Nightly schedule fires
 
 - **WHEN** the scheduled Full regression runs
-- **THEN** it SHALL validate the current `develop` tip with every pull-request and exhaustive owner whose scopes are not declared `fullReleaseExclusion`, and with enforced startup budgets
+- **THEN** it SHALL validate the current `develop` tip with every pull-request and exhaustive owner whose scopes are not declared `fullReleaseExclusion`, and with startup budgets measured and recorded
 - **AND** its failure SHALL be visible as a workflow failure without changing publication authority
 
 #### Scenario: Windows shard evidence is complete
 
-- **WHEN** all four Windows shards for one runtime belong to the same exact source, canonical plan, workflow run, and attempt and every assigned outcome succeeds
+- **WHEN** all five Windows shards for one runtime belong to the same exact source, canonical plan, workflow run, and attempt and every assigned outcome succeeds
 - **THEN** validation SHALL reconstruct one complete result in canonical outcome order and bind it to the existing Windows runtime lane
 - **AND** the protected complete-regression aggregate SHALL continue to require that lane alongside the other three platform/runtime lanes
 
@@ -457,8 +430,8 @@ version.
 After verified stable publication, trusted automation SHALL create one reopening
 pull request whose single commit persists the exact published note and consistently
 declares the next prerelease in the application manifest, root lockfile, and installer
-manifest. It SHALL use then-current compatible `develop`, change no other paths, keep
-auto-merge disabled, and never merge the pull request.
+manifest. It SHALL use then-current compatible `develop`, change no other paths, and never merge the pull request itself; integration belongs to the
+release-reopening auto-merge manager.
 
 #### Scenario: Several commits land in a row
 - **WHEN** several commits are pushed to `develop`
@@ -483,7 +456,7 @@ auto-merge disabled, and never merge the pull request.
 #### Scenario: A release reopens development
 - **WHEN** stable `0.1.8` is published to npm from approved source declaring `0.1.8-dev`
 - **THEN** trusted automation SHALL prepare one PR declaring `0.1.9-dev` and adding the exact published `docs/releases/0.1.8.md`
-- **AND** development SHALL be reported reopened only after an authorized human manually merges that PR following required CI
+- **AND** development SHALL be reopened only when that PR is merged after required CI passes on its current head
 
 #### Scenario: Develop advances during publication
 - **WHEN** unrelated work advances `develop` before reopening is prepared
@@ -492,31 +465,8 @@ auto-merge disabled, and never merge the pull request.
 
 #### Scenario: Reopening work already exists
 - **WHEN** the expected reopening branch or PR already exists
-- **THEN** automation SHALL reuse it only if repository, state, base, head, single-parent commit, exact changed paths, versions, approved-note digest, and absence of auto-merge all match
+- **THEN** automation SHALL reuse it only if repository, state, base, head, single-parent commit, exact changed paths, versions, and approved-note digest all match and auto-merge is either absent or armed for squash
 - **AND** conflicting work SHALL be preserved and refused rather than overwritten
-
-### Requirement: A failing pull request is the next piece of work
-The result of a pull request's validation SHALL be read before any further work
-begins, and a pull request whose validation is failing SHALL be repaired before new
-work starts. Work SHALL NOT be stacked on a change whose validation is failing,
-because the repair then costs a merge with the base branch and a second full run.
-A failure that this change did not cause SHALL be reported with its evidence and
-still addressed, since it fails every pull request behind it. Validation SHALL be
-reported as what it said rather than as what it was expected to say.
-
-#### Scenario: Validation fails
-- **WHEN** a pull request's required check reports a failure
-- **THEN** repairing it SHALL be the next task
-- **AND** no further change SHALL be started on top of it until it passes
-
-#### Scenario: The failure came from elsewhere
-- **WHEN** a failure is not caused by the change under review
-- **THEN** it SHALL be reported with the evidence for that
-- **AND** it SHALL still be addressed before other work continues
-
-#### Scenario: The result has not been read
-- **WHEN** validation has been triggered and its result has not been read
-- **THEN** the change SHALL NOT be described as passing
 
 ### Requirement: Resource-sensitive fast validation is partitioned deterministically
 The fast validation tier SHALL declare tests whose subprocess, temporary-repository, or release-store workloads require protection from shared runner contention. Every declared resource-sensitive test SHALL be excluded from the parallel remainder, SHALL execute exactly once in one non-file-parallel partition process on an isolated runner under the partition's explicit hang bound, and SHALL retain all of its semantic assertions. The hang bound SHALL be the same explicit thirty-second bound the other explicit fast-tier invocations declare; it SHALL be recorded in the plan evidence as explicit, and it SHALL NOT serve as a performance assertion. Pull-request validation and exact-package validation SHALL derive the same partition from the same authoritative suite configuration on every platform. The ordinary remainder and resource-sensitive partition SHALL report separate planned commands, elapsed time, outcomes, and available subprocess or fixture timing. A failed assertion, process error, missing or duplicate test owner, or hang-bound expiry SHALL fail the tier without automatically retrying the test. Per-test durations SHALL remain available as evidence, and the focused timing report SHALL name every test body above five seconds so a slowdown is visible without failing the pull request on shared-runner variance.
@@ -656,41 +606,6 @@ The release command SHALL continue to require a target. It SHALL reject a missin
 - **THEN** the command SHALL display usage requiring `patch`, `minor`, `major`, or an exact stable version
 - **AND** it SHALL make no release mutations
 
-### Requirement: Release reopening pull requests integrate after validation
-The post-publication next-development pull request SHALL remain subject to required
-validation and SHALL integrate automatically through the release-reopening auto-merge
-manager once its exact current head passes required validation. The release command SHALL NOT create a pre-publication release-note or
-stable-version pull request, enable auto-merge itself, directly merge the reopening PR,
-relax branch protection, or treat CI success on any head other than the current one as
-permission to advance. It SHALL display the draft Release and reopening PR URLs with
-phase-specific steps and verify the reopening PR's actual merge before reporting
-completion. A reopening PR that fails verification SHALL fall back to manual merge.
-
-Reopening preparation SHALL preserve the caller's checkout, staged/unstaged work,
-and unrelated worktrees. Version edits SHALL affect only this package's manifest and
-root lockfile version fields, not dependency versions, and the only additional file
-SHALL be the exact approved `docs/releases/<released-version>.md`. Pending or failed
-work SHALL remain identifiable without destructive resets or silent replacement of a
-conflicting draft, branch, or PR. Reusing an existing reopening PR SHALL accept only no
-armed auto-merge or squash auto-merge armed by the trusted manager.
-
-#### Scenario: Prepare the stable version PR
-- **WHEN** the command prepares stable `0.1.8` from `0.1.8-dev`
-- **THEN** it SHALL present the draft GitHub Release for editing and SHALL create no stable-version or release-note pull request
-
-#### Scenario: Prepare the reopening PR
-- **WHEN** stable `0.1.8` is published successfully
-- **THEN** the command SHALL present one PR containing `0.1.9-dev` version changes and the exact approved `docs/releases/0.1.8.md`
-- **AND** that PR SHALL integrate without maintainer merge action once its current head passes required validation
-
-#### Scenario: A version PR is not merged
-- **WHEN** the reopening PR is closed without merging, cannot be verified, or remains pending beyond the bounded wait
-- **THEN** the command SHALL report its identity and incomplete state without merging it itself or claiming that development reopened
-
-#### Scenario: Local work appears while a release waits
-- **WHEN** the caller's checkout changes while release orchestration is awaiting publication or the reopening PR
-- **THEN** those changes SHALL be preserved and any unsafe local synchronization SHALL be declined with authoritative remote state reported
-
 ### Requirement: Development reopens only after verified stable publication
 Trusted automation SHALL prepare the next patch development version only after the
 publication run has verified both exact npm packages, exercised the published pair,
@@ -700,7 +615,7 @@ rather than silently substitute a newer source SHA or regenerated note.
 
 For released `x.y.z`, the reopening target SHALL be `x.y.(z+1)-dev`. Reopening SHALL
 be reported complete only after its separate PR containing the next version and exact
-approved note is manually merged and remote content is verified. Failed or uncertain
+approved note is merged. Failed or uncertain
 publication SHALL not trigger reopening. Successful publication followed by
 incomplete reopening SHALL be reported as two distinct outcomes without republishing
 or altering immutable release records.
@@ -708,7 +623,7 @@ or altering immutable release records.
 #### Scenario: Finish the current release cycle
 - **WHEN** publication of stable `0.1.8` and its published note completes
 - **THEN** trusted automation SHALL prepare a separate PR for `0.1.9-dev` plus `docs/releases/0.1.8.md`
-- **AND** development SHALL be reported reopened only after that PR is manually merged and verified
+- **AND** development SHALL be reported reopened only after that PR is merged
 
 #### Scenario: Publication fails or remains uncertain
 - **WHEN** stable publication fails, is cancelled, or cannot be confirmed
@@ -730,13 +645,13 @@ runbook and applicable command help SHALL explain the target-required rule,
 prerelease promotion, draft Release editing, candidate validation, native **Publish
 release** as the only stable npm trigger, automatic return to draft before npm,
 rerunning failed jobs after npm, publication-before-reopening order, next-development
-version, and the manual reopening-PR gate. They SHALL NOT advertise a no-argument
+version, the automatic squash merge of the reopening PR once required CI passes, and its manual-merge fallback. They SHALL NOT advertise a no-argument
 release mode, the retired `--approve` form, a Save-draft handoff, waiting for npm
 readiness, a pre-publication notes PR, or self-merging reopening.
 
 A dependency-free semantic governance check SHALL validate the applicable contract
 whenever the root README or release runbook changes, including documentation-only
-pull requests eligible for automatic integration. It SHALL reject malformed or
+pull requests. It SHALL reject malformed or
 resolver-inaccurate command examples, missing operator safety gates, and retired
 handoff instructions. Unrelated documentation changes SHALL not gain product builds
 or broad product tests solely for this contract.
@@ -747,72 +662,11 @@ or broad product tests solely for this contract.
 
 #### Scenario: Read recovery guidance
 - **WHEN** a maintainer needs preparation, validation, publication, reopening, or recovery behavior
-- **THEN** the runbook SHALL state that a failure before npm returns the Release to draft, that a failure after npm is recovered by rerunning the same run's failed jobs, and that reopening follows confirmed publication and requires manual merge
+- **THEN** the runbook SHALL state that a failure before npm returns the Release to draft, that a failure after npm is recovered by rerunning the same run's failed jobs, and that reopening follows confirmed publication, is squash-merged automatically once required CI passes, and is merged manually when that automation fails
 
 #### Scenario: Documentation-only release commands drift
 - **WHEN** a documentation-only pull request changes root release examples or the release runbook
-- **THEN** lightweight semantic governance SHALL validate the changed contract before automatic integration and inaccurate examples, missing safety gates, or retired handoff instructions SHALL fail without broad product tests
-
-### Requirement: Independent development partitions do not serialize feedback
-Development validation SHALL schedule the mandatory PR core and each selected integration partition independently after its actual prerequisites. Resource-sensitive files selected by ownership SHALL remain non-file-parallel on an isolated runner, with the same authoritative membership and the same explicit hang bound used by complete validation. No selected test SHALL be duplicated between partitions on the same platform/runtime merely because job boundaries changed. Cross-platform and cross-runtime executions SHALL remain distinct evidence where selected.
-
-The single protected-branch aggregate SHALL require the PR core and every scope selected for the current head and selection identity. It SHALL reject missing, failed, cancelled, stale, malformed, or unexpectedly skipped selected results. A skipped integration scope SHALL be acceptable only when the current trustworthy selection explicitly excludes it. Independent jobs SHALL not share mutable application state or owned process trees. The modular job matrix SHALL be derived from the trusted selection by one reviewed repository script that declares every Development modular job; an entry the selection leaves inactive SHALL NOT be scheduled, each scheduled job SHALL still resolve its own owners from the uploaded selection, and the aggregate SHALL still require successful evidence for every selected owner.
-
-#### Scenario: Fast work and resume checks are selected
-- **WHEN** a code PR requires the PR core, a resource-sensitive owner, and package resume integration
-- **THEN** the resource-sensitive and resume jobs SHALL not depend on completion of unrelated core tests solely for sequencing
-- **AND** all selected results SHALL be required before the aggregate succeeds
-
-#### Scenario: Serialization would be replaced by contention
-- **WHEN** a resource-sensitive partition is selected alongside ordinary validation
-- **THEN** it SHALL execute on an isolated runner rather than concurrently on the ordinary runner
-- **AND** it SHALL retain one-file-at-a-time execution and all existing assertions under the partition's explicit hang bound
-
-#### Scenario: A selected partition is skipped
-- **WHEN** the current selection requires a core or integration partition but that partition is missing, cancelled, or skipped
-- **THEN** the aggregate SHALL fail even if every completed partition passed
-
-#### Scenario: Evidence belongs to another selection
-- **WHEN** a result belongs to another head, workflow run, or selection identity
-- **THEN** it SHALL NOT satisfy the current aggregate
-
-#### Scenario: Finalized Implementation candidate completes validation
-- **WHEN** a finalized pull request that links an OpenSpec change runs ordinary exact-head validation
-- **THEN** selected product validation SHALL execute for that candidate
-- **AND** the stable protected aggregate SHALL succeed in the same workflow run only after every selected result succeeds
-- **AND** no further body edit or second workflow run SHALL be required before manual review and merge
-
-#### Scenario: Manual review rejects the implementation
-- **WHEN** manual review finds a defect after the protected aggregate succeeds
-- **THEN** the pull request SHALL remain open in Implementation while fixes are pushed
-- **AND** the changed exact head SHALL run normal validation again before merge
-
-#### Scenario: Complete validation is requested
-- **WHEN** conservative PR classification, Full regression, nightly, preview, or stable validation requests complete retained coverage
-- **THEN** every retained fast and applicable integration owner SHALL execute under its declared isolation and platform/runtime contract
-
-#### Scenario: Inactive matrix entries are not scheduled
-- **WHEN** the trusted selection activates only some declared modular jobs
-- **THEN** the workflow SHALL schedule only the active entries and record the unscheduled ones in the run summary
-- **AND** the aggregate SHALL fail when an active entry produced no successful evidence
-
-### Requirement: Feedback optimization is measured without weakening coverage
-Development validation SHALL report selection time, available queue time, setup/build/pack time, repository gate time, per-scope outcomes, and aggregate elapsed time separately. Package fixtures SHALL report bounded phase timings for installation, materialization, certification/warmup, launch, shutdown, and cleanup where executed, including unsuccessful phases. Evidence SHALL identify head, selection, runner, Node version, candidate digest where applicable, cache state, build/pack counts, and test ownership. Reporting SHALL not expose credentials or raw user content.
-
-Acceptance SHALL compare representative unrelated, startup-sensitive, and conservative-full selections against recorded baselines, preserving all measured attempts and distinguishing cached and uncached setup. When hosted scheduling prevents the complete planned observation set, acceptance MAY proceed only through an explicit maintainer known-gap disposition that identifies every missing class/control; missing samples SHALL remain unperformed, SHALL NOT support a speedup or completed-performance claim, and SHALL NOT be converted into passing evidence or automatic completed-change archival. Structural ownership and failure-path checks SHALL be mandatory. Wall-clock improvement targets SHALL be reported as achieved or unmet, not enforced by increasing product budgets, shortening representative workloads, hiding failed attempts, or retrying until green.
-
-#### Scenario: A startup job is slow
-- **WHEN** a startup job takes substantially longer than its measured command launches
-- **THEN** the evidence SHALL distinguish install and fixture phases from actual launch latency and cleanup
-
-#### Scenario: An optimized partition fails
-- **WHEN** a scope fails before the remaining scopes execute
-- **THEN** completed and failing phase evidence SHALL be retained and unfinished work SHALL remain explicitly incomplete
-
-#### Scenario: A speedup is claimed
-- **WHEN** the maintainer reviews optimization acceptance
-- **THEN** evidence SHALL include before/after elapsed and runner-cost measurements, selection and ownership differences, cache conditions, and all failed attempts
-- **AND** the complete non-PR suite SHALL retain every prior semantic scenario and supported platform/runtime owner
+- **THEN** lightweight semantic governance SHALL validate the changed contract and inaccurate examples, missing safety gates, or retired handoff instructions SHALL fail without broad product tests
 
 ### Requirement: Same-head failed-job reruns reuse only authoritative successes
 Development validation SHALL support GitHub's failed-jobs-only rerun for an unchanged workflow run, head, and selection. A successful selected job from an earlier attempt of that same run MAY satisfy the rerun aggregate when that job was not rerun, while every job executed in the current attempt SHALL use its current-attempt result. Evidence names SHALL remain distinct across attempts. A different head, run, workflow selection, or changed ownership identity SHALL invalidate reuse. Semantic test failures SHALL never be retried automatically or converted to success, and every failed attempt SHALL remain visible.
@@ -854,7 +708,7 @@ Checkout-bound type, architecture, governance, unit, and smoke jobs SHALL bind t
 - **THEN** the required aggregate SHALL fail rather than infer success
 
 ### Requirement: Integration owners declare pull-request or exhaustive cadence
-Every retained integration owner SHALL declare exactly one execution cadence: `pull-request` or `exhaustive`. Ordinary bounded `pull_request` and manual Development validation SHALL schedule only pull-request owners. Impact selection SHALL choose affected pull-request owners, while conservative ordinary selection SHALL choose all pull-request owners. Only a trusted-CI-created repair pull request carrying valid provenance for a failed Full regression SHALL additionally invoke the shared Full regression implementation inside its PR workflow, including all exhaustive owners. This explicit complete-regression selection SHALL be an exception to ordinary cadence deferral, not a reclassification or deletion of owners. Exhaustive owners SHALL remain mandatory in manual and scheduled Full regression and nightly/stable release validation and SHALL never be inferred from focused PR coverage. An owner whose assertion is wall-clock timing on shared runners SHALL remain exhaustive, with its deterministic contracts covered by pull-request owners.
+Every retained integration owner SHALL declare exactly one execution cadence: `pull-request`, `direct-impact`, or `exhaustive`. Ordinary bounded `pull_request` and manual Development validation SHALL schedule only pull-request owners and directly affected direct-impact owners. Impact selection SHALL choose affected owners, while conservative ordinary selection SHALL choose all pull-request owners and SHALL NOT select a direct-impact owner on the strength of the fallback alone. Only a trusted-CI-created repair pull request carrying valid provenance for a failed Full regression SHALL additionally invoke the shared Full regression implementation inside its PR workflow, including all exhaustive owners. This explicit complete-regression selection SHALL be an exception to ordinary cadence deferral, not a reclassification or deletion of owners. Exhaustive owners SHALL remain mandatory in manual and scheduled Full regression and nightly/stable release validation and SHALL never be inferred from focused PR coverage. An owner whose assertion is wall-clock timing on shared runners SHALL remain exhaustive, with its deterministic contracts covered by pull-request owners.
 
 A malformed, missing, or unknown cadence declaration SHALL block ordinary selection rather than default an exhaustive owner into or out of validation. Selection evidence SHALL distinguish ordinary selected owners, ordinary cadence-deferred owners, and owners executed by an eligible generated repair's complete regression. The protected aggregate SHALL require every selected PR owner and any selected complete-regression result. It SHALL neither wait for nor accept evidence from an owner proven deferred by both selections.
 
@@ -891,12 +745,12 @@ A malformed, missing, or unknown cadence declaration SHALL block ordinary select
 - **AND** no omitted owner SHALL be interpreted as safely deferred
 
 ### Requirement: Pull-request latency targets are measured by owner and scope
-Development validation SHALL report setup, per-scope invocation, selected-job execution, aggregate processing, and runner execution critical-path durations without counting pre-runner queue delay as test execution. Acceptance evidence for this change SHALL include representative owned-path and conservative validation runs. The ordinary PR target SHALL be no more than eight minutes of runner execution critical path and no more than five minutes for any individual PR-required scope invocation.
+Development validation SHALL report setup, per-scope invocation, selected-job execution, aggregate processing, and runner execution critical-path durations without counting pre-runner queue delay as test execution. The ordinary PR target SHALL be no more than eight minutes of runner execution critical path and no more than five minutes for any individual PR-required scope invocation.
 
-These targets SHALL be evaluated by removing or optimizing inappropriate work, not by increasing timeouts, shrinking representative workloads, caching mutable installed state, suppressing assertions, or retrying failures. Hosted variance MAY be reported, but an observation above either target SHALL remain an unmet result and SHALL not support a completed speedup claim.
+These targets SHALL be evaluated by removing or optimizing inappropriate work, not by increasing timeouts, shrinking representative workloads, caching mutable installed state, suppressing assertions, or retrying failures. Hosted variance MAY be reported, but an observation above either target SHALL remain an unmet result.
 
 #### Scenario: Conservative PR timing is inspected
-- **WHEN** a validation-authority change selects complete pull-request coverage
+- **WHEN** a validation-authority change selects conservative pull-request coverage
 - **THEN** evidence SHALL identify every owner and scope on the critical path with separate setup and invocation durations
 - **AND** it SHALL report the eight-minute and five-minute targets as met or unmet
 
@@ -906,7 +760,7 @@ These targets SHALL be evaluated by removing or optimizing inappropriate work, n
 
 #### Scenario: A PR-required scope exceeds its target
 - **WHEN** an individual selected PR scope takes more than five minutes or the runner execution critical path exceeds eight minutes
-- **THEN** acceptance evidence SHALL report the target as unmet
+- **THEN** the aggregate evidence SHALL report the target as unmet
 - **AND** validation SHALL retain the original assertions, timeout, first-attempt outcome, and failure visibility
 
 ### Requirement: Publication lanes deduplicate exact-package installation
@@ -948,16 +802,16 @@ Reusable preparation SHALL remain scoped to one lane and one exact candidate. It
 ### Requirement: Startup budget enforcement is declared per channel
 Validation SHALL select startup budget enforcement through the `STARTUP_BUDGET_ENFORCEMENT` contract. The value `fail` SHALL enforce the declared budgets by failing the gate on an overrun. The value `record` SHALL retain every measurement, record each overrun as evidence and as a run annotation, and allow the run to succeed. An absent or unrecognized value SHALL mean `fail`.
 
-Development publication and ordinary pull-request validation SHALL run in `record` mode. Nightly publication, stable publication, and complete regression SHALL run in `fail` mode, and the complete regression workflow SHALL state its mode explicitly rather than rely on the default. No mode SHALL reduce the measured profiles or launch kinds, retry a measurement, or suppress a launch that never became input-ready.
+Development publication, nightly publication, complete regression, and ordinary pull-request validation SHALL run in `record` mode, each stating its mode explicitly rather than relying on the default. Stable candidate validation, whose validated bytes stable publication adopts, SHALL run in `fail` mode. A recording channel SHALL be judged by the persistent-overrun verdict the nightly regression triage computes. No mode SHALL reduce the measured profiles or launch kinds, retry a measurement, or suppress a launch that never became input-ready.
 
 The startup performance evidence SHALL name the enforcement mode it was produced under and SHALL list every recorded violation with its profile, launch kind, measured elapsed time, applicable budget, and dominant phases. Publication lanes SHALL upload that evidence with their platform outcomes and SHALL summarize each measurement, its budget, and its status in the run summary.
 
 #### Scenario: A development preview lane records an overrun
-- **WHEN** a publication lane resolves the development channel and an exact packaged launch exceeds its budget
+- **WHEN** a publication lane resolves the `next` channel, for a development preview or a nightly, and an exact packaged launch exceeds its budget
 - **THEN** the lane SHALL receive `record`, annotate the run, upload the violation with its platform outcomes, and succeed
 
 #### Scenario: A publication lane enforces an overrun
-- **WHEN** a publication lane resolves the nightly or stable channel and the same launch exceeds the same budget
+- **WHEN** a publication lane resolves the stable `latest` channel and the same launch exceeds the same budget
 - **THEN** the lane SHALL receive `fail` and block publication with the dominant measured phases
 
 #### Scenario: A pull request measures startup
@@ -1013,60 +867,6 @@ The publication workflow final result job SHALL, when the selected outcome was n
 #### Scenario: Publication succeeds
 - **WHEN** the run completes successfully
 - **THEN** the command output and result summary SHALL be unchanged apart from the earlier run URL line
-
-### Requirement: A failed nightly regression proposes its fix
-When a `Full regression` run on `develop` or a scheduled `Publish` validation completes with a failure, one trusted workflow SHALL open or refresh a draft pull request against `develop` that carries the failure evidence in a triage comment and in the change's design: the failed owners per platform and Node lane, the test files those owners retain, a bounded excerpt of the failing test output, the `develop` commits since the last successful run of the same workflow, and a link to the failed run. The pull request body SHALL use the ordinary delivery layout with two generated unchecked implementation outcomes, reproduce and fix, one generated acceptance outcome, and the triage key inside the automation block, so that the fixer checks the generated outcomes as they complete and trusted readiness promotes the all-checked draft like any other; the triage SHALL NOT edit that body again. The pull request SHALL start from the failed head, SHALL contain only an OpenSpec change scaffold for the fix, and SHALL follow the ordinary implementation-bound delivery rules from there. The generated scaffold SHALL include bounded machine-readable source provenance naming the workflow, run, event, conclusion, source head, and candidate identity.
-
-After implementation, a repair candidate created from a failed Full regression SHALL receive complete regression inside its PR workflow and SHALL be handed off only after that complete suite and the other required checks succeed on the final candidate head. A repair created only from a scheduled Publish failure SHALL retain ordinary selected PR validation and the publication pipeline's independent complete validation, but SHALL NOT select PR-attached Full regression solely because it is a triage candidate. A separate manual dispatch SHALL NOT be required in addition to successful selected PR-attached complete regression. Pre-finalization investigation evidence MAY remain in design.md, while final-head run identity and outcomes SHALL be bound through PR checks, Actions artifacts, and the handoff without a self-invalidating evidence-only commit.
-
-A run on any other branch, including manually dispatched or PR-attached Full regression on a fix candidate, SHALL open or refresh nothing. The same trusted triage workflow SHALL continue to evaluate every eligible completed `develop` run, failed or not, for a persistent startup-budget overrun from that run and the two previous completed runs of the same workflow; a persistent overrun SHALL be proposed as a failure of `package-startup` with the three measurements per lane, profile, and launch kind under its own candidate key, while a single overrun SHALL be recorded in the triage report and summary only. The proposal SHALL NOT re-run validation, edit `develop`, mark the pull request ready, merge, or change the nightly failure's own visibility or publication authority.
-
-#### Scenario: Nightly regression fails on one lane
-- **WHEN** the scheduled Full regression fails with owners `a` and `b` on Windows Node 24 and passes elsewhere
-- **THEN** a draft pull request `fix/nightly-regression-<date>` SHALL exist whose triage comment and change design carry `a` and `b`, their test files, the lane, the log excerpt, the suspect commits, and the run link, with generated source provenance in its scaffold
-- **AND** its body SHALL carry two unchecked generated implementation outcomes, one generated acceptance outcome, and the triage key inside the automation block
-- **AND** its branch SHALL add only the OpenSpec planning scaffold
-
-#### Scenario: The same owners fail again
-- **WHEN** a later nightly fails with the same failed owner set while that triage pull request is open
-- **THEN** the workflow SHALL post the new run's evidence as another triage comment and append it to the change's design and generated provenance instead of opening another pull request
-- **AND** it SHALL NOT edit the pull request body or any checked outcome
-
-#### Scenario: The generated outcomes are checked
-- **WHEN** the fixer checks both generated implementation outcomes of a repair candidate
-- **THEN** the body SHALL be a complete version-3 candidate with one acceptance scenario under the unchanged readiness policy
-- **AND** trusted readiness SHALL promote it without any repair-specific rule
-
-#### Scenario: A lane fails before producing owner evidence
-- **WHEN** a lane fails in installation, packing, or runner preparation and uploads no owner outcomes
-- **THEN** the evidence SHALL name the failed job and its bounded final log lines and SHALL record the owner set as an orchestration failure
-
-#### Scenario: Scheduled publication fails
-- **WHEN** a scheduled Publish run creates a repair candidate
-- **THEN** that candidate SHALL retain ordinary selected PR validation without PR-attached Full regression unless valid failed-Full-regression provenance is later added by trusted triage
-
-#### Scenario: Manual publication fails
-- **WHEN** a manually dispatched Publish run fails
-- **THEN** no triage pull request SHALL be opened or refreshed
-
-#### Scenario: The fix is proven before hand-off
-- **WHEN** a generated failed-Full-regression repair's finalized candidate is handed to the maintainer
-- **THEN** its PR-attached Full regression SHALL have succeeded on that exact head across every required lane
-- **AND** the PR checks, evidence, and handoff SHALL identify the run and head without requiring an additional dispatch or committed run-ID edit
-
-#### Scenario: A candidate branch runs Full regression
-- **WHEN** manually dispatched or PR-attached Full regression on a repair branch fails
-- **THEN** no triage pull request SHALL be opened or refreshed
-- **AND** that failure SHALL remain visible as candidate evidence and SHALL block its applicable handoff gate
-
-#### Scenario: A green nightly carries a persistent startup overrun
-- **WHEN** the scheduled Full regression succeeds and one lane, profile, and launch kind has exceeded its budget on this and the two previous `develop` runs
-- **THEN** the triage SHALL open or refresh a candidate whose key names `package-startup` and whose evidence lists the three measurements
-- **AND** the candidate SHALL use ordinary PR validation because its source Full regression did not fail
-
-#### Scenario: A nightly carries one startup overrun
-- **WHEN** a measurement exceeds its budget on this run but not on both previous `develop` runs
-- **THEN** the triage SHALL record the overrun in its report and summary and SHALL open or refresh nothing for it
 
 ### Requirement: Repair and publishing pull requests select visible complete regression
 Development validation SHALL select PR-attached Full regression only for a nightly-repair pull request that the trusted regression-triage automation created from a failed Full regression. Selection SHALL use base-controlled policy, immutable configured GitHub App author identity, generated source-run provenance, complete changed and renamed-from paths, current PR metadata, and supported lifecycle association. A matching branch, title, OpenSpec identifier, body text, changed release/publishing path, unknown operational path, or label SHALL NOT select complete regression without that generated provenance. Release/publishing, build/prerequisite, shared-support, and validation-authority impact SHALL use ordinary Development selection and SHALL NOT independently select PR-attached Full regression. No PR label SHALL opt into or opt out of the complete suite.
@@ -1162,53 +962,6 @@ The worker bound SHALL NOT remove or reclassify tests, suppress output, add retr
 - **THEN** every test selected before the bound SHALL still execute exactly once in its applicable partition and native lane
 - **AND** existing assertions, timeouts, isolated owners, resource-sensitive owners, package owners, and failure semantics SHALL remain unchanged
 
-### Requirement: Pull-request validation waits for a reviewable candidate
-Development validation SHALL schedule no test suite while a pull request is draft. When an ordinary pull request becomes ready for review, one readiness decision SHALL permit its existing impact-selected validation. When a pull request that links an OpenSpec change becomes ready while that change is still active, base-controlled policy SHALL defer test selection until the shared delivery workflow has recorded the archive path and the finalized head in the pull-request body. Readiness SHALL read only that record; association and delivery validity SHALL remain the shared delivery check's decision. The finalized exact head SHALL then receive every existing selected validation scope and the stable protected aggregate.
-
-The readiness decision SHALL execute without pull-request-head code or dependency installation, SHALL report an explicit reason, and SHALL fail closed for malformed lifecycle metadata. For pull-request events, readiness SHALL read current mutable body and draft metadata through trusted read-only GitHub authority and SHALL use it only when the current pull-request number, head, and base still equal the immutable event identity. Drifted, unavailable, or invalid current metadata SHALL fail visibly. Draft and pre-finalization runs SHALL NOT emit a misleading successful `Development validation required` aggregate. The absence of that exact-head aggregate SHALL keep the candidate ineligible for integration. Conversion back to draft and later ready-head changes SHALL continue to cancel superseded PR validation; no prior-head result SHALL be reused.
-
-Manual Development dispatch, scheduled/manual Full regression, release validation, publication gates, and the shared delivery workflow SHALL retain their independent triggers and authority. Once readiness permits Development validation, owner selection, native lanes, assertions, coverage, retries, timeouts, permissions, evidence binding, and failure semantics SHALL remain unchanged.
-
-#### Scenario: Draft implementation receives pushes
-- **WHEN** any draft pull request receives planning, implementation, body, or head changes
-- **THEN** Development validation SHALL schedule no test suite or protected aggregate
-- **AND** the draft SHALL gain no acceptance or integration authority
-
-#### Scenario: Ordinary pull request becomes ready
-- **WHEN** a pull request without an active version-3 implementation association becomes ready for review
-- **THEN** its existing impact-selected Development validation SHALL start
-- **AND** the successful current-head protected aggregate SHALL remain required for integration
-
-#### Scenario: Version-3 implementation becomes ready
-- **WHEN** a version-3 implementation pull request becomes ready while its metadata still identifies an active change without finalized delivery paths
-- **THEN** Development validation SHALL report that finalization is pending without scheduling test suites
-- **AND** no `Development validation required` aggregate SHALL certify that pre-finalization head
-
-#### Scenario: Finalization publishes the candidate
-- **WHEN** trusted finalization pushes the finalized version-3 head and records both emitted paths in the implementation metadata
-- **THEN** the existing pull-request event SHALL start Development validation for that exact head
-- **AND** every selected job and protected aggregate SHALL retain its prior requirements
-
-#### Scenario: Finalization events arrive out of order
-- **WHEN** a same-head pull-request event carries pre-finalization body metadata after trusted finalization has recorded the finalized paths on the current pull request
-- **THEN** readiness SHALL classify the current body bound to that unchanged event head
-- **AND** event ordering SHALL NOT leave the finalized candidate deferred without selected validation
-
-#### Scenario: Ready work is superseded
-- **WHEN** a ready pull request receives another head or body change or is converted back to draft
-- **THEN** stale in-progress Development validation MAY be cancelled
-- **AND** only an eligible latest ready head MAY produce merge-authorizing evidence
-
-#### Scenario: Lifecycle metadata is malformed
-- **WHEN** a ready pull request contains malformed or contradictory implementation metadata
-- **THEN** base-controlled readiness SHALL fail visibly without executing pull-request test suites
-- **AND** the protected aggregate SHALL remain unavailable rather than treating the candidate as ordinary or finalized
-
-#### Scenario: Current readiness metadata is unavailable
-- **WHEN** trusted readiness cannot read valid current pull-request metadata for the event head
-- **THEN** readiness SHALL fail visibly without executing pull-request test suites
-- **AND** the protected aggregate SHALL remain unavailable rather than trusting stale event metadata
-
 ### Requirement: Allowed prerequisite skips do not suppress required publication outcomes
 A publication job that intentionally permits an upstream prerequisite to be skipped SHALL evaluate every subsequent required job explicitly. Post-publication smoke SHALL run only when its selected work requires publication and its direct plan, package, and publish dependencies all succeeded. Release completion SHALL run only when its direct plan, package, publish, and post-publication dependencies all succeeded. Both jobs SHALL evaluate their explicit predicates despite allowed transitive skips and SHALL remain ineligible after a failed, cancelled, or skipped direct prerequisite. The aggregate SHALL continue to reject missing or skipped post-publication smoke and completion whenever publication work was required.
 
@@ -1274,7 +1027,7 @@ published normalized body and digest and pack exactly that note.
 Committed `docs/releases/*.md` files SHALL represent completed release history. The
 stable package SHALL combine prior committed history with the published snapshot.
 Publication SHALL require the package and the published Release to contain the same
-body immediately before npm, and the manually merged reopening PR SHALL persist that
+body immediately before npm, and the reopening PR SHALL persist that
 snapshot at `docs/releases/<target>.md` with the next-development version. Draft
 creation, draft edits or saves, candidate validation, CI success, or automatic
 integration SHALL NOT authorize npm publication.
@@ -1460,32 +1213,6 @@ Linux and macOS publication full validation MAY remain sequential. Bounded devel
 - **WHEN** publication proceeds after validation or candidate adoption
 - **THEN** post-publication smoke SHALL retain every platform/runtime lane selected before Windows validation was sharded
 - **AND** a sequential-validation matrix that excludes Windows SHALL NOT narrow that smoke coverage
-
-### Requirement: Final implementation validation remains attached to the pull request
-
-Validation that authorizes handoff or integration of a finalized version-3 implementation SHALL execute from a native pull-request event for the exact finalized head. Its selected lanes, queued/running/completed state, failures, and stable `Development validation required` aggregate SHALL be associated with and visible from that pull request's checks UI.
-
-Development validation SHALL defer an implementation candidate whose finalized-head body binding is absent or differs from the event head. A later ordinary pull-request event with a matching binding SHALL perform the applicable impact-selected product, governance, and aggregate checks. Development validation SHALL NOT itself validate the delivery record; the shared delivery workflow's check owns that decision. Earlier-head, branch-only, manually dispatched, `workflow_run`, or synthetic commit-status evidence SHALL NOT substitute for that PR-associated run.
-
-#### Scenario: Final head enters ordinary validation
-- **WHEN** a pull-request event identifies a finalized version-3 head whose body binding matches that exact head
-- **THEN** Development validation SHALL run the applicable PR-context checks
-- **AND** GitHub SHALL show their progress and final aggregate on the pull request
-
-#### Scenario: Pre-finalization run is superseded
-- **WHEN** finalization moves the pull request from an implementation head to a new finalized head
-- **THEN** validation for the earlier head SHALL NOT authorize merge
-- **AND** the finalized head SHALL receive a distinct PR-associated run before the required aggregate can pass
-
-#### Scenario: Finalized-head binding is stale
-- **WHEN** a pull-request event's head differs from the version-3 finalized-head binding in its body
-- **THEN** Development validation SHALL defer product suites and SHALL emit no successful protected aggregate
-- **AND** trusted finalization SHALL remain responsible for publishing the matching binding and event
-
-#### Scenario: Manual dispatch targets the same branch
-- **WHEN** a maintainer manually dispatches Development validation against a finalized implementation branch
-- **THEN** the run MAY provide diagnostic coverage in Actions
-- **AND** SHALL NOT replace the PR-associated selection, visibility, or aggregate evidence required for integration
 
 ### Requirement: npm publication recovers boundedly from duplicate transparency-log entries
 
@@ -2061,3 +1788,165 @@ When every primary failed publication job has an explicitly empty step list and 
 - **WHEN** a confirmed allocation-only failure occurs after npm staging has run
 - **THEN** the summary SHALL retain the warning that packages may already exist and require registry inspection before retrying
 - **AND** the failed command SHALL NOT automatically retry or report publication success
+
+### Requirement: Development validation publishes one required check
+The workflows of this repository SHALL publish exactly one merge-gating check for pull requests into `develop`: the `Development validation required` aggregate job of `.github/workflows/ci.yml`. The same job SHALL be named `Development validation diagnostic` when the workflow is dispatched manually, so a dispatched run never produces the gating check. `master` SHALL record the commit the npm `latest` tag serves; only a completed stable publication SHALL write it, by a non-forced fast-forward. Publication SHALL NOT serve as the first automated validation of a change.
+
+#### Scenario: A pull request is validated
+- **WHEN** Development validation runs for a ready pull request into `develop`
+- **THEN** its aggregate job SHALL report as `Development validation required`
+
+#### Scenario: Development validation is dispatched manually
+- **WHEN** the workflow runs from `workflow_dispatch`
+- **THEN** its aggregate job SHALL report as `Development validation diagnostic`
+
+#### Scenario: A stable version is published
+- **WHEN** publication to npm `latest` completes
+- **THEN** `master` SHALL be fast-forwarded to the published commit without force
+- **AND** a preview publication SHALL leave `master` unchanged
+
+### Requirement: Nightly regression triage opens a draft fix candidate
+The trusted `Nightly regression triage` workflow SHALL evaluate, from default-branch code, every `Full regression` run and every scheduled `Publish` run on `develop` that concluded with failure or success. A cancelled run, a manually dispatched `Publish` run, and a run on any other branch SHALL be recorded as not triaged and SHALL open or refresh nothing.
+
+For a failed run the triage SHALL collect the failed commands per platform, Node lane, and Windows shard, the tests those commands retain, a bounded excerpt of the failed job logs, the first-parent `develop` commits since the last successful run of the same workflow, and the run link. A lane that failed without uploading owner outcomes SHALL be recorded as an orchestration failure naming its job. When the run yields a failure and no open candidate carries the same triage key, the triage SHALL open a draft pull request against `develop` titled `chore(regression): ...` from branch `fix/nightly-regression-<date>`, started at the failed head, whose single commit adds only an OpenSpec change scaffold including `regression-provenance.json` with the workflow, run, event, conclusion, and source head. The body SHALL carry a proposal, two unchecked implementation outcomes (reproduce, fix), one acceptance bullet, and an automation block holding the triage key and the link to the change; the evidence SHALL be posted as a comment. When an open candidate carries the same triage key, the triage SHALL append the run to that change's design and provenance, push that commit, post the evidence as another comment, and SHALL NOT edit the pull-request body.
+
+For every triaged run, failed or not, the triage SHALL compare the startup evidence of that run and the two previous completed `develop` runs of the same workflow with the budgets. A lane, profile, and launch kind that overran in all three SHALL be proposed as a failure of `package-startup` under its own triage key with the three measurements as evidence; any other overrun SHALL be recorded in the triage report and run summary only. The triage SHALL NOT re-run validation, write `develop`, mark a pull request ready, or merge, and a dry run SHALL write only its report.
+
+#### Scenario: Nightly regression fails on one lane
+- **WHEN** the scheduled Full regression fails with two commands on Windows Node 24 and passes elsewhere
+- **THEN** a draft pull request from `fix/nightly-regression-<date>` SHALL exist whose comment and change design carry those commands, their tests, the lane, the log excerpt, the suspect commits, and the run link
+- **AND** its body SHALL carry two unchecked implementation outcomes, one acceptance bullet, and the triage key
+- **AND** its branch SHALL add only the OpenSpec change scaffold with its provenance
+
+#### Scenario: The same failure set fails again
+- **WHEN** a later run produces the same triage key while that candidate is open
+- **THEN** the triage SHALL append the run to the change's design and provenance and post another evidence comment instead of opening another pull request
+- **AND** it SHALL NOT edit the pull-request body
+
+#### Scenario: A lane fails before producing owner evidence
+- **WHEN** a lane fails in installation, packing, or runner preparation and uploads no owner outcomes
+- **THEN** the evidence SHALL name the failed job with its bounded log excerpt as an orchestration failure
+
+#### Scenario: Manual publication fails
+- **WHEN** a manually dispatched Publish run fails
+- **THEN** no triage pull request SHALL be opened or refreshed
+
+#### Scenario: A candidate branch runs Full regression
+- **WHEN** a Full regression run on a branch other than `develop` fails
+- **THEN** no triage pull request SHALL be opened or refreshed
+
+#### Scenario: A green nightly carries a persistent startup overrun
+- **WHEN** the scheduled Full regression succeeds and one lane, profile, and launch kind exceeded its budget on this and the two previous `develop` runs
+- **THEN** the triage SHALL open or refresh a candidate whose failure names `package-startup` and whose evidence lists the three measurements
+
+#### Scenario: A nightly carries one startup overrun
+- **WHEN** a measurement exceeds its budget on this run but not on both previous `develop` runs
+- **THEN** the triage SHALL record the overrun in its report and summary and SHALL open or refresh nothing for it
+
+### Requirement: Development validation defers until a pull request is ready and finalized
+Development validation SHALL run no job for a draft pull request. For a ready pull request, one readiness job SHALL decide, before any suite is selected, whether validation runs. It SHALL execute the policy from the pull request's exact base commit, without pull-request-head code or dependency installation, SHALL re-read the current pull request through read-only GitHub authority, and SHALL fail when the current number, head, or base differs from the event that started the run.
+
+Readiness SHALL read at most one `openspec-implementation` record from the pull-request body. A body without one SHALL validate as an ordinary ready pull request. A body with one SHALL validate only when the record names an archive path under `openspec/changes/archive/` and its `finalizedHead` equals the event head; otherwise readiness SHALL defer with the reason `awaiting-finalization`. A repeated, unparsable, unclosed, or malformed record SHALL fail the readiness job. Readiness SHALL NOT judge whether the delivery itself is valid.
+
+When readiness defers or fails, impact selection, every suite, and the aggregate SHALL NOT run, so no `Development validation required` check exists for that head. When readiness validates, selection, lanes, assertions, evidence binding, and the aggregate SHALL be the ordinary ones. A run that is not a pull-request event SHALL always validate. A newer event for the same pull request SHALL cancel the run in progress, and no earlier-head result SHALL be reused.
+
+#### Scenario: A draft receives pushes
+- **WHEN** a draft pull request receives head or body changes
+- **THEN** Development validation SHALL schedule no readiness job, suite, or aggregate
+
+#### Scenario: An unlinked pull request becomes ready
+- **WHEN** a pull request whose body links no OpenSpec change becomes ready for review
+- **THEN** readiness SHALL validate with the reason `ready` and impact-selected validation SHALL start
+
+#### Scenario: A linked pull request is ready but not finalized
+- **WHEN** a ready pull request's record names a change without an archive path, or its finalized head differs from the event head
+- **THEN** readiness SHALL defer with the reason `awaiting-finalization`
+- **AND** no suite SHALL run and no `Development validation required` check SHALL be produced for that head
+
+#### Scenario: The finalized head arrives
+- **WHEN** a pull-request event's head equals the finalized head its body records together with the archive path
+- **THEN** readiness SHALL validate and that exact head SHALL receive impact-selected validation and the aggregate
+
+#### Scenario: The delivery record is malformed
+- **WHEN** a ready pull request's body holds a repeated, unparsable, unclosed, or malformed record
+- **THEN** the readiness job SHALL fail with the record's error code
+- **AND** no suite or aggregate SHALL run
+
+#### Scenario: Current metadata drifted or is unavailable
+- **WHEN** the current pull request cannot be read, or its number, head, or base differs from the event identity
+- **THEN** the readiness job SHALL fail and no suite or aggregate SHALL run
+
+#### Scenario: Ready work is superseded
+- **WHEN** a ready pull request receives another head or body change or is converted back to draft
+- **THEN** the in-progress Development validation run for that pull request SHALL be cancelled
+
+#### Scenario: Development validation is dispatched manually
+- **WHEN** the workflow is dispatched on a branch
+- **THEN** readiness SHALL validate with the reason `non-pull-request`
+- **AND** the run SHALL produce `Development validation diagnostic`, not the pull-request check
+
+### Requirement: Development partitions run independently under one aggregate
+Development validation SHALL schedule the mandatory PR core and each selected integration partition independently after its actual prerequisites. Resource-sensitive files selected by ownership SHALL remain non-file-parallel on an isolated runner, with the same authoritative membership and the same explicit hang bound used by complete validation. No selected test SHALL be duplicated between partitions on the same platform/runtime merely because job boundaries changed. Cross-platform and cross-runtime executions SHALL remain distinct evidence where selected.
+
+The single protected-branch aggregate SHALL require the PR core and every scope selected for the current head and selection identity. It SHALL reject missing, failed, cancelled, stale, malformed, or unexpectedly skipped selected results. A skipped integration scope SHALL be acceptable only when the current trustworthy selection explicitly excludes it. Independent jobs SHALL not share mutable application state or owned process trees. The modular job matrix SHALL be derived from the trusted selection by one reviewed repository script that declares every Development modular job; an entry the selection leaves inactive SHALL NOT be scheduled, each scheduled job SHALL still resolve its own owners from the uploaded selection, and the aggregate SHALL still require successful evidence for every selected owner.
+
+#### Scenario: Fast work and resume checks are selected
+- **WHEN** a code PR requires the PR core, a resource-sensitive owner, and package resume integration
+- **THEN** the resource-sensitive and resume jobs SHALL not depend on completion of unrelated core tests solely for sequencing
+- **AND** all selected results SHALL be required before the aggregate succeeds
+
+#### Scenario: Serialization would be replaced by contention
+- **WHEN** a resource-sensitive partition is selected alongside ordinary validation
+- **THEN** it SHALL execute on an isolated runner rather than concurrently on the ordinary runner
+- **AND** it SHALL retain one-file-at-a-time execution and all existing assertions under the partition's explicit hang bound
+
+#### Scenario: A selected partition is skipped
+- **WHEN** the current selection requires a core or integration partition but that partition is missing, cancelled, or skipped
+- **THEN** the aggregate SHALL fail even if every completed partition passed
+
+#### Scenario: Evidence belongs to another selection
+- **WHEN** a result belongs to another head, workflow run, or selection identity
+- **THEN** it SHALL NOT satisfy the current aggregate
+
+#### Scenario: Complete validation is requested
+- **WHEN** conservative PR classification, Full regression, nightly, preview, or stable validation requests complete retained coverage
+- **THEN** every retained fast and applicable integration owner SHALL execute under its declared isolation and platform/runtime contract
+
+#### Scenario: Inactive matrix entries are not scheduled
+- **WHEN** the trusted selection activates only some declared modular jobs
+- **THEN** the workflow SHALL schedule only the active entries and record the unscheduled ones in the run summary
+- **AND** the aggregate SHALL fail when an active entry produced no successful evidence
+
+### Requirement: Development validation reports timing without weakening coverage
+Development validation SHALL report selection time, available queue time, setup/build/pack time, repository gate time, per-scope outcomes, and aggregate elapsed time separately. Package fixtures SHALL report bounded phase timings for installation, materialization, certification/warmup, launch, shutdown, and cleanup where executed, including unsuccessful phases. Evidence SHALL identify head, selection, runner, Node version, candidate digest where applicable, cache state, build/pack counts, and test ownership. Reporting SHALL not expose credentials or raw user content.
+
+Wall-clock improvement targets SHALL be reported as achieved or unmet, not enforced by increasing product budgets, shortening representative workloads, hiding failed attempts, or retrying until green.
+
+#### Scenario: A startup job is slow
+- **WHEN** a startup job takes substantially longer than its measured command launches
+- **THEN** the evidence SHALL distinguish install and fixture phases from actual launch latency and cleanup
+
+#### Scenario: An optimized partition fails
+- **WHEN** a scope fails before the remaining scopes execute
+- **THEN** completed and failing phase evidence SHALL be retained and unfinished work SHALL remain explicitly incomplete
+
+### Requirement: Release reopening pull requests are prepared by publication
+After stable publication, the reopening job of `.github/workflows/release.yml` SHALL create or reuse the reopening pull request through `scripts/release/prepare-reopening.mjs`. The pull request SHALL be one single-parent commit on then-current `origin/develop`, on branch `chore/release-<next>-dev`, whose only changes are the version fields of `package.json`, `package-lock.json`, and `packages/a1-install/package.json` and the added `docs/releases/<released>.md` equal to the approved note and its digest. Preparation SHALL fail when the published source is not an ancestor of `develop`, when `develop` no longer consistently declares the open development version of the published source, or when the note already exists there.
+
+An existing pull request SHALL be reused only when it is open, same-repository, based on `develop`, at the expected head, with auto-merge either absent or armed for squash, and when its commit matches exactly. More than one pull request for the branch, or the branch without one matching pull request, SHALL be refused without overwriting it. Preparation SHALL NOT arm auto-merge or merge. The release command SHALL prepare only the draft Release and its candidate validation and SHALL create no pull request.
+
+#### Scenario: Stable publication prepares reopening
+- **WHEN** stable `0.1.8` is published from a source declaring `0.1.8-dev`
+- **THEN** one pull request from `chore/release-0.1.9-dev` SHALL declare `0.1.9-dev` in the three manifests and add the exact approved `docs/releases/0.1.8.md`
+
+#### Scenario: A matching reopening pull request exists
+- **WHEN** preparation runs again and one open pull request for the branch matches the expected commit
+- **THEN** it SHALL be reused, whether auto-merge is absent or armed for squash
+
+#### Scenario: Conflicting reopening work exists
+- **WHEN** the branch exists without one matching pull request, several pull requests exist, or the commit changes anything else
+- **THEN** preparation SHALL fail and SHALL NOT overwrite the branch or the pull request
+
+#### Scenario: The release command prepares a stable version
+- **WHEN** the command prepares stable `0.1.8` from `0.1.8-dev`
+- **THEN** it SHALL present the draft GitHub Release for editing and SHALL create no pull request
