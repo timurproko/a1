@@ -1,8 +1,8 @@
 # Isolated Regression Testing Specification
 
 ## Purpose
+Defines hermetic, independent regression testing for A1: isolated scenarios, exact-package installation, update, predecessor and startup gates, resource-sensitive partitions, and the rules regression tests and fixtures must keep.
 
-Defines independent, isolated validation for A1 lifecycle, updates, transparent terminal policy, exact package artifacts, and confirmed regressions.
 
 ## Requirements
 

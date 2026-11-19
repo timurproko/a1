@@ -1,7 +1,7 @@
 # github-repository-governance Specification
 
 ## Purpose
-Define reviewed GitHub policy, trusted workflow authority, atomic manual delivery, standalone documentation automation, safe branch cleanup, drift detection, and live acceptance.
+Defines the reviewed declaration of repository settings, Actions policy, security capabilities, environments, labels, and the workflow inventory, its read-only drift check and confirmed application, least-privileged workflow authority, and automatic integration of verified release-reopening pull requests.
 
 ## Requirements
 

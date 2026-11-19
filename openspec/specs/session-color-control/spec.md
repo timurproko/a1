@@ -1,7 +1,7 @@
 # session-color-control Specification
 
 ## Purpose
-TBD - created by archiving change session-accent-colors. Update Purpose after archive.
+Defines how external hosts read and set one live bare-A1 session's Current color through the versioned integration API, and how a Core-hosted session publishes the native identity labels that make that control addressable.
 
 ## Requirements
 

@@ -1,7 +1,7 @@
 # herdr-a1-integration Specification
 
 ## Purpose
-TBD - created by archiving change herdr-agent-session-names. Update Purpose after archive.
+Defines what an interactive A1 session publishes to a local Herdr terminal: its native session and runtime identity and its committed active project directory.
 
 ## Requirements
 

@@ -1,7 +1,7 @@
 # integration-api Specification
 
 ## Purpose
-TBD - created by archiving change unify-integration-api-and-colors. Update Purpose after archive.
+Defines `a1 api <request-json>`, the versioned JSON protocol external hosts use to discover capabilities, read and update supported settings, and inspect, rename and gracefully stop one exact live session.
 
 ## Requirements
 

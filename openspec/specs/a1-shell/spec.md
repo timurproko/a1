@@ -1,8 +1,8 @@
 # A1 Shell Specification
 
 ## Purpose
+Defines the installed `a1` command surface, version and help output, startup budgets, and the session title, naming, footer and export behavior of the owned interactive UI.
 
-Defines the installed A1 command surface, immutable release behavior, and shared owned interactive rendering path.
 
 ## Requirements
 

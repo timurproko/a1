@@ -1,8 +1,8 @@
 # persistent-prompt-history Specification
 
 ## Purpose
+Defines durable, profile-isolated recall of user-submitted prompts across bare-A1 sessions, with shared or per-session scope, while bounding private data, concurrent persistence, and lifecycle failures.
 
-Defines durable, profile-isolated recall of user-submitted prompts across bare-A1 sessions, preserving the v2 editor experience while bounding private data, concurrent persistence, and lifecycle failures.
 
 ## Requirements
 

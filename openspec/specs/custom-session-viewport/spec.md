@@ -1,7 +1,7 @@
 # custom-session-viewport Specification
 
 ## Purpose
-Defines bare A1's bounded single-agent transcript viewport, stable bottom dock, follow-tail navigation, scroll-to-bottom control, and timestamped sticky submitted prompts.
+Defines bare A1's bounded single-agent transcript viewport, stable bottom dock, follow-tail navigation, scroll-to-bottom control, transient dock notices, and sticky submitted prompts without timestamps.
 
 ## Requirements
 
