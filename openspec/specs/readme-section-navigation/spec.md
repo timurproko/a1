@@ -5,20 +5,6 @@ Defines clear navigation among the root README's primary task sections, lightwei
 
 ## Requirements
 
-### Requirement: The README exposes direct navigation to every stable task area
-
-The root README SHALL present a centered text navigator below its badges with destinations for Install, Launch, Update, Extensions, Develop, and Publish in document order. Each destination SHALL target a matching top-level heading.
-
-#### Scenario: Reader selects a primary task
-
-- **WHEN** a reader selects any navigator label
-- **THEN** the document SHALL navigate to the matching top-level section without requiring the reader to scroll through intervening content
-
-#### Scenario: Reader scans the task hierarchy
-
-- **WHEN** a reader scans the README's primary tasks
-- **THEN** Install, Launch, Update, Extensions, Develop, and Publish SHALL appear as top-level sections in navigator order
-
 ### Requirement: Section separators and commands match their intended presentation
 
 The README SHALL place the same compact ASCII `* * *` separator between each adjacent pair of primary task sections instead of section-specific illustrations. The three asterisks and their single-space gaps SHALL form one horizontally and visually vertically centered, evenly spaced typographic run at every README placement. The separator SHALL use the animated waves footer's light and dark artwork colors with a regular monospace weight lighter than the footer, SHALL animate the three asterisks independently in the existing smooth sequence when motion is allowed, and SHALL show the complete static ornament when reduced motion is requested. Command examples SHALL use plain-text rendering so syntax highlighting does not assign semantic colors to ordinary command words. Changing presentation SHALL NOT change copyable command bytes.
@@ -53,3 +39,18 @@ The local README preview SHALL preserve repository-relative image loading from t
 
 - **WHEN** the preview renders repository-relative images, external links, and non-fragment repository links
 - **THEN** the images SHALL continue to load from the source checkout and non-fragment destinations SHALL remain unchanged
+
+### Requirement: The README navigator links its primary task sections
+
+The root README SHALL present a centered text navigator below its badges with fragment links for Install, Launch, Update, Extensions, Develop, and Publish, in that order. Each link SHALL target a `##` heading of the same name, and those headings SHALL appear in the document in navigator order. The README MAY hold further `##` sections between them that the navigator does not link; `## Session colors` and `## Uninstall` are such sections.
+
+#### Scenario: Reader selects a primary task
+
+- **WHEN** a reader selects any navigator label
+- **THEN** the document SHALL navigate to the `##` section of that name
+
+#### Scenario: Reader scans the task hierarchy
+
+- **WHEN** a reader scans the README's `##` headings
+- **THEN** Install, Launch, Update, Extensions, Develop, and Publish SHALL appear in navigator order
+- **AND** Session colors and Uninstall SHALL appear as `##` sections without navigator links

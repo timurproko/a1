@@ -38,23 +38,23 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 52,
-    "files": 15,
+    "total": 48,
+    "files": 14,
     "byLocationKind": {
-      "content": 52,
+      "content": 48,
       "path": 0
     },
     "byClass": {
       "runtime-symbols": 40,
-      "diagnostics": 3,
+      "diagnostics": 2,
       "environment-keys": 12,
-      "paths": 39,
+      "paths": 37,
       "schemas": 8,
-      "artifacts": 11,
+      "artifacts": 10,
       "tests": 40,
-      "current-docs-specs": 12,
+      "current-docs-specs": 8,
       "historical-records": 0,
-      "explicit-obsolete-package-fixtures": 4
+      "explicit-obsolete-package-fixtures": 2
     }
   },
   "occurrences": [
@@ -178,72 +178,10 @@
       ]
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:109:391",
-      "path": "openspec/specs/a1-shell/spec.md",
-      "locationKind": "content",
-      "line": 109,
-      "column": 391,
-      "value": "addone",
-      "context": "The official npm distribution SHALL be named `@timurproko/a1`, SHALL begin its independent stable version lineage at `0.1.0`, and SHALL declare only `a1` as a public executable. Internal process entry files MAY remain in the package payl...",
-      "matchedCase": "lower",
-      "primaryClass": "artifacts",
-      "classes": [
-        "artifacts",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "openspec/specs/a1-shell/spec.md:121:52",
-      "path": "openspec/specs/a1-shell/spec.md",
-      "locationKind": "content",
-      "line": 121,
-      "column": 52,
-      "value": "addone",
-      "context": "- **THEN** every published version of `@timurproko/addone` SHALL carry an npm deprecation directing users to `@timurproko/a1`, and current product behavior SHALL continue to reject the obsolete identity",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs",
-        "explicit-obsolete-package-fixtures"
-      ]
-    },
-    {
-      "id": "openspec/specs/a1-shell/spec.md:124:322",
-      "path": "openspec/specs/a1-shell/spec.md",
-      "locationKind": "content",
-      "line": 124,
-      "column": 322,
-      "value": "addone",
-      "context": "Version discovery, self-update, installed metadata lookup, immutable release derivation, release validation, publication evidence, and registry verification SHALL use `@timurproko/a1` as the sole accepted package identity. The product SH...",
-      "matchedCase": "lower",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "openspec/specs/a1-shell/spec.md:128:84",
-      "path": "openspec/specs/a1-shell/spec.md",
-      "locationKind": "content",
-      "line": 128,
-      "column": 84,
-      "value": "addone",
-      "context": "- **THEN** it SHALL accept `@timurproko/a1` metadata and SHALL reject `@timurproko/addone` as an unexpected package identity",
-      "matchedCase": "lower",
-      "primaryClass": "diagnostics",
-      "classes": [
-        "diagnostics",
-        "paths",
-        "current-docs-specs",
-        "explicit-obsolete-package-fixtures"
-      ]
-    },
-    {
-      "id": "openspec/specs/product-identity/spec.md:51:172",
+      "id": "openspec/specs/product-identity/spec.md:55:172",
       "path": "openspec/specs/product-identity/spec.md",
       "locationKind": "content",
-      "line": 51,
+      "line": 55,
       "column": 172,
       "value": "addone",
       "context": "Archived changes, immutable historical evidence, and explicit obsolete-package rejection or deprecation fixtures MAY contain former identity literals such as `@timurproko/addone`. Such references SHALL NOT be imported, rendered, generate...",
@@ -904,5 +842,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-11-07T13:02:59.795Z"
+  "generatedAt": "2026-11-19T11:35:13.810Z"
 }
