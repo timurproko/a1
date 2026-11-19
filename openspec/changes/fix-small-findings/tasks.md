@@ -10,9 +10,14 @@
 - [ ] 2.2 The console prompt prints "Session is open in another A1 process." for that reason
 - [ ] 2.3 Tests cover the new header and keep the cross-project and missing-folder texts
 
-## 3. README, prompt-history docs and CI comment match the code
+## 3. Prompt-history border counter reads History N/M
 
-- [ ] 3.1 README navigator lists Session colors and Uninstall in section order
-- [ ] 3.2 README names the Update setting value Manual instead of No
-- [ ] 3.3 Prompt-history docs show the border counter as `100/100` and `1/100`
-- [ ] 3.4 The `ci.yml` startup-budget comment says nightly and Full regression only record an overrun
+- [ ] 3.1 `renderTopBorder` in `editor-core.ts` prefixes the counter with `History ` in both the plain and overflow-cue branches, without moving source lines
+- [ ] 3.2 The `editor-core.ts` header, ledger entry (modifications, `localSha256`, `compact-history-counter-label` deviation) and history-editor provenance doc describe the labelled counter
+- [ ] 3.3 Core and shell history-editor tests expect `History 100/100`, `History 1/100` and `History 1/1` in the dim label style
+
+## 4. README and CI comment match the code
+
+- [ ] 4.1 README navigator lists Session colors and Uninstall in section order
+- [ ] 4.2 README names the Update setting value Manual instead of No
+- [ ] 4.3 The `ci.yml` startup-budget comment says nightly and Full regression only record an overrun
