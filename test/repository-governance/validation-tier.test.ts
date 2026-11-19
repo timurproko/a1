@@ -12,8 +12,8 @@ describe("validation tier planning", () => {
     expect(plan.commands).toEqual([
       expect.objectContaining({
         id: "openspec-strict",
-        executable: "npx",
-        arguments: ["--yes", "@fission-ai/openspec@1.8.0", "validate", "--all", "--strict", "--no-interactive"],
+        executable: "delivery",
+        arguments: ["openspec", "validate", "--all", "--strict", "--no-interactive"],
       }),
     ]);
   });

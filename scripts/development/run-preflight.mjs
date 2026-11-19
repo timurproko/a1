@@ -13,7 +13,8 @@ import { collectWorktreeChanges, selectValidationImpact } from "../release/valid
 export const PREFLIGHT_SELECTION = ".artifacts/validation/local-impact.json";
 export const PREFLIGHT_BUILD_RECEIPT = ".artifacts/validation/receipts/build.json";
 /** The exact pinned OpenSpec validator the Documentation governance validation job runs. */
-export const PREFLIGHT_OPENSPEC = "@fission-ai/openspec@1.8.0";
+// Rationale: the shared delivery workflow pins the one OpenSpec version; its command runs that version.
+export const PREFLIGHT_OPENSPEC = Object.freeze(["openspec", "validate", "--all", "--strict", "--no-interactive"]);
 
 /** The ordered preflight steps a local impact selection requires; its core build leaves native-host certification to selected CI. */
 export function preflightSteps(selection) {
@@ -36,7 +37,7 @@ export function preflightSteps(selection) {
   }
   steps.push({ id: "docs-governance", executable: "node", arguments: ["scripts/governance/check-docs-governance.mjs"] });
   if (selection.openspecTouched) {
-    steps.push({ id: "openspec-strict", executable: "npx", arguments: ["--yes", PREFLIGHT_OPENSPEC, "validate", "--all", "--strict", "--no-interactive"] });
+    steps.push({ id: "openspec-strict", executable: "delivery", arguments: [...PREFLIGHT_OPENSPEC] });
   }
   if (ordinary) {
     // Invariant: the same scopes and selected tests the "PR core and affected unit owners" job runs.

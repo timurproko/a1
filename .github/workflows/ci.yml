@@ -324,7 +324,7 @@ jobs:
         run: node scripts/release/check-release-documentation.mjs --selection .artifacts/validation/impact.json
       - name: Validate OpenSpec artifacts strictly
         if: needs.changes.outputs.openspec-touched == 'true'
-        run: npx --yes @fission-ai/openspec@1.8.0 validate --all --strict --no-interactive
+        uses: timurproko/MyWorkflows/actions/openspec@main
 
   naming:
     name: Internal naming validation

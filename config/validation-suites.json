@@ -6,10 +6,9 @@
       "commands": [
         {
           "id": "openspec-strict",
-          "executable": "npx",
+          "executable": "delivery",
           "arguments": [
-            "--yes",
-            "@fission-ai/openspec@1.8.0",
+            "openspec",
             "validate",
             "--all",
             "--strict",
