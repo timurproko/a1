@@ -24,7 +24,7 @@ describe("local preflight", () => {
 
   it("first builds and records the receipt as the core job's install step does", () => {
     const [build, receipt] = preflightSteps(selection());
-    expect(packageJson.scripts.prepare).toBe(`${build!.executable} ${build!.arguments.join(" ")}`);
+    expect(packageJson.scripts.prepare.split(" && ")).toContain(`${build!.executable} ${build!.arguments.join(" ")}`);
     expect(workflow).toContain(`run: ${receipt!.executable} ${receipt!.arguments.join(" ")}`);
     const tests = preflightSteps(selection()).find(entry => entry.id === "changed-tests")!;
     expect(tests.environment).toMatchObject({ VALIDATION_BUILD_READY: "1", VALIDATION_BUILD_RECEIPT: PREFLIGHT_BUILD_RECEIPT });
@@ -39,7 +39,10 @@ describe("local preflight", () => {
   });
 
   it("runs each governance script with the arguments its workflow job uses, against the local selection", () => {
-    const local = preflightSteps(selection()).filter(step => step.executable !== "npm" && !["build-receipt", "changed-tests"].includes(step.id));
+    const local = preflightSteps(selection()).filter(step => step.executable !== "npm" && !["build-receipt", "changed-tests", "openspec-strict"].includes(step.id));
+    // Invariant: the workflow and the local step both run the OpenSpec version the shared delivery workflow pins.
+    expect(workflow).toContain("uses: timurproko/MyWorkflows/actions/openspec@main");
+    expect(preflightSteps(selection()).find(step => step.id === "openspec-strict")).toMatchObject({ executable: "delivery" });
     for (const step of local) {
       const command = [step.executable === "npx" ? "npx" : "node", ...step.arguments].join(" ")
         .replace(PREFLIGHT_SELECTION, ".artifacts/validation/impact.json")

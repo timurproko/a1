@@ -1,6 +1,6 @@
 export const PREFLIGHT_SELECTION: ".artifacts/validation/local-impact.json";
 export const PREFLIGHT_BUILD_RECEIPT: ".artifacts/validation/receipts/build.json";
-export const PREFLIGHT_OPENSPEC: "@fission-ai/openspec@1.8.0";
+export const PREFLIGHT_OPENSPEC: readonly string[];
 
 export interface PreflightStep {
   id: string;

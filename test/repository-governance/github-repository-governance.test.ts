@@ -153,7 +153,8 @@ describe("declarative GitHub repository governance", () => {
         const reference = match[1]!;
         if (reference.startsWith("./") || reference.startsWith("docker://")
           || reference === "timurproko/a1/.github/workflows/publish.yml@develop"
-          || reference === "timurproko/MyWorkflows/.github/workflows/delivery.yml@main") continue;
+          || reference === "timurproko/MyWorkflows/.github/workflows/delivery.yml@main"
+          || reference === "timurproko/MyWorkflows/actions/openspec@main") continue;
         expect(reference, `${name}: ${reference}`).toMatch(/@[0-9a-f]{40}$/);
       }
     }

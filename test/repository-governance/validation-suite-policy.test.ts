@@ -105,8 +105,8 @@ describe("validation suite ownership", () => {
       kind: "commands",
       commands: [{
         id: "openspec-strict",
-        executable: "npx",
-        arguments: ["--yes", "@fission-ai/openspec@1.8.0", "validate", "--all", "--strict", "--no-interactive"],
+        executable: "delivery",
+        arguments: ["openspec", "validate", "--all", "--strict", "--no-interactive"],
       }],
     });
     expect(suites.tiers["pr-core"]).toEqual({ kind: "composition", includes: ["typecheck", "architecture", "pr-core-tests"] });
