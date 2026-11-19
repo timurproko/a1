@@ -95,7 +95,7 @@ Build output mirrors the production namespaces directly under ignored `dist/`, w
 
 ## Development worktrees
 
-Task checkouts live inside the primary repository's `.worktrees/<task-id>/`, not beside the repository. Follow the shared Worktrees guidance in `AGENTS.md`. The product command contract is documented in [Worktree commands](../features/worktrees.md).
+Task checkouts live inside the primary repository's `.worktrees/<task-id>/`, not beside the repository. Creating, handing off and cleaning up a task checkout follows the shared `change-delivery` skill. The product command contract is documented in [Worktree commands](../features/worktrees.md).
 
 ### Common Git workflow
 
