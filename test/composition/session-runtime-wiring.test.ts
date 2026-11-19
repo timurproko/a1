@@ -10,6 +10,7 @@ import { parseCliCommand } from "../../src/cli/dispatch.js";
 import { PRODUCT_IDENTITY } from "../../src/product-identity.js";
 import { composeOwnedUi, type OwnedUiCompositionOptions } from "../../src/composition/owned-ui.js";
 import { PID_LIVENESS_IDENTITY } from "../../src/foundation/lifecycle/process-liveness.js";
+import { OWNED_SETTING_DECLARATIONS } from "../../src/ui/settings/index.js";
 import {
   listSessionRepositoryWorktrees,
   registerSessionRepositoryRuntime,
@@ -220,6 +221,13 @@ describe("session runtime composition wiring", () => {
         release();
         expect(observed.settingsListeners).toEqual(before);
       }
+    } finally { await composed.application.dispose(); }
+  });
+  it("starts a settings-less session with the declared default accent", async () => {
+    const composed = await compose({ productMode: "comparison" });
+    try {
+      expect(observed.hosts.at(-1)?.theme?.accentColor).toBe(OWNED_SETTING_DECLARATIONS.accentColor.defaultValue);
+      expect(OWNED_SETTING_DECLARATIONS.accentColor.defaultValue).toBe("blue");
     } finally { await composed.application.dispose(); }
   });
   it.each(["bare", "comparison"] as const)("supplies product-owned persistent export storage only for %s", async productMode => {
