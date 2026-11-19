@@ -142,7 +142,7 @@ A1 SHALL expose worktree enter, attach, detach, status, list, and complete throu
 
 ### Requirement: Ordinary coordination is internal to the operation
 
-A1 SHALL handle transient coordination and startup-registration contention with bounded internal retries. Informational inventory SHALL use a consistent snapshot rather than misclassifying all worktree owners when unrelated global coordination is temporarily occupied. Genuine unverifiable ownership SHALL remain distinct and protected. Repository guidance SHALL NOT require agents to interpret internal lock state or run a separate inventory approval gate after successful attachment.
+A1 SHALL handle transient coordination and startup-registration contention with bounded internal retries. Informational inventory SHALL use a consistent snapshot rather than misclassifying all worktree owners when unrelated global coordination is temporarily occupied. Genuine unverifiable ownership SHALL remain distinct and protected.
 
 #### Scenario: Inventory overlaps another session's ordinary mutation
 
@@ -165,27 +165,6 @@ A1 SHALL activate persisted attachment state for each session binding and retry 
 - **WHEN** attachment or detach completes and a subsequent built-in tool runs
 - **THEN** its relative paths SHALL use the resulting verified working directory
 - **AND** explicit absolute paths SHALL retain their ordinary meaning
-
-### Requirement: Implementation handoff preserves task attachment
-
-Shared repository guidance SHALL keep the active task worktree attached after implementation completion and review handoff so follow-up tools and PR discovery continue using the same task context. Agents SHALL detach only on an explicit request or when switching tasks, and SHALL use guarded completion after a verified merge, not merely because an implementation response or handoff is complete. Guidance SHALL forbid running repository cleanup directly against the attached checkout. Runtime shutdown SHALL continue releasing its editing claims automatically. Runtime attachment, repository cleanup ownership, and merge authority SHALL remain independent.
-
-#### Scenario: Continue after an implementation handoff
-
-- **WHEN** implementation is complete and the agent hands the candidate to the maintainer for review
-- **THEN** repository guidance SHALL preserve the task attachment rather than instructing detach
-- **AND** subsequent built-in tools and PR discovery SHALL continue using the attached task worktree
-
-#### Scenario: Explicitly leave the task
-
-- **WHEN** the maintainer requests detach or the agent switches tasks
-- **THEN** explicit detach SHALL remain available and preserve files and branches
-- **AND** runtime shutdown SHALL release claims without requiring an implementation-handoff detach
-
-#### Scenario: Finish after a verified merge
-
-- **WHEN** the task's pull request is verified merged
-- **THEN** repository guidance SHALL direct the agent to guarded completion rather than direct cleanup of the attached checkout
 
 ### Requirement: A definitively invalid attachment is released without blocking tools
 
@@ -328,3 +307,15 @@ A1 SHALL recreate cwd-bound project settings, context files, skills, extensions,
 - **WHEN** an active tool requests another worktree
 - **THEN** its result SHALL settle before runtime recreation
 - **AND** no intervening tool SHALL edit the target under the previous project's resources
+
+### Requirement: Runtime shutdown releases the runtime's editing claims
+When a claim-owning runtime is disposed, A1 SHALL release every editing claim held by that exact runtime generation and remove its runtime record, under the mutation gate, without requiring a detach. It SHALL act only when a runtime record matches both the runtime identifier and the recorded process identity, and SHALL leave other runtimes' claims, worktree files, and branches unchanged.
+
+#### Scenario: A session exits while attached
+- **WHEN** a runtime that holds an editing claim shuts down
+- **THEN** its claims and runtime record SHALL be removed
+- **AND** the worktree's files and branch SHALL remain
+
+#### Scenario: The process identity does not match
+- **WHEN** no runtime record matches the disposing runtime's identifier and process identity
+- **THEN** no claim SHALL be released

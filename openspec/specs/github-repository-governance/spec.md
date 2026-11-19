@@ -11,8 +11,7 @@ Actions policy, security capabilities, environments, labels, and workflow invent
 Branch and tag rulesets SHALL be declared only in `protection/repositories.json` of the
 shared delivery workflow and installed with its `delivery protect` command; the
 repository definition SHALL NOT declare, compare, or apply rulesets. A read-only check SHALL compare that definition with live GitHub state and
-report field-level drift without mutating the repository. Applying policy SHALL require
-a separate explicit maintainer confirmation and SHALL verify live state afterwards.
+report field-level drift without mutating the repository. Applying policy SHALL require the explicit `--apply --confirm apply-a1-github-governance` invocation, SHALL write only repository settings, Actions policy, environments, and labels, SHALL refuse when drift exists in security capabilities or the workflow inventory, and SHALL verify live state afterwards.
 
 #### Scenario: Live policy matches
 - **WHEN** the read-only governance check compares the reviewed definition with GitHub
@@ -24,60 +23,17 @@ a separate explicit maintainer confirmation and SHALL verify live state afterwar
 
 #### Scenario: Ordinary CI evaluates repository policy
 - **WHEN** a pull request runs repository governance validation
-- **THEN** it SHALL use read-only authority and SHALL NOT apply settings
+- **THEN** it SHALL compare the reviewed definition with the checked-out workflow files only, using read-only authority, and SHALL NOT read or apply live settings
 
 #### Scenario: Maintainer applies reviewed policy
 - **WHEN** the maintainer invokes the policy application command with its exact confirmation
-- **THEN** only declared differences SHALL be mutated and a post-apply read SHALL match the definition
-
-### Requirement: Protected refs retain distinct responsibilities
-`develop` SHALL reject deletion and non-fast-forward updates, require a pull request,
-require resolved review threads, require `Development validation required` and the
-shared `delivery / Delivery check`, and require the pull request head to be up to date with `develop`
-before merge, so that a candidate validated and finalized against a base that has
-since advanced is reconciled, re-finalized, and revalidated before integration.
-`master` SHALL reject deletion and non-fast-forward updates with no bypass actor while
-remaining writable by a successful stable release fast-forward. `v*` tags SHALL
-reject movement for every actor and SHALL reject deletion for every actor except one
-declared release-automation GitHub App with `always` bypass, which exists solely so
-that a failed stable publication can delete its unconsumed tag before npm. The repository
-admin role MAY bypass the `develop` ruleset for pull requests only, so a maintainer can merge
-a pull request without waiting for its checks but can never write `develop` without one. No
-other person, team, repository role, or App SHALL bypass any protected ref. These rulesets
-SHALL be the ones the shared delivery workflow declares for this repository. Any change to
-approvals, strict-base policy, merge methods, or bypass authority SHALL require an
-explicit specification decision.
-
-#### Scenario: Pull request validation is incomplete
-- **WHEN** a pull request targeting `develop` lacks a successful required check
-- **THEN** GitHub SHALL prevent integration
-
-#### Scenario: Base advanced after validation
-- **WHEN** `develop` gains a commit after a pull request's required check succeeded
-- **THEN** GitHub SHALL prevent integration until the branch is updated with that base and the required check succeeds again on the updated head
-- **AND** the trusted finalization workflow SHALL re-finalize the updated head before that check runs
-
-#### Scenario: Stable release records itself
-- **WHEN** an authorized human publishes the prepared draft Release and npm serves the verified stable package pair
-- **THEN** GitHub SHALL have created the matching `v*` tag at the bound source and release automation MAY fast-forward `master`
-
-#### Scenario: Protected history is rewritten
-- **WHEN** an actor attempts to delete or non-fast-forward a protected branch or move a release tag
-- **THEN** GitHub SHALL reject the operation, including for the repository admin
-
-#### Scenario: A failed publication removes its unconsumed tag
-- **WHEN** the release-automation App deletes a `v*` tag whose Release returned to draft with both packages absent from npm
-- **THEN** GitHub SHALL permit that deletion and SHALL reject the same deletion by any other actor
-
-#### Scenario: The bypass is widened
-- **WHEN** a bypass beyond the admin pull-request bypass on `develop` and the single release-automation App on `v*` tags is wanted
-- **THEN** it SHALL require an explicit specification decision and a reviewed change to the shared declaration
+- **THEN** only the differing sections among repository settings, Actions policy, environments, and labels SHALL be written and a post-apply read SHALL match the definition
 
 ### Requirement: Workflow authority is explicit and least-privileged
 The repository SHALL inventory each workflow's trusted source, triggers, permissions,
 concurrency, validation or publication authority, and artifact retention. A workflow
 with write permission SHALL execute only default-branch trusted code and SHALL NOT
-check out or execute pull-request code with that token. Third-party actions SHALL be
+check out or execute pull-request code with that token. The `Delivery` caller is the one workflow that runs code of another repository: it SHALL contain no step of its own, SHALL only forward events and the delivery App credentials to `timurproko/MyWorkflows/.github/workflows/delivery.yml@main`, and SHALL be inventoried with the trusted source `shared-delivery-workflow`. npm publication SHALL use trusted publishing only; a workflow that reads a long-lived registry token SHALL surface as an authority the reviewed definition does not list. Third-party actions SHALL be
 pinned to reviewed immutable commits; whether GitHub enforces the allowlist and SHA
 policy SHALL be visible in drift reporting.
 
@@ -91,25 +47,13 @@ policy SHALL be visible in drift reporting.
 
 #### Scenario: Action reference is mutable
 - **WHEN** a workflow references a third-party action without an approved immutable commit
-- **THEN** repository governance SHALL reject the workflow
+- **THEN** the repository governance tests SHALL reject the workflow
+- **AND** the only mutable references accepted SHALL be local workflows, this repository's `publish.yml@develop`, and the shared delivery workflow at `@main`
 
-### Requirement: Live acceptance proves repository lifecycle outcomes
-Repository-governance implementation SHALL NOT be accepted from unit tests or API
-success responses alone. Acceptance SHALL record exact pull request, workflow run,
-merge actor/method, validated head, resulting `develop` commit, and post-merge remote
-ref state for automatic and manual paths.
-
-#### Scenario: Automatic documentation lifecycle is accepted
-- **WHEN** an OpenSpec-only or root-README-only acceptance pull request passes
-- **THEN** evidence SHALL show automatic squash integration and absence of its unchanged remote head ref
-
-#### Scenario: Manual code lifecycle is accepted
-- **WHEN** a code pull request passes CI and the maintainer manually accepts and merges it
-- **THEN** evidence SHALL show it remained manual before merge and its unchanged remote head ref was cleaned afterwards
-
-#### Scenario: Safety refusal is accepted
-- **WHEN** an isolated fixture advances a merged topic ref before reconciliation
-- **THEN** evidence SHALL show refusal and preservation of the advanced ref
+#### Scenario: The delivery caller gains its own steps
+- **WHEN** the `Delivery` caller declares a `run` or `steps` key, or references the shared workflow at another ref
+- **THEN** workflow inspection SHALL report its trusted source as `unknown`
+- **AND** the comparison with the reviewed definition SHALL report that workflow as drift
 
 ### Requirement: Verified release reopening pull requests auto-merge
 Trusted release-reopening automation SHALL integrate a pull request automatically only when it is a release reopening PR, that is, when every check below passes on its current head. It SHALL be non-draft and same-repository, target `develop`, and come from head `chore/release-X.Y.Z-dev`. It SHALL be opened by the fixed `openspec-ci[bot]` App identity (login, numeric id, and `Bot` type). Its body SHALL carry no delivery automation metadata. Its complete diff SHALL be exactly the modified `package.json`, `package-lock.json`, and `packages/a1-install/package.json` plus one added `docs/releases/<released>.md`, with no renames. With version fields removed, the base and head manifests SHALL be identical. The base SHALL consistently declare `<released>-dev`, and the head SHALL declare the patch successor `-dev` named by the branch. GitHub Release `v<released>` SHALL be published and non-prerelease, and the added note SHALL equal the note derived from that Release's body.
@@ -139,18 +83,6 @@ An eligible reopening PR SHALL be integrated only after current-head required va
 #### Scenario: An ordinary pull request is left alone
 - **WHEN** a pull request from any other branch is opened, updated, or armed for auto-merge by a maintainer
 - **THEN** the automation SHALL leave its auto-merge state unchanged and SHALL NOT merge it
-
-### Requirement: Delivery automation is delegated to the shared workflow
-The repository SHALL forward pull-request delivery events to the reusable workflow of the shared delivery workflow in `timurproko/MyWorkflows` through one caller workflow that contains no steps of its own and passes only the delivery App credentials. Draft promotion, OpenSpec finalization, the delivery check, ready pull-request refresh, and merged-branch deletion SHALL be performed by that shared workflow. The repository SHALL NOT keep scripts, workflows, or validation jobs that implement or re-check those steps. The workflow inventory SHALL record the caller with its triggers, permissions, and the exact shared workflow reference.
-
-#### Scenario: A pull request is opened or updated
-- **WHEN** a pull request into `develop` is opened, edited, synchronized, marked ready, converted to draft, or closed
-- **THEN** the caller SHALL invoke the shared workflow for that event
-- **AND** no workflow in this repository SHALL promote, finalize, or validate the delivery itself
-
-#### Scenario: The caller gains its own steps
-- **WHEN** the caller workflow declares a step or script of its own, or references another reusable workflow
-- **THEN** the governance check SHALL report it as untrusted drift
 
 ### Requirement: Documentation changes keep generated governance evidence current
 A documentation-only pull request SHALL remain exempt from product builds and product test suites, but it SHALL run every lightweight governance consistency check whose input surface includes its changed paths. OpenSpec changes SHALL additionally pass strict OpenSpec validation. Every other pull request SHALL retain its impact-selected validation.

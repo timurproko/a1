@@ -42,9 +42,10 @@ policy) on every supported platform. The complete suite is not required for a
 preview. A preview SHALL NOT move `latest`, and SHALL NOT claim certified terminal
 parity or platform support.
 
-Preview publication SHALL follow from a push rather than from manual acceptance:
-what makes a commit publishable is that it passed the required development check
-before it landed.
+Preview publication SHALL start from the nightly schedule or an explicit development
+dispatch of authoritative `develop`, never from a push alone, and SHALL need no separate
+manual acceptance of the commit: what makes a commit publishable is that it passed the
+required development check before it landed.
 
 #### Scenario: Physical workers are unavailable
 - **WHEN** a commit passes the required development check, merges, and no physical certification exists for it
@@ -243,7 +244,7 @@ For non-draft pull requests into `develop` that are neither documentation-only n
 
 The retained Node 22 startup scope SHALL preserve first-attempt exact-package startup checks, enabled Defender real-time protection, unchanged performance limits, isolation, assertions, failure semantics, and evidence artifacts. Image preparation, packaged image workers, and durable-history compatibility SHALL remain Node 22 impact-selectable ordinary scopes independent of startup timing. Package identity, layer reuse, cleanup backlog, and updater cancellation/loss scenarios SHALL retain explicit exact-package owners. Changed tests and support SHALL select all affected ordinary owners even without production changes. Full-regression and nightly/release compositions SHALL retain all extracted scenarios on their existing applicable platforms and runtimes.
 
-Ordinary documentation-only, version-only, and draft exemptions SHALL remain unchanged except for the eligible generated repair's selected PR Full regression. Planning-only generated repair drafts SHALL stay lightweight; their implementation-bearing drafts MAY run full validation without gaining integration authority. No reduced startup smoke test SHALL replace the complete selected startup contract or weaken the required aggregate.
+Ordinary documentation-only, version-only, and draft exemptions SHALL remain unchanged except for the eligible generated repair's selected PR Full regression. Draft pull requests, including generated repair drafts, SHALL run no validation. No reduced startup smoke test SHALL replace the complete selected startup contract or weaken the required aggregate.
 
 #### Scenario: Applicable code PR is validated
 - **WHEN** a ready ordinary PR has startup impact and lacks valid generated failed-Full-regression repair provenance
@@ -286,7 +287,7 @@ Ordinary documentation-only, version-only, and draft exemptions SHALL remain unc
 - **AND** changes to those tests or their dependencies SHALL require their ordinary PR execution
 
 ### Requirement: Required PR validation remains fail closed after runtime deferral
-The required development aggregate SHALL depend on successful current-head Node 22 startup validation whenever authoritative ordinary impact selection requires it. It SHALL not wait for Node 24 evidence when trusted policy proves complete regression unselected. When PR Full regression is selected, the aggregate SHALL additionally require its complete matrix, including Windows Node 24. It SHALL also require every selected image/history, exact-package, delivery, and governance scope. Failed, cancelled, missing, stale, or unexpectedly skipped required results SHALL NOT be accepted as successful validation. Unselected work SHALL be accepted only with complete trustworthy current-head selection explicitly proving it unnecessary; missing or invalid selection SHALL require conservative execution or block the aggregate. Nightly, independent dispatch, or earlier-head results SHALL NOT substitute for current PR checks. The named protected aggregate and all other mandatory gates SHALL remain in force.
+The required development aggregate SHALL depend on successful current-head Node 22 startup validation whenever authoritative ordinary impact selection requires it. It SHALL not wait for Node 24 evidence when trusted policy proves complete regression unselected. When PR Full regression is selected, the aggregate SHALL additionally require its complete matrix, including Windows Node 24. It SHALL also require every selected image/history, exact-package, and governance scope. Failed, cancelled, missing, stale, or unexpectedly skipped required results SHALL NOT be accepted as successful validation. Unselected work SHALL be accepted only with complete trustworthy current-head selection explicitly proving it unnecessary; missing or invalid selection SHALL require conservative execution or block the aggregate. Nightly, independent dispatch, or earlier-head results SHALL NOT substitute for current PR checks. The named protected aggregate and all other mandatory gates SHALL remain in force.
 
 #### Scenario: Required Node 22 startup succeeds
 - **WHEN** Node 22 startup and every other required PR gate succeed and full regression is proven unselected
@@ -309,28 +310,8 @@ The required development aggregate SHALL depend on successful current-head Node 
 - **THEN** the aggregate SHALL fail rather than infer irrelevance from the skip
 
 #### Scenario: Selected compatibility coverage fails
-- **WHEN** startup passes but a required package, image/history, or delivery scope fails
+- **WHEN** startup passes but a required package or image/history scope fails
 - **THEN** the aggregate SHALL remain unsuccessful
-
-### Requirement: Deferred Windows Node 24 coverage remains mandatory outside ordinary PR validation
-The existing scheduled nightly/release validation pipeline SHALL retain Windows Node 24 and Node 22, including first-attempt exact-package startup coverage with Defender enabled and unchanged budget, artifact-identity, and publication-gating rules. Manual Full regression SHALL retain both Windows runtimes and the complete existing non-physical suite. The tests currently run in the Node 24 PR startup job SHALL remain covered through the existing full-validation owners; this change SHALL NOT delete or weaken startup, image, history, or packaged-worker tests.
-
-No additional release may be published on the strength of the reduced PR matrix alone when the publication's own required validation is incomplete or failing. The existing nightly schedule, supported-platform matrix, release modes, and permission boundaries SHALL remain unchanged.
-
-#### Scenario: Scheduled nightly validation runs
-- **WHEN** the existing nightly pipeline validates its selected exact package
-- **THEN** Windows Node 24 and Node 22 SHALL retain their required validation with the original assertions and startup limits
-- **AND** failure of either required lane SHALL block its publication under the existing policy
-
-#### Scenario: Maintainer requests full validation before nightly
-- **WHEN** the Full regression workflow is manually dispatched
-- **THEN** it SHALL retain both Windows runtimes and the current complete non-physical validation, including the deferred Node 24 coverage
-
-#### Scenario: Cadence change is accepted
-- **WHEN** the reduced PR startup matrix is delivered for acceptance
-- **THEN** evidence SHALL identify a current-head PR run with only Node 22 startup, its successful aggregate, and retained Node 24 full-validation run evidence
-- **AND** workflow policy tests SHALL guard both the reduced PR selection and the preserved full-validation coverage
-- **AND** the handoff SHALL disclose that Node-24-specific regressions may be detected only after integration rather than claiming equivalent pre-merge runtime coverage
 
 ### Requirement: Shortcut help regression evidence respects platform presentation
 Shortcut-help regression checks SHALL distinguish the configured binding identity from its platform-specific visible label. Checks SHALL retain live override, unbound-command fallback, and pinned-profile coverage rather than accepting arbitrary labels or changing runtime presentation to satisfy a host-specific expectation.
@@ -492,36 +473,6 @@ Subprocess results SHALL be bounded and fail closed. Validation SHALL not report
 - **THEN** the `predecessor` shard SHALL prepare its own exact candidate installation, verify it before and after the invocation, and execute the real multi-release scenario once
 - **AND** the package shard SHALL NOT execute that scenario and SHALL NOT share its installed tree with the predecessor shard
 
-### Requirement: Nightly recovery is proven by numbered merged-package evidence
-A nightly recovery effort SHALL not be declared complete solely from focused tests, passing PR CI, an implementation merge, a branch Full regression run, or reduced-scope manual development publication. Completion SHALL require the actual scheduled nightly workflow to successfully perform full-release validation on a newly numbered package whose merged source contains the accepted repairs, across Windows Node 22 and 24, Linux Node 24, and macOS Node 24, with a successful aggregate publication or immutable-registry verification outcome.
-
-Evidence SHALL identify source commit, merged-PR/version identity, package integrity/digest, nightly run and native job identities, selected full-release scope, and every lane's result. Existing registry bytes SHALL remain immutable. Additional failed stages SHALL remain explicit blockers until corrected and verified; their checks SHALL NOT be skipped or weakened to obtain a successful result.
-
-#### Scenario: Nightly builds a new numbered package
-- **WHEN** the repaired merged source selects a development version not yet published
-- **THEN** the scheduled nightly SHALL build and pack that numbered candidate once and validate the same bytes in every native lane
-- **AND** successful publication to the development channel SHALL be verified against the validated package identity before recovery is accepted
-
-#### Scenario: The newer numbered package is already published
-- **WHEN** an authorized development publication has already produced the repaired numbered package
-- **THEN** scheduled nightly SHALL fully validate those exact immutable registry bytes on all four lanes
-- **AND** a successful manual existing-version no-op SHALL NOT substitute for that validation
-
-#### Scenario: Another validation stage fails
-- **WHEN** any required native or publication stage fails after the initial correction
-- **THEN** recovery SHALL remain incomplete with the failed stage and available cause evidence recorded
-- **AND** further correction SHALL preserve the gate and receive the applicable scope approval before implementation
-
-#### Scenario: A retained regression still consumes a retired copy result
-- **WHEN** a retained transcript-lifetime regression uses a retired copy-result representation after a reviewed ownership change
-- **THEN** the test SHALL consume the current selection snapshot through the existing copy serialization contract
-- **AND** it SHALL retain its exact independent expected copied text and all original lifecycle assertions without modifying production clipboard behavior or adding an exception
-
-#### Scenario: The implementation is merged but nightly is pending
-- **WHEN** accepted implementation has merged but the numbered-package nightly outcome is missing, failed, or incomplete
-- **THEN** completed-change archival and retained-worktree cleanup SHALL remain blocked
-- **AND** the implementation acceptance report SHALL NOT be represented as evidence of successful nightly recovery
-
 ### Requirement: Faster package fixtures preserve cold-state and oracle independence
 Fixture optimizations SHALL preserve fresh installation boundaries, exact package identity, representative workload sizes, independent comparison processes, hermetic mutable state, and verified owned-process cleanup. Immutable source templates or downloaded bytes SHALL be reusable only where their reuse does not supply the behavior under test or pre-warm a measured first-attempt launch. Every mutable instance, prefix, endpoint, release state, and cancellation lifecycle SHALL remain scenario-owned. Failed setup, assertions, command execution, or cleanup SHALL remain visible under the retained failure semantics rather than becoming a timing success.
 
@@ -555,51 +506,10 @@ A production-shaped historical backlog fixture SHALL construct its retained payl
 - **WHEN** a fixture command or assertion fails and teardown also encounters a problem
 - **THEN** evidence SHALL retain the primary failure and separately identify cleanup outcome without reporting the fixture as passed
 
-### Requirement: Durable regression oracles protect current behavior
-A permanent regression test SHALL protect a current product, compatibility, or repository-policy contract through behavior, structured policy, or a hermetic fixture. It SHALL NOT depend on the continued active location of an OpenSpec change, reread one-time implementation or benchmark evidence as its runtime oracle, or require exact explanatory prose when equivalent wording preserves the contract. One-time planning, benchmark, and acceptance evidence SHALL be validated by its producing operation and OpenSpec finalization or audit, then retained as historical evidence without remaining a prerequisite of unrelated product test runs.
-
-Tests for generators and evidence readers SHALL use temporary or versioned fixtures that exercise supported schemas and failure behavior. Tests for workflow guidance SHALL assert stable structured policy or executable launch behavior; exact text SHALL be required only when that text is itself a declared external contract. Removing a historical-evidence assertion SHALL NOT remove the underlying current behavior test, full-suite owner, release contract, or accepted evidence file.
-
-#### Scenario: An OpenSpec change is archived
-- **WHEN** a completed change moves from its active directory into a dated archive
-- **THEN** permanent product and governance tests SHALL continue to pass without rewriting paths to that historical change
-- **AND** archive validation SHALL preserve the evidence under its accepted archive identity
-
-#### Scenario: One-time performance evidence is retained
-- **WHEN** implementation acceptance records a local or hosted benchmark report
-- **THEN** finalization or audit SHALL validate the report required by that change
-- **AND** unrelated future PR tests SHALL NOT reread the report as proof of current runtime behavior
-
-#### Scenario: Policy wording changes without changing meaning
-- **WHEN** explanatory workflow text is shortened or rephrased while retaining the same structured or executable requirement
-- **THEN** regression validation SHALL evaluate the retained semantic contract rather than an exact sentence
-- **AND** a separately declared user-visible text contract, if any, SHALL remain exact
-
-#### Scenario: Evidence tooling changes
-- **WHEN** a generator, parser, finalizer, or reader for evidence changes
-- **THEN** hermetic fixtures SHALL prove supported schema, identity, bounds, and failure behavior
-- **AND** the test SHALL not depend on mutable repository history or a particular prior change remaining active
-
-#### Scenario: A historical-only assertion is removed
-- **WHEN** audit shows a test's only oracle is an accepted change's static evidence or prose
-- **THEN** that assertion MAY be removed or replaced with a hermetic semantic test
-- **AND** current product assertions, retained suite ownership, release coverage, and the historical evidence itself SHALL remain intact
-
-#### Scenario: An isolated helper completes asynchronously
-- **WHEN** a regression assertion depends on an owned child process adopting a prepared value
-- **THEN** the fixture SHALL synchronize on the helper's structured completion event rather than use a generic polling deadline as completion authority
-- **AND** the semantic assertion, failure behavior, and production timeout policy SHALL remain unchanged
-
-#### Scenario: Resume behavior uses an exact package candidate
-- **WHEN** resume integration validates launcher and UI behavior from exact packed candidate bytes
-- **THEN** the fixture MAY prepare, certify, and activate those bytes through production release-store operations before starting the bounded public resume launch
-- **AND** separate exact-package and first-attempt startup scopes SHALL retain cold materialization and startup authority
-- **AND** resume readiness SHALL be polled with backoff to one generous hang bound, SHALL report the startup phases reached when that bound expires, and SHALL NOT be retried
-
 ### Requirement: Exact-package startup graph and latency are release-gated
 Exact-package validation SHALL record the modules, files, evaluated bytes, and elapsed phases required from command invocation through first input-ready render for both interactive profiles. Evidence SHALL distinguish A1-owned startup code, documented Pi entry points, other dependency modules, process startup, runtime initialization, and rendering. The accepted baseline SHALL fail when an unapproved broad entry point or optional feature becomes eagerly reachable, even when aggregate time happens to remain within budget.
 
-On the accepted Defender-enabled Windows runner, each supported Node lane SHALL execute post-update, restart-equivalent, and warm scenarios once without automatic retry. Post-update and warm launches SHALL complete within 2 seconds; restart-equivalent launches SHALL complete within 2.5 seconds.
+On the accepted Defender-enabled Windows runner, each supported Node lane SHALL execute post-update, restart-equivalent, and warm scenarios once without automatic retry. The budgets SHALL be the ones `src/foundation/startup/startup-budget.ts` declares, 2 seconds for post-update and warm launches and 2.5 seconds for restart-equivalent launches, and what an overrun does SHALL follow the enforcement mode the channel declares.
 
 #### Scenario: Broad entry point enters the startup graph
 - **WHEN** a change makes an unapproved barrel, command mode, optional workflow, or optional presentation module eagerly reachable before first input-ready render
@@ -611,7 +521,8 @@ On the accepted Defender-enabled Windows runner, each supported Node lane SHALL 
 
 #### Scenario: Startup exceeds its budget
 - **WHEN** an exact packaged profile exceeds its applicable first-attempt budget
-- **THEN** validation SHALL fail without retry and report the dominant phases, module groups, loaded file count, and evaluated bytes
+- **THEN** validation SHALL record the overrun with its dominant phases without retry
+- **AND** the gate SHALL fail only where the enforcement mode is `fail`
 
 #### Scenario: Deferred capability is exercised
 - **WHEN** exact-package validation invokes a feature excluded from the eager graph
@@ -645,24 +556,6 @@ A first-attempt startup consumer SHALL remain cold with respect to product launc
 - **WHEN** one consumer cannot immediately remove its mutable fixture state
 - **THEN** cleanup SHALL remain bounded and attributable to that owner
 - **AND** it SHALL not delete the shared immutable preparation or another owner's mutable state
-
-### Requirement: Development publication records startup budget evidence
-The development publication channel SHALL measure both supported profiles and all three launch kinds on the first attempt exactly as an enforcing channel does. It SHALL record every overrun with its profile, launch kind, measured elapsed time, applicable budget, and dominant phases in the startup performance evidence and in the run summary, and SHALL annotate the run so the overrun is visible without downloading an artifact. It SHALL NOT block publication on an overrun, SHALL NOT reduce the number of measured scenarios, and SHALL NOT retry a measurement.
-
-The recorded evidence SHALL name the enforcement mode under which it was produced so a recorded result is never mistaken for an enforced pass. Nightly publication, stable publication, and complete regression SHALL continue to fail on the same overrun.
-
-#### Scenario: A development preview exceeds a budget
-- **WHEN** a numbered development preview measures an exact packaged launch above its declared budget
-- **THEN** validation SHALL record the violation, annotate the run, and allow publication to proceed
-- **AND** the recorded evidence SHALL identify the recording enforcement mode
-
-#### Scenario: Nightly measures the same overrun
-- **WHEN** nightly publication or complete regression measures the same overrun on the same bytes
-- **THEN** validation SHALL fail with the dominant measured phases and publication SHALL be blocked
-
-#### Scenario: Enforcement mode is unspecified
-- **WHEN** the exact-package startup gate runs without a declared enforcement mode or with an unrecognized one
-- **THEN** it SHALL enforce the budgets and fail on an overrun
 
 ### Requirement: Exact-package gates prove silent installation behavior
 Release validation SHALL exercise the exact packed installer artifact against the exact packed A1 candidate in isolated global prefixes without reading or mutating the runner's ordinary A1 profile, release store, sessions, credentials, npm prefix, or npm configuration. Evidence SHALL cover Windows Node 22/24, Linux Node 24, and macOS Node 24 and SHALL verify package surface, fixed npm arguments, exact target pinning, child-stream isolation, safe phase classification, progress/terminal cleanup, platform launchers, command resolution, activation completion, existing-install delegation, failure, cancellation, and retry.
@@ -720,36 +613,10 @@ The destructive fixture SHALL use only recorded disposable roots and fake npm fi
 - **THEN** the exact-package predecessor outcome SHALL remain failed or missing
 - **AND** stable publication SHALL be blocked
 
-### Requirement: Published-predecessor evidence avoids duplicate exact installations
-
-Complete exact-package validation SHALL allow its published-predecessor owner to consume the package shard's one already prepared exact candidate installation only after the validation runner verifies its receipt, candidate digest, package identity, installed content identity, runtime lane, run attempt, and authorized consumer before the invocation. The runner SHALL verify the installation again after the invocation and SHALL retain its existing bounded cleanup. An arbitrary, cross-run, cross-runtime, stale, or unverified installed tree SHALL NOT substitute for the exact candidate.
-
-Within one sequential predecessor fixture, the newest selected predecessor MAY retain its one npm-installed private prefix after materialization and warmup and use that same still-owned, previously unmodified tree for the applicable Windows protected-replacement assertion. Every other selected recent predecessor SHALL still execute its own published release code, and an explicitly declared historical bridge SHALL retain a separate exact npm installation. Installation reuse SHALL NOT reduce predecessor count, skip behavior, share mutable state between shards, run npm installations concurrently, increase deadlines, retry failures, or replace npm-produced topology with copied, linked, or manually extracted package trees.
-
-#### Scenario: Predecessor validation starts after exact-package preparation
-- **WHEN** the package shard has authenticated one exact candidate installation for all declared package consumers
-- **THEN** published-predecessor validation SHALL use that same verified candidate root without a second candidate npm installation
-- **AND** pre- and post-invocation verification SHALL bind the root to the exact candidate and current runtime lane
-
-#### Scenario: The immediate predecessor serves both compatibility assertions
-- **WHEN** the newest selected predecessor has completed materialization and warmup from its npm-installed private prefix
-- **THEN** the Windows direct protected-replacement case MAY consume that same fixture-owned unmodified installation
-- **AND** the predecessor SHALL still perform its real replacement, launcher, activation, and callable-command behavior before the root is discarded
-
-#### Scenario: Other predecessor identities are selected
-- **WHEN** validation selects the remaining recent predecessors and the declared historical bridge
-- **THEN** each distinct selected package SHALL retain its own exact npm installation and execute its own shipped release code
-- **AND** retaining the immediate predecessor SHALL NOT satisfy or suppress another version's evidence
-
-#### Scenario: Shared installation authority is absent or changes
-- **WHEN** the candidate handoff is absent, stale, belongs to another lane or run, has changed installed bytes, or does not authorize the predecessor consumer
-- **THEN** predecessor validation SHALL fail before using that root rather than installing an untracked fallback or accepting partial evidence
-- **AND** fixture and exact-package cleanup SHALL retain their existing ownership and failure semantics
-
 ### Requirement: Exact-package startup performance is release-gated for update, restart-equivalent, and warm launches
 The accepted Windows release runner SHALL measure command invocation through first input-ready frame for exact packaged `a1` and `a1 pi` launches. Evidence SHALL include a newly addressed cold release path, the first launch after completed update handling, a restart-equivalent launch of an approved active release in a fresh process, and a subsequent warm launch, with phase durations and immutable content identities. Each release-gating scenario SHALL execute once without automatic retry, and acceptance evidence SHALL demonstrate reliable margin on every supported Windows Node lane rather than relying on a preceding failed launch to warm the path.
 
-The measured budgets SHALL be the interactive startup budgets declared by the A1 shell capability rather than separately restated numbers. Measurement SHALL be unconditional; enforcement SHALL depend on the declared channel. Windows Defender real-time protection SHALL be enabled before the first packaged launch of a measured scenario, and MAY be disabled while dependencies and the exact candidate are installed and extracted. Stable publication SHALL fail on an overrun. Nightly publication, complete regression, and development previews SHALL record every measurement, SHALL upload it as evidence next to the tier outcome, and SHALL fail only through the persistent-overrun verdict the A1 shell capability declares, computed from the uploaded evidence of the three most recent consecutive `develop` runs of the same workflow and never from re-measurement. A launch that records no input-ready frame SHALL fail in every channel.
+The measured budgets SHALL be the interactive startup budgets declared by the A1 shell capability rather than separately restated numbers. Measurement SHALL be unconditional; enforcement SHALL depend on the declared channel. Windows Defender real-time protection SHALL be enabled before the first packaged launch of a measured scenario, and MAY be disabled while dependencies and the exact candidate are installed and extracted. Stable publication SHALL fail on an overrun. Nightly publication, complete regression, development previews, and the pull-request startup lane SHALL record every measurement, SHALL upload it as evidence next to the tier outcome, and SHALL NOT fail on an overrun; they SHALL be judged by the persistent-overrun verdict the A1 shell capability declares, which the nightly regression triage computes from the uploaded evidence of the three most recent consecutive `develop` runs of the same workflow, never from re-measurement, and proposes as a fix candidate. A launch that records no input-ready frame SHALL fail in every channel.
 
 #### Scenario: First launch follows update
 - **WHEN** an exact packaged update activates a release whose product path has not previously launched on the worker
@@ -817,3 +684,59 @@ A test of concurrent operations SHALL assert each operation's outcome without de
 - **WHEN** a test's assertions have passed and its temporary directory is briefly locked by a closing handle
 - **THEN** teardown SHALL retry the removal and the test SHALL pass
 - **AND** a handle that stays open past the bound SHALL still fail the test
+
+### Requirement: Predecessor fixtures reuse the immediate predecessor's installation
+
+Within one sequential predecessor fixture, the newest selected predecessor MAY retain its one npm-installed private prefix after materialization and warmup and use that same still-owned, previously unmodified tree for the applicable Windows protected-replacement assertion. Every other selected recent predecessor SHALL still execute its own published release code, and an explicitly declared historical bridge SHALL retain a separate exact npm installation. Installation reuse SHALL NOT reduce predecessor count, skip behavior, share mutable state between shards, run npm installations concurrently, increase deadlines, retry failures, or replace npm-produced topology with copied, linked, or manually extracted package trees.
+
+#### Scenario: The immediate predecessor serves both compatibility assertions
+- **WHEN** the newest selected predecessor has completed materialization and warmup from its npm-installed private prefix
+- **THEN** the Windows direct protected-replacement case MAY consume that same fixture-owned unmodified installation
+- **AND** the predecessor SHALL still perform its real replacement, launcher, activation, and callable-command behavior before the root is discarded
+
+#### Scenario: Other predecessor identities are selected
+- **WHEN** validation selects the remaining recent predecessors and the declared historical bridge
+- **THEN** each distinct selected package SHALL retain its own exact npm installation and execute its own shipped release code
+- **AND** retaining the immediate predecessor SHALL NOT satisfy or suppress another version's evidence
+
+### Requirement: Windows Node 22 and Node 24 complete coverage runs outside ordinary pull requests
+Nightly publication validation and stable candidate validation SHALL validate the exact package on Windows Node 22, Windows Node 24, Linux Node 24, and macOS Node 24. Scheduled and manually dispatched Full regression SHALL run the complete non-physical suite on both Windows runtimes, including first-attempt exact-package startup with Defender real-time protection enabled. A numbered development preview SHALL validate on the three Node 24 lanes only. A failed required lane SHALL block that workflow's publication.
+
+#### Scenario: Scheduled nightly validation runs
+- **WHEN** the nightly pipeline validates its selected exact package
+- **THEN** Windows Node 24 and Node 22 SHALL both be required lanes
+- **AND** failure of either SHALL block its publication
+
+#### Scenario: Full regression is dispatched
+- **WHEN** the Full regression workflow runs on schedule or by dispatch
+- **THEN** it SHALL run both Windows runtimes with the complete non-physical suite
+
+### Requirement: Regression oracles protect current behavior
+A permanent regression test SHALL protect a current product, compatibility, or repository-policy contract through behavior, structured policy, or a hermetic fixture. It SHALL NOT depend on the continued active location of an OpenSpec change, reread one-time implementation or benchmark evidence as its runtime oracle, or require exact explanatory prose when equivalent wording preserves the contract. One-time planning, benchmark, and acceptance evidence SHALL NOT be a prerequisite of product test runs.
+
+Tests for generators and evidence readers SHALL use temporary or versioned fixtures that exercise supported schemas and failure behavior. Tests for workflow guidance SHALL assert stable structured policy or executable launch behavior; exact text SHALL be required only when that text is itself a declared external contract.
+
+#### Scenario: An OpenSpec change is archived
+- **WHEN** a completed change moves from its active directory into a dated archive
+- **THEN** permanent product and governance tests SHALL continue to pass without rewriting paths to that historical change
+
+#### Scenario: Policy wording changes without changing meaning
+- **WHEN** explanatory workflow text is shortened or rephrased while retaining the same structured or executable requirement
+- **THEN** regression validation SHALL evaluate the retained semantic contract rather than an exact sentence
+- **AND** a separately declared user-visible text contract, if any, SHALL remain exact
+
+#### Scenario: Evidence tooling changes
+- **WHEN** a generator, parser, or reader for evidence changes
+- **THEN** hermetic fixtures SHALL prove supported schema, identity, bounds, and failure behavior
+- **AND** the test SHALL not depend on mutable repository history or a particular prior change remaining active
+
+#### Scenario: An isolated helper completes asynchronously
+- **WHEN** a regression assertion depends on an owned child process adopting a prepared value
+- **THEN** the fixture SHALL synchronize on the helper's structured completion event rather than use a generic polling deadline as completion authority
+- **AND** the semantic assertion, failure behavior, and production timeout policy SHALL remain unchanged
+
+#### Scenario: Resume behavior uses an exact package candidate
+- **WHEN** resume integration validates launcher and UI behavior from exact packed candidate bytes
+- **THEN** the fixture MAY prepare, certify, and activate those bytes through production release-store operations before starting the bounded public resume launch
+- **AND** separate exact-package and first-attempt startup scopes SHALL retain cold materialization and startup authority
+- **AND** resume readiness SHALL be polled with backoff to one generous hang bound, SHALL report the startup phases reached when that bound expires, and SHALL NOT be retried
