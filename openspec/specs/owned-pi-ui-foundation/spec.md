@@ -1,8 +1,8 @@
 # Owned Pi UI Foundation Specification
 
 ## Purpose
+Defines A1's owned session shell over the pinned Pi engine: the pinned Pi interactive behaviour it reproduces (complete in the `a1 pi` comparison profile), the bare-A1 additions and replacements layered on it, and the engine-adapter, input, streaming, attachment, rendering and terminal-lifecycle guarantees of that shell.
 
-Defines A1's independently owned Pi shell with vanilla-default regular main-screen mode and optional fullscreen mode, complete pinned interactive baseline including extension UI, exact current-version parity, public engine/runtime boundaries, customization slots, diagnostics, and upgrade-conformance policy.
 
 ## Requirements
 

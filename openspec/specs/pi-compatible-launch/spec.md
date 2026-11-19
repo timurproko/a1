@@ -1,7 +1,7 @@
 # pi-compatible-launch Specification
 
 ## Purpose
-TBD - created by archiving change firstmate-pi-compatibility. Update Purpose after archive.
+Defines the opt-in `pi`-named entry that launches normal A1 for hosts that expect that name: the Pi-style invocation grammar it shares with `a1`, its Pi-family environment identity, and the extension lifecycle it preserves.
 
 ## Requirements
 

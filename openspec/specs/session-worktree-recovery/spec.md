@@ -1,7 +1,7 @@
 # session-worktree-recovery Specification
 
 ## Purpose
-TBD - created by archiving change worktree-link-self-recovery. Update Purpose after archive.
+Defines how an A1 session enters, attaches, detaches from, and completes task worktrees, how editing claims and runtime registration are coordinated between sessions, and how damaged coordination state or an invalid attachment is recovered without losing work.
 
 ## Requirements
 

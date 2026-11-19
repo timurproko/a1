@@ -1,7 +1,7 @@
 # validation-efficiency Specification
 
 ## Purpose
-TBD - created by archiving change optimize-test-execution. Update Purpose after archive.
+Defines how validation avoids repeated work: one capture per equivalent workload, bounded critical test floors on pull requests, direct-impact and exhaustive cadence for expensive owners, fail-fast matrix cancellation, and auditable cost reports.
 
 ## Requirements
 

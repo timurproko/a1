@@ -1,8 +1,8 @@
 # Continuous Integration Specification
 
 ## Purpose
+Defines this repository's automated validation and publication: impact-selected checks for ready, finalized pull requests, the single required aggregate, nightly and on-demand complete regression with its triage, and publication of preview and stable packages from verified bytes.
 
-Defines proportionate automated validation: fast checks during development, package gates for previews, and the complete suite only for stable releases.
 
 ## Requirements
 

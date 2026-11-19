@@ -1,7 +1,7 @@
 # owned-ui-settings Specification
 
 ## Purpose
-Defines A1-owned settings declarations, profile-local persistence and migration, application boundaries, grouped presentation, and shared interaction behavior.
+Defines A1-owned settings declarations, their profile-local persistence as a flat product object inside the global agent settings file, application boundaries, sectioned presentation, and shared interaction behavior.
 
 ## Requirements
 

@@ -1,7 +1,7 @@
 # cli-uninstall Specification
 
 ## Purpose
-TBD - created by archiving change reliable-install-and-update. Update Purpose after archive.
+Defines `a1 uninstall`: removing the globally installed A1 package and its state directories from the machine, keeping sessions and settings unless the user confirms or passes `--purge`.
 
 ## Requirements
 

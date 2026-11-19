@@ -1,7 +1,7 @@
 # extension-packages Specification
 
 ## Purpose
-Define non-interactive extension package management for A1's own profile through the `a1 pi` command namespace. Preserve pinned Pi source grammar, command transcripts, and actionable failures while isolating other profiles and preventing independent updates of the pinned Pi runtime.
+Defines non-interactive extension package and model-catalog management for A1's own profile through the direct `a1` commands and their `a1 pi` aliases, preserving pinned Pi's source grammar and transcripts and refusing independent updates of the pinned Pi runtime.
 
 ## Requirements
 

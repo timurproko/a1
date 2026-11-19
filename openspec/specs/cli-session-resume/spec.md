@@ -1,8 +1,8 @@
 # cli-session-resume Specification
 
 ## Purpose
+Defines selection and restoration of persisted A1 sessions through the public CLI, recovery when a session's folder is gone, writer ownership, and the resume command printed when a session exits.
 
-Defines reliable selection and restoration of persisted A1 sessions through the public CLI and the resume command printed when the normal A1 UI exits. Acceptance targets future sessions created with the shipped Pi version and its actual restoration behavior, not recovery of the user's current conversation or support for formats beyond that pin.
 
 ## Requirements
 
