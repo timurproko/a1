@@ -65,7 +65,7 @@
     "start:pi": "npm run build && node scripts/development/dev-launch.mjs pi",
     "prepack": "node scripts/release/validate-packaged-release-note.mjs && node scripts/release/prepack-gate.mjs",
     "prepublishOnly": "npm run test:release",
-    "prepare": "npm run build:core",
+    "prepare": "node scripts/development/workflow-bootstrap.mjs && npm run build:core",
     "typecheck:bin": "tsgo -p tsconfig.bin.json"
   },
   "dependencies": {
