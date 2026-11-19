@@ -42,7 +42,6 @@
     "check:deprecated": "node scripts/governance/check-deprecated-dependencies.mjs",
     "check:docs-governance": "node scripts/governance/check-docs-governance.mjs",
     "check:repository-governance": "node scripts/governance/check-github-repository-governance.mjs --check",
-    "branches:prune": "node scripts/prune-merged-branches.mjs",
     "check": "npm run test:fast",
     "develop": "node scripts/development/develop.mjs",
     "doctor": "node scripts/development/check-environment.mjs --report",
