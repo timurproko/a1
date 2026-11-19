@@ -117,3 +117,7 @@ continues to select `<A1_DATA_DIR>/history` as well as the release data root.
 The home-based history default does not relocate the paths above or the compile
 cache at `<data>/cache/compile`. See [prompt history](../features/prompt-history.md)
 for the deliberate fresh start without migration, privacy, and manual removal.
+
+## Running a checkout
+
+To run a checkout interactively, build first and launch it with `./scripts/dev`, or `./scripts/dev pi` for the Pi-compatible entry. Never invoke or hand off a direct Node launch such as `node scripts/development/dev-launch.mjs`: it skips the launch shape the installed command has.

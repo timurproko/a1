@@ -50,11 +50,11 @@ describe("terminal colour fidelity", () => {
 
   it("gives development runs and manual handoffs the launch shape the installed command has", async () => {
     const developmentEntry = await source("scripts/dev");
-    const workflow = await source("AGENTS.md");
+    const workflow = await source("docs/architecture/toolchain.md");
 
     expect(developmentEntry.startsWith("#!/bin/sh")).toBe(true);
     expect(developmentEntry).toMatch(/exec node .*development\/start-local\.mjs/u);
-    expect(workflow).toMatch(/interactive[\s\S]{0,300}`\.\/scripts\/dev` or `\.\/scripts\/dev pi`/u);
+    expect(workflow).toMatch(/interactive[\s\S]{0,300}`\.\/scripts\/dev`, or `\.\/scripts\/dev pi`/u);
     const handoffPolicy = workflow.split(/\r?\n/u).filter(line => /hand ?off|invoke|launch/iu.test(line)).join("\n");
     expect(handoffPolicy).toContain("scripts/development/dev-launch.mjs");
     expect(handoffPolicy).toMatch(/never|do not|must not/iu);
