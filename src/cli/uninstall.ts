@@ -33,7 +33,7 @@ export interface UninstallDependencies {
 
 /**
  * Removes A1 from this machine: the global package goes first, then every A1-owned state root.
- * Sessions and settings live in the profile home and leave only with explicit consent.
+ * Sessions, settings, and sign-ins live in the profile home and leave only with `--purge`, as with Pi.
  */
 export async function runUninstall(request: UninstallRequest, dependencies: UninstallDependencies): Promise<number> {
   const { output } = dependencies;
@@ -48,7 +48,7 @@ export async function runUninstall(request: UninstallRequest, dependencies: Unin
   const paths = resolveProductPaths(environment, platform);
   const profileHome = resolveLaunchProfilePaths({ environment, platform, ...(dependencies.home === undefined ? {} : { home: dependencies.home }) }).managedStateRoot;
 
-  let purge = request.purge;
+  const purge = request.purge;
   if (!request.yes) {
     if (dependencies.confirm === undefined) {
       output.stderr(`${PRODUCT_TEXT.diagnostic(`${command} uninstall needs a terminal to confirm. Run ${command} uninstall --yes to remove it.`)}\n`);
@@ -58,7 +58,6 @@ export async function runUninstall(request: UninstallRequest, dependencies: Unin
       output.stdout(`${command} was not removed\n`);
       return 1;
     }
-    purge ||= await dependencies.confirm(`Also delete your sessions, settings, and sign-ins in ${profileHome}? [y/N] `);
   }
 
   try {

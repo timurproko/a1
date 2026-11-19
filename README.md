@@ -166,7 +166,7 @@ The **Update** setting controls release discovery:
 
 ## Uninstall
 
-Remove A1 from this machine. It asks before deleting your sessions and settings in `~/.a1`:
+Remove A1 from this machine. Your sessions, settings, and sign-ins in `~/.a1` stay unless you add `--purge`:
 
 ```text
 a1 uninstall

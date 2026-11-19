@@ -24,6 +24,6 @@
 
 ## 5. Interactive uninstall keeps user data unless purged
 
-- [ ] 5.1 `runUninstall` no longer asks the data question; the profile home is removed only with `--purge`
-- [ ] 5.2 Uninstall tests expect one question and a kept profile home, and `--purge` still removes it
-- [ ] 5.3 The `runUninstall` doc comment and README Uninstall section say user data leaves only with `--purge`
+- [x] 5.1 `runUninstall` no longer asks the data question; the profile home is removed only with `--purge`
+- [x] 5.2 Uninstall tests expect one question and a kept profile home, and `--purge` still removes it
+- [x] 5.3 The `runUninstall` doc comment and README Uninstall section say user data leaves only with `--purge`
