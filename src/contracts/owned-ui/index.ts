@@ -2,6 +2,7 @@ export type { OwnedUiSessionNameState, OwnedUiSessionNameCompletion, OwnedUiSess
 
 export const UI_ACCENT_COLORS = Object.freeze(["blue", "green", "orange", "pink", "purple", "cyan", "grey"] as const);
 export type UiAccentColor = typeof UI_ACCENT_COLORS[number];
+export const DEFAULT_UI_ACCENT_COLOR: UiAccentColor = "blue";
 
 export {
   OWNED_UI_EXTENSION_CONTRACT_VERSION,

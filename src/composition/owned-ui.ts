@@ -6,7 +6,7 @@ import { resolvePromptHistoryPath } from "../features/prompt-history/paths.js";
 import { resolvePromptHistoryDataDir } from "../features/launch/profile-paths.js";
 import { resolveProductPaths } from "../foundation/lifecycle/paths.js";
 import type { AvailableRelease, StartupReleaseCheckOptions } from "../foundation/release/latest-release.js";
-import { MAX_CLIPBOARD_TEXT_BYTES, type UiAccentColor } from "../contracts/owned-ui/index.js";
+import { DEFAULT_UI_ACCENT_COLOR, MAX_CLIPBOARD_TEXT_BYTES, type UiAccentColor } from "../contracts/owned-ui/index.js";
 import type { ProcessIdentity } from "../foundation/lifecycle/model.js";
 import type { SessionSelection } from "../foundation/lifecycle/session-selection.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes, setPiAccentColor, setPiPackageBorderProjectionEnabled } from "../integrations/pi/components/upstream/theme/theme.js";
@@ -24,7 +24,6 @@ import {
   type OwnedUiSessionShellOptions,
 } from "../app/session-shell/session-shell.js";
 import type { OwnedSettingsManager } from "../ui/settings/manager.js";
-import { OWNED_SETTING_DECLARATIONS } from "../ui/settings/index.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/presentation-adapter.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
 import type {
@@ -365,7 +364,7 @@ function engineHostOptions(options: OwnedUiCompositionOptions, productMode: "bar
     announceStartupChangelog: !bare,
     theme: {
       base: bare ? "dark" : "engine-configured",
-      accentColor: settings?.value("accentColor") ?? OWNED_SETTING_DECLARATIONS.accentColor.defaultValue,
+      accentColor: settings?.value("accentColor") ?? DEFAULT_UI_ACCENT_COLOR,
       packageBorderProjection: bare,
       apply: { base: applyConfiguredPiTheme, accentColor: setPiAccentColor, packageBorderProjection: setPiPackageBorderProjectionEnabled },
     },

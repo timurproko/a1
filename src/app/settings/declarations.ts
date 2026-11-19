@@ -1,4 +1,4 @@
-import { UI_ACCENT_COLORS, type OwnedUiBackgroundStyle } from "../../contracts/owned-ui/index.js";
+import { DEFAULT_UI_ACCENT_COLOR, UI_ACCENT_COLORS, type OwnedUiBackgroundStyle } from "../../contracts/owned-ui/index.js";
 import type { ProgressSpinnerStyle } from "../../contracts/presentation/index.js";
 
 const UI_ACCENT_COLOR_CHOICES = UI_ACCENT_COLORS;
@@ -48,7 +48,7 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     section: APPEARANCE_SECTION,
     description: "Startup color for future sessions. Changing this does not recolor running sessions.",
     application: "next-session",
-    defaultValue: "blue",
+    defaultValue: DEFAULT_UI_ACCENT_COLOR,
     allowedValues: UI_ACCENT_COLOR_CHOICES,
   }),
   accentColor: Object.freeze({
@@ -59,7 +59,7 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     section: APPEARANCE_SECTION,
     description: "Color used by highlighted interface controls, list markers, and tonal interface surfaces.",
     application: "live",
-    defaultValue: "blue",
+    defaultValue: DEFAULT_UI_ACCENT_COLOR,
     allowedValues: UI_ACCENT_COLOR_CHOICES,
   }),
   backgroundStyle: Object.freeze({
