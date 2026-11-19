@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-19-refresh-ui-specs/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-19-refresh-ui-specs/acceptance.md",
   "finalizedDate": "2026-11-19",
-  "specBaseSha": "2a4504856f4f0cc9fdcbbb9da8556de7cbcedebd",
+  "specBaseSha": "93bc14bafa30ac26c91ff30c1df060f7dd114170",
   "acceptanceScenarios": [
     "Strict validation of the change passes and every migration note names a requirement that exists after the change.",
     "Docs, package identity, identifier, code-documentation and architecture checks pass on the tree with the archive applied.",
