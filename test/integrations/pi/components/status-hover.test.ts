@@ -2,8 +2,8 @@ import { sliceByColumn, stripTerminalSequences, visibleWidth } from "@earendil-w
 import { describe, expect, it } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../../src/contracts/owned-ui/index.js";
 import { applyPiTheme, applyPiThemeInstance, createPiShellFooter, currentPiAccentColor, piTheme, setPiAccentColor } from "../../../../src/integrations/pi/components/index.js";
-import { paintPiDialogHover } from "../../../../src/integrations/pi/components/theme.js";
-import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
+import { paintPiStatusHover } from "../../../../src/integrations/pi/components/theme.js";
+import { cellBackgroundAt, cellInverseAt, cellStyle } from "../../../support/ansi-cell-style.js";
 import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
 
 function view(): OwnedUiSessionViewModel {
@@ -22,7 +22,7 @@ function view(): OwnedUiSessionViewModel {
 
 const roles = { off: "thinkingOff", minimal: "thinkingMinimal", low: "thinkingLow", medium: "thinkingMedium", high: "thinkingHigh", xhigh: "thinkingXhigh" } as const;
 
-describe("shared foreground-only status-bar hover", () => {
+describe("inverted status-bar hover", () => {
   it.each(["truecolor", "256color"] as const)("keeps every non-target cell unchanged and uses live semantic colors (%s)", mode => {
     withPiParityColorMode(mode, () => {
       const previous = piTheme(), accent = currentPiAccentColor();
@@ -51,13 +51,15 @@ describe("shared foreground-only status-bar hover", () => {
               for (let column = 0; column < plain.length; column++) {
                 const character = plain[column]!;
                 const actual = cellStyle(sliceByColumn(line, column, 1), character);
-                const expected = column >= target.column && column < target.column + target.width
-                  ? cellStyle(paintPiDialogHover(role, character), character)
+                const inside = column >= target.column && column < target.column + target.width;
+                const expected = inside
+                  ? cellStyle(paintPiStatusHover(role, character), character)
                   : cellStyle(sliceByColumn(original, column, 1), character);
                 expect(actual).toEqual(expected);
                 expect(cellBackgroundAt(line, column)).toBe(cellBackgroundAt(original, column));
+                expect(cellInverseAt(line, column)).toBe(inside);
               }
-              expect(line).not.toMatch(/\u001b\[(?:48|4m|7m)/u);
+              expect(line).not.toMatch(/\u001b\[(?:48|4m)/u);
               footer.setFooterHovered?.(undefined);
               expect(footer.render(120)).toEqual(rest);
             }

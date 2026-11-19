@@ -42,6 +42,11 @@ export function paintPiDialogHover(token: Parameters<ReturnType<typeof piTheme>[
   return `${foregroundAnsi(mixColors(theme.colors[token], theme.colors.accent, 0.4, "srgb"), theme.getColorMode())}${text}\u001b[39m`;
 }
 
+/** Status-bar hover: the control's ordinary color becomes its background, and the text takes the canvas color. */
+export function paintPiStatusHover(token: Parameters<ReturnType<typeof piTheme>["fg"]>[0], text: string): string {
+  return `\u001b[7m${piTheme().fg(token, text)}\u001b[27m`;
+}
+
 /** The live Pi theme in neutral roles; `panel` and `disabled` default to plain and dim. */
 export function piUiTheme(options: { readonly panel?: Paint; readonly disabled?: Paint } = {}): UiTheme {
   return {

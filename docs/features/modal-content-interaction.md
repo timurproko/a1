@@ -8,7 +8,7 @@ Moving the pointer over a different choice does not move the keyboard-active row
 
 The ordinary Settings list uses that same foreground-only blend only for hovered values and enabled numeric minus/plus controls. Setting labels and section titles do not change on hover. Values no longer brighten to pure white. Disabled controls retain their disabled appearance; the keyboard-active row keeps its existing background and focus. Scalar value menus retain their existing policy.
 
-Status-bar session-name, model/provider, and thinking-level controls use the same stronger foreground-only tint instead of a hover background. Their exact text targets and direct-click behavior are unchanged; thinking text retains its level-specific color as the blend's base.
+Status-bar session-name, model/provider, and thinking-level controls instead invert on hover: the text's ordinary color becomes the background behind exactly that text, and the text takes the canvas color. Thinking text inverts with its level-specific color. Their exact text targets and direct-click behavior are unchanged.
 
 Clicking a visible choice invokes that choice's existing action directly. Keyboard shortcuts, setting write authority, default/current markers, undo, and asynchronous error handling remain in effect. Titles, blank rows, panel padding, and informational shortcut hints are not inferred buttons.
 

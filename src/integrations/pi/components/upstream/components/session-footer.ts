@@ -11,7 +11,7 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { hyperlink, sliceByColumn, stripTerminalSequences, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import type { OwnedUiSessionViewModel, OwnedUiShellFooterControl, OwnedUiShellFooterControlSpan } from "../../../../../contracts/owned-ui/index.js";
-import { paintPiDialogHover, piTheme } from "../../theme.js";
+import { paintPiStatusHover, piTheme } from "../../theme.js";
 import { sessionNameFrame } from "../../../../../ui/components/session-name-frame.js";
 import { overlaySpan } from "../../../../../ui/components/spans.js";
 
@@ -207,7 +207,7 @@ export class SessionFooter implements Component {
       const text = stripTerminalSequences(sliceByColumn(source, hovered.column, hovered.width));
       const role = hovered.command === "thinking" ? THINKING_HOVER_ROLES[view.thinkingLevel] : "dim";
       lines[hovered.row] = overlaySpan(source, hovered.column, hovered.column + hovered.width,
-        paintPiDialogHover(role, text), { inheritStartStyle: true });
+        paintPiStatusHover(role, text), { inheritStartStyle: true });
     }
     const statuses = view.status.footer?.extensionStatuses ?? [];
     if (statuses.length > 0) {

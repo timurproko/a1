@@ -1,7 +1,7 @@
 import { sliceByColumn, stripTerminalSequences } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
-import { cellBackgroundAt, cellStyle } from "../../support/ansi-cell-style.js";
-import { paintPiDialogHover } from "../../../src/integrations/pi/components/theme.js";
+import { cellBackgroundAt, cellInverseAt, cellStyle } from "../../support/ansi-cell-style.js";
+import { paintPiStatusHover } from "../../../src/integrations/pi/components/theme.js";
 import { screenshotPng } from "../../fixtures/image-sources.js";
 import { fixture, nextImmediate } from "./session-shell-fixture.js";
 
@@ -20,13 +20,15 @@ function clickName(value: Awaited<ReturnType<typeof fixture>>, side: "left" | "r
   value.terminal.input(`\x1b[<0;${column};${region.rowStart}M\x1b[<0;${column};${region.rowStart}m`);
 }
 
-function expectTextHover(row: string, region: { readonly columnStart: number; readonly columnEnd: number }, role: Parameters<typeof paintPiDialogHover>[0] = "dim"): void {
+function expectTextHover(row: string, region: { readonly columnStart: number; readonly columnEnd: number }, role: Parameters<typeof paintPiStatusHover>[0] = "dim"): void {
   const plain = stripTerminalSequences(row);
-  const foreground = cellStyle(paintPiDialogHover(role, "x"), "x").foreground;
+  const foreground = cellStyle(paintPiStatusHover(role, "x"), "x").foreground;
   for (let column = region.columnStart; column <= region.columnEnd; column++) {
     const character = plain[column - 1]!;
     expect(cellStyle(sliceByColumn(row, column - 1, 1), character).foreground).toBe(foreground);
     expect(cellBackgroundAt(row, column - 1)).toBe("default");
+    expect(cellInverseAt(row, column - 1)).toBe(true);
+    expect(cellInverseAt(row, column - 1)).toBe(true);
   }
 }
 
