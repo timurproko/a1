@@ -24,6 +24,7 @@ import {
   type OwnedUiSessionShellOptions,
 } from "../app/session-shell/session-shell.js";
 import type { OwnedSettingsManager } from "../ui/settings/manager.js";
+import { OWNED_SETTING_DECLARATIONS } from "../ui/settings/index.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/presentation-adapter.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
 import type {
@@ -364,7 +365,7 @@ function engineHostOptions(options: OwnedUiCompositionOptions, productMode: "bar
     announceStartupChangelog: !bare,
     theme: {
       base: bare ? "dark" : "engine-configured",
-      accentColor: settings?.value("accentColor") ?? "purple",
+      accentColor: settings?.value("accentColor") ?? OWNED_SETTING_DECLARATIONS.accentColor.defaultValue,
       packageBorderProjection: bare,
       apply: { base: applyConfiguredPiTheme, accentColor: setPiAccentColor, packageBorderProjection: setPiPackageBorderProjectionEnabled },
     },
