@@ -49,38 +49,32 @@ When only a cross-project ID match is found, A1 SHALL identify the source projec
 - **THEN** A1 SHALL resume that file and ID using its stored cwd rather than silently binding its tools to the invoking directory
 
 ### Requirement: Resume restores persisted agent context without accidental session creation
-For an existing local-ID or explicit-file target supported by the pinned Pi, A1 SHALL restore the persisted session identity, active conversation branch, compaction context, and saved model/thinking state under that pin's actual restoration behavior and normal model fallback rules. Sessions newly written by the same pin, including its supported compaction format, SHALL be covered. A1 SHALL introduce no additional context loss relative to direct reopening with the same pin. This change SHALL NOT require a dependency upgrade, recovery of the user's current conversation, or certification/reconstruction of an unsupported retained-tail format. The UI SHALL present restored conversation content before accepting a new prompt. Project trust and cwd-bound resources SHALL be resolved for the effective resumed cwd before project resources execute. A missing effective cwd SHALL fail with a focused diagnostic rather than silently substitute another directory. Missing IDs, missing or empty files, unreadable files, and files rejected as invalid sessions SHALL produce a focused nonzero failure without opening a fresh conversation, overwriting the target, or creating a file named after the supplied ID. A1 SHALL NOT submit an automatic model prompt merely to resume.
+For an existing local-ID or explicit-file target supported by the pinned Pi, A1 SHALL restore the persisted session identity, active conversation branch, compaction context, and saved model/thinking state under that pin's actual restoration behavior and normal model fallback rules. Sessions written by the same pin, including its supported compaction format, SHALL be covered. A1 SHALL introduce no additional context loss relative to direct reopening with the same pin. The UI SHALL present restored conversation content before accepting a new prompt. Project trust and cwd-bound resources SHALL be resolved for the effective resumed cwd before project resources execute. A1 SHALL NOT submit an automatic model prompt merely to resume.
+
+When the stored cwd of the selected session no longer exists, A1 SHALL NOT silently substitute another directory and SHALL NOT fail outright. It SHALL print `Session cwd does not exist: <stored cwd>` and offer three choices for the invoking directory: Continue, which opens the same session there for this run only and asks again on the next resume; Fork, which creates a new session ID there and leaves the original unchanged; and Cancel. Cancel, an unrecognized answer, end of input, and an interrupt SHALL print `Session resume cancelled.` and exit 0 without opening a conversation. The invoking directory SHALL itself exist, otherwise the resume SHALL fail nonzero.
+
+Missing IDs, missing or empty files, unreadable files, and files rejected as invalid sessions SHALL produce a focused nonzero failure without opening a fresh conversation, overwriting the target, or creating a file named after the supplied ID.
 
 #### Scenario: Resume a compacted session
-- **WHEN** a newly persisted session created through the pinned public APIs contains messages, a compaction checkpoint in that pin's supported format, and later messages
+- **WHEN** a persisted session created through the pinned public APIs contains messages, a compaction checkpoint in that pin's supported format, and later messages
 - **THEN** the restored UI and agent context SHALL reflect the same active branch and checkpoint context as direct Pi reopening, retaining the session ID and saved model/thinking state subject to normal fallback
 
 #### Scenario: Resume a newly created uncompacted session
 - **WHEN** a fresh A1 session has persisted conversation messages, exits, and is selected again through its emitted command
-- **THEN** A1 SHALL restore that conversation and identity before accepting another prompt, without requiring recovery of any earlier personal session
+- **THEN** A1 SHALL restore that conversation and identity before accepting another prompt
 
 #### Scenario: Resume into an untrusted project
 - **WHEN** an explicit session file resolves to a cwd whose project trust has not been established
 - **THEN** A1 SHALL resolve trust for that cwd before executing its project-local resources
 
 #### Scenario: Stored cwd is missing
-- **WHEN** a selected existing session's effective cwd no longer exists
-- **THEN** A1 SHALL report the unavailable cwd and exit nonzero without rebinding the conversation to the invoking cwd
+- **WHEN** a selected existing session's stored cwd no longer exists
+- **THEN** A1 SHALL name the missing cwd and offer Continue, Fork, and Cancel for the invoking directory
+- **AND** Continue SHALL open the same session ID in the invoking directory, Fork SHALL open a new session ID there and keep the original, and Cancel SHALL exit 0 without opening a conversation
 
 #### Scenario: Target cannot be resumed
 - **WHEN** the ID is unknown, the selected file is missing, empty, unreadable, or rejected as invalid
 - **THEN** A1 SHALL report the failure, exit nonzero, preserve existing session data, and create neither a replacement session nor an ID-named file
-
-### Requirement: Installed-entry evidence proves the resume path
-Automated regression evidence SHALL exercise normal A1's public installed entry and production launch transport against fresh disposable sessions persisted through that build's pinned public Pi APIs, not only an internal UI entry or a formatted string. Evidence SHALL cover a create/persist → exit → resume lifecycle for uncompacted and supported compacted history, record the Pi version, and compare context with direct same-pin reopening plus independent expected conversation markers/order. Unsupported synthetic retained-tail behavior SHALL NOT be a prerequisite for this CLI parity evidence or be reported as certified by it. Evidence SHALL cover default and custom directories, argument quoting, restored session identity/context, negative target resolution, and independent invocations. Tests SHALL isolate home/profile/release state and SHALL NOT depend on personal session files, credentials, network model calls, or an already-running user A1 process.
-
-#### Scenario: Execute the emitted hint through the installed entry
-- **WHEN** a newly created isolated session is persisted using the pin, exits normal A1, and its emitted command is executed through the packaged A1 entry
-- **THEN** the resulting UI SHALL restore that session's identity and conversation context through the real launch chain
-
-#### Scenario: Windows custom-directory round trip
-- **WHEN** the emitted command selects a custom directory containing spaces and an apostrophe in Windows Git Bash
-- **THEN** A1 SHALL receive the original directory as one argument and restore the intended session without shell evaluation inside its launch chain
 
 ### Requirement: An exited session advertises its resume command
 A1 SHALL emit a resume hint only for a persisted session. An exited bare-A1 session SHALL print `a1 --session <id>` with its existing optional quoted `--session-dir <dir>` selection, including in a recoverable unclean-exit notice printed by the launcher. A later fresh launch SHALL NOT inherit a previous selection.
@@ -99,9 +93,9 @@ A1 SHALL emit a resume hint only for a persisted session. An exited bare-A1 sess
 
 ### Requirement: Normal A1 accepts one explicit session selection grammar
 
-Ordinary and pi-named normal-product entries SHALL share the pinned session selectors through the existing session services: new default, continue, resume, explicit path/ID, custom session ID, fork, storage override, display name and no-persistence. Ordinary prompts SHALL accept the approved Pi positional and boundary grammar; these session options SHALL NOT introduce a bare resume subcommand or comparison fallback. Each selector SHALL enforce its documented value, ID and combination constraints plus explicit A1 writer admission. Valid session launch options MAY combine with the other documented execution options; standalone storage selection SHALL be supported for a new session.
+Ordinary and pi-named normal-product entries SHALL share one session selection grammar through the same session services: new default, `--continue`, `--resume`, `--session <path|id>`, `--session-id <id>`, `--fork <path|id>`, `--session-dir <dir>`, `--name <name>`, and `--no-session`. Ordinary prompts SHALL be positional, with `--` ending option parsing; these options SHALL NOT introduce a bare resume subcommand or a comparison fallback. Each value option SHALL require a separate non-empty value and SHALL occur at most once. `--session` SHALL NOT combine with `--fork` or `--session-id`. `--session-dir` without `--session` SHALL select storage for a new session. Valid session options MAY combine with the other launch options.
 
-Persistent selections SHALL preserve profile isolation, actual history/active context and pinned effective-cwd semantics. In-memory selections SHALL remain genuinely nonpersistent without forged transcript files, file locks or resume hints; only specifically approved durable-capability limitations MAY differ. CLI/env/trusted-setting/default storage precedence and trust for the effective cwd SHALL be explicit. Delivered interactive paths SHALL use the same writer-owning construction, replacement and disposal. Planned machine/programmatic paths SHALL retain this requirement when implemented in their later approved delivery; P1 SHALL not claim those paths exist.
+Persistent selections SHALL preserve profile isolation, actual history and active context, and pinned effective-cwd semantics. `--no-session` SHALL create a real in-memory session with no session file, no writer lock, and no resume hint. `--continue` SHALL open the most recent session of the invoking directory, or a new session when there is none. `--resume` SHALL require an interactive terminal for its picker. `--session-id` SHALL open the invoking directory's session with that ID or create it, serialized against a concurrent selection of the same ID. Every selection that resumes an existing session file SHALL acquire that file's writer before the session is opened.
 
 #### Scenario: Select an existing session by ID
 
@@ -110,44 +104,44 @@ Persistent selections SHALL preserve profile isolation, actual history/active co
 
 #### Scenario: Supply a custom directory in either order
 
-- **WHEN** valid storage and explicit-session selectors are supplied in supported order
+- **WHEN** `--session-dir` and `--session` are supplied in either order
 - **THEN** both entries SHALL resolve the same target and effective storage
 
 #### Scenario: Malformed session launch
 
-- **WHEN** required values, ID syntax, duplicate singleton or selector combinations are invalid
-- **THEN** focused nonzero failure SHALL precede runtime admission without overwriting or silently creating history
+- **WHEN** a required value is missing, an option is repeated, or selectors are combined outside the grammar
+- **THEN** a focused nonzero failure SHALL precede runtime admission without overwriting or silently creating history
 
 #### Scenario: Inspect help without launching
 
 - **WHEN** standalone help is requested
-- **THEN** the complete implemented session grammar SHALL be described without factories or session startup
+- **THEN** the session options SHALL be described without factories or session startup
 
 #### Scenario: Resume an idle session
 
 - **WHEN** an existing selected session has no writer
-- **THEN** the applicable transport SHALL restore that session and context through the same services
+- **THEN** A1 SHALL restore that session and context through the same services
 
 #### Scenario: Launch selects a held session
 
-- **WHEN** any transport selects a file held by a live or unverifiable participating writer
-- **THEN** admission SHALL fail safely without a second writer or ownership stealing
+- **WHEN** a launch selects a file held by a live or unverifiable participating writer
+- **THEN** A1 SHALL NOT open a second writer on that file or take its ownership
+- **AND** it SHALL offer to fork into the invoking directory, and SHALL fail nonzero with `session is open in another A1 process` when the fork is declined
 
 #### Scenario: Continue and explicit fork
 
-- **WHEN** continue or fork is selected with valid pinned constraints
-- **THEN** the current-directory continuation or independent new-ID fork SHALL preserve the documented history/cwd semantics and source data
+- **WHEN** `--continue` or `--fork` is selected
+- **THEN** the current-directory continuation or independent new-ID fork SHALL preserve the source history and leave the source session unchanged
 
 #### Scenario: Custom ID and name
 
-- **WHEN** a valid custom session ID and name are supplied
-- **THEN** the service SHALL open the current-directory existing ID or safely create it, enforcing collision/selector constraints and normalized naming
+- **WHEN** a custom session ID and name are supplied
+- **THEN** A1 SHALL open the current-directory session with that ID or create it, and `--fork` with an ID that already exists in the project SHALL fail
 
 #### Scenario: No-persistence execution
 
-- **WHEN** an in-memory session is selected
-- **THEN** the real session ID and runtime lifecycle SHALL remain available without writing a session JSONL file or suggesting resumability
-- **AND** specifically approved storage-dependent API limitations SHALL be explicit rather than based on executable name
+- **WHEN** `--no-session` is selected
+- **THEN** a real session ID and runtime lifecycle SHALL be available without writing a session JSONL file or suggesting resumability
 
 ### Requirement: Session writer lifetime is fenced
 A1 SHALL retain exclusive writer ownership while its owning process is live or unverifiable, regardless of heartbeat age. A stale claim SHALL be reclaimed only after the owner is proven absent; malformed legacy claims SHALL remain protected when absence cannot be established. Lost ownership SHALL fence further writing. Runtime construction failure and disposal SHALL release held writers exactly once through the integration owner.
@@ -177,13 +171,3 @@ A1 SHALL restore an existing supported same-pin session whose authoritative UI t
 - **WHEN** a supported compacted same-pin session still projects more than 8 MiB of active transcript
 - **THEN** its emitted resume command SHALL restore the same active checkpoint context and later messages as direct reopening
 - **AND** no automatic model request or forced compaction SHALL be required to reach input readiness
-
-### Requirement: Session contract evidence spans public execution and programmatic boundaries
-
-Focused P1 conformance SHALL exercise delivered selectors and combinations, supported session context, replacement/cancellation and persistence choices through real SDK services and applicable public packaged/development boundaries. Undelivered protocol/SDK entry conformance remains explicitly pending. Tests SHALL use disposable history and deterministic providers without personal sessions, accounts or live fleet state. Method presence, parser success and fabricated session files SHALL NOT stand in for correct model context or ownership.
-
-#### Scenario: Transport and SDK replacement
-
-- **WHEN** a real public session is switched, forked, cloned, imported, reloaded or disposed through an applicable transport or A1 SDK host
-- **THEN** identity/context, startup/shutdown reasons, current resource trust, subscriptions and writer lifetime SHALL match the approved pinned contract
-- **AND** failed or cancelled replacement SHALL not expose a stale context or modify another session

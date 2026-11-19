@@ -14,9 +14,9 @@ A1's own profile. The corresponding supported `a1 pi install`, `remove`,
 produce the same operation requests and outcomes. Model refresh SHALL NOT update
 packages, A1, or Pi.
 
-Project-local package mutation and package configuration are reserved for a
-separate trust and configuration design and SHALL NOT be advertised as supported
-by this change.
+Project-local package mutation and package configuration SHALL NOT be supported or
+advertised: a profile flag, `-l`, or `--local` SHALL be rejected, and `a1 config`
+SHALL fail with a diagnostic saying the command is not available.
 
 #### Scenario: Install an npm package
 - **WHEN** the user runs `a1 install npm:pi-mcp-adapter`
@@ -54,12 +54,12 @@ by this change.
 - **THEN** A1 SHALL dispatch the same A1-profile operation as the corresponding direct spelling
 
 #### Scenario: Stable and development updates remain distinct
-- **WHEN** the user runs bare `a1 update` or `a1 update --develop [preview-or-version]`
-- **THEN** A1 SHALL retain the existing A1 self-update behavior rather than dispatching package work
+- **WHEN** the user runs bare `a1 update`, `a1 update --release`, or `a1 update --develop [preview-or-version]`
+- **THEN** A1 SHALL run A1 self-update rather than dispatching package work
 
 #### Scenario: A profile is named
 - **WHEN** the user supplies a profile flag or project-local scope to a package command
-- **THEN** A1 SHALL fail before package work and explain that package commands manage the A1 profile only
+- **THEN** A1 SHALL fail with status 2 before package work and explain that package commands manage the A1 profile only
 
 ### Requirement: Package sources follow Pi's grammar
 Package commands SHALL accept the source forms pinned Pi accepts — `npm:<package>`,
@@ -76,12 +76,15 @@ reason.
 - **THEN** A1 SHALL report what was wrong with the source and SHALL NOT create or modify anything in the profile
 
 ### Requirement: Package operations never reach another profile
-A package command SHALL NOT read, create, or modify `<home>/.pi/agent`,
-root and its empty resource directories when absent is permitted; nothing else
-outside that root is.
+A package command SHALL NOT read, create, or modify `<home>/.pi/agent` or any
+other profile. Creating the A1 profile root and its empty resource directories
+when absent is permitted; nothing else outside that root is. When the profile
+cannot be prepared the command SHALL fail with status 1 and a diagnostic naming
+the profile root.
 
 #### Scenario: Other profiles are inspected after an install
 - **WHEN** any package command completes against the A1 profile
+- **THEN** `<home>/.pi/agent` SHALL be unchanged and SHALL NOT have been created
 
 #### Scenario: First install with no profile yet
 - **WHEN** `<home>/.a1/agent` does not exist and the user installs a package
@@ -89,9 +92,8 @@ outside that root is.
 
 ### Requirement: Package commands run without the interactive runtime
 Package commands SHALL execute in the installed package process and SHALL NOT
-materialize a release, take the foreground lease, or start an interactive
-session. They SHALL exit with a status that distinguishes
-success from failure.
+materialize a release or start an interactive session. They SHALL exit 0 on
+success, 1 on an operational failure, and 2 on a syntax failure.
 
 #### Scenario: Install with no A1 session running
 - **WHEN** the user installs a package and no A1 instance is running
@@ -99,54 +101,64 @@ success from failure.
 
 #### Scenario: Install while an A1 session is running
 - **WHEN** the user installs a package from a second terminal while bare `a1` is running
-- **THEN** A1 SHALL complete the install without disturbing the running session's ownership
+- **THEN** A1 SHALL complete the install without contacting the running session
 
 ### Requirement: Package command transcripts match pinned Pi
-For an equivalent accepted user-scope package operation, both the preferred direct
-form and its supported `a1 pi` compatibility alias SHALL produce the same
-package-operation transcript as pinned Pi: the same line sequence, wording,
-punctuation, indentation, stdout or stderr destination, and terminal emphasis.
-Pi's progress lines and installed paths SHALL be dim, list headings SHALL be bold,
-success summaries SHALL be green, and operational failures SHALL be red. Output
-inherited from npm, git, or another package-manager child SHALL pass through without
-being rewritten or suppressed.
+For an accepted user-scope package operation, the preferred direct form and its
+supported `a1 pi` compatibility alias SHALL produce the same transcript, using
+pinned Pi's wording, punctuation, indentation, stdout or stderr destination, and
+terminal emphasis. Pi's progress lines and installed paths SHALL be dim, progress
+warnings SHALL be yellow, list headings SHALL be bold, success summaries SHALL be
+green, and operational failures SHALL be red. Output inherited from npm, git, or
+another package-manager child SHALL pass through without being rewritten or
+suppressed.
 
-The command namespace and profile are the only intentional contextual differences:
-command help and syntax guidance SHALL name the A1 namespace that the user invoked,
-and installed paths naturally resolve beneath `<home>/.a1/agent` rather than
-`<home>/.pi/agent`. Child-process facts such as package counts, audit totals,
-elapsed time, and funding notices SHALL describe the actual A1-profile operation.
-A1 SHALL NOT prepend a product-specific summary, append the profile root to Pi's
+The command namespace and profile are the only contextual differences: command
+help and syntax guidance SHALL name the A1 namespace that the user invoked, and
+installed paths resolve beneath `<home>/.a1/agent` rather than `<home>/.pi/agent`.
+A1 SHALL NOT prepend a product-specific summary, append the profile root to the
 summary, rename Pi's labels, or add a restart advisory.
+
+An update summary SHALL report what changed: a green `Updated <n> package:` or
+`Updated <n> packages:` heading followed by one two-space-indented line per
+change; green `<source> is already up to date` or `Packages are already up to
+date` when nothing changed; yellow `<source> was not updated, see the warnings
+above` or `No packages were updated, see the warnings above` when nothing changed
+and warnings were reported; and yellow `Skipped package updates (offline mode)`
+when `PI_OFFLINE` is truthy.
 
 #### Scenario: Install succeeds
 - **WHEN** `a1 install <source>` or `a1 pi install <source>` completes
-- **THEN** the progress line SHALL be dim `Installing <source>...`
+- **THEN** Pi's progress lines SHALL be dim
 - **AND** any child package-manager output SHALL remain in place
 - **AND** the final line SHALL be green `Installed <source>` with no following A1-specific line
 
 #### Scenario: Remove succeeds
 - **WHEN** a direct or compatibility `remove` command or its `uninstall` alias completes
-- **THEN** the progress line SHALL be dim `Removing <source>...`
+- **THEN** Pi's progress lines SHALL be dim
 - **AND** the final line SHALL be green `Removed <source>` with no profile suffix
 
 #### Scenario: Packages are listed
 - **WHEN** the A1 profile has user packages and the user runs `a1 list` or `a1 pi list`
 - **THEN** the transcript SHALL use Pi's bold `User packages:` heading
-- **AND** each source SHALL use Pi's indentation, append ` (filtered)` when filtered, and show its installed path dimmed on the next line
+- **AND** each source SHALL be indented two spaces, append ` (filtered)` when filtered, and show its installed path dimmed and indented four spaces on the next line
 - **AND** it SHALL NOT print an A1-specific heading or the profile root outside an installed path
 
 #### Scenario: No packages are listed
 - **WHEN** the A1 profile has no configured packages and the user runs `a1 list` or `a1 pi list`
-- **THEN** the complete result SHALL be Pi's dim `No packages installed.` line
+- **THEN** the complete result SHALL be the dim `No packages installed.` line
 
 #### Scenario: Every package is updated
-- **WHEN** `a1 update --extensions` or `a1 pi update --extensions` completes
-- **THEN** the final line SHALL be green `Updated packages`
+- **WHEN** `a1 update --extensions` or `a1 pi update --extensions` changes two packages
+- **THEN** the summary SHALL be green `Updated 2 packages:` followed by one indented line per change
 
 #### Scenario: One package is updated
-- **WHEN** `a1 update <source>` or `a1 pi update <source>` completes
-- **THEN** the final line SHALL be green `Updated <source>`
+- **WHEN** `a1 update <source>` or `a1 pi update <source>` completes and that package was already current
+- **THEN** the final line SHALL be green `<source> is already up to date`
+
+#### Scenario: Updates are skipped offline
+- **WHEN** an update command runs with `PI_OFFLINE=1`
+- **THEN** the final line SHALL be yellow `Skipped package updates (offline mode)`
 
 ### Requirement: Package failures are actionable and preserve Pi parity
 When an accepted package operation cannot proceed, A1 SHALL preserve pinned Pi's operational failure format and SHALL NOT print a raw stack trace as the primary message. A missing package manager, an unreachable network, and a source with no matching installed package SHALL each be distinguishable from the message alone. A1 SHALL preserve the full displayed error detail, including multiline whitespace, punctuation, and pinned source suggestions, without independently truncating or flattening it. A1 SHALL use pinned Pi's `Unknown package command error` fallback for a non-Error thrown value.
