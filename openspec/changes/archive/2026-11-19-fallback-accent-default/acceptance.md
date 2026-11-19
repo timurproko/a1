@@ -20,7 +20,7 @@ The maintainer integration decision accepts these scenarios:
     "A session started without settings uses the blue accent declared as the default.",
     "Changing the declared accent default also changes the settings-less accent, with no second value to update."
   ],
-  "archiveDigest": "212502238eb5cd3ac956c1802951defe29ab5b70d0dab7e066757e8fb74b98c3",
+  "archiveDigest": "b903f72c5fe2a03466277eb74aa298a230968aa412c2a49701616dfba2739324",
   "specDigest": "25658847e71ca7d840079d7c42da2deebe56b564b00d35d6b6e4a9f5f9801f28",
   "tasksDigest": "467e43b004be39e11d734d7074fad8a3139356e738fc6220bcd0c8003954998b",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
