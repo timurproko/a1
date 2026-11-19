@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-19-refresh-cli-specs/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-19-refresh-cli-specs/acceptance.md",
   "finalizedDate": "2026-11-19",
-  "specBaseSha": "510513ab0103ef9dd0ee468b8c9817bfbceac5ee",
+  "specBaseSha": "2a4504856f4f0cc9fdcbbb9da8556de7cbcedebd",
   "acceptanceScenarios": [
     "Strict OpenSpec validation of the change passes and the deltas apply with 8 added, 19 modified and 16 removed requirements.",
     "After the archive is applied, the docs governance, package identity, naming, documentation and architecture checks pass.",
