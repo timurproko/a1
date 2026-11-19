@@ -46,12 +46,6 @@
       "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {
-      "id": "openspec/specs/product-identity/spec.md:55:172",
-      "value": "addone",
-      "fingerprint": "6aab73608e92ae73d0dde3d5f58dad528d307eefd83b5ceacafabf2661b6f85f",
-      "reason": "explicit obsolete-package rejection or deprecation fixture"
-    },
-    {
       "id": "test/features/launch/development-launch.test.ts:23:50",
       "value": "addone",
       "fingerprint": "30c817627bf6dc466f6b947c32f3df3673bfcbb47cd9da33539763169744c337",

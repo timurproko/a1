@@ -38,23 +38,23 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 48,
-    "files": 14,
+    "total": 47,
+    "files": 13,
     "byLocationKind": {
-      "content": 48,
+      "content": 47,
       "path": 0
     },
     "byClass": {
       "runtime-symbols": 40,
       "diagnostics": 2,
       "environment-keys": 12,
-      "paths": 37,
+      "paths": 36,
       "schemas": 8,
       "artifacts": 10,
       "tests": 40,
-      "current-docs-specs": 8,
+      "current-docs-specs": 7,
       "historical-records": 0,
-      "explicit-obsolete-package-fixtures": 2
+      "explicit-obsolete-package-fixtures": 1
     }
   },
   "occurrences": [
@@ -172,22 +172,6 @@
       "primaryClass": "diagnostics",
       "classes": [
         "diagnostics",
-        "paths",
-        "current-docs-specs",
-        "explicit-obsolete-package-fixtures"
-      ]
-    },
-    {
-      "id": "openspec/specs/product-identity/spec.md:55:172",
-      "path": "openspec/specs/product-identity/spec.md",
-      "locationKind": "content",
-      "line": 55,
-      "column": 172,
-      "value": "addone",
-      "context": "Archived changes, immutable historical evidence, and explicit obsolete-package rejection or deprecation fixtures MAY contain former identity literals such as `@timurproko/addone`. Such references SHALL NOT be imported, rendered, generate...",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
         "paths",
         "current-docs-specs",
         "explicit-obsolete-package-fixtures"
@@ -842,5 +826,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-11-19T11:35:13.810Z"
+  "generatedAt": "2026-11-19T12:39:11.170Z"
 }
