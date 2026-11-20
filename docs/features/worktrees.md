@@ -38,7 +38,26 @@ Shell mutations queue a request; they do not change context while their own proc
 
 An absolute attachment target intentionally selects its repository, including across repository boundaries. Enter/list use explicit `repo` first, otherwise the active repository, otherwise discovery from the immutable startup directory. When discovery finds no repository, supply a repository path or attach an absolute task checkout; a new session is not required. A later shell `cd` never silently rebinds the session.
 
-Enter creates `.worktrees/<short-description>` under the selected repository's primary checkout. It fetches the selected origin base before creating a new topic branch. Base selection is explicit `base`, local Git configuration `a1.worktreeBase`, then the origin default branch; local-only repositories fall back to the primary branch. Matching worktrees retain their edits and history. Path/branch collisions, primary checkouts, detached branches, Git locks, and live or unverifiable ownership remain blockers. A1 never forces takeover, installs dependencies, or runs checkout hooks or repository setup commands.
+Enter creates `.worktrees/<short-description>` under the selected repository's primary checkout. It fetches the selected origin base before creating a new topic branch. Base selection is explicit `base`, local Git configuration `a1.worktreeBase`, then the origin default branch; local-only repositories fall back to the primary branch. Matching worktrees retain their edits and history. Path/branch collisions, primary checkouts, detached branches, Git locks, and live or unverifiable ownership remain blockers. A1 never forces takeover, installs dependencies, or runs checkout hooks. The only repository command it runs at entry is a start command the repository declares, described next.
+
+### A repository-declared start command
+
+A repository can decide how its task checkouts are made, for example from a pool of prepared checkouts, by declaring a `start` command next to its `cleanup` command in the committed `.a1/worktree.json`:
+
+```json
+{ "start": ["node", "tools/start-worktree.mjs", "--repo", "{primary}", "--branch", "{branch}", "--base", "{base}"] }
+```
+
+When a task branch has no checkout yet, enter runs this command instead of creating `.worktrees/<short-description>`, and attaches to the checkout the command reports. A1 does not know or care which tool is behind it.
+
+- **How it runs.** From the verified primary checkout, without a shell, with `{primary}`, `{branch}` and `{base}` substituted. `{base}` is the base branch name chosen by the selection order above; A1 does not fetch it, the command does. The first element must be a real executable such as `node`, not a `.cmd` shim. The command has five minutes.
+- **What it must report.** The checkout's absolute path as the last non-empty line of standard output. A1 attaches only when that path is a registered worktree of the repository, is not the primary checkout, and has the requested branch checked out. Otherwise entry is refused with `worktree-start-invalid`, the session keeps its previous context, and A1 deletes nothing.
+- **Trust.** The command runs only for a repository the person already trusts. For any other repository entry is refused with `worktree-start-untrusted` before anything runs; trust the repository the ordinary way (a session started in it) and enter again.
+- **Resuming.** A branch that already has a registered checkout is attached where it is, also outside `.worktrees/`, and nothing runs.
+- **A broken declaration.** A `start` entry that is not an argument list, or that uses another placeholder, refuses entry with `worktree-start-declaration`. A1 does not fall back to creating the checkout itself.
+- **A failing command.** Entry is refused with `worktree-start-failed` and the command's own output; A1 creates no checkout itself.
+
+A repository that declares no `start` command, including one that declares only `cleanup`, is entered as described above.
 
 Authoritative Git operations ignore inherited repository/storage/discovery overrides such as `GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR`, and `GIT_INDEX_FILE`. They preserve authentication and unrelated environment and never mutate the parent environment.
 

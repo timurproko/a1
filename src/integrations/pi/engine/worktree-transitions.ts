@@ -18,7 +18,8 @@ export function createPiWorktreeTransitions(options: PiRuntimeIntegrationOptions
       ...options, cwd, worktreeExtension: transitions.extension,
       ...(trusted === undefined ? {} : { runtimeOptions: { ...options.runtimeOptions, projectTrust: trusted } }),
     });
-  });
+  // Performance: the trust preflight stays out of the startup graph; it loads when a start command needs the answer.
+  }, async primaryRoot => await (await import("./repository-trust-answer.js")).createRepositoryTrustAnswer(options)(primaryRoot));
   return transitions;
 }
 
@@ -26,15 +27,17 @@ export function createPiWorktreeTransitions(options: PiRuntimeIntegrationOptions
 export class PiWorktreeTransitions {
   readonly #reader: PiWorktreeCwdReader;
   readonly #prepare: (cwd: string, trusted?: boolean) => Promise<Prepared>;
+  readonly #repositoryTrusted: ((primaryRoot: string) => Promise<boolean>) | undefined;
   #pending: Pending | undefined;
   #running = false;
   #blocked: string | undefined;
   #prepared: Prepared | undefined;
   #disposed = false;
 
-  constructor(reader: PiWorktreeCwdReader, prepare: (cwd: string, trusted?: boolean) => Promise<Prepared>) {
+  constructor(reader: PiWorktreeCwdReader, prepare: (cwd: string, trusted?: boolean) => Promise<Prepared>, repositoryTrusted?: (primaryRoot: string) => Promise<boolean>) {
     this.#reader = reader;
     this.#prepare = prepare;
+    this.#repositoryTrusted = repositoryTrusted;
   }
 
   /** The final turn boundary prevents a sibling nonterminating result from starting another provider request. */
@@ -132,7 +135,7 @@ export class PiWorktreeTransitions {
       await old.waitForIdle();
       signal.throwIfAborted();
       if (old.pendingMessageCount > 0 || old.hasPendingBashMessages) throw new Error("queued input must finish before project-context replacement; pending messages were preserved");
-      const result = await this.#reader.applyControl!(pending.identity.sessionId, pending.identity.sessionFile, pending.request, prepareContext, signal);
+      const result = await this.#reader.applyControl!(pending.identity.sessionId, pending.identity.sessionFile, pending.request, prepareContext, signal, this.#repositoryTrusted);
       this.#blocked = undefined;
       const cleanup = pending.request.action === "complete-worktree"
         ? await this.#reader.settleShell?.(pending.identity.sessionId, pending.identity.sessionFile, signal) : null;

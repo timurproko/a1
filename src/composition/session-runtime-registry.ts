@@ -119,7 +119,7 @@ export class SessionRuntimeRegistry {
         const { takeSessionWorktreeControl } = await import("../foundation/lifecycle/session-worktree-control.js");
         return await takeSessionWorktreeControl({ sessionId, sessionFile }, { runtimeId, inspectProcess, signal, ...(agentId === undefined ? {} : { agentId }) });
       },
-      applyControl: async (sessionId: string, sessionFile: string, request: SessionWorktreeControlRequest, prepareContext: (cwd: string) => Promise<void>, signal: AbortSignal) => {
+      applyControl: async (sessionId: string, sessionFile: string, request: SessionWorktreeControlRequest, prepareContext: (cwd: string) => Promise<void>, signal: AbortSignal, repositoryTrusted?: (primaryRoot: string) => Promise<boolean>) => {
         const identity = this.#bind(agentId, sessionId, sessionFile);
         const { runtimeId, inspectProcess } = this.#options;
         if (this.#disposed || runtimeId === undefined || inspectProcess === undefined) throw new Error("worktree runtime is not active");
@@ -129,7 +129,7 @@ export class SessionRuntimeRegistry {
         const options = { runtimeId, inspectProcess, signal: AbortSignal.any([signal, this.#abort.signal]), ...(agentId === undefined ? {} : { agentId }) };
         if (this.#activated.get(agentId) !== identity) await this.#enqueue(() => registerSessionRepositoryRuntime(identity, runtimeId, owner, options));
         const { executeSessionWorktreeControl } = await import("../foundation/lifecycle/session-worktree-control.js");
-        const result = await executeSessionWorktreeControl(identity, request, { ...options, prepareContext: async cwd => {
+        const result = await executeSessionWorktreeControl(identity, request, { ...options, ...(repositoryTrusted === undefined ? {} : { repositoryTrusted }), prepareContext: async cwd => {
           if (!this.#current(agentId, identity)) throw new Error("worktree session changed during transition");
           await prepareContext(cwd);
           if (!this.#current(agentId, identity)) throw new Error("worktree session changed during transition");

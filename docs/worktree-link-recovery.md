@@ -41,6 +41,10 @@ When the old gate is absent, updated A1 initializes its compatibility barrier au
 | `worktree-owner-unverifiable` | The editing claim itself is uncertain. Gate recovery cannot make that claim available. |
 | `worktree-attachment-invalid` | The attached checkout is gone or replaced. A1 released this session's attachment; retry the call from the startup checkout. |
 | `worktree-not-attached` / `worktree-content` | Completion needs an attached checkout without uncommitted or untracked content. Nothing was changed. |
+| `worktree-start-untrusted` | The repository declares a start command and is not trusted yet. Nothing ran. Start a session in the repository, trust it, then enter again. |
+| `worktree-start-declaration` | The `start` entry in the repository's `.a1/worktree.json` is not an argument list, or uses a placeholder other than `{primary}`, `{branch}` and `{base}`. Correct the file in the primary checkout. |
+| `worktree-start-failed` | The repository's start command failed; its own output follows. A1 created no checkout. Fix what the command reports, or attach an existing checkout by path. |
+| `worktree-start-invalid` | The start command reported no path, or a path that is not a registered task worktree of this repository with the requested branch. Nothing was attached or deleted; a checkout the command made stays where it is. |
 | `worktree-startup-not-repository` | Start a new session inside the repository before enter/attach. A shell `cd` does not change the original session startup directory; Git directory/worktree overrides cannot establish a different startup identity. |
 
 Diagnostics do not expose another session's process identity, session file, transcript, or credentials. The mechanism does not repair arbitrary damaged claim records, change tool cwd, or grant Git/cleanup authority.
