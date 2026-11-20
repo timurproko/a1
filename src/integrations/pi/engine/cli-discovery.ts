@@ -5,7 +5,7 @@ import type { RuntimeLaunchOptions } from "../../../foundation/launch-context/in
 /** Catalog discovery creates no AgentSession and never binds session_start/shutdown hooks. */
 export async function listPiCompatibleModels(cwd: string, agentDir: string, options: RuntimeLaunchOptions, search?: string): Promise<string[]> {
   const { services } = await createPiRuntimeServicesAfterTrust({ cwd, agentDir, runtimeOptions: options });
-  assertPiInvocationResources(services, options);
+  await assertPiInvocationResources(services, options);
   const needle = search?.toLowerCase();
   return services.modelRuntime.getAvailableSnapshot()
     .filter(model => (options.provider === undefined || model.provider === options.provider)

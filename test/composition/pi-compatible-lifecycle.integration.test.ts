@@ -34,7 +34,7 @@ afterEach(async () => {
 });
 
 type Note = { event: string; reason?: string; session?: string; child?: string; ready?: boolean; text?: unknown; cwd?: string };
-async function fixture(promptArguments?: readonly string[], promptSequence = false, overrides: import("../../src/foundation/launch-context/index.js").RuntimeLaunchOptions = {}) {
+async function fixture(promptArguments?: readonly string[], promptSequence = false, overrides: import("../../src/foundation/launch-context/index.js").RuntimeLaunchOptions = {}, discoveredFailure = false) {
   const root = await realpath(await mkdtemp(resolve(tmpdir(), "a1-compatible-lifecycle-"))); roots.push(root);
   const agentDir = resolve(root, ".a1/agent"), task = resolve(root, "task"), operational = resolve(root, "operational");
   await Promise.all([agentDir, task, operational].map(path => mkdir(path, { recursive: true })));
@@ -44,6 +44,10 @@ async function fixture(promptArguments?: readonly string[], promptSequence = fal
   await writeFile(resolve(agentDir, "models.json"), JSON.stringify({ providers: { fixture: { api: "openai-completions", apiKey: "hermetic-no-network", baseUrl: "http://127.0.0.1:1/v1", models: ["first", "second"].map(id => ({ id, name: id, reasoning: true, input: ["text"], contextWindow: 128000, maxTokens: 128 })) } } }));
   const audit = resolve(root, "audit.jsonl"), gate = resolve(root, "start.gate"), extension = resolve(root, "supervision.ts");
   await writeFile(extension, compatibleExtensionSource({ audit, gate, operational }));
+  if (discoveredFailure) {
+    await mkdir(resolve(operational, ".pi/extensions"), { recursive: true });
+    await writeFile(resolve(operational, ".pi/extensions/broken-project.ts"), "throw new Error('unnamed project hooks failed');");
+  }
   const terminal = new TestPresentationTerminal();
   let runtime!: AgentSessionRuntime, adapter!: PiEngineAdapter;
   const composed = await composeOwnedUi({
@@ -105,6 +109,21 @@ describe("Pi compatibility through real A1 composition and SDK lifecycle", () =>
     expect(contexts[1]).toContain("second literal");
     expect((await f.notes()).filter(note => note.event === "before")).toHaveLength(2);
   }, 15_000);
+  it("delivers the initial worker instruction despite a failing unnamed project extension and retains its resource diagnostic", async () => {
+    const f = await fixture(["say ok"], false, { projectTrust: true, noSession: true }, true);
+    const contexts = transport(f.runtime);
+    await ready(f);
+    await f.runtime.session.waitForIdle();
+    await f.application.flush();
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0]).toContain("say ok");
+    expect(f.adapter.extensions.extensionResources()).toContainEqual(expect.objectContaining({
+      sourcePath: resolve(f.operational, ".pi/extensions/broken-project.ts"), loaded: false,
+      diagnostic: "Failed to load extension: unnamed project hooks failed",
+    }));
+    expect(await frame(f)).toContain("fixture-response");
+  }, 15_000);
+
   it.each(["a1", "pi"])("keeps %s public in-memory selectors on the normal owned lifecycle without resume hints or transcript files", async entry => {
     const args = ["--no-session", "--session-id", "memory-entry", "--name", "Scratch", "--models", "fixture/second", "--thinking", "high"];
     const parsed = entry === "a1" ? parseCliCommand(args, cliCapabilities("1.0.0")) : parsePiCompatibleCommand(args);

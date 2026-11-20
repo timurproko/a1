@@ -111,11 +111,20 @@ function completeRun(run, terminate) {
       fatal?.remove();
       return terminate(code);
     },
-    error => {
+    async error => {
       const sessionSelectionError = error?.name === "PiSessionSelectionError";
       const trustExit = error?.name === "ProjectTrustPromptExitError";
-      if (fatal && !sessionSelectionError && !trustExit) { fatal.fail(error); return; }
+      const invocationError = error?.name === "RuntimeLaunchError"
+        && error instanceof (await import("../dist/integrations/pi/engine/launch-options.js")).RuntimeLaunchError;
+      if (fatal && !sessionSelectionError && !trustExit && !invocationError) { fatal.fail(error); return; }
       fatal?.remove();
+      if (invocationError) {
+        // Rationale: expected option/resource refusals explain themselves; only real crashes use private diagnostics.
+        const { restoreProcessTerminal } = await import("../dist/foundation/terminal-cleanup/terminal-reset.js");
+        restoreProcessTerminal();
+        console.error(`A1 could not start: ${error.message}`);
+        return terminate(1);
+      }
       if (trustExit) return terminate(error.exitCode);
       console.error(error instanceof Error ? error.message : String(error));
       process.exitCode = sessionSelectionError ? error.exitCode : 1;

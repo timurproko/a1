@@ -32,7 +32,7 @@ export function createPiSessionFactory(
         ...options, cwd, ...(transitions === undefined ? {} : { worktreeExtension: transitions.extension }),
       });
       const launch = options.runtimeOptions === undefined && !services.settingsManager.getEnabledModels()?.length ? undefined : await import("./launch-options.js");
-      if (options.runtimeOptions !== undefined) launch!.assertPiInvocationResources(services, options.runtimeOptions);
+      if (options.runtimeOptions !== undefined) await launch!.assertPiInvocationResources(services, options.runtimeOptions);
       // Security: invocation credentials remain scoped to their original provider across project transitions.
       const explicitInvocation = options.runtimeOptions === undefined || (options.runtimeOptions.model === undefined && invocationKeyProvider === undefined) ? undefined
         : await launch!.resolvePiInvocationModel(services, options.runtimeOptions, undefined, invocationKeyProvider, initialInvocation);
