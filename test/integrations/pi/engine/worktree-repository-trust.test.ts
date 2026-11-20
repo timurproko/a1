@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ProjectTrustStore } from "@earendil-works/pi-coding-agent";
-import { createRepositoryTrustAnswer } from "../../../../src/integrations/pi/engine/worktree-transitions.js";
+import { createRepositoryTrustAnswer } from "../../../../src/integrations/pi/engine/repository-trust-answer.js";
 
 let root: string;
 let agentDir: string;

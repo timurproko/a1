@@ -18,25 +18,9 @@ export function createPiWorktreeTransitions(options: PiRuntimeIntegrationOptions
       ...options, cwd, worktreeExtension: transitions.extension,
       ...(trusted === undefined ? {} : { runtimeOptions: { ...options.runtimeOptions, projectTrust: trusted } }),
     });
-  }, createRepositoryTrustAnswer(options));
+  // Performance: the trust preflight stays out of the startup graph; it loads when a start command needs the answer.
+  }, async primaryRoot => await (await import("./repository-trust-answer.js")).createRepositoryTrustAnswer(options)(primaryRoot));
   return transitions;
-}
-
-/**
- * Whether the person already trusts a repository, answered from saved and invocation decisions.
- * Security: no prompt is passed, so a repository that would need a trust question counts as not
- * trusted, and a repository's declared start command does not run for it.
- */
-export function createRepositoryTrustAnswer(
-  options: Pick<PiRuntimeIntegrationOptions, "agentDir" | "preflightDependencies" | "runtimeOptions">,
-): (primaryRoot: string) => Promise<boolean> {
-  return async primaryRoot => {
-    const resolveTrust = options.preflightDependencies?.resolveTrust ?? (await import("./project-trust-preflight.js")).resolvePiProjectTrustPreflight;
-    return (await resolveTrust({
-      cwd: primaryRoot, agentDir: options.agentDir,
-      ...(options.runtimeOptions?.projectTrust === undefined ? {} : { trustOverride: options.runtimeOptions.projectTrust }),
-    })).trusted;
-  };
 }
 
 /** A tool requests a transition; only the idle host recreates Pi and commits the attachment. */
