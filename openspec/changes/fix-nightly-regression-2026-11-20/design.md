@@ -1,0 +1,91 @@
+## Context
+
+Opened by the nightly regression triage from the failed run's evidence artifacts and logs; the triage re-ran nothing and edited nothing on `develop`. Every later failure with the same failed scope set appends its run below while this change is open.
+
+## Decisions
+
+- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+
+## Evidence
+
+- Run [Full regression #99](https://github.com/timurproko/a1/actions/runs/44673836985) (attempt 1, schedule) on `e983726` at 2026-11-20T04:21:19Z:
+  - `vitest-fast-resource-sensitive` (`fast-resource-sensitive`) failed on windows-2025-node22 (resource shard), windows-2025-node24 (resource shard) with exit 1.
+    - Tests: `test/repository-governance/validation-impact.test.ts`, `test/repository-governance/naming-selection.test.ts`, `test/repository-governance/pr-full-regression-history.test.ts`, `test/foundation/launch-context/cutover.test.ts`, `test/foundation/lifecycle/session-repository-context.test.ts`, `test/repository-governance/code-documentation.test.ts`, `test/foundation/release/release-state.test.ts`, `test/foundation/release/release-gc.test.ts`, `test/features/prompt-history/concurrency.integration.test.ts`, `test/features/prompt-history/store.test.ts`, `test/app/session-shell/command-message-parity.test.ts`, `test/app/session-shell/command-outcome-parity.test.ts`, and 9 more
+    - Log excerpt:
+
+      ```text
+      @timurproko/a1: gh --version timed out after 15000ms; the executable was found on PATH (fix: run `gh --version` directly to diagnose the toolchain before retrying the build)
+      > @timurproko/a1@0.2.7-dev build:managed
+      > npm run clean && tsc -p tsconfig.build.json && node scripts/release/generate-release-notes-resource.mjs && node scripts/pi/build-pi-settings-metadata.mjs && node scripts/pi/build-startup-public.mjs
+      > @timurproko/a1@0.2.7-dev clean
+      > node scripts/clean.mjs
+       ^[[31m❯^[[39m test/app/session-shell/session-shell-paste.test.ts ^[[2m(^[[22m^[[2m84 tests^[[22m^[[2m | ^[[22m^[[31m1 failed^[[39m^[[2m)^[[22m^[[33m 31673^[[2mms^[[22m^[[39m
+         ^[[32m✓^[[39m OwnedUiSessionShell paste and clipboard^[[2m > ^[[22mreserves and settles the cold first Ctrl+V exactly once before any mouse paste^[[32m 169^[[2mms^[[22m^[[39m
+         ^[[32m✓^[[39m OwnedUiSessionShell paste and clipboard^[[2m > ^[[22mrecords first terminal-owned inline paste through truthful framing, insertion, and settlement^[[32m 16^[[2mms^[[22m^[[39m
+         ^[[33m^[[2m✓^[[22m^[[39m OwnedUiSessionShell paste and clipboard^[[2m > ^[[22mbounds near-limit URL presentation without losing its value (native) ^[[33m 736^[[2mms^[[22m^[[39m
+         ^[[33m^[[2m✓^[[22m^[[39m OwnedUiSessionShell paste and clipboard^[[2m > ^[[22mbounds near-limit URL presentation without losing its value (terminal) ^[[33m 747^[[2mms^[[22m^[[39m
+         ^[[32m✓^[[39m OwnedUiSessionShell paste and clipboard^[[2m > ^[[22mkeeps a failed waiting prompt recoverable and never sends its text alone^[[32m 104^[[2mms^[[22m^[[39m
+         ^[[32m✓^[[39m OwnedUiSessionShell paste and clipboard^[[2m > ^[[22mkeeps an invalid image editor submission recoverable instead of rejecting its callback^[[32m 10^[[2mms^[[22m^[[39m
+         ^[[32m✓^[[39m OwnedUiSessionShell paste and clipboard^[[2m > ^[[22mretains a real image chip and its bytes across rejection and explicit retry^[[32m 240^[[2mms^[[22m^[[39m
+      ... 43 more lines in the run log
+      ```
+
+  - `vitest-full-without-isolated` (`architecture`, `dependency-policy`, `dist-integration`, `documentation-full`, `fast-remainder`, `fast-resource-sensitive`, `history-compatibility`, `image-compatibility`, `launch-integration`, `naming-full`, `package-contracts`, `package-smoke`, `package-startup`, `pi-engine-conformance`, `release-update`, `rendering-stability`, `typecheck`, `unix-release`, `update-performance`, `update-predecessor`) failed on macos-15-node24, ubuntu-24.04-node24, windows-2025-node22 (core shard), windows-2025-node24 (core shard) with exit 1.
+    - Command: `npx vitest run --exclude test/foundation/release/package-surface.test.ts --exclude test/foundation/release/session-resume.integration.test.ts --exclude test/foundation/release/package-install.integ...`
+    - Log excerpt:
+
+      ```text
+      Published installer smoke: acquire-installer: npm failed [redacted]
+      Published installer smoke: install-application: npm failed [redacted]
+      Published installer smoke: verify-manifest: published installer selected the wrong application package
+      Published installer smoke: launch-application: npm failed [redacted]
+      Published installer smoke: install-application: published installer transcript is invalid
+      Published installer smoke: update-predecessor: replacement failed
+      Published installer smoke: update-predecessor: replacement failed
+      Published installer smoke passed on darwin/arm64.
+      Published installer smoke passed on darwin/arm64.
+      Published installer smoke passed on darwin/arm64.
+      Published installer smoke passed on darwin/arm64.
+      Published installer smoke: update-predecessor: replacement failed
+      [published installer] acquire-installer started (timeout=120000ms)
+      [published installer] acquire-installer passed (0ms)
+      [published installer] install-application started (timeout=300000ms)
+      [published installer] install-application passed (0ms)
+      [published installer] update-predecessor failed (1ms)
+      [published installer] acquire-installer started (timeout=120000ms)
+      [published installer] acquire-installer passed (0ms)
+      [published installer] install-application started (timeout=300000ms)
+      [published installer] install-application passed (1ms)
+      [published installer] update-predecessor failed (0ms)
+      [published installer] acquire-installer started (timeout=120000ms)
+      [published installer] acquire-installer passed (0ms)
+      [published installer] install-application started (timeout=300000ms)
+      [published installer] install-application passed (1ms)
+      [published installer] acquire-installer failed (0ms)
+      [published installer] acquire-installer started (timeout=120000ms)
+      [published installer] acquire-installer passed (0ms)
+      [published installer] install-application started (timeout=300000ms)
+      [published installer] install-application passed (1ms)
+      [published installer] update-predecessor failed (3ms)
+      ... 220 more lines in the run log
+      ```
+
+  - Lane Full regression / Complete regression required failed in job `Full regression / Complete regression required` before producing owner outcomes (orchestration failure).
+    - Log excerpt:
+
+      ```text
+        if (jobsResult !== "success" || records.length !== FULL_LANES.length) throw new Error("complete-regression jobs or evidence are incomplete");
+                                                                                    ^
+      Error: complete-regression jobs or evidence are incomplete
+          at requireFullLanes (file:///home/runner/work/a1/a1/scripts/release/full-regression-evidence.mjs:131:79)
+          at file:///home/runner/work/a1/a1/scripts/release/full-regression-evidence.mjs:174:20
+          at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+          at async node:internal/modules/esm/loader:647:26
+      ##[error]Process completed with exit code 1.
+      Post job cleanup.
+      [command]/usr/bin/git version
+      git version 2.56.1
+      Temporarily overriding HOME='/home/runner/work/_temp/47c56527-f546-4404-8f6a-f631ae0a4a91' before making global git config changes
+      ```
+
+  - Last successful Full regression run: [#93](https://github.com/timurproko/a1/actions/runs/43552568568) on `c362c4e`; 0 `develop` commits since:
