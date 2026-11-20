@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPiRuntimeIntegration } from "../../../../src/integrations/pi/engine/index.js";
 import { listPiCompatibleModels } from "../../../../src/integrations/pi/engine/cli-discovery.js";
+import { RuntimeLaunchError } from "../../../../src/integrations/pi/engine/launch-options.js";
 
 const roots: string[] = [];
 afterEach(async () => { vi.unstubAllEnvs(); await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))); });
@@ -27,6 +28,12 @@ async function fixture() {
 }
 
 describe("real embedded compatibility launch", () => {
+  it("bounds expected refusal text and removes terminal controls without losing printable reasons", () => {
+    const error = new RuntimeLaunchError("broken.ts: \x1b[2Jbad import\x07\r\n\x1b]8;;https://invalid.example\x07details\x1b]8;;\x07");
+    expect(error.message).toBe("broken.ts: bad import\ndetails");
+    expect(new RuntimeLaunchError("broken.ts: " + "x".repeat(20_000)).message).toHaveLength(16_384);
+    expect(Object.assign(new Error("unexpected"), { name: "RuntimeLaunchError" })).not.toBeInstanceOf(RuntimeLaunchError);
+  });
   it("lists extension-provided available models without starting a session or changing parent host authority", async () => {
     const f = await fixture();
     vi.stubEnv("FM_PI_SESSION_PID", "parent-host");
@@ -161,8 +168,9 @@ describe("real embedded compatibility launch", () => {
   it("explains an unregistered flag with the resource that failed to load", async () => {
     const f = await fixture();
     await writeFile(f.extension, "throw new Error('flag extension failed');");
-    await expect(listPiCompatibleModels(f.root, f.agentDir, { extensionPaths: [f.extension], extensionFlagValues: [["fixture-effort", "ultra"]] }))
-      .rejects.toMatchObject({ name: "RuntimeLaunchError", message: expect.stringContaining(`Unknown extension flag --fixture-effort; no loaded extension registered it\n${f.extension}: Failed to load extension: flag extension failed`) });
+    const launch = listPiCompatibleModels(f.root, f.agentDir, { extensionPaths: [f.extension], extensionFlagValues: [["fixture-effort", "ultra"]] });
+    await expect(launch).rejects.toMatchObject({ name: "RuntimeLaunchError", message: expect.stringContaining("Unknown extension flag --fixture-effort; no loaded extension registered it") });
+    await expect(launch).rejects.toThrow(`${f.extension}: Failed to load extension: flag extension failed`);
   });
 
   it("fails an explicit extension import rather than launching a worker without its hooks", async () => {

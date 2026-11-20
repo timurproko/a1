@@ -9,9 +9,9 @@
 
 ## 2. Expected launch refusals print terminal-safe resource reasons without weakening private crash handling
 
-- [ ] 2.1 Add a lazy expected-refusal category for resource and model-option rejection and handle it at the UI entry with terminal restoration, a nonzero exit and a plain-text reason; verify real development-entry subprocesses for ordinary A1 and the Pi-compatible adapter.
-- [ ] 2.2 Bound and sanitize expected-refusal output while preserving unexpected-crash privacy; verify terminal-control cases and the existing fatal-exit tests.
-- [ ] 2.3 Document expected-refusal output, run the focused launch and terminal-cleanup tests, typecheck and architecture checks, and retain the current startup graph budget.
+- [x] 2.1 Add a lazy expected-refusal category for resource and model-option rejection and handle it at the UI entry with terminal restoration, a nonzero exit and a plain-text reason; verify real development-entry subprocesses for ordinary A1 and the Pi-compatible adapter.
+- [x] 2.2 Bound and sanitize expected-refusal output while preserving unexpected-crash privacy; verify terminal-control cases and the existing fatal-exit tests.
+- [x] 2.3 Document expected-refusal output, run the focused launch and terminal-cleanup tests, typecheck and architecture checks, and retain the current startup graph budget.
 
 ## Workflow follow-up
 

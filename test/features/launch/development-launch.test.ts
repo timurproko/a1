@@ -73,6 +73,31 @@ describe("repository-local development launch", () => {
     });
   });
 
+  it.each([[], ["--pi-compatible"]].map(prefix => ({ prefix })))("prints explicit resource refusals, not crash-record pointers, through the actual UI entry $prefix", async ({ prefix }) => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-development-refusal-"));
+    try {
+      const extension = resolve(root, "broken.ts");
+      await writeFile(extension, `throw new Error(${JSON.stringify("requested \x1b[31mworker\x1b[0m hooks failed\x07")});`);
+      for (const { args, reason } of [
+        { args: ["-e", extension], reason: `${extension}: Failed to load extension: requested worker hooks failed` },
+        { args: ["--unregistered-worker-flag=value", "--", "say ok"], reason: "Unknown extension flag --unregistered-worker-flag" },
+        { args: ["--model", "missing-provider/missing-model"], reason: "missing-model" },
+      ]) {
+        const result = await execute(process.execPath, [resolve("scripts/development/start-local.mjs"), ...prefix, "--no-session", "-na", ...args], {
+          cwd: root, timeout: 15_000,
+          env: { ...process.env, A1_PROFILE_HOME: root, PI_OFFLINE: "1", A1_SKIP_VERSION_CHECK: "1", A1_CONFIG_DIR: resolve(root, "config"), A1_DATA_DIR: resolve(root, "data"), A1_RUNTIME_DIR: resolve(root, "runtime") },
+        }).catch(error => error as { code: number; stdout: string; stderr: string; killed?: boolean });
+        expect(result).toMatchObject({ code: 1 });
+        expect(result.stderr).toContain("A1 could not start:");
+        expect(result.stderr).toContain(reason);
+        expect(result.stderr).not.toContain("unexpected error");
+        expect(result.stderr).not.toContain("Diagnostic:");
+        expect(result.stderr).not.toMatch(/[\x1b\x07]/);
+        expect(result).not.toHaveProperty("killed", true);
+      }
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
   it.each([[], ["--pi-compatible"]].map(prefix => ({ prefix })))("redacts invocation credentials from public and structured development diagnostics $prefix", async ({ prefix }) => {
     const profileHome = await mkdtemp(resolve(tmpdir(), "a1-development-credential-"));
     try {

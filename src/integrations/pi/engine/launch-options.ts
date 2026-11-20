@@ -1,13 +1,14 @@
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
+import { stripVTControlCharacters } from "node:util";
 import { DefaultPackageManager, resolveModelScopeWithDiagnostics, resolveCliModel, type AgentSessionServices, type ScopedModel } from "../startup-public.js";
 import type { RuntimeLaunchOptions } from "../../../foundation/launch-context/index.js";
 
 /** An expected invocation refusal, distinct from an unexpected runtime crash. */
-class RuntimeLaunchError extends Error {
+export class RuntimeLaunchError extends Error {
   constructor(message: string) {
     // Security: resource errors may contain terminal controls; never execute them while reporting a refusal.
-    super(message.replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, "").slice(0, 16_384));
+    super(stripVTControlCharacters(message).replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, "").slice(0, 16_384));
     this.name = "RuntimeLaunchError";
   }
 }
@@ -105,18 +106,18 @@ export async function resolvePiInvocationModel(services: AgentSessionServices, o
     ...(options.thinking === undefined || !applySelection ? {} : { cliThinking: options.thinking }),
     inlineApiKey: options.apiKey !== undefined,
   });
-  if (selected.error) throw new Error(selected.error);
+  if (selected.error) throw new RuntimeLaunchError(selected.error);
   if (selected.model && !services.modelRuntime.getModels().some(model => model.provider === selected.model!.provider && model.id === selected.model!.id)) {
-    throw new Error(`Requested model is not in the available catalog: ${options.model}`);
+    throw new RuntimeLaunchError(`Requested model is not in the available catalog: ${options.model}`);
   }
   const credentialProvider = keyProvider ?? selected.model?.provider ?? fallbackModel?.provider;
   if (options.apiKey !== undefined) {
-    if (credentialProvider === undefined) throw new Error("--api-key could not resolve a provider from --model or --models");
+    if (credentialProvider === undefined) throw new RuntimeLaunchError("--api-key could not resolve a provider from --model or --models");
     try { await services.modelRuntime.setRuntimeApiKey(credentialProvider, options.apiKey); }
-    catch { throw new Error("Could not apply invocation credential"); }
+    catch { throw new RuntimeLaunchError("Could not apply invocation credential"); }
   }
   if (selected.model && !services.modelRuntime.getAvailableSnapshot().some(model => model.provider === selected.model!.provider && model.id === selected.model!.id)) {
-    throw new Error(`Requested model has no usable authentication in the A1 profile: ${selected.model.provider}/${selected.model.id}`);
+    throw new RuntimeLaunchError(`Requested model has no usable authentication in the A1 profile: ${selected.model.provider}/${selected.model.id}`);
   }
   return { model: selected.model, thinkingLevel: applySelection ? options.thinking ?? selected.thinkingLevel : undefined, keyProvider: credentialProvider };
 }
