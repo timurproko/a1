@@ -1,4 +1,11 @@
 {
+  "start": [
+    "node",
+    "--eval",
+    "require(\"node:child_process\").execSync(\"delivery start \" + process.argv[1] + \" --base \" + process.argv[2], { stdio: [\"ignore\", \"inherit\", \"inherit\"] })",
+    "{branch}",
+    "{base}"
+  ],
   "cleanup": [
     "node",
     "--eval",
