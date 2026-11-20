@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { worktreeGitEnvironment } from "./worktree-git-environment.js";
+import { fillDeclaredWorktreeCommand, readDeclaredWorktreeCommand, WORKTREE_DECLARATION } from "./worktree-declaration.js";
 import {
   detachSessionRepositoryContextForCompletion, readActiveSessionRepositoryContext, readSessionStartupRoot, readSessionRepositoryRoot,
   sessionWorktreeClaimState, sessionWorktreeCompletionPath,
@@ -10,7 +11,6 @@ import {
 } from "./session-repository-context.js";
 
 const SCHEMA = "a1-session-worktree-completion-v1";
-const CLEANUP_DECLARATION = ".a1/worktree.json";
 const MAX_RECORD_BYTES = 16 * 1024;
 const MAX_REPORT_CHARACTERS = 4_000;
 /** A request the runtime did not settle promptly is dropped, never run later by surprise. */
@@ -129,21 +129,15 @@ export async function settleSessionWorktreeCompletion(
     if (claim === "live") return result("cleanup-skipped", "a live session attached the checkout again");
     if (claim === "unverifiable") return result("cleanup-skipped", "the checkout's editing claim cannot be verified");
     // Security: the command is the primary checkout's committed declaration, never a file of the task checkout being left.
-    const declared = await readCleanupDeclaration(join(primary.root, CLEANUP_DECLARATION));
-    if (declared === null) return result("cleanup-unavailable", `this repository declares no cleanup command in ${CLEANUP_DECLARATION}; the checkout was retained`);
-    if (declared === "invalid") return result("cleanup-unavailable", `${CLEANUP_DECLARATION} must hold {"cleanup": ["program", "argument", ...]}; the checkout was retained`);
-    const values: Readonly<Record<string, string | undefined>> = {
+    const declared = await readDeclaredWorktreeCommand(primary.root, "cleanup");
+    if (declared === null) return result("cleanup-unavailable", `this repository declares no cleanup command in ${WORKTREE_DECLARATION}; the checkout was retained`);
+    if (declared === "invalid") return result("cleanup-unavailable", `${WORKTREE_DECLARATION} must hold {"cleanup": ["program", "argument", ...]}; the checkout was retained`);
+    const { command: [command, ...arguments_], missing } = fillDeclaredWorktreeCommand(declared, {
       primary: primary.root, worktree: record.worktreeRoot, branch: record.branch,
       change: record.change, pr: record.pr === undefined ? undefined : String(record.pr),
-    };
-    const missing = new Set<string>();
-    const [command, ...arguments_] = declared.map(part => part.replace(/\{([a-z]+)\}/gu, (_match, name: string) => {
-      const value = values[name];
-      if (value === undefined) missing.add(name);
-      return value ?? "";
-    }));
-    if (missing.size > 0 || command === undefined) {
-      return result("cleanup-unavailable", `the declared cleanup needs ${[...missing].map(name => `{${name}}`).join(" and ")}; run completion with the matching selector or the repository cleanup from primary`);
+    });
+    if (missing.length > 0 || command === undefined) {
+      return result("cleanup-unavailable", `the declared cleanup needs ${missing.map(name => `{${name}}`).join(" and ")}; run completion with the matching selector or the repository cleanup from primary`);
     }
     const run = options.run ?? execute;
     try {
@@ -170,23 +164,6 @@ export function describeWorktreeCompletion(result: WorktreeCompletionResult): st
     `Session uses ${result.startupRoot}; left ${result.cwd} (${result.branch}). Do not attach it again while cleanup is partial.`,
     result.detail,
   ].join("\n");
-}
-
-/** Null when the repository declares nothing; "invalid" when the declaration cannot be used as an argument list. */
-async function readCleanupDeclaration(path: string): Promise<readonly string[] | "invalid" | null> {
-  const metadata = await lstat(path).catch(error => { if (isRecord(error) && (error.code === "ENOENT" || error.code === "ENOTDIR")) return null; throw error; });
-  if (metadata === null) return null;
-  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size === 0 || metadata.size > MAX_RECORD_BYTES) return "invalid";
-  try {
-    const value: unknown = JSON.parse(await readFile(path, "utf8"));
-    const cleanup = isRecord(value) ? value.cleanup : undefined;
-    return Array.isArray(cleanup) && cleanup.length > 0 && cleanup.length <= 64
-      && cleanup.every(part => typeof part === "string" && part.length > 0 && part.length <= 2_048 && !part.includes("\0"))
-      // Compatibility: the element check above establishes the string array.
-      ? cleanup as readonly string[] : "invalid";
-  } catch {
-    return "invalid";
-  }
 }
 
 async function readRecord(path: string): Promise<CompletionRecord | null> {

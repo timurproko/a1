@@ -11,7 +11,7 @@ export type PiWorktreeCwdReader = ((sessionId: string, sessionFile: string, sign
   /** Explicit owner-verified recovery; never resolves or validates the attached Git cwd. */
   readonly detach?: (sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<string>;
   readonly takeControl?: (sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<SessionWorktreeControlRequest | null>;
-  readonly applyControl?: (sessionId: string, sessionFile: string, request: SessionWorktreeControlRequest, prepareContext: (cwd: string) => Promise<void>, signal: AbortSignal) => Promise<SessionWorktreeControlOutcome>;
+  readonly applyControl?: (sessionId: string, sessionFile: string, request: SessionWorktreeControlRequest, prepareContext: (cwd: string) => Promise<void>, signal: AbortSignal, repositoryTrusted?: (primaryRoot: string) => Promise<boolean>) => Promise<SessionWorktreeControlOutcome>;
   readonly control?: (request: SessionWorktreeControlRequest, signal: AbortSignal) => Promise<{ readonly text: string; readonly queued: boolean }>;
   readonly transitionPending?: () => boolean;
 };

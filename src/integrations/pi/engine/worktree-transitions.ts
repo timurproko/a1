@@ -18,23 +18,42 @@ export function createPiWorktreeTransitions(options: PiRuntimeIntegrationOptions
       ...options, cwd, worktreeExtension: transitions.extension,
       ...(trusted === undefined ? {} : { runtimeOptions: { ...options.runtimeOptions, projectTrust: trusted } }),
     });
-  });
+  }, createRepositoryTrustAnswer(options));
   return transitions;
+}
+
+/**
+ * Whether the person already trusts a repository, answered from saved and invocation decisions.
+ * Security: no prompt is passed, so a repository that would need a trust question counts as not
+ * trusted, and a repository's declared start command does not run for it.
+ */
+export function createRepositoryTrustAnswer(
+  options: Pick<PiRuntimeIntegrationOptions, "agentDir" | "preflightDependencies" | "runtimeOptions">,
+): (primaryRoot: string) => Promise<boolean> {
+  return async primaryRoot => {
+    const resolveTrust = options.preflightDependencies?.resolveTrust ?? (await import("./project-trust-preflight.js")).resolvePiProjectTrustPreflight;
+    return (await resolveTrust({
+      cwd: primaryRoot, agentDir: options.agentDir,
+      ...(options.runtimeOptions?.projectTrust === undefined ? {} : { trustOverride: options.runtimeOptions.projectTrust }),
+    })).trusted;
+  };
 }
 
 /** A tool requests a transition; only the idle host recreates Pi and commits the attachment. */
 export class PiWorktreeTransitions {
   readonly #reader: PiWorktreeCwdReader;
   readonly #prepare: (cwd: string, trusted?: boolean) => Promise<Prepared>;
+  readonly #repositoryTrusted: ((primaryRoot: string) => Promise<boolean>) | undefined;
   #pending: Pending | undefined;
   #running = false;
   #blocked: string | undefined;
   #prepared: Prepared | undefined;
   #disposed = false;
 
-  constructor(reader: PiWorktreeCwdReader, prepare: (cwd: string, trusted?: boolean) => Promise<Prepared>) {
+  constructor(reader: PiWorktreeCwdReader, prepare: (cwd: string, trusted?: boolean) => Promise<Prepared>, repositoryTrusted?: (primaryRoot: string) => Promise<boolean>) {
     this.#reader = reader;
     this.#prepare = prepare;
+    this.#repositoryTrusted = repositoryTrusted;
   }
 
   /** The final turn boundary prevents a sibling nonterminating result from starting another provider request. */
@@ -132,7 +151,7 @@ export class PiWorktreeTransitions {
       await old.waitForIdle();
       signal.throwIfAborted();
       if (old.pendingMessageCount > 0 || old.hasPendingBashMessages) throw new Error("queued input must finish before project-context replacement; pending messages were preserved");
-      const result = await this.#reader.applyControl!(pending.identity.sessionId, pending.identity.sessionFile, pending.request, prepareContext, signal);
+      const result = await this.#reader.applyControl!(pending.identity.sessionId, pending.identity.sessionFile, pending.request, prepareContext, signal, this.#repositoryTrusted);
       this.#blocked = undefined;
       const cleanup = pending.request.action === "complete-worktree"
         ? await this.#reader.settleShell?.(pending.identity.sessionId, pending.identity.sessionFile, signal) : null;

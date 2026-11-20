@@ -119,6 +119,12 @@ export interface SessionRepositoryContextOptions {
   readonly repo?: string;
   /** Host transition barrier, outside the mutation gate with both editing claims retained. */
   readonly prepareContext?: (cwd: string) => Promise<void>;
+  /**
+   * Whether the person already trusts the repository with this primary checkout, answered without
+   * asking. Security: absent means not trusted, so a host that cannot answer never runs a
+   * repository's declared start command.
+   */
+  readonly repositoryTrusted?: (primaryRoot: string) => Promise<boolean>;
 }
 
 /** Publish the exact live runtime that may acquire a delivery worktree. */
