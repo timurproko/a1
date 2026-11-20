@@ -122,7 +122,7 @@ describe("real embedded compatibility launch", () => {
 
   it("refuses failing cached npm package entries without reexecuting factories during validation", async () => {
     const f = await fixture();
-    // Fixture layout is pinned to Pi's public temporary-source resolver, with no npm process or network.
+    // Provenance: fixture layout is pinned to Pi's public temporary-source resolver, with no npm process or network.
     const bucket = createHash("sha256").update("npm-").digest("hex").slice(0, 8);
     const directory = resolve(f.agentDir, "tmp/extensions/npm", bucket, "node_modules/launch-fixture");
     await mkdir(directory, { recursive: true });

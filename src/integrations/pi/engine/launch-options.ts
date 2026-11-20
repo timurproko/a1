@@ -69,7 +69,7 @@ export async function assertPiInvocationResources(services: AgentSessionServices
   for (const item of result.errors) {
     if (explicitPaths.has(resourceKey(item.path, services.cwd))) failures.push(`${item.path}: ${item.error}`);
   }
-  // Pi currently exposes provider-registration diagnostic provenance in this stable prefix, not a path field.
+  // Provenance: Pi exposes provider-registration diagnostic ownership in this stable prefix, not a path field.
   for (const extension of result.extensions) {
     if (!explicitPaths.has(resourceKey(extension.path, services.cwd))) continue;
     for (const item of services.diagnostics) {
@@ -81,7 +81,7 @@ export async function assertPiInvocationResources(services: AgentSessionServices
     const registration = flags.get(name);
     if (registration === undefined) {
       failures.push(`Unknown extension flag --${name}; no loaded extension registered it`);
-      // A failed discovery may explain the missing registration, but does not itself make ordinary options fatal.
+      // Rationale: a failed discovery may explain the missing registration, but does not itself make ordinary options fatal.
       failures.push(...result.errors.map(item => `${item.path}: ${item.error}`));
     } else if (typeof value !== registration.type) {
       failures.push(`Extension flag --${name} requires ${registration.type}; put -- before literal instructions`);
@@ -93,7 +93,7 @@ export async function assertPiInvocationResources(services: AgentSessionServices
 /** Compare loader paths without interpreting built-in identifiers as filesystem paths. */
 function resourceKey(path: string, cwd: string): string {
   let key = path.startsWith("builtin:") ? path : resolve(cwd, path);
-  try { key = realpathSync(key); } catch { /* Missing paths and built-in identifiers have no filesystem identity. */ }
+  try { key = realpathSync(key); } catch { /* Rationale: missing paths and built-in identifiers have no filesystem identity. */ }
   return process.platform === "win32" ? key.toLowerCase() : key;
 }
 

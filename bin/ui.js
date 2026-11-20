@@ -119,7 +119,7 @@ function completeRun(run, terminate) {
       if (fatal && !sessionSelectionError && !trustExit && !invocationError) { fatal.fail(error); return; }
       fatal?.remove();
       if (invocationError) {
-        // Expected option/resource refusals explain themselves; only real crashes use private diagnostics.
+        // Rationale: expected option/resource refusals explain themselves; only real crashes use private diagnostics.
         const { restoreProcessTerminal } = await import("../dist/foundation/terminal-cleanup/terminal-reset.js");
         restoreProcessTerminal();
         console.error(`A1 could not start: ${error.message}`);
