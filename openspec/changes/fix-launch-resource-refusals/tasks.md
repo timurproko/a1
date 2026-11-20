@@ -2,10 +2,10 @@
 
 ## 1. Ordinary launch options tolerate unnamed project failures while explicit resources and flags remain strict
 
-- [ ] 1.1 Restrict invocation failure collection to resolved explicit extension entries and requested flags; verify embedded fixtures cover failing unnamed imports and provider registrations alongside valid model, thinking, session and trust options.
-- [ ] 1.2 Preserve refusals for failed explicit files, directories, manifests, package entries, missing paths, provider registrations and invalid flags; verify focused integration tests identify the requested resource or flag and retain its reason.
-- [ ] 1.3 Keep ordinary discovered-resource diagnostics and existing trust admission unchanged for startup and catalog callers; verify diagnostic availability and denied-trust withholding in disposable fixtures.
-- [ ] 1.4 Document the explicit-versus-discovered failure rule in `docs/features/pi-compatible-launch.md` and run the targeted embedded-runtime tests and typecheck.
+- [x] 1.1 Restrict invocation failure collection to resolved explicit extension entries and requested flags; verify embedded fixtures cover failing unnamed imports and provider registrations alongside valid model, thinking, session and trust options.
+- [x] 1.2 Preserve refusals for failed explicit files, directories, manifests, package entries, missing paths, provider registrations and invalid flags; verify focused integration tests identify the requested resource or flag and retain its reason.
+- [x] 1.3 Keep ordinary discovered-resource diagnostics and existing trust admission unchanged for startup and catalog callers; verify diagnostic availability and denied-trust withholding in disposable fixtures.
+- [x] 1.4 Document the explicit-versus-discovered failure rule in `docs/features/pi-compatible-launch.md` and run the targeted embedded-runtime tests and typecheck.
 
 ## 2. Expected launch refusals print terminal-safe resource reasons without weakening private crash handling
 
