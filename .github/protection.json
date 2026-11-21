@@ -1,0 +1,24 @@
+[
+  {
+    "kind": "default-branch",
+    "checks": ["Development validation required"],
+    "mergeMethods": ["merge", "squash"]
+  },
+  {
+    "kind": "branch",
+    "branch": "master"
+  },
+  {
+    "kind": "release-tags",
+    "pattern": "v*",
+    "bypassApps": [4942462]
+  },
+  {
+    "kind": "workflow-events",
+    "workflows": [
+      ".github/workflows/delivery.yml",
+      ".github/workflows/release-reopening-auto-merge.yml"
+    ],
+    "events": ["pull_request_target", "workflow_run", "workflow_dispatch"]
+  }
+]
