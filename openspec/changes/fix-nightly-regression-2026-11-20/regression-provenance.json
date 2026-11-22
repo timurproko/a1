@@ -30,6 +30,19 @@
       "headSha": "5256a6b3969f59a932893a479126fb641fb6f8f2",
       "url": "https://github.com/timurproko/a1/actions/runs/44865447585",
       "createdAt": "2026-11-21T04:18:24Z"
+    },
+    {
+      "workflowName": "Full regression",
+      "workflowFile": "full-regression.yml",
+      "runId": 44980916084,
+      "runNumber": 101,
+      "attempt": 1,
+      "event": "schedule",
+      "conclusion": "failure",
+      "headBranch": "develop",
+      "headSha": "266e5550f4e2866c9c2c7001a19dca9e720da946",
+      "url": "https://github.com/timurproko/a1/actions/runs/44980916084",
+      "createdAt": "2026-11-22T03:30:08Z"
     }
   ]
 }
