@@ -1,0 +1,126 @@
+{
+  "schema": "a1-regression-triage-provenance-v1",
+  "candidate": {
+    "branch": "fix/nightly-regression-2026-11-20",
+    "change": "fix-nightly-regression-2026-11-20"
+  },
+  "sources": [
+    {
+      "workflowName": "Full regression",
+      "workflowFile": "full-regression.yml",
+      "runId": 44673836985,
+      "runNumber": 99,
+      "attempt": 1,
+      "event": "schedule",
+      "conclusion": "failure",
+      "headBranch": "develop",
+      "headSha": "e983726fba7a88748891d474427007506215579f",
+      "url": "https://github.com/timurproko/a1/actions/runs/44673836985",
+      "createdAt": "2026-11-20T04:21:19Z"
+    },
+    {
+      "workflowName": "Full regression",
+      "workflowFile": "full-regression.yml",
+      "runId": 44865447585,
+      "runNumber": 100,
+      "attempt": 1,
+      "event": "schedule",
+      "conclusion": "failure",
+      "headBranch": "develop",
+      "headSha": "5256a6b3969f59a932893a479126fb641fb6f8f2",
+      "url": "https://github.com/timurproko/a1/actions/runs/44865447585",
+      "createdAt": "2026-11-21T04:18:24Z"
+    },
+    {
+      "workflowName": "Full regression",
+      "workflowFile": "full-regression.yml",
+      "runId": 44980916084,
+      "runNumber": 101,
+      "attempt": 1,
+      "event": "schedule",
+      "conclusion": "failure",
+      "headBranch": "develop",
+      "headSha": "266e5550f4e2866c9c2c7001a19dca9e720da946",
+      "url": "https://github.com/timurproko/a1/actions/runs/44980916084",
+      "createdAt": "2026-11-22T03:30:08Z"
+    },
+    {
+      "workflowName": "Full regression",
+      "workflowFile": "full-regression.yml",
+      "runId": 45109334922,
+      "runNumber": 102,
+      "attempt": 1,
+      "event": "schedule",
+      "conclusion": "failure",
+      "headBranch": "develop",
+      "headSha": "266e5550f4e2866c9c2c7001a19dca9e720da946",
+      "url": "https://github.com/timurproko/a1/actions/runs/45109334922",
+      "createdAt": "2026-11-23T04:01:25Z"
+    },
+    {
+      "workflowName": "Full regression",
+      "workflowFile": "full-regression.yml",
+      "runId": 45345522477,
+      "runNumber": 103,
+      "attempt": 1,
+      "event": "schedule",
+      "conclusion": "failure",
+      "headBranch": "develop",
+      "headSha": "266e5550f4e2866c9c2c7001a19dca9e720da946",
+      "url": "https://github.com/timurproko/a1/actions/runs/45345522477",
+      "createdAt": "2026-11-24T07:07:08Z"
+    },
+    {
+      "workflowName": "Full regression",
+      "workflowFile": "full-regression.yml",
+      "runId": 45555402914,
+      "runNumber": 104,
+      "attempt": 1,
+      "event": "schedule",
+      "conclusion": "failure",
+      "headBranch": "develop",
+      "headSha": "266e5550f4e2866c9c2c7001a19dca9e720da946",
+      "url": "https://github.com/timurproko/a1/actions/runs/45555402914",
+      "createdAt": "2026-11-25T05:42:12Z"
+    },
+    {
+      "workflowName": "Full regression",
+      "workflowFile": "full-regression.yml",
+      "runId": 45761882398,
+      "runNumber": 105,
+      "attempt": 1,
+      "event": "schedule",
+      "conclusion": "failure",
+      "headBranch": "develop",
+      "headSha": "266e5550f4e2866c9c2c7001a19dca9e720da946",
+      "url": "https://github.com/timurproko/a1/actions/runs/45761882398",
+      "createdAt": "2026-11-26T05:29:01Z"
+    },
+    {
+      "workflowName": "Full regression",
+      "workflowFile": "full-regression.yml",
+      "runId": 45945567570,
+      "runNumber": 106,
+      "attempt": 1,
+      "event": "schedule",
+      "conclusion": "failure",
+      "headBranch": "develop",
+      "headSha": "266e5550f4e2866c9c2c7001a19dca9e720da946",
+      "url": "https://github.com/timurproko/a1/actions/runs/45945567570",
+      "createdAt": "2026-11-27T05:23:59Z"
+    },
+    {
+      "workflowName": "Full regression",
+      "workflowFile": "full-regression.yml",
+      "runId": 46110017360,
+      "runNumber": 107,
+      "attempt": 1,
+      "event": "schedule",
+      "conclusion": "failure",
+      "headBranch": "develop",
+      "headSha": "266e5550f4e2866c9c2c7001a19dca9e720da946",
+      "url": "https://github.com/timurproko/a1/actions/runs/46110017360",
+      "createdAt": "2026-11-28T04:59:23Z"
+    }
+  ]
+}
